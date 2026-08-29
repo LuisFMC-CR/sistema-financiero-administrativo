@@ -1,0 +1,21 @@
+@model CustomerInputViewModel
+@{
+    ViewData["Title"] = "Nuevo cliente";
+}
+
+<div class="catalog-form">
+    <h1 class="h2">Nuevo cliente</h1>
+    <p class="text-body-secondary">Los campos marcados como obligatorios identifican al cliente en operaciones futuras.</p>
+    <form asp-action="Create" method="post" class="card card-body">
+        <partial name="_Form" model="Model" />
+        <div class="d-flex gap-2 mt-4">
+            <button type="submit" class="btn btn-primary">Guardar cliente</button>
+            <a asp-action="Index" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
+

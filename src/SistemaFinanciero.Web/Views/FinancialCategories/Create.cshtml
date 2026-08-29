@@ -1,0 +1,21 @@
+@model FinancialCategoryInputViewModel
+@{
+    ViewData["Title"] = "Nueva categoría financiera";
+}
+
+<div class="catalog-form">
+    <h1 class="h2">Nueva categoría financiera</h1>
+    <p class="text-body-secondary">Las categorías agrupan ingresos o gastos; no son cuentas contables.</p>
+    <form asp-action="Create" method="post" class="card card-body">
+        <partial name="_Form" model="Model" />
+        <div class="d-flex gap-2 mt-4">
+            <button type="submit" class="btn btn-primary">Guardar categoría</button>
+            <a asp-action="Index" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
+

@@ -1,0 +1,34 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+indent_style = space
+indent_size = 4
+trim_trailing_whitespace = true
+
+[*.{csproj,props,targets,xml,json,yml,yaml}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.cs]
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+csharp_new_line_before_open_brace = all
+csharp_style_namespace_declarations = file_scoped:error
+csharp_style_var_for_built_in_types = false:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = false:suggestion
+dotnet_style_require_accessibility_modifiers = always:error
+dotnet_diagnostic.IDE0005.severity = error
+
+[tests/**/*.cs]
+# Los nombres Given_When_Then hacen que la intención de cada prueba sea visible en el explorador.
+dotnet_diagnostic.CA1707.severity = none
+
+[src/**/Persistence/Migrations/*.cs]
+# Las migraciones son regeneradas por EF Core; no se optimizan manualmente sus arreglos constantes.
+dotnet_diagnostic.CA1861.severity = none

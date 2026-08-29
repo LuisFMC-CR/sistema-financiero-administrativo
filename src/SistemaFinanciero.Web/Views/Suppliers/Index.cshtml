@@ -1,0 +1,75 @@
+@model CatalogIndexViewModel<SupplierModel>
+@{
+    ViewData["Title"] = "Proveedores";
+    bool canManage = (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ManageBusinessContacts)).Succeeded;
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+    <div>
+        <h1 class="h2 mb-1">Proveedores</h1>
+        <p class="text-body-secondary mb-0">Personas y empresas asociadas con compras, gastos y obligaciones.</p>
+    </div>
+    @if (canManage)
+    {
+        <a asp-action="Create" class="btn btn-primary">Nuevo proveedor</a>
+    }
+</div>
+
+<partial name="_CatalogFilters" model="new CatalogFilterViewModel(Model.Search, Model.Status)" />
+
+<div class="table-responsive bg-white border rounded">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th scope="col">Código</th>
+                <th scope="col">Nombre</th>
+                <th scope="col">Identificación</th>
+                <th scope="col">Contacto</th>
+                <th scope="col">Estado</th>
+                @if (canManage)
+                {
+                    <th scope="col" class="text-end">Acciones</th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.Results.Items.Count == 0)
+            {
+                <tr><td colspan="@(canManage ? 6 : 5)" class="text-center text-body-secondary py-4">No se encontraron proveedores.</td></tr>
+            }
+            @foreach (SupplierModel supplier in Model.Results.Items)
+            {
+                <tr>
+                    <td class="fw-semibold">@supplier.Code</td>
+                    <td>@supplier.Name</td>
+                    <td>@(supplier.Identification ?? "—")</td>
+                    <td>
+                        <div>@(supplier.Email ?? "—")</div>
+                        @if (!string.IsNullOrWhiteSpace(supplier.Phone))
+                        {
+                            <small class="text-body-secondary">@supplier.Phone</small>
+                        }
+                    </td>
+                    <td><partial name="_CatalogStatusBadge" model="supplier.IsActive" /></td>
+                    @if (canManage)
+                    {
+                        <td class="text-end text-nowrap">
+                            <a asp-action="Edit" asp-route-id="@supplier.Id" class="btn btn-sm btn-outline-primary">Editar</a>
+                            <form asp-action="SetActive" asp-route-id="@supplier.Id" method="post" class="d-inline js-confirm-form"
+                                  data-confirm-message="¿Confirma que desea @(supplier.IsActive ? "desactivar" : "reactivar") este proveedor?">
+                                <input type="hidden" name="IsActive" value="@(!supplier.IsActive)" />
+                                <input type="hidden" name="Version" value="@supplier.Version" />
+                                <button type="submit" class="btn btn-sm @(supplier.IsActive ? "btn-outline-danger" : "btn-outline-success")">
+                                    @(supplier.IsActive ? "Desactivar" : "Reactivar")
+                                </button>
+                            </form>
+                        </td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<partial name="_CatalogPagination" model="new CatalogPaginationViewModel(Model.Results.Page, Model.Results.TotalPages, Model.Results.HasPreviousPage, Model.Results.HasNextPage, Model.Search, Model.Status)" />
+

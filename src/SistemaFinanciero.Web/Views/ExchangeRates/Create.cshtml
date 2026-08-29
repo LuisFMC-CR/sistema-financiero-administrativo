@@ -1,0 +1,21 @@
+@model DailyExchangeRateInputViewModel
+@{
+    ViewData["Title"] = "Nuevo tipo de cambio";
+}
+
+<div class="catalog-form catalog-form-narrow">
+    <h1 class="h2">Nuevo tipo de cambio</h1>
+    <p class="text-body-secondary">La captura es manual y solo puede existir una tasa operativa por fecha.</p>
+    <form asp-action="Create" method="post" class="card card-body">
+        <partial name="_Form" model="Model" />
+        <div class="d-flex gap-2 mt-4">
+            <button type="submit" class="btn btn-primary">Guardar tipo de cambio</button>
+            <a asp-action="Index" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
+

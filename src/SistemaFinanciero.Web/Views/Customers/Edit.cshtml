@@ -1,0 +1,21 @@
+@model CustomerEditViewModel
+@{
+    ViewData["Title"] = "Editar cliente";
+}
+
+<div class="catalog-form">
+    <h1 class="h2">Editar cliente</h1>
+    <p class="text-body-secondary">Los cambios no modifican documentos históricos.</p>
+    <form method="post" asp-antiforgery="true" class="card card-body">
+        <input asp-for="Version" type="hidden" />
+        <partial name="_Form" model="Model" />
+        <div class="d-flex gap-2 mt-4">
+            <button type="submit" class="btn btn-primary">Guardar cambios</button>
+            <a asp-action="Index" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

@@ -1,0 +1,39 @@
+@model CatalogFilterViewModel
+
+<form method="get" class="card card-body mb-4" role="search">
+    <div class="row g-3 align-items-end">
+        <div class="col-md-7">
+            <label for="catalog-search" class="form-label">Buscar</label>
+            <input id="catalog-search"
+                   name="search"
+                   value="@Model.Search"
+                   maxlength="100"
+                   class="form-control"
+                   placeholder="Código, nombre u otro dato principal" />
+        </div>
+        @if (Model.Status is not null)
+        {
+            <div class="col-md-3">
+                <label for="catalog-status" class="form-label">Estado</label>
+                <select id="catalog-status" name="status" class="form-select">
+                    @foreach (CatalogStatusFilter status in Enum.GetValues<CatalogStatusFilter>())
+                    {
+                        if (status == Model.Status)
+                        {
+                            <option value="@status" selected>@status.ToDisplayName()</option>
+                        }
+                        else
+                        {
+                            <option value="@status">@status.ToDisplayName()</option>
+                        }
+                    }
+                </select>
+            </div>
+        }
+        <div class="col-md-auto d-flex gap-2">
+            <button type="submit" class="btn btn-primary">Aplicar</button>
+            <a asp-action="Index" class="btn btn-outline-secondary">Limpiar</a>
+        </div>
+    </div>
+</form>
+

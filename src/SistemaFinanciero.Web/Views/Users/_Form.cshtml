@@ -1,0 +1,41 @@
+@model UserInputViewModel
+
+<div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+<div class="row g-3">
+    <div class="col-md-7">
+        <label asp-for="FullName" class="form-label"></label>
+        <input asp-for="FullName" class="form-control" autocomplete="name" />
+        <span asp-validation-for="FullName" class="text-danger"></span>
+    </div>
+    <div class="col-md-5">
+        @if (Model is UserEditViewModel { IsCurrentUser: true })
+        {
+            <label for="current-user-role" class="form-label">Rol</label>
+            <input id="current-user-role" value="@Model.Role" class="form-control" readonly />
+            <input asp-for="Role" type="hidden" />
+        }
+        else
+        {
+            <label asp-for="Role" class="form-label"></label>
+            <select asp-for="Role" class="form-select">
+                <option value="">Seleccione un rol</option>
+                @foreach (string role in SystemRoles.All)
+                {
+                    <option value="@role">@role</option>
+                }
+            </select>
+        }
+        <span asp-validation-for="Role" class="text-danger"></span>
+        <div class="form-text">
+            @(Model is UserEditViewModel { IsCurrentUser: true }
+                ? "Su propio rol no se modifica desde esta pantalla."
+                : "Cada cuenta posee un único rol funcional.")
+        </div>
+    </div>
+    <div class="col-12">
+        <label asp-for="Email" class="form-label"></label>
+        <input asp-for="Email" class="form-control" autocomplete="email" />
+        <span asp-validation-for="Email" class="text-danger"></span>
+        <div class="form-text">El correo también se utilizará para iniciar sesión.</div>
+    </div>
+</div>

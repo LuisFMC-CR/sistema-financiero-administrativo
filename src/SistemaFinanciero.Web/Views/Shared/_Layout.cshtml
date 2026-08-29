@@ -1,0 +1,97 @@
+﻿<!DOCTYPE html>
+@{
+    bool isAuthenticated = User.Identity?.IsAuthenticated == true;
+    bool mustChangePassword = isAuthenticated && User
+        .FindAll(SystemClaimTypes.MustChangePassword)
+        .Any(claim => bool.TryParse(claim.Value, out bool required) && required);
+    bool canViewCatalogs = isAuthenticated && !mustChangePassword &&
+        (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ViewBusinessCatalogs)).Succeeded;
+    bool canManageUsers = isAuthenticated && !mustChangePassword &&
+        (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ManageUsers)).Succeeded;
+}
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Sistema Financiero</title>
+    <script type="importmap"></script>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/SistemaFinanciero.Web.styles.css" asp-append-version="true" />
+</head>
+<body>
+    <header>
+        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
+            <div class="container-fluid">
+                <a class="navbar-brand fw-semibold" asp-area="" asp-controller="Home" asp-action="Index">Sistema Financiero</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
+                        aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
+                    @if (User.Identity?.IsAuthenticated == true)
+                    {
+                        <ul class="navbar-nav flex-grow-1">
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">Inicio</a>
+                            </li>
+                            @if (canViewCatalogs)
+                            {
+                                <li class="nav-item dropdown">
+                                    <a class="nav-link dropdown-toggle text-dark" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        Catálogos
+                                    </a>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" asp-controller="Customers" asp-action="Index">Clientes</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Suppliers" asp-action="Index">Proveedores</a></li>
+                                        <li><a class="dropdown-item" asp-controller="CatalogItems" asp-action="Index">Productos y servicios</a></li>
+                                        <li><hr class="dropdown-divider" /></li>
+                                        <li><a class="dropdown-item" asp-controller="FinancialCategories" asp-action="Index">Categorías financieras</a></li>
+                                        <li><a class="dropdown-item" asp-controller="FinancialAccounts" asp-action="Index">Cuentas financieras</a></li>
+                                        <li><a class="dropdown-item" asp-controller="ExchangeRates" asp-action="Index">Tipos de cambio</a></li>
+                                    </ul>
+                                </li>
+                            }
+                            @if (canManageUsers)
+                            {
+                                <li class="nav-item dropdown">
+                                    <a class="nav-link dropdown-toggle text-dark" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        Administración
+                                    </a>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" asp-controller="Users" asp-action="Index">Usuarios</a></li>
+                                    </ul>
+                                </li>
+                            }
+                        </ul>
+                        <div class="d-flex align-items-center gap-3">
+                            <a class="text-decoration-none text-body" asp-controller="Account" asp-action="ChangePassword">
+                                @User.Identity.Name
+                            </a>
+                            <form asp-controller="Account" asp-action="Logout" method="post">
+                                <button type="submit" class="btn btn-sm btn-outline-secondary">Cerrar sesión</button>
+                            </form>
+                        </div>
+                    }
+                </div>
+            </div>
+        </nav>
+    </header>
+    <div class="container">
+        <main role="main" class="pb-3">
+            <partial name="_FlashMessages" />
+            @RenderBody()
+        </main>
+    </div>
+
+    <footer class="border-top footer text-muted">
+        <div class="container">
+            &copy; 2026 - Sistema web de control financiero-administrativo
+        </div>
+    </footer>
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

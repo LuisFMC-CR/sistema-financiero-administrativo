@@ -1,0 +1,18 @@
+﻿@using SistemaFinanciero.Web
+@using SistemaFinanciero.Web.Models
+@using SistemaFinanciero.Web.Models.Catalogs
+@using SistemaFinanciero.Web.Models.Users
+@using Microsoft.AspNetCore.Authorization
+@using SistemaFinanciero.Application.Catalogs.Accounts
+@using SistemaFinanciero.Application.Catalogs.Categories
+@using SistemaFinanciero.Application.Catalogs.Common
+@using SistemaFinanciero.Application.Catalogs.Customers
+@using SistemaFinanciero.Application.Catalogs.ExchangeRates
+@using SistemaFinanciero.Application.Catalogs.Items
+@using SistemaFinanciero.Application.Catalogs.Suppliers
+@using SistemaFinanciero.Application.Security
+@using SistemaFinanciero.Application.Security.Users
+@using SistemaFinanciero.Domain.Catalogs
+@using SistemaFinanciero.Domain.Currencies
+@inject Microsoft.AspNetCore.Authorization.IAuthorizationService AuthorizationService
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers

@@ -1,0 +1,52 @@
+@model UserFilterViewModel
+
+<form method="get" class="card card-body mb-4" role="search">
+    <div class="row g-3 align-items-end">
+        <div class="col-lg-5">
+            <label for="user-search" class="form-label">Buscar</label>
+            <input id="user-search"
+                   name="search"
+                   value="@Model.Search"
+                   maxlength="100"
+                   class="form-control"
+                   placeholder="Nombre o correo electrónico" />
+        </div>
+        <div class="col-sm-6 col-lg-2">
+            <label for="user-status" class="form-label">Estado</label>
+            <select id="user-status" name="status" class="form-select">
+                @foreach (UserStatusFilter status in Enum.GetValues<UserStatusFilter>())
+                {
+                    if (status == Model.Status)
+                    {
+                        <option value="@status" selected>@status.ToDisplayName()</option>
+                    }
+                    else
+                    {
+                        <option value="@status">@status.ToDisplayName()</option>
+                    }
+                }
+            </select>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <label for="user-role" class="form-label">Rol</label>
+            <select id="user-role" name="role" class="form-select">
+                <option value="">Todos los roles</option>
+                @foreach (string role in Model.Roles)
+                {
+                    if (string.Equals(role, Model.Role, StringComparison.Ordinal))
+                    {
+                        <option value="@role" selected>@role</option>
+                    }
+                    else
+                    {
+                        <option value="@role">@role</option>
+                    }
+                }
+            </select>
+        </div>
+        <div class="col-lg-2 d-flex gap-2">
+            <button type="submit" class="btn btn-primary">Aplicar</button>
+            <a asp-action="Index" class="btn btn-outline-secondary">Limpiar</a>
+        </div>
+    </div>
+</form>

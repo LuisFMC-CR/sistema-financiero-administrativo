@@ -1,0 +1,43 @@
+@model UserCreateViewModel
+@{
+    ViewData["Title"] = "Nuevo usuario";
+}
+
+<div class="catalog-form catalog-form-narrow">
+    <h1 class="h2">Nuevo usuario</h1>
+    <p class="text-body-secondary">
+        La cuenta se creará activa y deberá cambiar la contraseña temporal antes de utilizar los módulos.
+    </p>
+    <form asp-action="Create" method="post" asp-antiforgery="true" class="card card-body">
+        <partial name="_Form" model="Model" />
+
+        <hr class="my-4" />
+        <h2 class="h5">Acceso inicial</h2>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label asp-for="TemporaryPassword" class="form-label"></label>
+                <input asp-for="TemporaryPassword" class="form-control" autocomplete="new-password" />
+                <span asp-validation-for="TemporaryPassword" class="text-danger"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="ConfirmPassword" class="form-label"></label>
+                <input asp-for="ConfirmPassword" class="form-control" autocomplete="new-password" />
+                <span asp-validation-for="ConfirmPassword" class="text-danger"></span>
+            </div>
+            <div class="col-12">
+                <div class="form-text">
+                    Use al menos 12 caracteres, con mayúscula, minúscula, número y símbolo. Comuníquela fuera del sistema.
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2 mt-4">
+            <button type="submit" class="btn btn-primary">Crear usuario</button>
+            <a asp-action="Index" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

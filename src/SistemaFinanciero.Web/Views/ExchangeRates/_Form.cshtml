@@ -1,0 +1,30 @@
+@model DailyExchangeRateInputViewModel
+
+<div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+<div class="row g-3">
+    <div class="col-md-5">
+        <label asp-for="EffectiveDate" class="form-label"></label>
+        <input asp-for="EffectiveDate" type="date" class="form-control" />
+        <span asp-validation-for="EffectiveDate" class="text-danger"></span>
+    </div>
+    <div class="col-md-7">
+        <label asp-for="CrcPerUsd" class="form-label"></label>
+        <div class="input-group">
+            <span class="input-group-text">CRC</span>
+            <input asp-for="CrcPerUsd" type="number" min="0.000001" step="0.000001" class="form-control" />
+            <span class="input-group-text">por USD</span>
+        </div>
+        <span asp-validation-for="CrcPerUsd" class="text-danger"></span>
+    </div>
+    <div class="col-12">
+        <label asp-for="Source" class="form-label"></label>
+        <input asp-for="Source" class="form-control" placeholder="Ej. Banco Central de Costa Rica" />
+        <span asp-validation-for="Source" class="text-danger"></span>
+    </div>
+    <div class="col-12">
+        <label asp-for="Notes" class="form-label"></label>
+        <textarea asp-for="Notes" class="form-control" rows="3"></textarea>
+        <span asp-validation-for="Notes" class="text-danger"></span>
+    </div>
+</div>
+

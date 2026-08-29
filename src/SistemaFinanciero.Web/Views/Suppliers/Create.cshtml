@@ -1,0 +1,21 @@
+@model SupplierInputViewModel
+@{
+    ViewData["Title"] = "Nuevo proveedor";
+}
+
+<div class="catalog-form">
+    <h1 class="h2">Nuevo proveedor</h1>
+    <p class="text-body-secondary">Registre los datos que se utilizarán en gastos y cuentas por pagar.</p>
+    <form asp-action="Create" method="post" class="card card-body">
+        <partial name="_Form" model="Model" />
+        <div class="d-flex gap-2 mt-4">
+            <button type="submit" class="btn btn-primary">Guardar proveedor</button>
+            <a asp-action="Index" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
+

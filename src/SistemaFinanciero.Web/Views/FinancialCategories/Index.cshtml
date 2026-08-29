@@ -1,0 +1,69 @@
+@model CatalogIndexViewModel<FinancialCategoryModel>
+@{
+    ViewData["Title"] = "Categorías financieras";
+    bool canManage = (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ManageBusinessCatalogs)).Succeeded;
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+    <div>
+        <h1 class="h2 mb-1">Categorías financieras</h1>
+        <p class="text-body-secondary mb-0">Clasificación jerárquica de ingresos y gastos administrativos.</p>
+    </div>
+    @if (canManage)
+    {
+        <a asp-action="Create" class="btn btn-primary">Nueva categoría</a>
+    }
+</div>
+
+<partial name="_CatalogFilters" model="new CatalogFilterViewModel(Model.Search, Model.Status)" />
+
+<div class="table-responsive bg-white border rounded">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th scope="col">Código</th>
+                <th scope="col">Nombre</th>
+                <th scope="col">Naturaleza</th>
+                <th scope="col">Categoría padre</th>
+                <th scope="col">Estado</th>
+                @if (canManage)
+                {
+                    <th scope="col" class="text-end">Acciones</th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.Results.Items.Count == 0)
+            {
+                <tr><td colspan="@(canManage ? 6 : 5)" class="text-center text-body-secondary py-4">No se encontraron categorías.</td></tr>
+            }
+            @foreach (FinancialCategoryModel category in Model.Results.Items)
+            {
+                <tr>
+                    <td class="fw-semibold">@category.Code</td>
+                    <td>@category.Name</td>
+                    <td>@category.Kind.ToDisplayName()</td>
+                    <td>@(category.ParentName ?? "—")</td>
+                    <td><partial name="_CatalogStatusBadge" model="category.IsActive" /></td>
+                    @if (canManage)
+                    {
+                        <td class="text-end text-nowrap">
+                            <a asp-action="Edit" asp-route-id="@category.Id" class="btn btn-sm btn-outline-primary">Editar</a>
+                            <form asp-action="SetActive" asp-route-id="@category.Id" method="post" class="d-inline js-confirm-form"
+                                  data-confirm-message="¿Confirma que desea @(category.IsActive ? "desactivar" : "reactivar") esta categoría?">
+                                <input type="hidden" name="IsActive" value="@(!category.IsActive)" />
+                                <input type="hidden" name="Version" value="@category.Version" />
+                                <button type="submit" class="btn btn-sm @(category.IsActive ? "btn-outline-danger" : "btn-outline-success")">
+                                    @(category.IsActive ? "Desactivar" : "Reactivar")
+                                </button>
+                            </form>
+                        </td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<partial name="_CatalogPagination" model="new CatalogPaginationViewModel(Model.Results.Page, Model.Results.TotalPages, Model.Results.HasPreviousPage, Model.Results.HasNextPage, Model.Search, Model.Status)" />
+
