@@ -480,3 +480,29 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+##
+## Sistema Financiero: archivos locales que no forman parte del código fuente
+##
+
+# Configuración y secretos locales (el README prohíbe versionarlos)
+.env.*
+!.env.example
+appsettings.*.local.json
+appsettings.Production.json
+secrets.json
+
+# Respaldos y bases de datos locales (el README prohíbe versionarlos)
+*.bak
+*.bacpac
+*.sqlite
+*.sqlite3
+*.db
+
+# Resultados de pruebas y cobertura generados localmente
+*.trx
+coverage/
+
+# Configuración local de asistentes de IA
+.claude/settings.local.json
+.claude/worktrees/

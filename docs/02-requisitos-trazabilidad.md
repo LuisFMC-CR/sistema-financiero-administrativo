@@ -68,6 +68,27 @@ tres escenarios transaccionales contra SQL Server. La evidencia física se regis
 Las reglas aún pendientes sobre impuestos, saldos iniciales y documentos financieros se agregarán en
 sus respectivos incrementos; no forman parte de estos catálogos.
 
+## Matriz del incremento de facturación y cuentas por cobrar
+
+Este incremento incorpora facturas administrativas internas; no emite comprobantes electrónicos ni
+realiza comunicación con Hacienda. Las tarifas de IVA se administran como datos de negocio y su uso
+debe ser revisado por la empresa y su asesoría contable antes de confirmar documentos reales.
+
+| ID | Enunciado verificable | Fuente | Caso de uso | Implementación | Prueba | Estado |
+|---|---|---|---|---|---|---|
+| RF-INV-001 | Finanzas y Asistente pueden preparar facturas administrativas en CRC o USD para clientes activos. | Alcance aprobado | UC-INV-001 | Módulo `Invoices` | PR-INV-001 | En desarrollo |
+| RF-INV-002 | Una factura conserva líneas de productos o servicios y permite descripciones de venta no catalogadas. | Alcance aprobado | UC-INV-001 | `Invoice` / `InvoiceLine` | PR-INV-002 | En desarrollo |
+| RF-INV-003 | Finanzas confirma facturas y el sistema conserva cliente, precios, impuestos y tasa de cambio como datos históricos. | ADR-0005 | UC-INV-002 | Servicio de confirmación | PR-INV-003 | Propuesto |
+| RF-INV-004 | Gerencia consulta facturas, Finanzas las confirma y Gerencia anula documentos confirmados sin borrado físico. | Políticas vigentes | UC-INV-002, UC-INV-003 | Políticas financieras | PR-INV-004 | Propuesto |
+| RF-INV-005 | La factura confirmada puede visualizarse y exportarse a PDF administrativo. | Alcance aprobado | UC-INV-004 | Vista de detalle y exportador | PR-INV-005 | Propuesto |
+| RF-INV-006 | Finanzas y Asistente registran cobros en la misma moneda de la factura y el sistema informa el saldo pendiente. | ADR-0005 | UC-INV-005 | `InvoicePayment` | PR-INV-006 | Propuesto |
+| RN-INV-001 | Las facturas siguen el ciclo Borrador, Confirmada y Anulada; una confirmada o anulada no admite edición. | Control interno | UC-INV-001 a UC-INV-003 | `InvoiceStatus` | PR-INV-001, PR-INV-003 | Propuesto |
+| RN-INV-002 | Cada línea conserva descripción, unidad, precio, descuentos e impuestos como una fotografía; los cambios posteriores de catálogos no modifican la factura. | Trazabilidad | UC-INV-001, UC-INV-002 | Líneas y detalles de impuesto | PR-INV-002 | Propuesto |
+| RN-INV-003 | Los impuestos se calculan por línea y se conservan con código, nombre, tipo de cálculo, tarifa y monto utilizados. | Ministerio de Hacienda / alcance interno | UC-INV-001 | Catálogo de impuestos y detalles históricos | PR-INV-002 | Propuesto |
+| RN-INV-004 | Los importes y pagos de una factura usan una única moneda; una factura USD confirmada conserva su tasa CRC por USD. | ADR-0005 | UC-INV-002, UC-INV-005 | `CurrencyCode` y tasa histórica | PR-INV-003, PR-INV-006 | Propuesto |
+| RN-INV-005 | No se anula una factura con cobros vigentes; estos deben revertirse primero. | Control interno | UC-INV-003, UC-INV-005 | Validación de estado de cobros | PR-INV-004, PR-INV-006 | Propuesto |
+| RN-INV-006 | El saldo por cobrar se calcula a partir del total confirmado menos los cobros vigentes; no se almacena como valor editable. | Control de integridad | UC-INV-005 | Consulta de cuentas por cobrar | PR-INV-006 | Propuesto |
+
 ## Matriz del incremento de administración de usuarios
 
 El incremento extiende Identity sin agregar registro ni recuperación pública. Los roles continúan

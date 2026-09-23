@@ -49,14 +49,17 @@ institucional sin cambiar el comportamiento aquí definido.
 ## UC-SEG-003 — Cambiar contraseña
 
 - **Actor:** usuario autenticado y activo.
-- **Precondición:** conoce su contraseña actual.
+- **Precondición:** usuario autenticado. Cuando la sesión proviene de una contraseña temporal,
+  esta ya fue verificada durante el inicio de sesión.
 
 ### Flujo principal
 
-1. El actor ingresa contraseña actual, contraseña nueva y confirmación.
-2. El sistema verifica coincidencia y política mínima.
-3. Identity valida la contraseña actual y actualiza el hash.
-4. El sistema renueva la sesión y confirma el cambio.
+1. El actor con sesión ordinaria ingresa contraseña actual, contraseña nueva y confirmación.
+2. El actor con contraseña temporal ingresa únicamente contraseña nueva y confirmación.
+3. El sistema verifica coincidencia y política mínima.
+4. Identity valida la contraseña actual en la sesión ordinaria o utiliza el estado temporal ya
+   autenticado para sustituir el hash.
+5. El sistema renueva la sesión y redirige al inicio.
 
 ### Alternativas
 

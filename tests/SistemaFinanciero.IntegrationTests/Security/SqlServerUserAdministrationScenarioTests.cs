@@ -107,6 +107,7 @@ public sealed class SqlServerUserAdministrationScenarioTests
             await SeedPagedFinanceUsersAsync(dbContext, setup.FinanceRoleId, suffix);
 
             PagedResult<UserModel> secondPage = await service.SearchAsync(new UserQuery(
+                search: suffix,
                 status: UserStatusFilter.Active,
                 role: SystemRoles.Finance,
                 page: 2,
@@ -179,6 +180,7 @@ public sealed class SqlServerUserAdministrationScenarioTests
 
         try
         {
+            await DeactivateExistingAdministratorsAsync(dbContext);
             TestSecurityContext setup = await CreateSecurityContextAsync(scope.ServiceProvider);
             IUserAdministrationService service = scope.ServiceProvider
                 .GetRequiredService<IUserAdministrationService>();
@@ -401,7 +403,7 @@ public sealed class SqlServerUserAdministrationScenarioTests
 
             UserOperationResult ownChange = await account.ChangePasswordAsync(
                 target.Id,
-                new ChangeOwnPasswordCommand(secondTemporaryPassword, finalPassword));
+                new ChangeOwnPasswordCommand(null, finalPassword));
             Assert.True(ownChange.IsSuccess, ownChange.Message);
 
             dbContext.ChangeTracker.Clear();
@@ -518,6 +520,22 @@ public sealed class SqlServerUserAdministrationScenarioTests
 
         await dbContext.SaveChangesAsync();
         dbContext.ChangeTracker.Clear();
+    }
+
+    private static Task<int> DeactivateExistingAdministratorsAsync(FinancialDbContext dbContext)
+    {
+        return dbContext.Users
+            .Where(user => dbContext.UserRoles
+                .Join(
+                    dbContext.Roles,
+                    userRole => userRole.RoleId,
+                    role => role.Id,
+                    (userRole, role) => new { userRole.UserId, role.Name })
+                .Any(assignment =>
+                    assignment.UserId == user.Id &&
+                    assignment.Name == SystemRoles.Administrator))
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(user => user.IsActive, false));
     }
 
     private static void AssertSucceeded(IdentityResult result)

@@ -53,7 +53,7 @@ superados**. Cada uno revirtió su transacción y la revisión posterior no enco
 | PR-CAT-005 | RF-CAT-005, RN-CAT-006/009 | Unitaria/Integración | Rechaza padre de otro tipo, ciclos y cambios de estado que dejarían dependencias activas inválidas. | Se rechazaron padre de otro tipo, ciclo, padre inactivo y baja con hija o artículo activo. | Superada |
 | PR-CAT-006 | RF-CAT-006, RN-CAT-007 | Unitaria/Integración | Valida código, tipo y moneda fijos y ausencia de saldo editable. | Tipo y moneda no se pueden modificar; el modelo y la tabla no contienen un campo de saldo. | Superada |
 | PR-CAT-007 | RN-CAT-002, RNF-AUD-001 | Unitaria/Integración SQL | Baja y reactivación son lógicas y conservan auditoría. | Los cambios actualizan estado, usuario, instante y versión sin ejecutar borrado físico. | Superada |
-| PR-CAT-008 | RN-SEG-004 | Integración HTTP | Los perfiles pueden consultar o escribir únicamente según la matriz de permisos. | Matrices de políticas verificadas para los cuatro roles y rutas anónimas redirigidas al login. | Superada |
+| PR-CAT-008 | RN-SEG-004 | Integración HTTP | Los perfiles pueden consultar o escribir únicamente según la matriz de permisos. | Matrices de políticas verificadas para los cuatro roles, rutas anónimas redirigidas al login y acceso HTTP de Finanzas a los formularios de productos/servicios y tipos de cambio. | Superada |
 | PR-CAT-009 | RN-CAT-008, RNF-DAT-002 | Integración SQL | Códigos únicos, checks y relaciones rechazan estados inválidos aun fuera de la interfaz. | Duplicados reales fueron rechazados; metadatos EF y SQL confirman índices, checks y claves restrictivas. | Superada |
 | PR-CAT-010 | RNF-DAT-003 | Integración SQL | Una versión obsoleta genera conflicto y no pierde la actualización vigente. | Una segunda actualización con `rowversion` obsoleto devolvió conflicto y preservó el primer cambio. | Superada |
 | PR-MON-005 | RN-MON-001 | Unitaria/Integración | Rechaza una tasa no positiva y conserva seis decimales. | Tasas no positivas rechazadas; configuración y recorrido SQL validan escala de seis decimales. | Superada |
@@ -64,10 +64,10 @@ superados**. Cada uno revirtió su transacción y la revisión posterior no enco
 ## Verificación del incremento de administración de usuarios
 
 Ejecución: 22 de agosto de 2026, .NET SDK 10.0.400, EF Core 10.0.11 y SQL Server Express. La solución
-compiló con **0 advertencias y 0 errores**. La suite completa contiene **122 casos automatizados: 48
-unitarios y 74 de integración**. Seis casos requieren habilitación SQL: los tres de catálogos y tres
+compiló con **0 advertencias y 0 errores**. La suite completa contiene **125 casos automatizados: 48
+unitarios y 77 de integración**. Seis casos requieren habilitación SQL: los tres de catálogos y tres
 recorridos nuevos de Identity. Los **6 escenarios SQL fueron superados** y sus transacciones se
-revirtieron; la consulta posterior confirmó cero cuentas, roles, asignaciones y eventos de prueba.
+revirtieron; las pruebas no agregan ni alteran los registros existentes en la base local.
 
 | ID | Requisito | Tipo | Resultado esperado | Resultado obtenido | Estado |
 |---|---|---|---|---|---|

@@ -13,3 +13,4 @@ reescribe para ocultar el historial: una decisión posterior lo reemplaza median
 | [ADR-0006](ADR-0006-clientes-proveedores-separados.md) | Clientes y proveedores separados | Aceptado |
 | [ADR-0007](ADR-0007-ciclo-vida-concurrencia-catalogos.md) | Ciclo de vida y concurrencia de catálogos | Aceptado |
 | [ADR-0008](ADR-0008-administracion-interna-usuarios.md) | Administración interna de usuarios | Aceptado |
+| [ADR-0009](ADR-0009-facturacion-administrativa.md) | Facturación administrativa y trazabilidad tributaria | Aceptado |

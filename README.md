@@ -41,7 +41,7 @@ El incremento de administración de usuarios incorpora:
 - concurrencia mediante `ConcurrencyStamp`, revocación mediante `SecurityStamp` y bitácora append-only.
 
 Las migraciones `AddBusinessCatalogs` y `AddUserAdministration` están aplicadas en
-`SistemaFinanciero_Dev`. La solución compila sin advertencias y posee 122 casos automatizados. Seis de
+`SistemaFinanciero_Dev`. La solución compila sin advertencias y posee 125 casos automatizados. Seis de
 ellos requieren habilitación explícita para ejecutar sus recorridos transaccionales contra SQL Server;
 todos finalizaron correctamente sin conservar datos de prueba.
 

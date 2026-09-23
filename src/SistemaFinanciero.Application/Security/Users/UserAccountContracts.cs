@@ -2,7 +2,7 @@ namespace SistemaFinanciero.Application.Security.Users;
 
 /// <summary>Datos requeridos para cambiar la contraseña propia.</summary>
 public sealed record ChangeOwnPasswordCommand(
-    string CurrentPassword,
+    string? CurrentPassword,
     string NewPassword);
 
 /// <summary>Casos de uso de seguridad ejecutados por el propietario de una cuenta.</summary>

@@ -31,11 +31,23 @@ public class CatalogItemInputViewModel
     [Display(Name = "Unidad de medida")]
     public string UnitOfMeasure { get; set; } = string.Empty;
 
-    [Range(typeof(decimal), "0.0001", "99999999999999.9999", ErrorMessage = "El precio en CRC debe ser mayor que cero.")]
+    [Range(
+        typeof(decimal),
+        "0.0001",
+        "99999999999999.9999",
+        ErrorMessage = "El precio en CRC debe ser mayor que cero.",
+        ParseLimitsInInvariantCulture = true,
+        ConvertValueInInvariantCulture = true)]
     [Display(Name = "Precio de referencia CRC")]
     public decimal? ReferencePriceCrc { get; set; }
 
-    [Range(typeof(decimal), "0.0001", "99999999999999.9999", ErrorMessage = "El precio en USD debe ser mayor que cero.")]
+    [Range(
+        typeof(decimal),
+        "0.0001",
+        "99999999999999.9999",
+        ErrorMessage = "El precio en USD debe ser mayor que cero.",
+        ParseLimitsInInvariantCulture = true,
+        ConvertValueInInvariantCulture = true)]
     [Display(Name = "Precio de referencia USD")]
     public decimal? ReferencePriceUsd { get; set; }
 

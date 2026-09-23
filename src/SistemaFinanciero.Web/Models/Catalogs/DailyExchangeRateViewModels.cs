@@ -9,7 +9,13 @@ public class DailyExchangeRateInputViewModel : IValidatableObject
     [Display(Name = "Fecha efectiva")]
     public DateOnly EffectiveDate { get; set; } = DateOnly.FromDateTime(DateTime.Today);
 
-    [Range(typeof(decimal), "0.000001", "999999999999.999999", ErrorMessage = "El tipo de cambio debe ser mayor que cero.")]
+    [Range(
+        typeof(decimal),
+        "0.000001",
+        "999999999999.999999",
+        ErrorMessage = "El tipo de cambio debe ser mayor que cero.",
+        ParseLimitsInInvariantCulture = true,
+        ConvertValueInInvariantCulture = true)]
     [Display(Name = "CRC por USD")]
     public decimal CrcPerUsd { get; set; }
 

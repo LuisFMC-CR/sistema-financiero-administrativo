@@ -36,19 +36,34 @@ internal sealed class UserAccountService(
                     return UserOperationResult.Missing();
                 }
 
-                if (string.IsNullOrWhiteSpace(command.CurrentPassword) ||
-                    string.IsNullOrWhiteSpace(command.NewPassword) ||
+                if (string.IsNullOrWhiteSpace(command.NewPassword) ||
                     command.NewPassword.Length > 128)
                 {
                     return UserOperationResult.Invalid(
-                        "La contraseña actual y la nueva contraseña son obligatorias; la nueva no puede superar 128 caracteres.");
+                        "La nueva contraseña es obligatoria y no puede superar 128 caracteres.");
                 }
 
-                user.MustChangePassword = false;
-                IdentityResult result = await userManager.ChangePasswordAsync(
-                    user,
-                    command.CurrentPassword,
-                    command.NewPassword);
+                IdentityResult result;
+                if (user.MustChangePassword)
+                {
+                    string resetToken = await userManager.GeneratePasswordResetTokenAsync(user);
+                    result = await userManager.ResetPasswordAsync(
+                        user,
+                        resetToken,
+                        command.NewPassword);
+                }
+                else
+                {
+                    if (string.IsNullOrWhiteSpace(command.CurrentPassword))
+                    {
+                        return UserOperationResult.Invalid("La contraseña actual es obligatoria.");
+                    }
+
+                    result = await userManager.ChangePasswordAsync(
+                        user,
+                        command.CurrentPassword,
+                        command.NewPassword);
+                }
 
                 if (!result.Succeeded)
                 {
@@ -64,6 +79,7 @@ internal sealed class UserAccountService(
                             : message);
                 }
 
+                user.MustChangePassword = false;
                 dbContext.SecurityAuditEvents.Add(new SecurityAuditEvent(
                     Guid.NewGuid(),
                     SecurityAuditAction.PasswordChanged,

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Currencies;
+using SistemaFinanciero.Domain.Invoices;
 using SistemaFinanciero.Infrastructure.Identity;
 
 namespace SistemaFinanciero.Infrastructure.Persistence;
@@ -31,6 +32,9 @@ public sealed class FinancialDbContext(
 
     /// <summary>Tipos de cambio administrativos por fecha.</summary>
     public DbSet<DailyExchangeRate> DailyExchangeRates => Set<DailyExchangeRate>();
+
+    /// <summary>Facturas administrativas y sus detalles históricos.</summary>
+    public DbSet<Invoice> Invoices => Set<Invoice>();
 
     /// <summary>Bitácora inmutable de acciones administrativas de seguridad.</summary>
     public DbSet<SecurityAuditEvent> SecurityAuditEvents => Set<SecurityAuditEvent>();

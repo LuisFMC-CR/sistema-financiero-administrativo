@@ -4,8 +4,10 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using SistemaFinanciero.Application.Security;
 using SistemaFinanciero.Application.Security.Users;
 using SistemaFinanciero.Infrastructure.Identity;
 using SistemaFinanciero.Web.Controllers;
@@ -111,6 +113,35 @@ public sealed class AccountControllerSensitiveInputTests
             error => error.ErrorMessage == "La contraseña actual es incorrecta.");
     }
 
+    [Fact]
+    public async Task ChangePassword_WithTemporaryRequirement_OmitsCurrentPasswordAndRedirectsHome()
+    {
+        Guid userId = Guid.NewGuid();
+        ApplicationUser user = new()
+        {
+            Id = userId,
+            Email = "temporal@empresa.example",
+            IsActive = true,
+        };
+        RecordingAccountService accountService = new();
+        AccountController controller = CreateController(user, accountService: accountService);
+        SetAuthenticatedUser(controller, userId, mustChangePassword: true);
+        ChangePasswordViewModel model = new()
+        {
+            NewPassword = "Nueva-segura-2026!",
+            ConfirmPassword = "Nueva-segura-2026!",
+        };
+
+        IActionResult action = await controller.ChangePassword(model, CancellationToken.None);
+
+        RedirectToActionResult result = Assert.IsType<RedirectToActionResult>(action);
+        Assert.Equal("Index", result.ActionName);
+        Assert.Equal("Home", result.ControllerName);
+        Assert.Equal(1, accountService.Calls);
+        Assert.NotNull(accountService.LastCommand);
+        Assert.True(string.IsNullOrEmpty(accountService.LastCommand.CurrentPassword));
+    }
+
     private static AccountController CreateController(
         ApplicationUser? user = null,
         IdentitySignInResult? signInResult = null,
@@ -121,7 +152,8 @@ public sealed class AccountControllerSensitiveInputTests
             userManager,
             signInResult ?? IdentitySignInResult.Failed);
 
-        return new AccountController(
+        DefaultHttpContext httpContext = new();
+        AccountController controller = new(
             userManager,
             signInManager,
             accountService ?? new RecordingAccountService(),
@@ -129,9 +161,12 @@ public sealed class AccountControllerSensitiveInputTests
         {
             ControllerContext = new ControllerContext
             {
-                HttpContext = new DefaultHttpContext(),
+                HttpContext = httpContext,
             },
         };
+        controller.TempData = new TempDataDictionary(httpContext, new StubTempDataProvider());
+
+        return controller;
     }
 
     private static ChangePasswordViewModel CreateChangePasswordModel()
@@ -144,10 +179,19 @@ public sealed class AccountControllerSensitiveInputTests
         };
     }
 
-    private static void SetAuthenticatedUser(AccountController controller, Guid userId)
+    private static void SetAuthenticatedUser(
+        AccountController controller,
+        Guid userId,
+        bool mustChangePassword = false)
     {
+        List<Claim> claims = [new Claim(ClaimTypes.NameIdentifier, userId.ToString())];
+        if (mustChangePassword)
+        {
+            claims.Add(new Claim(SystemClaimTypes.MustChangePassword, bool.TrueString));
+        }
+
         ClaimsIdentity identity = new(
-            [new Claim(ClaimTypes.NameIdentifier, userId.ToString())],
+            claims,
             authenticationType: "Test");
         controller.ControllerContext.HttpContext.User = new ClaimsPrincipal(identity);
     }
@@ -195,6 +239,8 @@ public sealed class AccountControllerSensitiveInputTests
     {
         public int Calls { get; private set; }
 
+        public ChangeOwnPasswordCommand? LastCommand { get; private set; }
+
         public UserOperationResult Result { get; init; } = UserOperationResult.Succeeded();
 
         public Task<UserOperationResult> ChangePasswordAsync(
@@ -203,6 +249,7 @@ public sealed class AccountControllerSensitiveInputTests
             CancellationToken cancellationToken = default)
         {
             Calls++;
+            LastCommand = command;
             return Task.FromResult(Result);
         }
     }
@@ -220,6 +267,11 @@ public sealed class AccountControllerSensitiveInputTests
             NullLogger<UserManager<ApplicationUser>>.Instance)
     {
         public override Task<ApplicationUser?> FindByEmailAsync(string email)
+        {
+            return Task.FromResult(user);
+        }
+
+        public override Task<ApplicationUser?> FindByIdAsync(string userId)
         {
             return Task.FromResult(user);
         }
@@ -246,6 +298,11 @@ public sealed class AccountControllerSensitiveInputTests
             bool lockoutOnFailure)
         {
             return Task.FromResult(result);
+        }
+
+        public override Task RefreshSignInAsync(ApplicationUser user)
+        {
+            return Task.CompletedTask;
         }
     }
 
@@ -327,6 +384,18 @@ public sealed class AccountControllerSensitiveInputTests
             CancellationToken cancellationToken)
         {
             return Task.FromResult<ApplicationUser?>(null);
+        }
+    }
+
+    private sealed class StubTempDataProvider : ITempDataProvider
+    {
+        public IDictionary<string, object> LoadTempData(HttpContext context)
+        {
+            return new Dictionary<string, object>();
+        }
+
+        public void SaveTempData(HttpContext context, IDictionary<string, object> values)
+        {
         }
     }
 }

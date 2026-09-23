@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using SistemaFinanciero.Application.Security;
 using SistemaFinanciero.Application.Security.Users;
 using SistemaFinanciero.Infrastructure.Identity;
 using SistemaFinanciero.Web.Models.Account;
@@ -116,6 +117,14 @@ public sealed partial class AccountController(
         ChangePasswordViewModel model,
         CancellationToken cancellationToken)
     {
+        bool requiresPasswordChange = RequiresPasswordChange();
+        if (!requiresPasswordChange && string.IsNullOrWhiteSpace(model.CurrentPassword))
+        {
+            ModelState.AddModelError(
+                nameof(model.CurrentPassword),
+                "La contraseña actual es obligatoria.");
+        }
+
         if (!ModelState.IsValid)
         {
             ClearPasswordValues(model);
@@ -159,7 +168,7 @@ public sealed partial class AccountController(
         TempData["SuccessMessage"] = "La contraseña se actualizó correctamente.";
         LogPasswordChanged(logger, userId);
 
-        return RedirectToAction(nameof(ChangePassword));
+        return RedirectToAction("Index", "Home");
     }
 
     /// <summary>
@@ -186,6 +195,12 @@ public sealed partial class AccountController(
     {
         model.Password = string.Empty;
         ClearModelStateValue(nameof(model.Password));
+    }
+
+    private bool RequiresPasswordChange()
+    {
+        return User.FindAll(SystemClaimTypes.MustChangePassword).Any(claim =>
+            bool.TryParse(claim.Value, out bool required) && required);
     }
 
     private void ClearModelStateValue(string key)

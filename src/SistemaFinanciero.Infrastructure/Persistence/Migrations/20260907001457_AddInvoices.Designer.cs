@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SistemaFinanciero.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using SistemaFinanciero.Infrastructure.Persistence;
 namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(FinancialDbContext))]
-    partial class FinancialDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260907001457_AddInvoices")]
+    partial class AddInvoices
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

@@ -7,7 +7,6 @@ namespace SistemaFinanciero.Web.Models.Account;
 /// </summary>
 public sealed class ChangePasswordViewModel
 {
-    [Required(ErrorMessage = "La contraseña actual es obligatoria.")]
     [DataType(DataType.Password)]
     [Display(Name = "Contraseña actual")]
     public string CurrentPassword { get; set; } = string.Empty;

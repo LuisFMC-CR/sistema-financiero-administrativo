@@ -3,6 +3,30 @@
 
 "use strict";
 
+const appLayout = document.getElementById("app-layout");
+const sidebarToggles = document.querySelectorAll("[data-sidebar-toggle]");
+
+const setSidebarState = (isCollapsed) => {
+    if (!(appLayout instanceof HTMLElement)) {
+        return;
+    }
+
+    appLayout.classList.toggle("sidebar-collapsed", isCollapsed);
+    sidebarToggles.forEach((toggle) => {
+        toggle.setAttribute("aria-expanded", String(!isCollapsed));
+        toggle.setAttribute("aria-label", isCollapsed ? "Expandir menú" : "Contraer menú");
+    });
+    window.localStorage.setItem("sidebar-collapsed", String(isCollapsed));
+};
+
+if (appLayout instanceof HTMLElement) {
+    const storedState = window.localStorage.getItem("sidebar-collapsed");
+    setSidebarState(storedState === "true");
+    sidebarToggles.forEach((toggle) => {
+        toggle.addEventListener("click", () => setSidebarState(!appLayout.classList.contains("sidebar-collapsed")));
+    });
+}
+
 document.querySelectorAll(".js-confirm-form").forEach((form) => {
     form.addEventListener("submit", (event) => {
         const message = form.dataset.confirmMessage ?? "¿Desea continuar?";
