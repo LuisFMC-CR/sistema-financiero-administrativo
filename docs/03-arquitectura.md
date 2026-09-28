@@ -37,7 +37,7 @@ negocio. No se utilizan microservicios, CQRS, MediatR, AutoMapper ni repositorio
 ### Módulo de catálogos
 
 El segundo incremento agrega clientes, proveedores, artículos de producto/servicio, categorías
-financieras, cuentas financieras y tasas diarias dentro de las mismas capas. Cliente y proveedor son
+financieras, cuentas contables, tipos de impuesto y tasas diarias dentro de las mismas capas. Cliente y proveedor son
 entidades independientes; compartir datos de contacto no crea una identidad común implícita.
 
 - Domain conserva estados e invariantes, sin atributos de MVC o EF Core.
@@ -93,14 +93,16 @@ cinco minutos con permisos anteriores.
 - Fechas de negocio usan `DateOnly`; instantes de auditoría, UTC.
 - Las entidades mutables incorporan `rowversion`; un conflicto se informa al usuario y no sobrescribe
   silenciosamente cambios ajenos.
-- Clientes, proveedores, productos/servicios, categorías y cuentas utilizan baja lógica. Las tasas se
-  corrigen en su única fila por fecha y no poseen un estado activo/inactivo.
+- Clientes, proveedores, productos/servicios, categorías, cuentas contables y tipos de impuesto
+  utilizan baja lógica. Las tasas se corrigen en su única fila por fecha y no poseen un estado
+  activo/inactivo.
 - Todos esos registros conservan creación, última modificación y usuario responsable.
 - Las relaciones históricas y jerárquicas restringen el borrado en cascada.
 - Operaciones confirmadas no tendrán borrado en cascada.
 
-La cuenta financiera guarda identidad, código, tipo y moneda, pero no un saldo actual. Los saldos se
-calcularán posteriormente a partir de movimientos confirmados y saldos iniciales controlados.
+La cuenta contable guarda identidad, código, tipo, jerarquía y, si es de efectivo, subtipo y moneda, pero
+no un saldo actual. Los saldos se calcularán posteriormente a partir de movimientos confirmados y
+saldos iniciales controlados.
 
 ## Autorización de catálogos
 
@@ -109,7 +111,7 @@ calcularán posteriormente a partir de movimientos confirmados y saldos iniciale
 | Consultar catálogos financieros | No | Sí | Sí | Sí |
 | Mantener clientes y proveedores | No | No | Sí | Sí |
 | Mantener productos, servicios y precios | No | No | Sí | No |
-| Mantener categorías, cuentas y tasas | No | No | Sí | No |
+| Mantener categorías, cuentas contables, tipos de impuesto y tasas | No | No | Sí | No |
 
 Administrador conserva capacidades técnicas y no hereda acceso financiero automáticamente. Cada
 acción de escritura valida la política en el servidor, además de ajustar la navegación visible.

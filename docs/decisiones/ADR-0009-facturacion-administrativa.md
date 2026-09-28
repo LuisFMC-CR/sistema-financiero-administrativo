@@ -2,6 +2,10 @@
 
 - **Fecha:** 2026-09-06
 - **Estado:** Aceptado
+- **Complementado por:** [ADR-0010](ADR-0010-condicion-de-pago-redondeo-y-edicion-de-borradores.md),
+  [ADR-0011](ADR-0011-catalogo-de-tipos-de-impuesto.md) y
+  [ADR-0012](ADR-0012-catalogo-de-cuentas-contables.md) (la «cuenta financiera» de los cobros es ahora
+  una cuenta contable de efectivo)
 
 ## Contexto
 

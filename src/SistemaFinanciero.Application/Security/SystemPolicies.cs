@@ -15,4 +15,5 @@ public static class SystemPolicies
     public const string VoidFinancialTransactions = "Movimientos.Anular";
     public const string ViewFinancialReports = "Reportes.Ver";
     public const string ViewAuditTrail = "Auditoria.Ver";
+    public const string ManageSystemParameters = "Parametros.Administrar";
 }

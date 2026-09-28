@@ -5,6 +5,19 @@ namespace SistemaFinanciero.Domain.Common;
 /// </summary>
 internal static class DomainRules
 {
+    /// <summary>Decimales de los importes, impuestos, totales, saldos y pagos.</summary>
+    public const int MoneyDecimalPlaces = 2;
+
+    /// <summary>Decimales de cantidades, precios unitarios y tarifas de impuesto.</summary>
+    public const int QuantityDecimalPlaces = 4;
+
+    /// <summary>Redondea un importe monetario a dos decimales, alejando las mitades de cero.</summary>
+    public static decimal RoundMoney(decimal value) => Round(value, MoneyDecimalPlaces);
+
+    /// <summary>Redondea a la cantidad de decimales indicada, alejando las mitades de cero.</summary>
+    public static decimal Round(decimal value, int decimalPlaces) =>
+        decimal.Round(value, decimalPlaces, MidpointRounding.AwayFromZero);
+
     public static Guid RequiredId(Guid value, string parameterName)
     {
         if (value == Guid.Empty)

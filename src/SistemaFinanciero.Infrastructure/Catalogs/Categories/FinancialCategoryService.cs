@@ -50,9 +50,12 @@ internal sealed class FinancialCategoryService(
         IReadOnlyDictionary<Guid, string> parentNames = await GetParentNamesAsync(
             page.Items,
             cancellationToken);
+        IReadOnlyDictionary<Guid, LedgerAccountLabel> ledgerAccounts = await GetLedgerAccountLabelsAsync(
+            page.Items,
+            cancellationToken);
 
         return new PagedResult<FinancialCategoryModel>(
-            page.Items.Select(category => Map(category, parentNames)).ToArray(),
+            page.Items.Select(category => Map(category, parentNames, ledgerAccounts)).ToArray(),
             page.Page,
             page.PageSize,
             page.TotalCount);
@@ -74,8 +77,11 @@ internal sealed class FinancialCategoryService(
         IReadOnlyDictionary<Guid, string> parentNames = await GetParentNamesAsync(
             [category],
             cancellationToken);
+        IReadOnlyDictionary<Guid, LedgerAccountLabel> ledgerAccounts = await GetLedgerAccountLabelsAsync(
+            [category],
+            cancellationToken);
 
-        return Map(category, parentNames);
+        return Map(category, parentNames, ledgerAccounts);
     }
 
     public async Task<IReadOnlyList<FinancialCategoryOption>> GetActiveOptionsAsync(
@@ -134,6 +140,16 @@ internal sealed class FinancialCategoryService(
             return parentValidation;
         }
 
+        CatalogOperationResult? ledgerAccountValidation = await ValidateLedgerAccountAsync(
+            command.LedgerAccountId,
+            command.Kind,
+            cancellationToken);
+
+        if (ledgerAccountValidation is not null)
+        {
+            return ledgerAccountValidation;
+        }
+
         try
         {
             FinancialCategory category = new(
@@ -142,6 +158,7 @@ internal sealed class FinancialCategoryService(
                 command.Name,
                 command.Kind,
                 command.ParentId,
+                command.LedgerAccountId,
                 command.Description,
                 timeProvider.GetUtcNow(),
                 actorId);
@@ -200,6 +217,17 @@ internal sealed class FinancialCategoryService(
             return parentValidation;
         }
 
+        CatalogOperationResult? ledgerAccountValidation = await ValidateLedgerAccountAsync(
+            command.LedgerAccountId,
+            command.Kind,
+            cancellationToken);
+
+        if (ledgerAccountValidation is not null)
+        {
+            dbContext.ChangeTracker.Clear();
+            return ledgerAccountValidation;
+        }
+
         try
         {
             DateTimeOffset now = timeProvider.GetUtcNow();
@@ -210,6 +238,7 @@ internal sealed class FinancialCategoryService(
                 now,
                 actorId);
             category.ChangeParent(command.ParentId, now, actorId);
+            category.ChangeLedgerAccount(command.LedgerAccountId, now, actorId);
 
             return await CatalogPersistence.SaveChangesAsync(
                 dbContext,
@@ -255,6 +284,17 @@ internal sealed class FinancialCategoryService(
             {
                 dbContext.ChangeTracker.Clear();
                 return parentValidation;
+            }
+
+            CatalogOperationResult? ledgerAccountValidation = await ValidateLedgerAccountAsync(
+                category.LedgerAccountId,
+                category.Kind,
+                cancellationToken);
+
+            if (ledgerAccountValidation is not null)
+            {
+                dbContext.ChangeTracker.Clear();
+                return ledgerAccountValidation;
             }
         }
         else
@@ -371,6 +411,58 @@ internal sealed class FinancialCategoryService(
         return null;
     }
 
+    private async Task<CatalogOperationResult?> ValidateLedgerAccountAsync(
+        Guid ledgerAccountId,
+        FinancialCategoryKind kind,
+        CancellationToken cancellationToken)
+    {
+        if (!Enum.IsDefined(kind))
+        {
+            return CatalogOperationResult.Invalid("La naturaleza de la categoría no es válida.");
+        }
+
+        LedgerAccount? account = await dbContext.Set<LedgerAccount>()
+            .AsNoTracking()
+            .SingleOrDefaultAsync(candidate => candidate.Id == ledgerAccountId, cancellationToken);
+
+        if (account is null || !account.IsActive)
+        {
+            return CatalogOperationResult.Invalid("La cuenta contable seleccionada no existe o está inactiva.");
+        }
+
+        if (account.Type != kind.ToLedgerAccountType())
+        {
+            return CatalogOperationResult.Invalid(kind == FinancialCategoryKind.Income
+                ? "Una categoría de ingreso requiere una cuenta contable de tipo Ingreso."
+                : "Una categoría de gasto requiere una cuenta contable de tipo Gasto.");
+        }
+
+        return null;
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, LedgerAccountLabel>> GetLedgerAccountLabelsAsync(
+        IReadOnlyList<FinancialCategory> categories,
+        CancellationToken cancellationToken)
+    {
+        Guid[] accountIds = categories
+            .Select(category => category.LedgerAccountId)
+            .Distinct()
+            .ToArray();
+
+        if (accountIds.Length == 0)
+        {
+            return new Dictionary<Guid, LedgerAccountLabel>();
+        }
+
+        return await dbContext.Set<LedgerAccount>()
+            .AsNoTracking()
+            .Where(account => accountIds.Contains(account.Id))
+            .ToDictionaryAsync(
+                account => account.Id,
+                account => new LedgerAccountLabel(account.Code, account.Name),
+                cancellationToken);
+    }
+
     private async Task<IReadOnlyDictionary<Guid, string>> GetParentNamesAsync(
         IReadOnlyList<FinancialCategory> categories,
         CancellationToken cancellationToken)
@@ -429,12 +521,16 @@ internal sealed class FinancialCategoryService(
 
     private static FinancialCategoryModel Map(
         FinancialCategory category,
-        IReadOnlyDictionary<Guid, string> parentNames)
+        IReadOnlyDictionary<Guid, string> parentNames,
+        IReadOnlyDictionary<Guid, LedgerAccountLabel> ledgerAccounts)
     {
         string? parentName = category.ParentId is Guid parentId &&
             parentNames.TryGetValue(parentId, out string? foundName)
                 ? foundName
                 : null;
+        LedgerAccountLabel ledgerAccount = ledgerAccounts.TryGetValue(category.LedgerAccountId, out LedgerAccountLabel? label)
+            ? label
+            : new LedgerAccountLabel(string.Empty, string.Empty);
 
         return new FinancialCategoryModel(
             category.Id,
@@ -443,12 +539,17 @@ internal sealed class FinancialCategoryService(
             category.Kind,
             category.ParentId,
             parentName,
+            category.LedgerAccountId,
+            ledgerAccount.Code,
+            ledgerAccount.Name,
             category.Description,
             category.IsActive,
             category.CreatedAtUtc,
             category.UpdatedAtUtc,
             CatalogPersistence.EncodeVersion(category.RowVersion));
     }
+
+    private sealed record LedgerAccountLabel(string Code, string Name);
 
     private sealed record CategoryLink(Guid Id, Guid? ParentId);
 

@@ -47,6 +47,14 @@ internal sealed class FinancialCategoryConfiguration : IEntityTypeConfiguration<
         builder.HasIndex(category => new { category.IsActive, category.Kind, category.Name })
             .HasDatabaseName("IX_CategoriasFinancieras_IsActive_Kind_Name");
 
+        builder.Property(category => category.LedgerAccountId).IsRequired();
+
+        builder.HasOne<LedgerAccount>()
+            .WithMany()
+            .HasForeignKey(category => category.LedgerAccountId)
+            .IsRequired()
+            .OnDelete(DeleteBehavior.Restrict)
+            .HasConstraintName("FK_CategoriasFinancieras_CuentasContables");
         builder.HasOne<FinancialCategory>()
             .WithMany()
             .HasForeignKey(category => category.ParentId)

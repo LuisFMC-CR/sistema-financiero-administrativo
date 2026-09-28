@@ -1,11 +1,11 @@
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
-using SistemaFinanciero.Application.Catalogs.Accounts;
 using SistemaFinanciero.Application.Catalogs.Categories;
 using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Catalogs.Customers;
 using SistemaFinanciero.Application.Catalogs.ExchangeRates;
 using SistemaFinanciero.Application.Catalogs.Items;
+using SistemaFinanciero.Application.Catalogs.LedgerAccounts;
 using SistemaFinanciero.Application.Catalogs.Suppliers;
 using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Currencies;
@@ -124,7 +124,22 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
             IFinancialCategoryService categories = services
                 .GetRequiredService<IFinancialCategoryService>();
             ICatalogItemService items = services.GetRequiredService<ICatalogItemService>();
+            ILedgerAccountService ledgerAccounts = services.GetRequiredService<ILedgerAccountService>();
             string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+
+            // Toda categoría necesita una cuenta contable activa de su mismo tipo.
+            Assert.True((await ledgerAccounts.CreateAsync(
+                new CreateLedgerAccountCommand(
+                    $"LI-{suffix}", "Cuenta de ingresos", LedgerAccountType.Income, null, null, null, null, null),
+                actorId)).IsSuccess);
+            Assert.True((await ledgerAccounts.CreateAsync(
+                new CreateLedgerAccountCommand(
+                    $"LG-{suffix}", "Cuenta de gastos", LedgerAccountType.Expense, null, null, null, null, null),
+                actorId)).IsSuccess);
+            Guid incomeAccountId = (await ledgerAccounts.GetActiveOptionsAsync(LedgerAccountType.Income))
+                .Single(option => option.Code == $"LI-{suffix}").Id;
+            Guid expenseAccountId = (await ledgerAccounts.GetActiveOptionsAsync(LedgerAccountType.Expense))
+                .Single(option => option.Code == $"LG-{suffix}").Id;
 
             Assert.True((await categories.CreateAsync(
                 new SaveFinancialCategoryCommand(
@@ -132,6 +147,7 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
                     "Ingresos de integración",
                     FinancialCategoryKind.Income,
                     null,
+                    incomeAccountId,
                     null),
                 actorId)).IsSuccess);
 
@@ -144,6 +160,7 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
                     "Subcategoría de integración",
                     FinancialCategoryKind.Income,
                     parent.Id,
+                    incomeAccountId,
                     null),
                 actorId)).IsSuccess);
 
@@ -156,6 +173,7 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
                     "Gasto de integración",
                     FinancialCategoryKind.Expense,
                     null,
+                    expenseAccountId,
                     null),
                 actorId)).IsSuccess);
             FinancialCategoryModel expense = Assert.Single((await categories.SearchAsync(
@@ -168,6 +186,7 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
                     child.Name,
                     child.Kind,
                     expense.Id,
+                    child.LedgerAccountId,
                     child.Description),
                 child.Version,
                 actorId);
@@ -180,6 +199,7 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
                     parent.Name,
                     parent.Kind,
                     child.Id,
+                    parent.LedgerAccountId,
                     parent.Description),
                 parent.Version,
                 actorId);
@@ -239,37 +259,11 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
 
     [Fact]
     [Trait("Category", "SqlServer")]
-    public Task AccountAndRateScenario_PreservesFixedFieldsPrecisionAndUniqueDate()
+    public Task RateScenario_PreservesPrecisionAndUniqueDate()
     {
         return RunInRollbackTransactionAsync(async (services, actorId) =>
         {
-            IFinancialAccountService accounts = services.GetRequiredService<IFinancialAccountService>();
             IDailyExchangeRateService rates = services.GetRequiredService<IDailyExchangeRateService>();
-            string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
-
-            Assert.True((await accounts.CreateAsync(
-                new CreateFinancialAccountCommand(
-                    $"CTA-{suffix}",
-                    "Cuenta de integración",
-                    FinancialAccountType.Bank,
-                    CurrencyCode.USD,
-                    "Referencia ficticia"),
-                actorId)).IsSuccess);
-
-            FinancialAccountModel account = Assert.Single((await accounts.SearchAsync(
-                new CatalogQuery($"CTA-{suffix}", CatalogStatusFilter.Active))).Items);
-            Assert.True((await accounts.UpdateAsync(
-                account.Id,
-                new UpdateFinancialAccountCommand(
-                    account.Code,
-                    "Cuenta actualizada",
-                    null),
-                account.Version,
-                actorId)).IsSuccess);
-
-            FinancialAccountModel updatedAccount = (await accounts.GetAsync(account.Id))!;
-            Assert.Equal(FinancialAccountType.Bank, updatedAccount.Type);
-            Assert.Equal(CurrencyCode.USD, updatedAccount.Currency);
 
             DateOnly date = new(2099, 1, 1);
             SaveDailyExchangeRateCommand rateCommand = new(

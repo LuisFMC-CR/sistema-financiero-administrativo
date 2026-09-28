@@ -1,0 +1,72 @@
+@model SystemParametersViewModel
+@{
+    ViewData["Title"] = "Parámetros del sistema";
+    bool canManage = (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ManageSystemParameters)).Succeeded;
+    bool isConfigured = !string.IsNullOrEmpty(Model.Version);
+}
+
+<div class="mb-3">
+    <h1 class="h2 mb-1">Parámetros del sistema</h1>
+    <p class="text-body-secondary mb-0">Límite de autorización de abonos y pagos, y días de alerta de vencimiento próximo.</p>
+</div>
+
+@if (!isConfigured && !canManage)
+{
+    <div class="alert alert-warning" role="status">Gerencia todavía no ha configurado los parámetros del sistema.</div>
+}
+else
+{
+    <div class="catalog-form">
+        <form asp-action="Save" method="post" class="card card-body">
+            <input asp-for="Version" type="hidden" />
+            <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label asp-for="AuthorizationLimitCrc" class="form-label"></label>
+                    <div class="input-group">
+                        <span class="input-group-text">CRC</span>
+                        @if (canManage)
+                        {
+                            <input asp-for="AuthorizationLimitCrc" type="number" min="0" step="0.01" class="form-control" />
+                        }
+                        else
+                        {
+                            <input value="@Model.AuthorizationLimitCrc.ToString("N2", System.Globalization.CultureInfo.CurrentCulture)" class="form-control" readonly />
+                        }
+                    </div>
+                    <span asp-validation-for="AuthorizationLimitCrc" class="text-danger"></span>
+                    <div class="form-text">Los abonos y pagos por encima de este monto solo los registra Gerencia.</div>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="OverdueAlertDays" class="form-label"></label>
+                    @if (canManage)
+                    {
+                        <input asp-for="OverdueAlertDays" type="number" min="1" max="3650" class="form-control" />
+                    }
+                    else
+                    {
+                        <input value="@Model.OverdueAlertDays" class="form-control" readonly />
+                    }
+                    <span asp-validation-for="OverdueAlertDays" class="text-danger"></span>
+                    <div class="form-text">Anticipación para marcar una cuenta por cobrar o por pagar como próxima a vencer.</div>
+                </div>
+            </div>
+            @if (isConfigured)
+            {
+                <p class="text-body-secondary small mt-3 mb-0">
+                    Última modificación: @Model.UpdatedAtUtc?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") por @Model.UpdatedByUserName.
+                </p>
+            }
+            @if (canManage)
+            {
+                <div class="d-flex gap-2 mt-4">
+                    <button type="submit" class="btn btn-primary">Guardar parámetros</button>
+                </div>
+            }
+        </form>
+    </div>
+}
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

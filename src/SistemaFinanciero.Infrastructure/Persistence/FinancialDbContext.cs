@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Currencies;
 using SistemaFinanciero.Domain.Invoices;
+using SistemaFinanciero.Domain.Parameters;
 using SistemaFinanciero.Infrastructure.Identity;
 
 namespace SistemaFinanciero.Infrastructure.Persistence;
@@ -27,8 +28,14 @@ public sealed class FinancialDbContext(
     /// <summary>Categorías jerárquicas de ingreso y gasto.</summary>
     public DbSet<FinancialCategory> FinancialCategories => Set<FinancialCategory>();
 
-    /// <summary>Cajas y cuentas bancarias con moneda fija.</summary>
-    public DbSet<FinancialAccount> FinancialAccounts => Set<FinancialAccount>();
+    /// <summary>Catálogo de cuentas contables, incluidas las cajas y los bancos.</summary>
+    public DbSet<LedgerAccount> LedgerAccounts => Set<LedgerAccount>();
+
+    /// <summary>Tipos de impuesto configurables para las líneas de factura.</summary>
+    public DbSet<TaxType> TaxTypes => Set<TaxType>();
+
+    /// <summary>Tipos de retención configurables para abonos y pagos.</summary>
+    public DbSet<WithholdingType> WithholdingTypes => Set<WithholdingType>();
 
     /// <summary>Tipos de cambio administrativos por fecha.</summary>
     public DbSet<DailyExchangeRate> DailyExchangeRates => Set<DailyExchangeRate>();
@@ -38,6 +45,12 @@ public sealed class FinancialDbContext(
 
     /// <summary>Bitácora inmutable de acciones administrativas de seguridad.</summary>
     public DbSet<SecurityAuditEvent> SecurityAuditEvents => Set<SecurityAuditEvent>();
+
+    /// <summary>Fila única de parámetros financieros del sistema.</summary>
+    public DbSet<SystemParameters> SystemParameters => Set<SystemParameters>();
+
+    /// <summary>Bitácora inmutable de cambios en los parámetros del sistema.</summary>
+    public DbSet<SystemParameterChange> SystemParameterChanges => Set<SystemParameterChange>();
 
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder builder)
@@ -53,7 +66,7 @@ public sealed class FinancialDbContext(
     /// <inheritdoc />
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
-        EnsureSecurityAuditIsAppendOnly();
+        EnsureAppendOnlyLogsAreNotMutated();
         return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 
@@ -62,7 +75,7 @@ public sealed class FinancialDbContext(
         bool acceptAllChangesOnSuccess,
         CancellationToken cancellationToken = default)
     {
-        EnsureSecurityAuditIsAppendOnly();
+        EnsureAppendOnlyLogsAreNotMutated();
         return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 
@@ -123,15 +136,24 @@ public sealed class FinancialDbContext(
             .ToTable("UsuariosTokens", "seguridad");
     }
 
-    private void EnsureSecurityAuditIsAppendOnly()
+    private void EnsureAppendOnlyLogsAreNotMutated()
     {
-        bool containsMutation = ChangeTracker.Entries<SecurityAuditEvent>()
+        bool securityAuditMutated = ChangeTracker.Entries<SecurityAuditEvent>()
             .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted);
 
-        if (containsMutation)
+        if (securityAuditMutated)
         {
             throw new InvalidOperationException(
                 "La bitácora de seguridad es inmutable y solo admite nuevos eventos.");
+        }
+
+        bool parameterHistoryMutated = ChangeTracker.Entries<SystemParameterChange>()
+            .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted);
+
+        if (parameterHistoryMutated)
+        {
+            throw new InvalidOperationException(
+                "El historial de parámetros es inmutable y solo admite nuevos registros.");
         }
     }
 }

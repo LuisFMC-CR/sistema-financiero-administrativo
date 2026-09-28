@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SistemaFinanciero.Application.Catalogs.Categories;
 using SistemaFinanciero.Application.Catalogs.Common;
+using SistemaFinanciero.Application.Catalogs.LedgerAccounts;
 using SistemaFinanciero.Application.Security;
 using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Web.Models.Catalogs;
@@ -11,7 +12,9 @@ namespace SistemaFinanciero.Web.Controllers;
 /// <summary>Presenta categorías financieras jerárquicas de ingreso y gasto.</summary>
 [Authorize(Policy = SystemPolicies.ViewBusinessCatalogs)]
 [Route("catalogos/categorias-financieras")]
-public sealed class FinancialCategoriesController(IFinancialCategoryService service) : CatalogControllerBase
+public sealed class FinancialCategoriesController(
+    IFinancialCategoryService service,
+    ILedgerAccountService ledgerAccounts) : CatalogControllerBase
 {
     [HttpGet("")]
     public async Task<IActionResult> Index(
@@ -31,7 +34,7 @@ public sealed class FinancialCategoriesController(IFinancialCategoryService serv
     public async Task<IActionResult> Create(CancellationToken cancellationToken)
     {
         FinancialCategoryInputViewModel model = new();
-        await PopulateParentOptionsAsync(model, null, null, cancellationToken);
+        await PopulateOptionsAsync(model, null, null, null, cancellationToken);
         return View(model);
     }
 
@@ -43,7 +46,7 @@ public sealed class FinancialCategoriesController(IFinancialCategoryService serv
     {
         if (!ModelState.IsValid)
         {
-            await PopulateParentOptionsAsync(model, null, null, cancellationToken);
+            await PopulateOptionsAsync(model, null, null, null, cancellationToken);
             return View(model);
         }
 
@@ -63,7 +66,7 @@ public sealed class FinancialCategoriesController(IFinancialCategoryService serv
             return RedirectToAction(nameof(Index));
         }
 
-        await PopulateParentOptionsAsync(model, null, null, cancellationToken);
+        await PopulateOptionsAsync(model, null, null, null, cancellationToken);
         return FormFailure(result, model, nameof(Create));
     }
 
@@ -78,7 +81,7 @@ public sealed class FinancialCategoriesController(IFinancialCategoryService serv
         }
 
         FinancialCategoryEditViewModel model = ToEditModel(category);
-        await PopulateParentOptionsAsync(model, id, category.ParentName, cancellationToken);
+        await PopulateOptionsAsync(model, id, category.ParentName, LedgerAccountLabel(category), cancellationToken);
         return View(model);
     }
 
@@ -91,7 +94,7 @@ public sealed class FinancialCategoriesController(IFinancialCategoryService serv
     {
         if (!ModelState.IsValid)
         {
-            await PopulateParentOptionsAsync(model, id, null, cancellationToken);
+            await PopulateOptionsAsync(model, id, null, null, cancellationToken);
             return View(model);
         }
 
@@ -114,6 +117,7 @@ public sealed class FinancialCategoriesController(IFinancialCategoryService serv
         }
 
         string? selectedParentName = null;
+        string? selectedLedgerAccountLabel = null;
         if (result.Status == CatalogOperationStatus.ConcurrencyConflict)
         {
             FinancialCategoryModel? current = await service.GetAsync(id, cancellationToken);
@@ -124,10 +128,13 @@ public sealed class FinancialCategoriesController(IFinancialCategoryService serv
 
             model.Version = current.Version;
             selectedParentName = current.ParentId == model.ParentId ? current.ParentName : null;
+            selectedLedgerAccountLabel = current.LedgerAccountId == model.LedgerAccountId
+                ? LedgerAccountLabel(current)
+                : null;
             ModelState.Remove(nameof(model.Version));
         }
 
-        await PopulateParentOptionsAsync(model, id, selectedParentName, cancellationToken);
+        await PopulateOptionsAsync(model, id, selectedParentName, selectedLedgerAccountLabel, cancellationToken);
         return FormFailure(result, model, nameof(Edit));
     }
 
@@ -167,8 +174,19 @@ public sealed class FinancialCategoriesController(IFinancialCategoryService serv
 
     private static SaveFinancialCategoryCommand ToCommand(FinancialCategoryInputViewModel model)
     {
-        return new(model.Code, model.Name, model.Kind, model.ParentId, model.Description);
+        // La cuenta es obligatoria en el formulario; Guid.Empty solo se usaría si esa validación se omitiera
+        // y el servicio la rechaza igualmente.
+        return new(
+            model.Code,
+            model.Name,
+            model.Kind,
+            model.ParentId,
+            model.LedgerAccountId ?? Guid.Empty,
+            model.Description);
     }
+
+    private static string LedgerAccountLabel(FinancialCategoryModel category) =>
+        $"{category.LedgerAccountCode} - {category.LedgerAccountName}";
 
     private static FinancialCategoryEditViewModel ToEditModel(FinancialCategoryModel category)
     {
@@ -178,9 +196,57 @@ public sealed class FinancialCategoriesController(IFinancialCategoryService serv
             Name = category.Name,
             Kind = category.Kind,
             ParentId = category.ParentId,
+            LedgerAccountId = category.LedgerAccountId,
             Description = category.Description,
             Version = category.Version,
         };
+    }
+
+    private async Task PopulateOptionsAsync(
+        FinancialCategoryInputViewModel model,
+        Guid? excludedCategoryId,
+        string? selectedParentName,
+        string? selectedLedgerAccountLabel,
+        CancellationToken cancellationToken)
+    {
+        await PopulateParentOptionsAsync(model, excludedCategoryId, selectedParentName, cancellationToken);
+        await PopulateLedgerAccountOptionsAsync(model, selectedLedgerAccountLabel, cancellationToken);
+    }
+
+    private async Task PopulateLedgerAccountOptionsAsync(
+        FinancialCategoryInputViewModel model,
+        string? selectedLedgerAccountLabel,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<LedgerAccountOption> incomeAccounts = await ledgerAccounts.GetActiveOptionsAsync(
+            LedgerAccountType.Income,
+            cancellationToken);
+        IReadOnlyList<LedgerAccountOption> expenseAccounts = await ledgerAccounts.GetActiveOptionsAsync(
+            LedgerAccountType.Expense,
+            cancellationToken);
+
+        List<FinancialCategoryLedgerAccountOptionViewModel> options = incomeAccounts
+            .Select(option => new FinancialCategoryLedgerAccountOptionViewModel(
+                option.Id,
+                $"{option.Code} - {option.Name}",
+                FinancialCategoryKind.Income))
+            .Concat(expenseAccounts.Select(option => new FinancialCategoryLedgerAccountOptionViewModel(
+                option.Id,
+                $"{option.Code} - {option.Name}",
+                FinancialCategoryKind.Expense)))
+            .ToList();
+
+        // Si la cuenta guardada ya no está activa se muestra, para no cambiarla sin que el usuario lo decida;
+        // el servicio exigirá elegir una activa al guardar.
+        if (model.LedgerAccountId is Guid selectedId && options.All(option => option.Id != selectedId))
+        {
+            options.Add(new FinancialCategoryLedgerAccountOptionViewModel(
+                selectedId,
+                selectedLedgerAccountLabel ?? "Cuenta contable seleccionada no disponible",
+                model.Kind));
+        }
+
+        model.LedgerAccountOptions = options;
     }
 
     private async Task PopulateParentOptionsAsync(

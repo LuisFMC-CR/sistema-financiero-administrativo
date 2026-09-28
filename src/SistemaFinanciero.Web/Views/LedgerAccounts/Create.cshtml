@@ -1,0 +1,94 @@
+@model LedgerAccountCreateViewModel
+@{
+    ViewData["Title"] = "Nueva cuenta contable";
+}
+
+<div class="catalog-form">
+    <h1 class="h2">Nueva cuenta contable</h1>
+    <p class="text-body-secondary">El tipo, el subtipo de efectivo y la moneda quedarán fijos después de crear la cuenta.</p>
+    <form asp-action="Create" method="post" class="card card-body">
+        <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label asp-for="Code" class="form-label"></label>
+                <input asp-for="Code" class="form-control text-uppercase" autocomplete="off" />
+                <span asp-validation-for="Code" class="text-danger"></span>
+            </div>
+            <div class="col-md-8">
+                <label asp-for="Name" class="form-label"></label>
+                <input asp-for="Name" class="form-control" />
+                <span asp-validation-for="Name" class="text-danger"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="Type" class="form-label"></label>
+                <select asp-for="Type" id="ledger-account-type" class="form-select">
+                    <option value="Asset">Activo</option>
+                    <option value="Liability">Pasivo</option>
+                    <option value="Equity">Patrimonio</option>
+                    <option value="Income">Ingreso</option>
+                    <option value="Expense">Gasto</option>
+                </select>
+                <span asp-validation-for="Type" class="text-danger"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="ParentId" class="form-label"></label>
+                <select asp-for="ParentId" id="ledger-account-parent" class="form-select">
+                    <option value="">Sin cuenta superior</option>
+                    @foreach (LedgerAccountParentOptionViewModel option in Model.ParentOptions)
+                    {
+                        <option value="@option.Id" data-account-type="@option.Type">@option.Label</option>
+                    }
+                </select>
+                <span asp-validation-for="ParentId" class="text-danger"></span>
+                <div class="form-text">Solo se muestran cuentas del mismo tipo. Una caja o un banco no puede ser cuenta superior.</div>
+            </div>
+            <div class="col-12">
+                <div class="form-check">
+                    <input asp-for="IsCash" id="ledger-account-is-cash" class="form-check-input" />
+                    <label asp-for="IsCash" class="form-check-label"></label>
+                </div>
+                <span asp-validation-for="IsCash" class="text-danger"></span>
+                <div class="form-text">Solo las cuentas de tipo Activo pueden ser de efectivo. Reciben o entregan dinero en una sola moneda.</div>
+            </div>
+            <div class="col-12" id="ledger-account-cash-fields">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label asp-for="CashKind" class="form-label"></label>
+                        <select asp-for="CashKind" class="form-select">
+                            <option value="Cash">Caja</option>
+                            <option value="Bank">Cuenta bancaria</option>
+                        </select>
+                        <span asp-validation-for="CashKind" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-6">
+                        <label asp-for="Currency" class="form-label"></label>
+                        <select asp-for="Currency" class="form-select">
+                            <option value="CRC">CRC - Colón costarricense</option>
+                            <option value="USD">USD - Dólar estadounidense</option>
+                        </select>
+                        <span asp-validation-for="Currency" class="text-danger"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12">
+                <label asp-for="Reference" class="form-label"></label>
+                <input asp-for="Reference" class="form-control" autocomplete="off" />
+                <span asp-validation-for="Reference" class="text-danger"></span>
+                <div class="form-text">Puede ser una referencia interna o los últimos dígitos; no ingrese credenciales bancarias.</div>
+            </div>
+            <div class="col-12">
+                <label asp-for="Description" class="form-label"></label>
+                <textarea asp-for="Description" class="form-control" rows="3"></textarea>
+                <span asp-validation-for="Description" class="text-danger"></span>
+            </div>
+        </div>
+        <div class="d-flex gap-2 mt-4">
+            <button type="submit" class="btn btn-primary">Guardar cuenta</button>
+            <a asp-action="Index" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

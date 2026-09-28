@@ -17,7 +17,9 @@ public sealed class InvoiceLine
     {
     }
 
-    /// <summary>Crea una línea con importes calculados a cuatro decimales.</summary>
+    /// <summary>
+    /// Crea una línea. Cantidad y precio unitario usan cuatro decimales; los importes, dos.
+    /// </summary>
     public InvoiceLine(
         Guid id,
         Guid? catalogItemId,
@@ -26,16 +28,16 @@ public sealed class InvoiceLine
         decimal quantity,
         decimal unitPrice,
         decimal discountAmount,
-        IEnumerable<InvoiceLineTax>? taxes)
+        IEnumerable<InvoiceTaxSpecification>? taxes)
     {
         Id = DomainRules.RequiredId(id, nameof(id));
         CatalogItemId = DomainRules.OptionalId(catalogItemId, nameof(catalogItemId));
         Description = DomainRules.RequiredText(description, DescriptionMaxLength, nameof(description));
         UnitOfMeasure = DomainRules.RequiredText(unitOfMeasure, UnitOfMeasureMaxLength, nameof(unitOfMeasure));
         Quantity = RequirePositive(quantity, nameof(quantity));
-        UnitPrice = RequireNonNegative(unitPrice, nameof(unitPrice));
-        GrossAmount = Round(Quantity * UnitPrice);
-        DiscountAmount = RequireNonNegative(discountAmount, nameof(discountAmount));
+        UnitPrice = RequireNonNegative(unitPrice, DomainRules.QuantityDecimalPlaces, nameof(unitPrice));
+        GrossAmount = DomainRules.RoundMoney(Quantity * UnitPrice);
+        DiscountAmount = RequireNonNegative(discountAmount, DomainRules.MoneyDecimalPlaces, nameof(discountAmount));
 
         if (DiscountAmount > GrossAmount)
         {
@@ -44,14 +46,20 @@ public sealed class InvoiceLine
                 "El descuento no puede superar el importe bruto de la línea.");
         }
 
-        NetAmount = Round(GrossAmount - DiscountAmount);
+        NetAmount = DomainRules.RoundMoney(GrossAmount - DiscountAmount);
         AddTaxes(taxes);
-        TaxAmount = Round(this.taxes.Sum(tax => tax.Amount));
-        TotalAmount = Round(NetAmount + TaxAmount);
+        TaxAmount = DomainRules.RoundMoney(this.taxes.Sum(tax => tax.Amount));
+        TotalAmount = DomainRules.RoundMoney(NetAmount + TaxAmount);
     }
 
     /// <summary>Identificador técnico estable de la línea.</summary>
     public Guid Id { get; private set; }
+
+    /// <summary>
+    /// Posición de la línea dentro de su factura, desde 1. La asigna la factura al agregarla, por lo que
+    /// vale 0 mientras la línea no pertenece a ninguna.
+    /// </summary>
+    public int Position { get; private set; }
 
     /// <summary>Artículo de catálogo de origen, cuando se utilizó uno.</summary>
     public Guid? CatalogItemId { get; private set; }
@@ -86,20 +94,29 @@ public sealed class InvoiceLine
     /// <summary>Impuestos aplicados a la línea.</summary>
     public IReadOnlyCollection<InvoiceLineTax> Taxes => taxes.AsReadOnly();
 
-    private void AddTaxes(IEnumerable<InvoiceLineTax>? lineTaxes)
+    /// <summary>Fija la posición de la línea. Solo la factura que la contiene la administra.</summary>
+    internal void MoveTo(int position)
     {
-        if (lineTaxes is null)
+        Position = position > 0
+            ? position
+            : throw new ArgumentOutOfRangeException(nameof(position), position, "La posición debe ser mayor que cero.");
+    }
+
+    private void AddTaxes(IEnumerable<InvoiceTaxSpecification>? specifications)
+    {
+        if (specifications is null)
         {
             return;
         }
 
-        foreach (InvoiceLineTax tax in lineTaxes)
+        foreach (InvoiceTaxSpecification specification in specifications)
         {
-            ArgumentNullException.ThrowIfNull(tax);
+            // La base gravable es siempre el neto de esta línea, nunca un valor recibido de fuera.
+            InvoiceLineTax tax = new(specification, NetAmount, Quantity);
 
             if (taxes.Any(existing => existing.Code == tax.Code))
             {
-                throw new ArgumentException("No se puede repetir un impuesto en la misma línea.", nameof(lineTaxes));
+                throw new ArgumentException("No se puede repetir un impuesto en la misma línea.", nameof(specifications));
             }
 
             taxes.Add(tax);
@@ -108,19 +125,17 @@ public sealed class InvoiceLine
 
     private static decimal RequirePositive(decimal value, string parameterName)
     {
-        decimal roundedValue = Round(value);
+        decimal roundedValue = DomainRules.Round(value, DomainRules.QuantityDecimalPlaces);
         return roundedValue > 0
             ? roundedValue
             : throw new ArgumentOutOfRangeException(parameterName, value, "El valor debe ser mayor que cero.");
     }
 
-    private static decimal RequireNonNegative(decimal value, string parameterName)
+    private static decimal RequireNonNegative(decimal value, int decimalPlaces, string parameterName)
     {
-        decimal roundedValue = Round(value);
+        decimal roundedValue = DomainRules.Round(value, decimalPlaces);
         return roundedValue >= 0
             ? roundedValue
             : throw new ArgumentOutOfRangeException(parameterName, value, "El valor no puede ser negativo.");
     }
-
-    private static decimal Round(decimal value) => decimal.Round(value, 4, MidpointRounding.AwayFromZero);
 }

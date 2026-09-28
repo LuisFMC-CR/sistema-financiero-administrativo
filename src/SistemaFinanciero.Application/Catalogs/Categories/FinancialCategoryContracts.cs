@@ -3,12 +3,16 @@ using SistemaFinanciero.Domain.Catalogs;
 
 namespace SistemaFinanciero.Application.Catalogs.Categories;
 
-/// <summary>Datos editables de una categoría financiera.</summary>
+/// <summary>
+/// Datos editables de una categoría financiera. La cuenta contable es obligatoria y debe ser del tipo
+/// que corresponde a la naturaleza de la categoría.
+/// </summary>
 public sealed record SaveFinancialCategoryCommand(
     string Code,
     string Name,
     FinancialCategoryKind Kind,
     Guid? ParentId,
+    Guid LedgerAccountId,
     string? Description);
 
 /// <summary>Proyección administrativa de una categoría financiera.</summary>
@@ -19,6 +23,9 @@ public sealed record FinancialCategoryModel(
     FinancialCategoryKind Kind,
     Guid? ParentId,
     string? ParentName,
+    Guid LedgerAccountId,
+    string LedgerAccountCode,
+    string LedgerAccountName,
     string? Description,
     bool IsActive,
     DateTimeOffset CreatedAtUtc,

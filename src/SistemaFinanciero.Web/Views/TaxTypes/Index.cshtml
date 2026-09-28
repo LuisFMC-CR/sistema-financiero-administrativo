@@ -1,0 +1,80 @@
+@model CatalogIndexViewModel<TaxTypeModel>
+@{
+    ViewData["Title"] = "Tipos de impuesto";
+    bool canManage = (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ManageBusinessCatalogs)).Succeeded;
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+    <div>
+        <h1 class="h2 mb-1">Tipos de impuesto</h1>
+        <p class="text-body-secondary mb-0">Impuestos con tarifa configurable que se aplican por línea de factura.</p>
+    </div>
+    @if (canManage)
+    {
+        <div class="d-flex flex-wrap gap-2">
+            <form asp-action="LoadReference" method="post" class="js-confirm-form"
+                  data-confirm-message="Se crearán las tarifas de IVA de referencia que aún no existan. Su uso debe validarse con la asesoría contable. ¿Desea continuar?">
+                <button type="submit" class="btn btn-outline-primary">Cargar tarifas de referencia</button>
+            </form>
+            <a asp-action="Create" class="btn btn-primary">Nuevo tipo de impuesto</a>
+        </div>
+    }
+</div>
+
+<partial name="_CatalogFilters" model="new CatalogFilterViewModel(Model.Search, Model.Status)" />
+
+<div class="table-responsive bg-white border rounded">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th scope="col">Código</th>
+                <th scope="col">Nombre</th>
+                <th scope="col">Método</th>
+                <th scope="col" class="text-end">Tarifa</th>
+                <th scope="col">Estado</th>
+                @if (canManage)
+                {
+                    <th scope="col" class="text-end">Acciones</th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.Results.Items.Count == 0)
+            {
+                <tr><td colspan="@(canManage ? 6 : 5)" class="text-center text-body-secondary py-4">No se encontraron tipos de impuesto.</td></tr>
+            }
+            @foreach (TaxTypeModel taxType in Model.Results.Items)
+            {
+                <tr>
+                    <td class="fw-semibold">@taxType.Code</td>
+                    <td>
+                        @taxType.Name
+                        @if (!string.IsNullOrWhiteSpace(taxType.Description))
+                        {
+                            <div class="small text-body-secondary">@taxType.Description</div>
+                        }
+                    </td>
+                    <td>@taxType.CalculationType.ToDisplayName()</td>
+                    <td class="text-end text-nowrap">@taxType.CalculationType.ToDisplayRate(taxType.Rate)</td>
+                    <td><partial name="_CatalogStatusBadge" model="taxType.IsActive" /></td>
+                    @if (canManage)
+                    {
+                        <td class="text-end text-nowrap">
+                            <a asp-action="Edit" asp-route-id="@taxType.Id" class="btn btn-sm btn-outline-primary">Editar</a>
+                            <form asp-action="SetActive" asp-route-id="@taxType.Id" method="post" class="d-inline js-confirm-form"
+                                  data-confirm-message="¿Confirma que desea @(taxType.IsActive ? "desactivar" : "reactivar") este tipo de impuesto?">
+                                <input type="hidden" name="IsActive" value="@(!taxType.IsActive)" />
+                                <input type="hidden" name="Version" value="@taxType.Version" />
+                                <button type="submit" class="btn btn-sm @(taxType.IsActive ? "btn-outline-danger" : "btn-outline-success")">
+                                    @(taxType.IsActive ? "Desactivar" : "Reactivar")
+                                </button>
+                            </form>
+                        </td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<partial name="_CatalogPagination" model="new CatalogPaginationViewModel(Model.Results.Page, Model.Results.TotalPages, Model.Results.HasPreviousPage, Model.Results.HasNextPage, Model.Search, Model.Status)" />

@@ -10,6 +10,12 @@ public sealed record FinancialCategoryParentOptionViewModel(
     string Label,
     FinancialCategoryKind Kind);
 
+/// <summary>Opción web para seleccionar la cuenta contable de una categoría, según su naturaleza.</summary>
+public sealed record FinancialCategoryLedgerAccountOptionViewModel(
+    Guid Id,
+    string Label,
+    FinancialCategoryKind Kind);
+
 /// <summary>Entrada para crear o editar una categoría financiera.</summary>
 public class FinancialCategoryInputViewModel
 {
@@ -30,12 +36,19 @@ public class FinancialCategoryInputViewModel
     [Display(Name = "Categoría padre")]
     public Guid? ParentId { get; set; }
 
+    [Required(ErrorMessage = "Seleccione una cuenta contable.")]
+    [Display(Name = "Cuenta contable")]
+    public Guid? LedgerAccountId { get; set; }
+
     [StringLength(300, ErrorMessage = "La descripción no puede superar 300 caracteres.")]
     [Display(Name = "Descripción")]
     public string? Description { get; set; }
 
     [ValidateNever]
     public IReadOnlyList<FinancialCategoryParentOptionViewModel> ParentOptions { get; set; } = [];
+
+    [ValidateNever]
+    public IReadOnlyList<FinancialCategoryLedgerAccountOptionViewModel> LedgerAccountOptions { get; set; } = [];
 }
 
 /// <summary>Entrada para editar una categoría con concurrencia optimista.</summary>

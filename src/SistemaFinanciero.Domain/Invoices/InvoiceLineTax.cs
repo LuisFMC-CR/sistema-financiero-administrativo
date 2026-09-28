@@ -15,26 +15,35 @@ public sealed class InvoiceLineTax
     {
     }
 
-    /// <summary>Crea un impuesto histórico y calcula su importe sobre la línea indicada.</summary>
-    public InvoiceLineTax(
-        Guid id,
-        string code,
-        string name,
-        TaxCalculationType calculationType,
-        decimal rate,
+    /// <summary>
+    /// Crea la fotografía de un impuesto y calcula su importe. Solo la línea de factura lo invoca,
+    /// para que la base gravable siempre sea el neto de esa línea.
+    /// </summary>
+    internal InvoiceLineTax(
+        InvoiceTaxSpecification specification,
         decimal taxableAmount,
         decimal quantity)
     {
-        Id = DomainRules.RequiredId(id, nameof(id));
-        Code = DomainRules.NormalizedCode(code, CodeMaxLength, nameof(code));
-        Name = DomainRules.RequiredText(name, NameMaxLength, nameof(name));
-        CalculationType = DomainRules.DefinedEnum(calculationType, nameof(calculationType));
-        Rate = NormalizeRate(rate, nameof(rate));
+        ArgumentNullException.ThrowIfNull(specification);
+
+        Id = DomainRules.RequiredId(specification.Id, nameof(specification.Id));
+        TaxTypeId = DomainRules.OptionalId(specification.TaxTypeId, nameof(specification.TaxTypeId));
+        Code = DomainRules.NormalizedCode(specification.Code, CodeMaxLength, nameof(specification.Code));
+        Name = DomainRules.RequiredText(specification.Name, NameMaxLength, nameof(specification.Name));
+        CalculationType = DomainRules.DefinedEnum(specification.CalculationType, nameof(specification.CalculationType));
+        Rate = NormalizeRate(specification.Rate, nameof(specification.Rate));
+        TaxableAmount = taxableAmount;
         Amount = CalculateAmount(CalculationType, Rate, taxableAmount, quantity);
     }
 
     /// <summary>Identificador técnico de la fotografía tributaria.</summary>
     public Guid Id { get; private set; }
+
+    /// <summary>
+    /// Tipo de impuesto del catálogo del que se tomó la fotografía; nulo si no se usó un tipo del
+    /// catálogo. Los valores de esta fila no dependen de él después de creada.
+    /// </summary>
+    public Guid? TaxTypeId { get; private set; }
 
     /// <summary>Código de impuesto vigente al preparar la factura.</summary>
     public string Code { get; private set; } = string.Empty;
@@ -48,12 +57,15 @@ public sealed class InvoiceLineTax
     /// <summary>Porcentaje o monto fijo por unidad utilizado.</summary>
     public decimal Rate { get; private set; }
 
-    /// <summary>Importe tributario resultante, conservado con cuatro decimales.</summary>
+    /// <summary>Base gravable conservada: el neto de la línea (bruto menos descuento).</summary>
+    public decimal TaxableAmount { get; private set; }
+
+    /// <summary>Importe tributario resultante, redondeado a dos decimales.</summary>
     public decimal Amount { get; private set; }
 
     private static decimal NormalizeRate(decimal value, string parameterName)
     {
-        decimal roundedValue = decimal.Round(value, 4, MidpointRounding.AwayFromZero);
+        decimal roundedValue = DomainRules.Round(value, DomainRules.QuantityDecimalPlaces);
 
         if (roundedValue < 0)
         {
@@ -86,6 +98,6 @@ public sealed class InvoiceLineTax
             _ => throw new ArgumentOutOfRangeException(nameof(calculationType)),
         };
 
-        return decimal.Round(amount, 4, MidpointRounding.AwayFromZero);
+        return DomainRules.RoundMoney(amount);
     }
 }

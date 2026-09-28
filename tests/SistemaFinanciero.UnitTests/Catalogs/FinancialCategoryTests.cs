@@ -14,6 +14,7 @@ public sealed class FinancialCategoryTests
     public void Constructor_NormalizesFieldsAndKeepsKind()
     {
         Guid parentId = Guid.NewGuid();
+        Guid ledgerAccountId = Guid.NewGuid();
 
         FinancialCategory category = new(
             Guid.NewGuid(),
@@ -21,6 +22,7 @@ public sealed class FinancialCategoryTests
             " Servicios ",
             FinancialCategoryKind.Income,
             parentId,
+            ledgerAccountId,
             " Ingresos por soporte ",
             CreatedAtUtc,
             CreatorId);
@@ -29,6 +31,7 @@ public sealed class FinancialCategoryTests
         Assert.Equal("Servicios", category.Name);
         Assert.Equal(FinancialCategoryKind.Income, category.Kind);
         Assert.Equal(parentId, category.ParentId);
+        Assert.Equal(ledgerAccountId, category.LedgerAccountId);
         Assert.Equal("Ingresos por soporte", category.Description);
         Assert.True(category.IsActive);
     }
@@ -44,6 +47,22 @@ public sealed class FinancialCategoryTests
             "Ingresos",
             FinancialCategoryKind.Income,
             id,
+            Guid.NewGuid(),
+            null,
+            CreatedAtUtc,
+            CreatorId));
+    }
+
+    [Fact]
+    public void Constructor_RequiresALedgerAccount()
+    {
+        Assert.Throws<ArgumentException>(() => new FinancialCategory(
+            Guid.NewGuid(),
+            "ING-001",
+            "Ingresos",
+            FinancialCategoryKind.Income,
+            null,
+            Guid.Empty,
             null,
             CreatedAtUtc,
             CreatorId));
@@ -55,22 +74,80 @@ public sealed class FinancialCategoryTests
         FinancialCategory category = CreateCategory();
         Guid parentId = Guid.NewGuid();
         FinancialCategoryKind originalKind = category.Kind;
+        Guid originalLedgerAccountId = category.LedgerAccountId;
         DateTimeOffset changedAtUtc = CreatedAtUtc.AddMinutes(5);
 
         category.ChangeParent(parentId, changedAtUtc, EditorId);
 
         Assert.Equal(parentId, category.ParentId);
         Assert.Equal(originalKind, category.Kind);
+        Assert.Equal(originalLedgerAccountId, category.LedgerAccountId);
         Assert.Equal(changedAtUtc, category.UpdatedAtUtc);
         Assert.Equal(EditorId, category.UpdatedByUserId);
     }
 
     [Fact]
-    public void UpdateDetails_DoesNotExposeKindOrParentAsEditableData()
+    public void ChangeLedgerAccount_UpdatesOnlyTheAccountAndAudit()
+    {
+        FinancialCategory category = CreateCategory();
+        Guid newAccountId = Guid.NewGuid();
+        Guid? originalParentId = category.ParentId;
+        DateTimeOffset changedAtUtc = CreatedAtUtc.AddMinutes(5);
+
+        category.ChangeLedgerAccount(newAccountId, changedAtUtc, EditorId);
+
+        Assert.Equal(newAccountId, category.LedgerAccountId);
+        Assert.Equal(originalParentId, category.ParentId);
+        Assert.Equal(FinancialCategoryKind.Expense, category.Kind);
+        Assert.Equal(changedAtUtc, category.UpdatedAtUtc);
+        Assert.Equal(EditorId, category.UpdatedByUserId);
+    }
+
+    [Fact]
+    public void ChangeLedgerAccount_WithTheSameAccountChangesNothing()
+    {
+        FinancialCategory category = CreateCategory();
+
+        category.ChangeLedgerAccount(category.LedgerAccountId, CreatedAtUtc.AddMinutes(5), EditorId);
+
+        Assert.Equal(CreatedAtUtc, category.UpdatedAtUtc);
+        Assert.Equal(CreatorId, category.UpdatedByUserId);
+    }
+
+    [Fact]
+    public void ChangeLedgerAccount_RejectsAnEmptyAccountAndLeavesTheCategoryUntouched()
+    {
+        FinancialCategory category = CreateCategory();
+        Guid originalLedgerAccountId = category.LedgerAccountId;
+
+        Assert.Throws<ArgumentException>(() =>
+            category.ChangeLedgerAccount(Guid.Empty, CreatedAtUtc.AddMinutes(5), EditorId));
+
+        Assert.Equal(originalLedgerAccountId, category.LedgerAccountId);
+        Assert.Equal(CreatedAtUtc, category.UpdatedAtUtc);
+    }
+
+    [Fact]
+    public void ChangeLedgerAccount_RejectsAnEmptyUserOrAnInstantBeforeTheLastChange()
+    {
+        FinancialCategory category = CreateCategory();
+        Guid originalLedgerAccountId = category.LedgerAccountId;
+
+        Assert.Throws<ArgumentException>(() =>
+            category.ChangeLedgerAccount(Guid.NewGuid(), CreatedAtUtc.AddMinutes(5), Guid.Empty));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            category.ChangeLedgerAccount(Guid.NewGuid(), CreatedAtUtc.AddMinutes(-5), EditorId));
+
+        Assert.Equal(originalLedgerAccountId, category.LedgerAccountId);
+    }
+
+    [Fact]
+    public void UpdateDetails_DoesNotExposeKindParentOrLedgerAccountAsEditableData()
     {
         FinancialCategory category = CreateCategory();
         FinancialCategoryKind originalKind = category.Kind;
         Guid? originalParentId = category.ParentId;
+        Guid originalLedgerAccountId = category.LedgerAccountId;
 
         category.UpdateDetails(
             " gas-op ",
@@ -84,6 +161,7 @@ public sealed class FinancialCategoryTests
         Assert.Null(category.Description);
         Assert.Equal(originalKind, category.Kind);
         Assert.Equal(originalParentId, category.ParentId);
+        Assert.Equal(originalLedgerAccountId, category.LedgerAccountId);
     }
 
     [Fact]
@@ -95,9 +173,27 @@ public sealed class FinancialCategoryTests
             "Categoría",
             (FinancialCategoryKind)99,
             null,
+            Guid.NewGuid(),
             null,
             CreatedAtUtc,
             CreatorId));
+    }
+
+    [Theory]
+    [InlineData(FinancialCategoryKind.Income, LedgerAccountType.Income)]
+    [InlineData(FinancialCategoryKind.Expense, LedgerAccountType.Expense)]
+    public void Kind_MapsToTheLedgerAccountTypeOfTheSameNature(
+        FinancialCategoryKind kind,
+        LedgerAccountType expectedType)
+    {
+        Assert.Equal(expectedType, kind.ToLedgerAccountType());
+    }
+
+    [Fact]
+    public void Kind_RejectsAnUndefinedNatureWhenMappingToAnAccountType()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            ((FinancialCategoryKind)99).ToLedgerAccountType());
     }
 
     private static FinancialCategory CreateCategory()
@@ -108,6 +204,7 @@ public sealed class FinancialCategoryTests
             "Gastos",
             FinancialCategoryKind.Expense,
             null,
+            Guid.NewGuid(),
             null,
             CreatedAtUtc,
             CreatorId);

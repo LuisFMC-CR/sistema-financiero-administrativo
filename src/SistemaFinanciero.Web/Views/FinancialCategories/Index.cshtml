@@ -25,6 +25,7 @@
                 <th scope="col">Nombre</th>
                 <th scope="col">Naturaleza</th>
                 <th scope="col">Categoría padre</th>
+                <th scope="col">Cuenta contable</th>
                 <th scope="col">Estado</th>
                 @if (canManage)
                 {
@@ -35,7 +36,7 @@
         <tbody>
             @if (Model.Results.Items.Count == 0)
             {
-                <tr><td colspan="@(canManage ? 6 : 5)" class="text-center text-body-secondary py-4">No se encontraron categorías.</td></tr>
+                <tr><td colspan="@(canManage ? 7 : 6)" class="text-center text-body-secondary py-4">No se encontraron categorías.</td></tr>
             }
             @foreach (FinancialCategoryModel category in Model.Results.Items)
             {
@@ -44,6 +45,7 @@
                     <td>@category.Name</td>
                     <td>@category.Kind.ToDisplayName()</td>
                     <td>@(category.ParentName ?? "—")</td>
+                    <td>@category.LedgerAccountCode - @category.LedgerAccountName</td>
                     <td><partial name="_CatalogStatusBadge" model="category.IsActive" /></td>
                     @if (canManage)
                     {

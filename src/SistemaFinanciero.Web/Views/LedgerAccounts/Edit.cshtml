@@ -1,0 +1,70 @@
+@model LedgerAccountEditViewModel
+@{
+    ViewData["Title"] = "Editar cuenta contable";
+}
+
+<div class="catalog-form">
+    <h1 class="h2">Editar cuenta contable</h1>
+    <p class="text-body-secondary">El tipo, el subtipo de efectivo y la moneda no pueden modificarse para preservar la consistencia de los movimientos.</p>
+    <form method="post" asp-antiforgery="true" class="card card-body">
+        <input asp-for="Version" type="hidden" />
+        <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label asp-for="Code" class="form-label"></label>
+                <input asp-for="Code" class="form-control text-uppercase" autocomplete="off" />
+                <span asp-validation-for="Code" class="text-danger"></span>
+            </div>
+            <div class="col-md-8">
+                <label asp-for="Name" class="form-label"></label>
+                <input asp-for="Name" class="form-control" />
+                <span asp-validation-for="Name" class="text-danger"></span>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Tipo</label>
+                <input value="@Model.Type.ToDisplayName()" class="form-control" readonly />
+            </div>
+            <div class="col-md-6">
+                <label asp-for="ParentId" class="form-label"></label>
+                <select asp-for="ParentId" class="form-select">
+                    <option value="">Sin cuenta superior</option>
+                    @foreach (LedgerAccountParentOptionViewModel option in Model.ParentOptions)
+                    {
+                        <option value="@option.Id">@option.Label</option>
+                    }
+                </select>
+                <span asp-validation-for="ParentId" class="text-danger"></span>
+                <div class="form-text">Solo se muestran cuentas del mismo tipo, sin producir ciclos.</div>
+            </div>
+            @if (Model.CashKind is CashAccountKind cashKind && Model.Currency is CurrencyCode currency)
+            {
+                <div class="col-md-6">
+                    <label class="form-label">Subtipo de efectivo</label>
+                    <input value="@cashKind.ToDisplayName()" class="form-control" readonly />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Moneda</label>
+                    <input value="@currency.ToDisplayName()" class="form-control" readonly />
+                </div>
+            }
+            <div class="col-12">
+                <label asp-for="Reference" class="form-label"></label>
+                <input asp-for="Reference" class="form-control" autocomplete="off" />
+                <span asp-validation-for="Reference" class="text-danger"></span>
+            </div>
+            <div class="col-12">
+                <label asp-for="Description" class="form-label"></label>
+                <textarea asp-for="Description" class="form-control" rows="3"></textarea>
+                <span asp-validation-for="Description" class="text-danger"></span>
+            </div>
+        </div>
+        <div class="d-flex gap-2 mt-4">
+            <button type="submit" class="btn btn-primary">Guardar cambios</button>
+            <a asp-action="Index" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

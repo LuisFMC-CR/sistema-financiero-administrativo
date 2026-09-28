@@ -33,6 +33,18 @@
         <div class="form-text">Solo se muestran categorías de la misma naturaleza.</div>
     </div>
     <div class="col-12">
+        <label asp-for="LedgerAccountId" class="form-label"></label>
+        <select asp-for="LedgerAccountId" id="financial-category-ledger-account" class="form-select">
+            <option value="">Seleccione una cuenta contable</option>
+            @foreach (FinancialCategoryLedgerAccountOptionViewModel option in Model.LedgerAccountOptions)
+            {
+                <option value="@option.Id" data-category-kind="@option.Kind">@option.Label</option>
+            }
+        </select>
+        <span asp-validation-for="LedgerAccountId" class="text-danger"></span>
+        <div class="form-text">Una categoría de ingreso usa una cuenta de tipo Ingreso; una de gasto, una de tipo Gasto.</div>
+    </div>
+    <div class="col-12">
         <label asp-for="Description" class="form-label"></label>
         <textarea asp-for="Description" class="form-control" rows="3"></textarea>
         <span asp-validation-for="Description" class="text-danger"></span>

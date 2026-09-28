@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SistemaFinanciero.Application.Catalogs.Categories;
 using SistemaFinanciero.Application.Catalogs.Common;
+using SistemaFinanciero.Application.Catalogs.LedgerAccounts;
 using SistemaFinanciero.Application.Security;
 using SistemaFinanciero.Domain.Catalogs;
 
@@ -55,8 +56,11 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
     [InlineData("/catalogos/proveedores")]
     [InlineData("/catalogos/productos-servicios")]
     [InlineData("/catalogos/categorias-financieras")]
-    [InlineData("/catalogos/cuentas-financieras")]
     [InlineData("/catalogos/tipos-cambio")]
+    [InlineData("/catalogos/tipos-impuesto")]
+    [InlineData("/catalogos/cuentas-contables")]
+    [InlineData("/catalogos/tipos-retencion")]
+    [InlineData("/parametros")]
     public async Task CatalogRoutes_WhenAnonymous_RedirectToLogin(string route)
     {
         using HttpClient client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -74,6 +78,10 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
     [Theory]
     [InlineData("/catalogos/productos-servicios/crear")]
     [InlineData("/catalogos/tipos-cambio/crear")]
+    [InlineData("/catalogos/tipos-impuesto/crear")]
+    [InlineData("/catalogos/cuentas-contables/crear")]
+    [InlineData("/catalogos/categorias-financieras/crear")]
+    [InlineData("/catalogos/tipos-retencion/crear")]
     public async Task FinanceUser_CanOpenFinancialCatalogCreationPages(string route)
     {
         using WebApplicationFactory<Program> financeFactory = factory.WithWebHostBuilder(builder =>
@@ -81,6 +89,8 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
             {
                 services.RemoveAll<IFinancialCategoryService>();
                 services.AddScoped<IFinancialCategoryService, EmptyFinancialCategoryService>();
+                services.RemoveAll<ILedgerAccountService>();
+                services.AddScoped<ILedgerAccountService, EmptyLedgerAccountService>();
                 services
                     .AddAuthentication(options =>
                     {
@@ -125,6 +135,132 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
                 route.Contains("borrar", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public void TaxTypeEndpoints_OnlyFinanceCanChangeDataAndLoadingReferencesIsPostOnly()
+    {
+        Microsoft.AspNetCore.Routing.RouteEndpoint[] endpoints = factory.Services
+            .GetServices<Microsoft.AspNetCore.Routing.EndpointDataSource>()
+            .SelectMany(source => source.Endpoints)
+            .OfType<Microsoft.AspNetCore.Routing.RouteEndpoint>()
+            .Where(endpoint => endpoint.RoutePattern.RawText?.StartsWith(
+                "catalogos/tipos-impuesto",
+                StringComparison.OrdinalIgnoreCase) == true)
+            .ToArray();
+
+        Microsoft.AspNetCore.Routing.RouteEndpoint[] mutating = endpoints
+            .Where(endpoint => endpoint.Metadata
+                .GetMetadata<Microsoft.AspNetCore.Routing.HttpMethodMetadata>()!
+                .HttpMethods.Contains("POST"))
+            .ToArray();
+        Microsoft.AspNetCore.Routing.RouteEndpoint[] readOnly = endpoints.Except(mutating)
+            .Where(endpoint => !endpoint.RoutePattern.RawText!.Contains("crear", StringComparison.Ordinal)
+                && !endpoint.RoutePattern.RawText.Contains("editar", StringComparison.Ordinal))
+            .ToArray();
+
+        // Crear, editar, cambiar estado y cargar referencias son POST y exigen la política de Finanzas.
+        Assert.Contains(mutating, endpoint => endpoint.RoutePattern.RawText!.EndsWith("cargar-referencia", StringComparison.Ordinal));
+        Assert.All(
+            mutating,
+            endpoint => Assert.Contains(
+                endpoint.Metadata.GetOrderedMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>(),
+                data => data.Policy == SystemPolicies.ManageBusinessCatalogs));
+
+        // La carga de referencias no se puede disparar con GET.
+        Microsoft.AspNetCore.Routing.RouteEndpoint load = Assert.Single(
+            endpoints,
+            endpoint => endpoint.RoutePattern.RawText!.EndsWith("cargar-referencia", StringComparison.Ordinal));
+        Assert.Equal(
+            ["POST"],
+            load.Metadata.GetMetadata<Microsoft.AspNetCore.Routing.HttpMethodMetadata>()!.HttpMethods);
+
+        // El listado es de consulta: no exige la política de mantenimiento.
+        Assert.NotEmpty(readOnly);
+        Assert.All(
+            readOnly,
+            endpoint => Assert.DoesNotContain(
+                endpoint.Metadata.GetOrderedMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>(),
+                data => data.Policy == SystemPolicies.ManageBusinessCatalogs));
+    }
+
+    [Fact]
+    public void ManageSystemParametersPolicy_AllowsManagementOnly()
+    {
+        AssertPolicyRoles(SystemPolicies.ManageSystemParameters, SystemRoles.Management);
+    }
+
+    [Fact]
+    public void SystemParametersEndpoints_OnlyManagementCanSave()
+    {
+        Microsoft.AspNetCore.Routing.RouteEndpoint[] endpoints = factory.Services
+            .GetServices<Microsoft.AspNetCore.Routing.EndpointDataSource>()
+            .SelectMany(source => source.Endpoints)
+            .OfType<Microsoft.AspNetCore.Routing.RouteEndpoint>()
+            .Where(endpoint => endpoint.RoutePattern.RawText == "parametros")
+            .ToArray();
+
+        Microsoft.AspNetCore.Routing.RouteEndpoint save = Assert.Single(
+            endpoints,
+            endpoint => endpoint.Metadata
+                .GetMetadata<Microsoft.AspNetCore.Routing.HttpMethodMetadata>()!
+                .HttpMethods.Contains("POST"));
+        Assert.Contains(
+            save.Metadata.GetOrderedMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>(),
+            data => data.Policy == SystemPolicies.ManageSystemParameters);
+
+        Microsoft.AspNetCore.Routing.RouteEndpoint index = Assert.Single(
+            endpoints,
+            endpoint => endpoint.Metadata
+                .GetMetadata<Microsoft.AspNetCore.Routing.HttpMethodMetadata>()!
+                .HttpMethods.Contains("GET"));
+        Assert.DoesNotContain(
+            index.Metadata.GetOrderedMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>(),
+            data => data.Policy == SystemPolicies.ManageSystemParameters);
+        Assert.Contains(
+            index.Metadata.GetOrderedMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>(),
+            data => data.Policy == SystemPolicies.ViewFinancialReports);
+    }
+
+    [Fact]
+    public void LedgerAccountEndpoints_OnlyFinanceCanChangeData()
+    {
+        Microsoft.AspNetCore.Routing.RouteEndpoint[] endpoints = factory.Services
+            .GetServices<Microsoft.AspNetCore.Routing.EndpointDataSource>()
+            .SelectMany(source => source.Endpoints)
+            .OfType<Microsoft.AspNetCore.Routing.RouteEndpoint>()
+            .Where(endpoint => endpoint.RoutePattern.RawText?.StartsWith(
+                "catalogos/cuentas-contables",
+                StringComparison.OrdinalIgnoreCase) == true)
+            .ToArray();
+
+        Microsoft.AspNetCore.Routing.RouteEndpoint[] mutating = endpoints
+            .Where(endpoint => endpoint.Metadata
+                .GetMetadata<Microsoft.AspNetCore.Routing.HttpMethodMetadata>()!
+                .HttpMethods.Contains("POST"))
+            .ToArray();
+        Microsoft.AspNetCore.Routing.RouteEndpoint[] getEndpoints = endpoints.Except(mutating).ToArray();
+
+        // Crear, editar y cambiar estado son POST y exigen la política de Finanzas.
+        Assert.Equal(3, mutating.Length);
+        Assert.All(
+            mutating,
+            endpoint => Assert.Contains(
+                endpoint.Metadata.GetOrderedMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>(),
+                data => data.Policy == SystemPolicies.ManageBusinessCatalogs));
+
+        // Las pantallas de crear y editar también son solo de Finanzas; el listado es de consulta.
+        Microsoft.AspNetCore.Routing.RouteEndpoint list = Assert.Single(
+            getEndpoints,
+            endpoint => endpoint.RoutePattern.RawText == "catalogos/cuentas-contables");
+        Assert.DoesNotContain(
+            list.Metadata.GetOrderedMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>(),
+            data => data.Policy == SystemPolicies.ManageBusinessCatalogs);
+        Assert.All(
+            getEndpoints.Where(endpoint => endpoint != list),
+            endpoint => Assert.Contains(
+                endpoint.Metadata.GetOrderedMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>(),
+                data => data.Policy == SystemPolicies.ManageBusinessCatalogs));
+    }
+
     private void AssertPolicyRoles(string policyName, params string[] expectedRoles)
     {
         AuthorizationOptions options = factory.Services
@@ -160,6 +296,59 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
             return Task.FromResult(AuthenticateResult.Success(
                 new AuthenticationTicket(new ClaimsPrincipal(identity), SchemeName)));
         }
+    }
+
+    /// <summary>
+    /// Igual que la de categorías: la pantalla de creación solo necesita listas vacías de cuentas
+    /// superiores, sin consultar SQL Server.
+    /// </summary>
+    private sealed class EmptyLedgerAccountService : ILedgerAccountService
+    {
+        public Task<PagedResult<LedgerAccountModel>> SearchAsync(
+            CatalogQuery query,
+            CancellationToken cancellationToken = default) =>
+            Task.FromException<PagedResult<LedgerAccountModel>>(new NotSupportedException());
+
+        public Task<LedgerAccountModel?> GetAsync(Guid id, CancellationToken cancellationToken = default) =>
+            Task.FromException<LedgerAccountModel?>(new NotSupportedException());
+
+        public Task<IReadOnlyList<LedgerAccountOption>> GetParentOptionsAsync(
+            LedgerAccountType type,
+            Guid? excludedAccountId = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<LedgerAccountOption>>([]);
+
+        public Task<IReadOnlyList<LedgerAccountOption>> GetActiveOptionsAsync(
+            LedgerAccountType type,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<LedgerAccountOption>>([]);
+
+        public Task<IReadOnlyList<CashAccountOption>> GetActiveCashAccountsAsync(
+            SistemaFinanciero.Domain.Currencies.CurrencyCode? currency = null,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<CashAccountOption>>([]);
+
+        public Task<CatalogOperationResult> CreateAsync(
+            CreateLedgerAccountCommand command,
+            Guid actorId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromException<CatalogOperationResult>(new NotSupportedException());
+
+        public Task<CatalogOperationResult> UpdateAsync(
+            Guid id,
+            UpdateLedgerAccountCommand command,
+            string version,
+            Guid actorId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromException<CatalogOperationResult>(new NotSupportedException());
+
+        public Task<CatalogOperationResult> SetActiveAsync(
+            Guid id,
+            bool isActive,
+            string version,
+            Guid actorId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromException<CatalogOperationResult>(new NotSupportedException());
     }
 
     /// <summary>

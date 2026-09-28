@@ -24,13 +24,17 @@ public sealed class FinancialCategory
     {
     }
 
-    /// <summary>Crea una categoría financiera activa.</summary>
+    /// <summary>
+    /// Crea una categoría financiera activa. Toda categoría apunta a una cuenta contable; que sea del
+    /// mismo tipo la valida Application, porque requiere consultar la cuenta.
+    /// </summary>
     public FinancialCategory(
         Guid id,
         string code,
         string name,
         FinancialCategoryKind kind,
         Guid? parentId,
+        Guid ledgerAccountId,
         string? description,
         DateTimeOffset createdAtUtc,
         Guid createdByUserId)
@@ -40,6 +44,7 @@ public sealed class FinancialCategory
         Name = DomainRules.RequiredText(name, NameMaxLength, nameof(name));
         Kind = DomainRules.DefinedEnum(kind, nameof(kind));
         ParentId = ValidateParent(parentId);
+        LedgerAccountId = DomainRules.RequiredId(ledgerAccountId, nameof(ledgerAccountId));
         Description = DomainRules.OptionalText(
             description,
             DescriptionMaxLength,
@@ -65,6 +70,12 @@ public sealed class FinancialCategory
 
     /// <summary>Obtiene la categoría superior, si la categoría no es raíz.</summary>
     public Guid? ParentId { get; private set; }
+
+    /// <summary>
+    /// Obtiene la cuenta contable de la categoría, del mismo tipo que su naturaleza: una categoría de
+    /// ingreso apunta a una cuenta de Ingreso y una de gasto, a una de Gasto.
+    /// </summary>
+    public Guid LedgerAccountId { get; private set; }
 
     /// <summary>Obtiene la descripción opcional.</summary>
     public string? Description { get; private set; }
@@ -126,6 +137,27 @@ public sealed class FinancialCategory
 
         DateTimeOffset normalizedUpdatedAtUtc = ValidateUpdateAudit(updatedAtUtc, updatedByUserId);
         ParentId = normalizedParentId;
+        Touch(normalizedUpdatedAtUtc, updatedByUserId);
+    }
+
+    /// <summary>
+    /// Cambia la cuenta contable después de que Application haya validado que existe, está activa y es
+    /// del tipo que corresponde a la naturaleza de la categoría.
+    /// </summary>
+    public void ChangeLedgerAccount(
+        Guid ledgerAccountId,
+        DateTimeOffset updatedAtUtc,
+        Guid updatedByUserId)
+    {
+        Guid normalizedLedgerAccountId = DomainRules.RequiredId(ledgerAccountId, nameof(ledgerAccountId));
+
+        if (LedgerAccountId == normalizedLedgerAccountId)
+        {
+            return;
+        }
+
+        DateTimeOffset normalizedUpdatedAtUtc = ValidateUpdateAudit(updatedAtUtc, updatedByUserId);
+        LedgerAccountId = normalizedLedgerAccountId;
         Touch(normalizedUpdatedAtUtc, updatedByUserId);
     }
 

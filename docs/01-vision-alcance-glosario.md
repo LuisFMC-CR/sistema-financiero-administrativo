@@ -13,8 +13,11 @@ trazable y accesible según las responsabilidades de cada usuario.
 - Catálogo único de productos y servicios. Una factura puede contener ambos.
 - Productos facturables sin control de inventario.
 - Precios de referencia opcionales en CRC y USD para productos y servicios.
-- Categorías financieras jerárquicas de ingreso y gasto.
-- Cuentas financieras de caja o banco con código, tipo y moneda fijos, sin saldo editable.
+- Categorías financieras jerárquicas de ingreso y gasto, cada una vinculada a una cuenta contable de su
+  mismo tipo.
+- Catálogo de cuentas contables jerárquico (Activo, Pasivo, Patrimonio, Ingreso y Gasto) que solo
+  clasifica. Las cajas y los bancos son cuentas de Activo «de efectivo», con subtipo y moneda fijos,
+  sin saldo editable.
 - Registro manual de una tasa CRC por USD para cada fecha de negocio.
 - Facturación administrativa interna de contado y crédito.
 - Cuentas por cobrar, abonos e ingresos de efectivo.
@@ -62,8 +65,12 @@ trazable y accesible según las responsabilidades de cada usuario.
 | Proveedor | Persona física o jurídica asociada a gastos. Se administra separadamente de clientes. |
 | Producto o servicio | Elemento facturable del catálogo único. Su tipo no implica control de inventario. |
 | Precio de referencia | Importe opcional en CRC o USD que facilita una captura futura; no es un tipo de cambio ni modifica documentos históricos. |
-| Cuenta financiera | Caja o cuenta bancaria con una moneda fija. |
-| Categoría financiera | Clasificación jerárquica de ingreso o gasto; no representa una cuenta de partida doble. |
+| Cuenta contable | Elemento del catálogo jerárquico de clasificación, de tipo Activo, Pasivo, Patrimonio, Ingreso o Gasto. Solo clasifica: el sistema no lleva partida doble, asientos ni saldos contables. |
+| Cuenta de efectivo | Cuenta contable de tipo Activo marcada como caja o banco, con moneda fija; es la que recibe o entrega dinero en ingresos y pagos. |
+| Categoría financiera | Clasificación jerárquica de ingreso o gasto vinculada a una cuenta contable de su mismo tipo; no representa una cuenta de partida doble. |
+| Tipo de impuesto | Impuesto con tarifa configurable, porcentual o de monto fijo por unidad, que una línea de factura aplica y conserva como fotografía. |
+| Tipo de retención | Retención con tarifa porcentual configurable, que se aplica al registrar un abono o un pago. |
+| Parámetros del sistema | Configuración única con el límite de autorización en CRC y los días de alerta de vencimiento; la define Gerencia. |
 | Moneda base | CRC, utilizada para presupuestos y consolidación de reportes. |
 | Tipo de cambio diario | Cantidad de CRC equivalente a un USD para una fecha de negocio y fuente determinadas. |
 | Activo/Inactivo | Estado lógico de un registro maestro. Un registro inactivo se conserva para trazabilidad y deja de ofrecerse en nuevas operaciones. |

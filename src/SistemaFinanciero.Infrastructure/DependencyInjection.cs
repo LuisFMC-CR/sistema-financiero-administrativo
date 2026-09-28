@@ -3,20 +3,26 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using SistemaFinanciero.Application.Catalogs.Accounts;
 using SistemaFinanciero.Application.Catalogs.Categories;
 using SistemaFinanciero.Application.Catalogs.Customers;
 using SistemaFinanciero.Application.Catalogs.ExchangeRates;
 using SistemaFinanciero.Application.Catalogs.Items;
+using SistemaFinanciero.Application.Catalogs.LedgerAccounts;
 using SistemaFinanciero.Application.Catalogs.Suppliers;
+using SistemaFinanciero.Application.Catalogs.TaxTypes;
+using SistemaFinanciero.Application.Catalogs.WithholdingTypes;
+using SistemaFinanciero.Application.Parameters;
 using SistemaFinanciero.Application.Security.Users;
-using SistemaFinanciero.Infrastructure.Catalogs.Accounts;
 using SistemaFinanciero.Infrastructure.Catalogs.Categories;
 using SistemaFinanciero.Infrastructure.Catalogs.Customers;
 using SistemaFinanciero.Infrastructure.Catalogs.ExchangeRates;
 using SistemaFinanciero.Infrastructure.Catalogs.Items;
+using SistemaFinanciero.Infrastructure.Catalogs.LedgerAccounts;
 using SistemaFinanciero.Infrastructure.Catalogs.Suppliers;
+using SistemaFinanciero.Infrastructure.Catalogs.TaxTypes;
+using SistemaFinanciero.Infrastructure.Catalogs.WithholdingTypes;
 using SistemaFinanciero.Infrastructure.Identity;
+using SistemaFinanciero.Infrastructure.Parameters;
 using SistemaFinanciero.Infrastructure.Persistence;
 
 namespace SistemaFinanciero.Infrastructure;
@@ -103,8 +109,11 @@ public static class DependencyInjection
         services.AddScoped<ISupplierCatalogService, SupplierCatalogService>();
         services.AddScoped<ICatalogItemService, CatalogItemService>();
         services.AddScoped<IFinancialCategoryService, FinancialCategoryService>();
-        services.AddScoped<IFinancialAccountService, FinancialAccountService>();
         services.AddScoped<IDailyExchangeRateService, DailyExchangeRateService>();
+        services.AddScoped<ITaxTypeService, TaxTypeService>();
+        services.AddScoped<ILedgerAccountService, LedgerAccountService>();
+        services.AddScoped<IWithholdingTypeService, WithholdingTypeService>();
+        services.AddScoped<ISystemParametersService, SystemParametersService>();
 
         return services;
     }

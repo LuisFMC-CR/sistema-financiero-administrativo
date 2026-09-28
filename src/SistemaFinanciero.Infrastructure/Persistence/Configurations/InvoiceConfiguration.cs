@@ -18,6 +18,10 @@ internal sealed class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
             {
                 table.HasCheckConstraint("CK_Facturas_Status", "[Status] IN (1, 2, 3)");
                 table.HasCheckConstraint("CK_Facturas_Currency", "[Currency] IN (1, 2)");
+                table.HasCheckConstraint("CK_Facturas_PaymentTerm", "[PaymentTerm] IN (1, 2)");
+                table.HasCheckConstraint(
+                    "CK_Facturas_DueDate",
+                    "([PaymentTerm] = 1 AND [DueDate] IS NULL) OR ([PaymentTerm] = 2 AND [DueDate] IS NOT NULL AND [DueDate] >= [IssueDate])");
                 table.HasCheckConstraint("CK_Facturas_Totals", "[GrossAmount] >= 0 AND [DiscountAmount] >= 0 AND [NetAmount] >= 0 AND [TaxAmount] >= 0 AND [TotalAmount] >= 0");
                 table.HasCheckConstraint("CK_Facturas_UsdRate", "[Currency] <> 2 OR [Status] = 1 OR [ConfirmedCrcPerUsd] > 0");
             });
@@ -28,12 +32,14 @@ internal sealed class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
             .ValueGeneratedOnAdd();
         builder.Property(invoice => invoice.IssueDate).HasColumnType("date").IsRequired();
         builder.Property(invoice => invoice.Currency).IsRequired();
+        builder.Property(invoice => invoice.PaymentTerm).IsRequired();
+        builder.Property(invoice => invoice.DueDate).HasColumnType("date");
         builder.Property(invoice => invoice.Status).IsRequired();
-        builder.Property(invoice => invoice.GrossAmount).HasPrecision(18, 4).IsRequired();
-        builder.Property(invoice => invoice.DiscountAmount).HasPrecision(18, 4).IsRequired();
-        builder.Property(invoice => invoice.NetAmount).HasPrecision(18, 4).IsRequired();
-        builder.Property(invoice => invoice.TaxAmount).HasPrecision(18, 4).IsRequired();
-        builder.Property(invoice => invoice.TotalAmount).HasPrecision(18, 4).IsRequired();
+        builder.Property(invoice => invoice.GrossAmount).HasPrecision(18, 2).IsRequired();
+        builder.Property(invoice => invoice.DiscountAmount).HasPrecision(18, 2).IsRequired();
+        builder.Property(invoice => invoice.NetAmount).HasPrecision(18, 2).IsRequired();
+        builder.Property(invoice => invoice.TaxAmount).HasPrecision(18, 2).IsRequired();
+        builder.Property(invoice => invoice.TotalAmount).HasPrecision(18, 2).IsRequired();
         builder.Property(invoice => invoice.ConfirmedCrcPerUsd).HasPrecision(18, 6);
         builder.Property(invoice => invoice.CancellationReason).HasMaxLength(300);
         builder.Property(invoice => invoice.CreatedAtUtc).IsRequired();

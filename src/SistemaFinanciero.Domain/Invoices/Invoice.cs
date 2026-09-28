@@ -12,12 +12,17 @@ public sealed class Invoice
     {
     }
 
-    /// <summary>Crea un borrador de factura para un cliente en una única moneda.</summary>
+    /// <summary>
+    /// Crea un borrador de factura para un cliente en una única moneda. Una factura a crédito exige
+    /// fecha de vencimiento; una de contado no la admite.
+    /// </summary>
     public Invoice(
         Guid id,
         Guid customerId,
         DateOnly issueDate,
         CurrencyCode currency,
+        PaymentTerm paymentTerm,
+        DateOnly? dueDate,
         DateTimeOffset createdAtUtc,
         Guid createdByUserId)
     {
@@ -25,6 +30,8 @@ public sealed class Invoice
         CustomerId = DomainRules.RequiredId(customerId, nameof(customerId));
         IssueDate = RequireDate(issueDate, nameof(issueDate));
         Currency = DomainRules.DefinedEnum(currency, nameof(currency));
+        PaymentTerm = DomainRules.DefinedEnum(paymentTerm, nameof(paymentTerm));
+        DueDate = RequireDueDate(PaymentTerm, IssueDate, dueDate, nameof(dueDate));
         CreatedAtUtc = DomainRules.RequiredUtcTimestamp(createdAtUtc, nameof(createdAtUtc));
         CreatedByUserId = DomainRules.RequiredId(createdByUserId, nameof(createdByUserId));
         UpdatedAtUtc = CreatedAtUtc;
@@ -46,6 +53,12 @@ public sealed class Invoice
 
     /// <summary>Moneda única usada por todos los importes de la factura.</summary>
     public CurrencyCode Currency { get; private set; }
+
+    /// <summary>Condición de pago: contado o crédito.</summary>
+    public PaymentTerm PaymentTerm { get; private set; }
+
+    /// <summary>Fecha de vencimiento; solo existe cuando la factura es a crédito.</summary>
+    public DateOnly? DueDate { get; private set; }
 
     /// <summary>Estado actual del documento.</summary>
     public InvoiceStatus Status { get; private set; }
@@ -98,17 +111,93 @@ public sealed class Invoice
     /// <summary>Versión de concurrencia administrada por SQL Server.</summary>
     public byte[] RowVersion { get; private set; } = [];
 
-    /// <summary>Líneas que componen la factura.</summary>
-    public IReadOnlyCollection<InvoiceLine> Lines => lines.AsReadOnly();
+    /// <summary>Líneas que componen la factura, siempre ordenadas por su posición.</summary>
+    public IReadOnlyCollection<InvoiceLine> Lines => lines.OrderBy(line => line.Position).ToList().AsReadOnly();
 
-    /// <summary>Agrega una línea únicamente mientras la factura es borrador.</summary>
+    /// <summary>
+    /// Modifica los datos del encabezado mientras la factura es borrador. Valida el conjunto completo
+    /// antes de asignar, y no permite cambiar la moneda cuando ya existen líneas.
+    /// </summary>
+    public void UpdateHeader(
+        Guid customerId,
+        DateOnly issueDate,
+        CurrencyCode currency,
+        PaymentTerm paymentTerm,
+        DateOnly? dueDate,
+        DateTimeOffset updatedAtUtc,
+        Guid updatedByUserId)
+    {
+        EnsureDraft();
+
+        Guid validCustomerId = DomainRules.RequiredId(customerId, nameof(customerId));
+        DateOnly validIssueDate = RequireDate(issueDate, nameof(issueDate));
+        CurrencyCode validCurrency = DomainRules.DefinedEnum(currency, nameof(currency));
+        PaymentTerm validPaymentTerm = DomainRules.DefinedEnum(paymentTerm, nameof(paymentTerm));
+        DateOnly? validDueDate = RequireDueDate(validPaymentTerm, validIssueDate, dueDate, nameof(dueDate));
+
+        if (validCurrency != Currency && lines.Count > 0)
+        {
+            throw new InvalidOperationException("No se puede cambiar la moneda de una factura que ya tiene líneas.");
+        }
+
+        Touch(updatedAtUtc, updatedByUserId);
+        CustomerId = validCustomerId;
+        IssueDate = validIssueDate;
+        Currency = validCurrency;
+        PaymentTerm = validPaymentTerm;
+        DueDate = validDueDate;
+    }
+
+    /// <summary>Agrega una línea al final, únicamente mientras la factura es borrador.</summary>
     public void AddLine(InvoiceLine line, DateTimeOffset updatedAtUtc, Guid updatedByUserId)
     {
         EnsureDraft();
         ArgumentNullException.ThrowIfNull(line);
+        EnsureNewLineId(line);
+        Touch(updatedAtUtc, updatedByUserId);
+        SortLinesByPosition();
+        line.MoveTo(lines.Count + 1);
         lines.Add(line);
         RecalculateTotals();
+    }
+
+    /// <summary>
+    /// Reemplaza una línea por otra que ocupa su misma posición, únicamente mientras la factura es
+    /// borrador. La línea nueva debe tener un identificador distinto de todas las existentes.
+    /// </summary>
+    public void ReplaceLine(
+        Guid lineId,
+        InvoiceLine replacement,
+        DateTimeOffset updatedAtUtc,
+        Guid updatedByUserId)
+    {
+        EnsureDraft();
+        ArgumentNullException.ThrowIfNull(replacement);
+        int index = FindLineIndex(lineId);
+        EnsureNewLineId(replacement);
         Touch(updatedAtUtc, updatedByUserId);
+        replacement.MoveTo(lines[index].Position);
+        lines[index] = replacement;
+        RecalculateTotals();
+    }
+
+    /// <summary>
+    /// Quita una línea, únicamente mientras la factura es borrador, y renumera las siguientes para que
+    /// las posiciones sigan siendo consecutivas.
+    /// </summary>
+    public void RemoveLine(Guid lineId, DateTimeOffset updatedAtUtc, Guid updatedByUserId)
+    {
+        EnsureDraft();
+        int index = FindLineIndex(lineId);
+        Touch(updatedAtUtc, updatedByUserId);
+        lines.RemoveAt(index);
+
+        for (int position = index; position < lines.Count; position++)
+        {
+            lines[position].MoveTo(position + 1);
+        }
+
+        RecalculateTotals();
     }
 
     /// <summary>Confirma el documento y fija la tasa histórica requerida por la moneda.</summary>
@@ -121,14 +210,16 @@ public sealed class Invoice
             throw new InvalidOperationException("No se puede confirmar una factura sin líneas.");
         }
 
-        ConfirmedCrcPerUsd = Currency == CurrencyCode.USD
+        // Todo se valida antes de asignar: si algún dato es inválido, la factura sigue siendo borrador.
+        decimal? confirmedRate = Currency == CurrencyCode.USD
             ? RequirePositiveRate(crcPerUsd)
             : null;
-        DateTimeOffset timestamp = DomainRules.RequiredUtcTimestamp(confirmedAtUtc, nameof(confirmedAtUtc), UpdatedAtUtc);
-        ConfirmedByUserId = DomainRules.RequiredId(confirmedByUserId, nameof(confirmedByUserId));
-        ConfirmedAtUtc = timestamp;
+        Touch(confirmedAtUtc, confirmedByUserId);
+
+        ConfirmedCrcPerUsd = confirmedRate;
+        ConfirmedByUserId = confirmedByUserId;
+        ConfirmedAtUtc = confirmedAtUtc;
         Status = InvoiceStatus.Confirmed;
-        Touch(timestamp, ConfirmedByUserId.Value);
     }
 
     /// <summary>Anula una factura confirmada sin eliminar su historia.</summary>
@@ -139,21 +230,23 @@ public sealed class Invoice
             throw new InvalidOperationException("Solo se puede anular una factura confirmada.");
         }
 
-        DateTimeOffset timestamp = DomainRules.RequiredUtcTimestamp(cancelledAtUtc, nameof(cancelledAtUtc), UpdatedAtUtc);
-        CancellationReason = DomainRules.RequiredText(reason, 300, nameof(reason));
-        CancelledByUserId = DomainRules.RequiredId(cancelledByUserId, nameof(cancelledByUserId));
-        CancelledAtUtc = timestamp;
+        // Todo se valida antes de asignar: si algún dato es inválido, la factura sigue confirmada.
+        string validReason = DomainRules.RequiredText(reason, 300, nameof(reason));
+        Touch(cancelledAtUtc, cancelledByUserId);
+
+        CancellationReason = validReason;
+        CancelledByUserId = cancelledByUserId;
+        CancelledAtUtc = cancelledAtUtc;
         Status = InvoiceStatus.Cancelled;
-        Touch(timestamp, CancelledByUserId.Value);
     }
 
     private void RecalculateTotals()
     {
-        GrossAmount = Round(lines.Sum(line => line.GrossAmount));
-        DiscountAmount = Round(lines.Sum(line => line.DiscountAmount));
-        NetAmount = Round(lines.Sum(line => line.NetAmount));
-        TaxAmount = Round(lines.Sum(line => line.TaxAmount));
-        TotalAmount = Round(lines.Sum(line => line.TotalAmount));
+        GrossAmount = DomainRules.RoundMoney(lines.Sum(line => line.GrossAmount));
+        DiscountAmount = DomainRules.RoundMoney(lines.Sum(line => line.DiscountAmount));
+        NetAmount = DomainRules.RoundMoney(lines.Sum(line => line.NetAmount));
+        TaxAmount = DomainRules.RoundMoney(lines.Sum(line => line.TaxAmount));
+        TotalAmount = DomainRules.RoundMoney(lines.Sum(line => line.TotalAmount));
     }
 
     private void EnsureDraft()
@@ -164,15 +257,66 @@ public sealed class Invoice
         }
     }
 
+    // EF Core carga las líneas en el orden que devuelva la base de datos; se ordenan antes de operar
+    // por índice para que la posición de cada línea coincida con su lugar en la lista.
+    private void SortLinesByPosition() => lines.Sort((left, right) => left.Position.CompareTo(right.Position));
+
+    private int FindLineIndex(Guid lineId)
+    {
+        SortLinesByPosition();
+        int index = lines.FindIndex(line => line.Id == lineId);
+
+        return index >= 0
+            ? index
+            : throw new InvalidOperationException("La línea indicada no pertenece a la factura.");
+    }
+
+    private void EnsureNewLineId(InvoiceLine line)
+    {
+        if (lines.Any(existing => existing.Id == line.Id))
+        {
+            throw new InvalidOperationException("Ya existe una línea con ese identificador en la factura.");
+        }
+    }
+
     private void Touch(DateTimeOffset updatedAtUtc, Guid updatedByUserId)
     {
-        UpdatedAtUtc = DomainRules.RequiredUtcTimestamp(updatedAtUtc, nameof(updatedAtUtc), UpdatedAtUtc);
-        UpdatedByUserId = DomainRules.RequiredId(updatedByUserId, nameof(updatedByUserId));
+        // Se validan ambos datos antes de asignar para que un error no deje la auditoría a medias.
+        DateTimeOffset timestamp = DomainRules.RequiredUtcTimestamp(updatedAtUtc, nameof(updatedAtUtc), UpdatedAtUtc);
+        Guid userId = DomainRules.RequiredId(updatedByUserId, nameof(updatedByUserId));
+        UpdatedAtUtc = timestamp;
+        UpdatedByUserId = userId;
     }
 
     private static DateOnly RequireDate(DateOnly value, string parameterName) => value != default
         ? value
         : throw new ArgumentException("La fecha de emisión es obligatoria.", parameterName);
+
+    private static DateOnly? RequireDueDate(
+        PaymentTerm paymentTerm,
+        DateOnly issueDate,
+        DateOnly? dueDate,
+        string parameterName)
+    {
+        if (paymentTerm == PaymentTerm.Cash)
+        {
+            return dueDate is null
+                ? null
+                : throw new ArgumentException("Una factura de contado no tiene fecha de vencimiento.", parameterName);
+        }
+
+        if (dueDate is null)
+        {
+            throw new ArgumentException("Una factura a crédito requiere fecha de vencimiento.", parameterName);
+        }
+
+        return dueDate.Value >= issueDate
+            ? dueDate
+            : throw new ArgumentOutOfRangeException(
+                parameterName,
+                dueDate,
+                "El vencimiento no puede ser anterior a la fecha de emisión.");
+    }
 
     private static decimal RequirePositiveRate(decimal? value)
     {
@@ -181,8 +325,6 @@ public sealed class Invoice
             throw new ArgumentOutOfRangeException(nameof(value), "La factura USD requiere una tasa positiva.");
         }
 
-        return Round(value.Value);
+        return DomainRules.Round(value.Value, ExchangeRate.RateDecimalPlaces);
     }
-
-    private static decimal Round(decimal value) => decimal.Round(value, 4, MidpointRounding.AwayFromZero);
 }

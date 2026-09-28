@@ -211,46 +211,161 @@ institucional sin cambiar el comportamiento aquí definido.
 
 1. Finanzas crea o modifica una categoría e indica código, nombre y tipo Ingreso/Gasto.
 2. Opcionalmente selecciona una categoría padre del mismo tipo.
-3. El sistema comprueba unicidad, existencia del padre y ausencia de ciclos.
-4. El sistema guarda la categoría con auditoría y versión de concurrencia.
+3. Selecciona la cuenta contable de la categoría, que es obligatoria: una cuenta de tipo Ingreso para las
+   categorías de ingreso y una de tipo Gasto para las de gasto.
+4. El sistema comprueba unicidad, existencia del padre y ausencia de ciclos, y que la cuenta exista, esté
+   activa y sea del tipo que corresponde.
+5. El sistema guarda la categoría con auditoría y versión de concurrencia.
 
 ### Alternativas
 
 - La propia categoría o una descendiente se selecciona como padre: el sistema rechaza el ciclo.
 - El padre pertenece al otro tipo: el sistema rechaza la relación.
+- La cuenta contable no existe, está inactiva o es de otro tipo: el sistema rechaza la entrada.
+- Reactivar una categoría cuya cuenta contable está inactiva: el sistema exige elegir o reactivar una
+  cuenta activa.
 - Desactivar una categoría con hijas activas o artículos activos que la usan: el sistema bloquea la
   operación; no aplica una cascada lógica.
 - Reactivar una categoría hija cuyo padre está inactivo: el sistema exige reactivar primero al padre.
 - Conflicto concurrente o rol no autorizado: no se modifica la jerarquía.
 
 - **Postcondición:** jerarquía válida y trazable.
-- **Requisitos:** RF-CAT-005, RN-CAT-002, RN-CAT-006, RN-CAT-008, RN-CAT-009, RN-SEG-004,
-  RNF-DAT-003, RNF-AUD-001.
+- **Requisitos:** RF-CAT-005, RF-CTA-002, RN-CAT-002, RN-CAT-006, RN-CAT-008, RN-CAT-009, RN-CTA-004,
+  RN-SEG-004, RNF-DAT-003, RNF-AUD-001.
 
-## UC-CAT-006 — Gestionar cuentas financieras
+## UC-CAT-006 — Gestionar cuentas contables
 
-- **Actor:** Finanzas.
-- **Objetivo:** identificar cajas y cuentas bancarias que recibirán movimientos futuros.
-- **Precondición:** sesión activa con permiso financiero de mantenimiento.
+- **Actor de consulta:** Gerencia, Finanzas y Asistente.
+- **Actor de escritura:** Finanzas.
+- **Objetivo:** mantener el catálogo jerárquico de cuentas contables, que clasifica ingresos y gastos y
+  reúne las cajas y los bancos que recibirán movimientos futuros.
+- **Precondición:** sesión activa con la capacidad correspondiente.
 
 ### Flujo principal
 
-1. Finanzas crea una cuenta e indica código, nombre, tipo Caja/Banco y moneda CRC/USD.
-2. El sistema valida valores permitidos y unicidad del código.
-3. El sistema guarda la cuenta sin solicitar ni calcular saldo.
-4. En modificaciones posteriores solo permite cambiar los datos editables o el estado lógico; tipo y
-   moneda permanecen fijos.
+1. El actor consulta, busca y filtra las cuentas por estado.
+2. Finanzas crea una cuenta e indica código, nombre y tipo (Activo, Pasivo, Patrimonio, Ingreso o Gasto).
+3. Opcionalmente selecciona una cuenta superior del mismo tipo.
+4. Si la cuenta es de tipo Activo, puede marcarla «de efectivo» e indicar su subtipo (Caja o Cuenta
+   bancaria) y su moneda CRC/USD.
+5. El sistema valida valores permitidos, unicidad del código, existencia y estado de la cuenta superior,
+   y ausencia de ciclos.
+6. El sistema guarda la cuenta sin solicitar ni calcular saldo, con auditoría y versión de concurrencia.
+7. En modificaciones posteriores solo permite cambiar código, nombre, cuenta superior, referencia y
+   descripción, o el estado lógico; tipo, subtipo de efectivo y moneda permanecen fijos.
 
 ### Alternativas
 
 - Código duplicado o valor no permitido: el sistema rechaza la entrada.
-- Intento de cambiar tipo o moneda: no se aplica el cambio.
-- Desactivar o reactivar: se conserva la cuenta y su trazabilidad.
+- Una cuenta que no es Activo se marca de efectivo, una de efectivo no indica moneda, o una que no es de
+  efectivo indica moneda: el sistema rechaza la entrada.
+- La cuenta superior es de otro tipo, es de efectivo, está inactiva o produciría un ciclo: el sistema
+  rechaza la relación.
+- Intento de cambiar tipo, subtipo o moneda: no se aplica el cambio; se toman siempre del registro.
+- Desactivar una cuenta con cuentas hijas activas o con categorías activas que la usan: el sistema
+  bloquea la operación. Reactivar una hija cuya cuenta superior está inactiva exige reactivar primero a
+  la superior.
 - Conflicto concurrente o rol no autorizado: no se modifica la cuenta.
 
-- **Postcondición:** cuenta identificada por un código único, sin saldo editable.
-- **Requisitos:** RF-CAT-006, RN-CAT-002, RN-CAT-007, RN-CAT-008, RN-SEG-004,
+- **Postcondición:** cuenta identificada por un código único, con jerarquía válida y sin saldo editable.
+- **Requisitos:** RF-CTA-001, RF-CTA-003, RN-CAT-002, RN-CAT-008, RN-CTA-001 a RN-CTA-006, RN-SEG-004,
   RNF-DAT-003, RNF-AUD-001.
+
+## UC-CAT-007 — Gestionar tipos de impuesto
+
+- **Actor de consulta:** Gerencia, Finanzas y Asistente.
+- **Actor de escritura:** Finanzas.
+- **Objetivo:** mantener los impuestos con tarifa configurable que las líneas de factura pueden aplicar.
+- **Precondición:** sesión activa con la capacidad correspondiente.
+
+### Flujo principal
+
+1. El actor consulta, busca y filtra los tipos de impuesto por estado.
+2. Finanzas crea un tipo e indica código, nombre, método de cálculo (porcentaje sobre el neto de la
+   línea o monto fijo por unidad), tarifa y una descripción opcional.
+3. El sistema normaliza el código, redondea la tarifa a cuatro decimales y valida las reglas: la tarifa
+   no es negativa y un porcentaje no supera 100 %.
+4. El sistema guarda el tipo con auditoría y control de concurrencia.
+5. En modificaciones posteriores Finanzas puede cambiar código, nombre, tarifa y descripción, o
+   desactivar y reactivar el tipo; el método de cálculo permanece fijo.
+
+### Flujo alterno: cargar tarifas de referencia
+
+1. Finanzas elige «Cargar tarifas de referencia» y confirma la advertencia.
+2. El sistema crea, a nombre de quien lo solicita, las tarifas de IVA de referencia del Ministerio de
+   Hacienda que aún no existan, identificadas por su código.
+3. Los tipos que ya existen no se modifican ni se reactivan. El sistema informa cuántos creó y
+   recuerda validar su uso con la asesoría contable.
+
+### Alternativas
+
+- Código duplicado, tarifa negativa o porcentaje superior a 100 %: el sistema rechaza la entrada.
+- Intento de cambiar el método de cálculo: no se aplica; el método se toma siempre del registro.
+- Conflicto concurrente: no se sobrescribe el cambio de otro usuario.
+- Gerencia o Asistente intentan escribir, o se intenta cargar las referencias con una solicitud GET: el
+  servidor rechaza la operación.
+- Modificar o desactivar un tipo ya usado: las facturas existentes conservan la fotografía de sus
+  impuestos y no cambian.
+
+- **Postcondición:** el catálogo contiene tipos de impuesto únicos por código, que las facturas nuevas
+  pueden seleccionar mientras estén activos.
+- **Requisitos:** RF-IMP-001, RF-IMP-002, RN-IMP-001 a RN-IMP-004, RN-CAT-002, RN-SEG-004, RNF-DAT-003,
+  RNF-AUD-001.
+
+## UC-CAT-008 — Gestionar tipos de retención
+
+- **Actor de consulta:** Gerencia, Finanzas y Asistente.
+- **Actor de escritura:** Finanzas.
+- **Objetivo:** mantener los tipos de retención con tarifa porcentual que se aplican al registrar un
+  abono o un pago.
+- **Precondición:** sesión activa con la capacidad correspondiente.
+
+### Flujo principal
+
+1. El actor consulta, busca y filtra los tipos de retención por estado.
+2. Finanzas crea un tipo e indica código, nombre, un porcentaje entre 0 y 100 y una descripción opcional.
+3. El sistema normaliza el código, redondea la tarifa a cuatro decimales y valida que esté en ese rango.
+4. El sistema guarda el tipo con auditoría y control de concurrencia.
+5. En modificaciones posteriores Finanzas puede cambiar código, nombre, tarifa y descripción, o
+   desactivar y reactivar el tipo.
+
+### Alternativas
+
+- Código duplicado o porcentaje fuera de 0 a 100: el sistema rechaza la entrada.
+- Conflicto concurrente: no se sobrescribe el cambio de otro usuario.
+- Gerencia o Asistente intentan escribir: el servidor rechaza la operación.
+- Modificar o desactivar un tipo ya usado: los abonos y pagos existentes conservarán la fotografía de su
+  retención y no cambian, una vez que exista ese registro.
+
+- **Postcondición:** el catálogo contiene tipos de retención únicos por código, que los abonos y pagos
+  nuevos podrán seleccionar mientras estén activos.
+- **Requisitos:** RF-RET-001, RN-RET-001, RN-RET-002, RN-CAT-002, RN-SEG-004, RNF-DAT-003, RNF-AUD-001.
+
+## UC-CFG-001 — Definir parámetros del sistema
+
+- **Actor de consulta:** Gerencia y Finanzas.
+- **Actor de escritura:** Gerencia.
+- **Objetivo:** configurar el límite de autorización de abonos y pagos (regla de negocio 7) y los días
+  de alerta de vencimiento próximo (regla de negocio 9).
+- **Precondición:** sesión activa con la capacidad correspondiente.
+
+### Flujo principal
+
+1. El actor consulta los parámetros vigentes; si nadie los ha configurado todavía, el sistema lo indica.
+2. Gerencia indica el límite de autorización en CRC y los días de alerta.
+3. El sistema valida que el límite no sea negativo y que los días sean mayores que cero, y guarda la
+   configuración con auditoría y control de concurrencia.
+4. El sistema conserva un registro del cambio con el valor anterior y el nuevo de cada campo.
+
+### Alternativas
+
+- Límite negativo o días de alerta en cero o negativos: el sistema rechaza la entrada.
+- Conflicto concurrente: no se sobrescribe el cambio de otro usuario; se informa el valor vigente.
+- Finanzas, Asistente o Administrador intentan escribir: el servidor rechaza la operación.
+
+- **Postcondición:** existe como máximo una configuración vigente, y su historial completo queda
+  disponible para revisión futura.
+- **Requisitos:** RF-CFG-001, RF-CFG-002, RN-CFG-001 a RN-CFG-003, RNF-AUD-001.
 
 ## UC-MON-001 — Gestionar tipos de cambio diarios
 
