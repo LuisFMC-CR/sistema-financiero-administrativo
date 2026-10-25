@@ -1,0 +1,57 @@
+@using SistemaFinanciero.Application.Incomes
+@using SistemaFinanciero.Domain.Incomes
+@using SistemaFinanciero.Web.Models.Incomes
+@using SistemaFinanciero.Web.Models.Invoices
+@model IncomeDetailsViewModel
+@{
+    ViewData["Title"] = "Detalle de ingreso";
+    IncomeModel income = Model.Income;
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+    <div>
+        <h1 class="h2 mb-1">Ingreso @income.Code</h1>
+        <p class="text-body-secondary mb-0">
+            Estado: <strong>@income.Status.ToDisplayName()</strong>
+            @if (income.Status == IncomeStatus.Cancelled && !string.IsNullOrWhiteSpace(income.CancellationReason))
+            {
+                <text> — Motivo: @income.CancellationReason</text>
+            }
+        </p>
+    </div>
+    @if (Model.CanCancel)
+    {
+        <a asp-action="Cancel" asp-route-id="@income.Id" class="btn btn-danger">Anular</a>
+    }
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card card-body h-100">
+            <h2 class="h5">Origen</h2>
+            <p class="mb-1">
+                @income.Origin.ToDisplayName()
+                @if (income.Origin == IncomeOrigin.InvoiceCash && income.InvoiceNumber is not null)
+                {
+                    <text>— Factura @income.InvoiceNumber</text>
+                }
+            </p>
+            <h2 class="h5 mt-3">Categoría y cuenta de efectivo</h2>
+            <p class="mb-1">@income.CategoryName</p>
+            <p class="mb-0">@income.CashAccountName</p>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card card-body h-100">
+            <h2 class="h5">Montos y referencia</h2>
+            <p class="mb-1 fw-semibold">₡@income.Amount.ToString("N2")</p>
+            <p class="mb-1">Fecha: @income.IncomeDate.ToString("dd/MM/yyyy")</p>
+            <p class="mb-1">Medio de pago: @(income.PaymentMethod?.ToDisplayName() ?? "—")</p>
+            <p class="mb-1">Referencia: @(income.Reference ?? "—")</p>
+            @if (!string.IsNullOrWhiteSpace(income.Description))
+            {
+                <p class="mb-0">Descripción: @income.Description</p>
+            }
+        </div>
+    </div>
+</div>

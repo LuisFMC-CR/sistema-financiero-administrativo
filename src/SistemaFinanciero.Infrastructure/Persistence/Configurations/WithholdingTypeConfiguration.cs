@@ -5,6 +5,11 @@ using SistemaFinanciero.Infrastructure.Identity;
 
 namespace SistemaFinanciero.Infrastructure.Persistence.Configurations;
 
+/// <summary>Mapea <see cref="WithholdingType"/> a la tabla <c>catalogos.TiposRetencion</c>.</summary>
+/// <remarks>
+/// Conexiones: <c>FinancialDbContext.OnModelCreating</c> la aplica por convención. La usa
+/// <c>WithholdingTypeService</c>.
+/// </remarks>
 internal sealed class WithholdingTypeConfiguration : IEntityTypeConfiguration<WithholdingType>
 {
     public void Configure(EntityTypeBuilder<WithholdingType> builder)

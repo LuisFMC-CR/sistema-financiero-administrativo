@@ -5,6 +5,12 @@ namespace SistemaFinanciero.Application.Security;
 /// <summary>
 /// Roles internos aprobados para la primera versión del sistema.
 /// </summary>
+/// <remarks>
+/// Conexiones: <c>IdentityBootstrapper</c> crea estos cuatro roles en Identity si no existen;
+/// <c>AuthorizationExtensions</c> (Web) los usa para armar cada <see cref="SystemPolicies"/>; los
+/// formularios de usuarios validan el rol elegido contra <see cref="IsDefined"/>. No hay permisos por
+/// usuario individual: solo estos cuatro roles fijos.
+/// </remarks>
 public static class SystemRoles
 {
     /// <summary>

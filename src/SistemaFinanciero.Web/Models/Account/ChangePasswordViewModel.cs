@@ -5,6 +5,12 @@ namespace SistemaFinanciero.Web.Models.Account;
 /// <summary>
 /// Datos requeridos para cambiar la contraseña del usuario autenticado.
 /// </summary>
+/// <remarks>
+/// Conexiones: la recibe <c>AccountController.ChangePassword</c>, que la convierte en
+/// <c>ChangeOwnPasswordCommand</c> para <c>IUserAccountService.ChangePasswordAsync</c> (Application).
+/// <c>CurrentPassword</c> no es obligatorio aquí porque una cuenta con contraseña temporal no la
+/// necesita; <c>UserAccountService</c> es quien decide si exigirla.
+/// </remarks>
 public sealed class ChangePasswordViewModel
 {
     [DataType(DataType.Password)]

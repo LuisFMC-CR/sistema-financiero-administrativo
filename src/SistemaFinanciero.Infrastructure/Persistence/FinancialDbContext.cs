@@ -1,10 +1,16 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using SistemaFinanciero.Domain.Adjustments;
+using SistemaFinanciero.Domain.Audit;
+using SistemaFinanciero.Domain.Budgets;
 using SistemaFinanciero.Domain.Catalogs;
-using SistemaFinanciero.Domain.Currencies;
+using SistemaFinanciero.Domain.Expenses;
+using SistemaFinanciero.Domain.Incomes;
 using SistemaFinanciero.Domain.Invoices;
 using SistemaFinanciero.Domain.Parameters;
+using SistemaFinanciero.Domain.Payables;
+using SistemaFinanciero.Domain.Receivables;
 using SistemaFinanciero.Infrastructure.Identity;
 
 namespace SistemaFinanciero.Infrastructure.Persistence;
@@ -12,6 +18,14 @@ namespace SistemaFinanciero.Infrastructure.Persistence;
 /// <summary>
 /// Contexto único de persistencia para identidad y operaciones financieras.
 /// </summary>
+/// <remarks>
+/// Conexiones: es el único <c>DbContext</c> del sistema; todo servicio de Infrastructure lo recibe por
+/// inyección. <c>OnModelCreating</c> aplica cada <c>IEntityTypeConfiguration&lt;T&gt;</c> del ensamblado
+/// (carpeta <c>Persistence/Configurations</c>) y, además, configura a mano las tablas propias de
+/// Identity (<c>ConfigureIdentitySchema</c>). <c>SaveChanges</c>/<c>SaveChangesAsync</c> están
+/// sobrescritos para que ninguna bitácora de solo inserción (<c>SecurityAuditEvent</c>,
+/// <c>SystemParameterChange</c>, <c>OperationLogEntry</c>) pueda modificarse o borrarse por accidente.
+/// </remarks>
 public sealed class FinancialDbContext(
     DbContextOptions<FinancialDbContext> options)
     : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options)
@@ -34,14 +48,32 @@ public sealed class FinancialDbContext(
     /// <summary>Tipos de impuesto configurables para las líneas de factura.</summary>
     public DbSet<TaxType> TaxTypes => Set<TaxType>();
 
-    /// <summary>Tipos de retención configurables para abonos y pagos.</summary>
+    /// <summary>Tipos de retención que un cliente aplica al pagar una factura.</summary>
     public DbSet<WithholdingType> WithholdingTypes => Set<WithholdingType>();
-
-    /// <summary>Tipos de cambio administrativos por fecha.</summary>
-    public DbSet<DailyExchangeRate> DailyExchangeRates => Set<DailyExchangeRate>();
 
     /// <summary>Facturas administrativas y sus detalles históricos.</summary>
     public DbSet<Invoice> Invoices => Set<Invoice>();
+
+    /// <summary>Cuentas por cobrar generadas por las facturas a crédito.</summary>
+    public DbSet<Receivable> Receivables => Set<Receivable>();
+
+    /// <summary>Ingresos automáticos y manuales.</summary>
+    public DbSet<Income> Incomes => Set<Income>();
+
+    /// <summary>Abonos aplicados a las cuentas por cobrar, incluido el reparto a varias facturas.</summary>
+    public DbSet<ReceivablePayment> ReceivablePayments => Set<ReceivablePayment>();
+
+    /// <summary>Retenciones registradas dentro de un abono.</summary>
+    public DbSet<Withholding> Withholdings => Set<Withholding>();
+
+    /// <summary>Gastos: compras a proveedores respaldadas por comprobante electrónico.</summary>
+    public DbSet<Expense> Expenses => Set<Expense>();
+
+    /// <summary>Cuentas por pagar generadas por los gastos a crédito.</summary>
+    public DbSet<Payable> Payables => Set<Payable>();
+
+    /// <summary>Pagos aplicados a las cuentas por pagar, incluido el reparto a varias cuentas.</summary>
+    public DbSet<SupplierPayment> SupplierPayments => Set<SupplierPayment>();
 
     /// <summary>Bitácora inmutable de acciones administrativas de seguridad.</summary>
     public DbSet<SecurityAuditEvent> SecurityAuditEvents => Set<SecurityAuditEvent>();
@@ -51,6 +83,21 @@ public sealed class FinancialDbContext(
 
     /// <summary>Bitácora inmutable de cambios en los parámetros del sistema.</summary>
     public DbSet<SystemParameterChange> SystemParameterChanges => Set<SystemParameterChange>();
+
+    /// <summary>Bitácora inmutable de cambios en la fecha de cierre.</summary>
+    public DbSet<ClosingDateChange> ClosingDateChanges => Set<ClosingDateChange>();
+
+    /// <summary>Bitácora inmutable de confirmaciones y anulaciones de documentos financieros.</summary>
+    public DbSet<OperationLogEntry> OperationLogEntries => Set<OperationLogEntry>();
+
+    /// <summary>Presupuesto mensual por categoría de gasto de último nivel.</summary>
+    public DbSet<Budget> Budgets => Set<Budget>();
+
+    /// <summary>Bitácora inmutable de cambios en el presupuesto mensual.</summary>
+    public DbSet<BudgetChange> BudgetChanges => Set<BudgetChange>();
+
+    /// <summary>Bitácora inmutable de ajustes manuales de saldo de cuentas por cobrar y por pagar.</summary>
+    public DbSet<BalanceAdjustment> BalanceAdjustments => Set<BalanceAdjustment>();
 
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder builder)
@@ -154,6 +201,42 @@ public sealed class FinancialDbContext(
         {
             throw new InvalidOperationException(
                 "El historial de parámetros es inmutable y solo admite nuevos registros.");
+        }
+
+        bool operationLogMutated = ChangeTracker.Entries<OperationLogEntry>()
+            .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted);
+
+        if (operationLogMutated)
+        {
+            throw new InvalidOperationException(
+                "La bitácora de operaciones es inmutable y solo admite nuevos registros.");
+        }
+
+        bool budgetHistoryMutated = ChangeTracker.Entries<BudgetChange>()
+            .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted);
+
+        if (budgetHistoryMutated)
+        {
+            throw new InvalidOperationException(
+                "El historial del presupuesto es inmutable y solo admite nuevos registros.");
+        }
+
+        bool balanceAdjustmentsMutated = ChangeTracker.Entries<BalanceAdjustment>()
+            .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted);
+
+        if (balanceAdjustmentsMutated)
+        {
+            throw new InvalidOperationException(
+                "Los ajustes de saldo son inmutables y solo admiten nuevos registros.");
+        }
+
+        bool closingDateHistoryMutated = ChangeTracker.Entries<ClosingDateChange>()
+            .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted);
+
+        if (closingDateHistoryMutated)
+        {
+            throw new InvalidOperationException(
+                "El historial de la fecha de cierre es inmutable y solo admite nuevos registros.");
         }
     }
 }

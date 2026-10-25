@@ -1,18 +1,21 @@
 namespace SistemaFinanciero.Domain.Invoices;
 
 /// <summary>
-/// Datos de un tipo de impuesto que una línea de factura aplica y conserva como fotografía.
+/// Datos de la tarifa de IVA que una línea de factura aplica y conserva como fotografía.
 /// </summary>
-/// <param name="Id">Identificador técnico de la fotografía que se guardará en la línea.</param>
-/// <param name="Code">Código del tipo de impuesto.</param>
-/// <param name="Name">Nombre visible del tipo de impuesto.</param>
-/// <param name="CalculationType">Método de cálculo del impuesto.</param>
-/// <param name="Rate">Porcentaje o monto fijo por unidad, según el método.</param>
+/// <remarks>
+/// Conexiones: el llamador de <c>InvoiceLine</c> construye este registro, normalmente a partir de
+/// <c>TaxTypeOption</c> (lo que devuelve <c>ITaxTypeService.GetActiveOptionsAsync</c>, en
+/// Application/Catalogs/TaxTypes), y lo pasa al constructor de <c>InvoiceLine</c>. La línea lo usa para
+/// crear su <c>InvoiceLineTax</c>. Como todavía no hay pantalla de facturas, hoy solo lo construyen
+/// directamente las pruebas.
+/// </remarks>
+/// <param name="Code">Código de la tarifa de IVA.</param>
+/// <param name="Name">Nombre visible de la tarifa de IVA.</param>
+/// <param name="Rate">Porcentaje de IVA.</param>
 /// <param name="TaxTypeId">Tipo de impuesto del catálogo de origen, cuando se usó uno.</param>
 public sealed record InvoiceTaxSpecification(
-    Guid Id,
     string Code,
     string Name,
-    TaxCalculationType CalculationType,
     decimal Rate,
     Guid? TaxTypeId = null);

@@ -1,0 +1,121 @@
+@using SistemaFinanciero.Application.Adjustments
+@using SistemaFinanciero.Application.Receivables
+@using SistemaFinanciero.Domain.Receivables
+@using SistemaFinanciero.Web.Models.Adjustments
+@using SistemaFinanciero.Web.Models.Receivables
+@model ReceivableDetailsViewModel
+@{
+    ViewData["Title"] = "Detalle de cuenta por cobrar";
+    ReceivableModel receivable = Model.Receivable;
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+    <div>
+        <h1 class="h2 mb-1">Factura @(receivable.InvoiceNumber?.ToString() ?? "—")</h1>
+        <p class="text-body-secondary mb-0">Estado: <strong>@receivable.Status.ToDisplayName()</strong></p>
+    </div>
+    <div class="d-flex gap-2">
+        @if (Model.CanRegisterPayment && receivable.Status is ReceivableStatus.Pending or ReceivableStatus.PartiallyPaid)
+        {
+            <a asp-controller="ReceivablePayments" asp-action="Start" asp-route-clienteId="@receivable.CustomerId" class="btn btn-success">Registrar abono</a>
+        }
+        @if (Model.CanAdjust && receivable.Status != ReceivableStatus.Cancelled)
+        {
+            <a asp-controller="BalanceAdjustments" asp-action="AdjustReceivable" asp-route-id="@receivable.Id" class="btn btn-outline-warning">Ajustar saldo</a>
+        }
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card card-body h-100">
+            <h2 class="h5">Cliente</h2>
+            <p class="mb-0">@receivable.CustomerName</p>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card card-body h-100">
+            <h2 class="h5">Montos</h2>
+            <p class="mb-1">Monto original: ₡@receivable.OriginalAmount.ToString("N2")</p>
+            <p class="mb-1">Saldo: ₡@receivable.Balance.ToString("N2")</p>
+            <p class="mb-0">Vencimiento: @receivable.DueDate.ToString("dd/MM/yyyy")</p>
+        </div>
+    </div>
+</div>
+
+<h2 class="h5 mb-2">Abonos</h2>
+<div class="table-responsive bg-white border rounded">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th scope="col">Fecha</th>
+                <th scope="col">Referencia</th>
+                <th scope="col">Cuenta de efectivo</th>
+                <th scope="col" class="text-end">Monto</th>
+                <th scope="col" class="text-end">Retención</th>
+                <th scope="col">Estado</th>
+                <th scope="col" class="text-end">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.Payments.Count == 0)
+            {
+                <tr><td colspan="7" class="text-center text-body-secondary py-4">Esta cuenta por cobrar no tiene abonos.</td></tr>
+            }
+            @foreach (ReceivablePaymentModel payment in Model.Payments)
+            {
+                <tr>
+                    <td>@payment.PaymentDate.ToString("dd/MM/yyyy")</td>
+                    <td>@payment.Reference</td>
+                    <td>@payment.CashAccountName</td>
+                    <td class="text-end">₡@payment.Amount.ToString("N2")</td>
+                    <td class="text-end">@(payment.WithholdingAmount is decimal amount ? $"₡{amount:N2}" : "—")</td>
+                    <td>
+                        @payment.Status.ToDisplayName()
+                        @if (payment.Status == ReceivablePaymentStatus.Cancelled && !string.IsNullOrWhiteSpace(payment.CancellationReason))
+                        {
+                            <br /><small class="text-body-secondary">@payment.CancellationReason</small>
+                        }
+                    </td>
+                    <td class="text-end">
+                        @if (Model.CanCancelPayment && payment.Status == ReceivablePaymentStatus.Active)
+                        {
+                            <a asp-controller="ReceivablePayments" asp-action="Cancel" asp-route-id="@payment.Id" class="btn btn-sm btn-outline-danger">Anular</a>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<h2 class="h5 mb-2 mt-4">Ajustes de saldo</h2>
+<div class="table-responsive bg-white border rounded">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th scope="col">Fecha</th>
+                <th scope="col">Sentido</th>
+                <th scope="col" class="text-end">Monto</th>
+                <th scope="col">Motivo</th>
+                <th scope="col">Usuario</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.Adjustments.Count == 0)
+            {
+                <tr><td colspan="5" class="text-center text-body-secondary py-4">Esta cuenta por cobrar no tiene ajustes de saldo.</td></tr>
+            }
+            @foreach (BalanceAdjustmentModel adjustment in Model.Adjustments)
+            {
+                <tr>
+                    <td>@adjustment.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                    <td>@adjustment.Direction.ToDisplayName()</td>
+                    <td class="text-end">₡@adjustment.Amount.ToString("N2")</td>
+                    <td>@adjustment.Reason</td>
+                    <td>@adjustment.CreatedByUserName</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

@@ -7,6 +7,13 @@ using SistemaFinanciero.Infrastructure.Persistence;
 namespace SistemaFinanciero.Infrastructure.Identity;
 
 /// <summary>Administra cambios de seguridad iniciados por el propietario de la cuenta.</summary>
+/// <remarks>
+/// Conexiones: implementa <c>IUserAccountService</c> (Application); se registra en
+/// <c>DependencyInjection.AddInfrastructure</c>; lo inyecta <c>AccountController.ChangePassword</c>
+/// (Web). Si la cuenta tiene una contraseña temporal (<c>MustChangePassword</c>), cambia sin pedir la
+/// anterior, generando su propio token con <c>GeneratePasswordResetTokenAsync</c>; si no, exige la
+/// contraseña actual.
+/// </remarks>
 internal sealed class UserAccountService(
     FinancialDbContext dbContext,
     UserManager<ApplicationUser> userManager,

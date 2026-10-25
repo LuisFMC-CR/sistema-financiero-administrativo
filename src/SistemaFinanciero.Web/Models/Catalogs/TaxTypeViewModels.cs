@@ -1,9 +1,8 @@
 using System.ComponentModel.DataAnnotations;
-using SistemaFinanciero.Domain.Invoices;
 
 namespace SistemaFinanciero.Web.Models.Catalogs;
 
-/// <summary>Entrada para crear un tipo de impuesto de método de cálculo fijo.</summary>
+/// <summary>Entrada para crear una tarifa de IVA.</summary>
 public sealed class TaxTypeCreateViewModel
 {
     [Required(ErrorMessage = "El código es obligatorio.")]
@@ -15,10 +14,6 @@ public sealed class TaxTypeCreateViewModel
     [StringLength(120, ErrorMessage = "El nombre no puede superar 120 caracteres.")]
     [Display(Name = "Nombre")]
     public string Name { get; set; } = string.Empty;
-
-    [EnumDataType(typeof(TaxCalculationType), ErrorMessage = "Seleccione un método de cálculo válido.")]
-    [Display(Name = "Método de cálculo")]
-    public TaxCalculationType CalculationType { get; set; } = TaxCalculationType.Percentage;
 
     [Range(
         typeof(decimal),
@@ -35,9 +30,7 @@ public sealed class TaxTypeCreateViewModel
     public string? Description { get; set; }
 }
 
-/// <summary>
-/// Entrada para editar un tipo de impuesto; el método de cálculo solo se muestra porque es inmutable.
-/// </summary>
+/// <summary>Entrada para editar una tarifa de IVA.</summary>
 public sealed class TaxTypeEditViewModel
 {
     [Required(ErrorMessage = "El código es obligatorio.")]
@@ -63,8 +56,6 @@ public sealed class TaxTypeEditViewModel
     [StringLength(300, ErrorMessage = "La descripción no puede superar 300 caracteres.")]
     [Display(Name = "Descripción")]
     public string? Description { get; set; }
-
-    public TaxCalculationType CalculationType { get; set; }
 
     [Required(ErrorMessage = "No fue posible validar la versión del tipo de impuesto.")]
     public string Version { get; set; } = string.Empty;

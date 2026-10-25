@@ -1,0 +1,60 @@
+@using SistemaFinanciero.Application.Invoices
+@using SistemaFinanciero.Application.Security
+@using SistemaFinanciero.Web.Models.Invoices
+@model InvoiceIndexViewModel
+@{
+    ViewData["Title"] = "Facturas";
+    bool canCreate = (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.CreateFinancialDrafts)).Succeeded;
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+    <div>
+        <h1 class="h2 mb-1">Facturas</h1>
+        <p class="text-body-secondary mb-0">Facturación administrativa interna. No sustituye el comprobante electrónico oficial.</p>
+    </div>
+    @if (canCreate)
+    {
+        <a asp-action="Create" class="btn btn-primary">Nueva factura</a>
+    }
+</div>
+
+<div class="table-responsive bg-white border rounded">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th scope="col">Número</th>
+                <th scope="col">Cliente</th>
+                <th scope="col">Emisión</th>
+                <th scope="col">Plazo</th>
+                <th scope="col">Vencimiento</th>
+                <th scope="col">Estado</th>
+                <th scope="col" class="text-end">Total</th>
+                <th scope="col">Creada por</th>
+            </tr>
+            <partial name="_Filters" model="new InvoiceFilterViewModel(Model.Search, Model.Status)" />
+        </thead>
+        <tbody>
+            @if (Model.Results.Items.Count == 0)
+            {
+                <tr><td colspan="8" class="text-center text-body-secondary py-4">No se encontraron facturas.</td></tr>
+            }
+            @foreach (InvoiceSummaryModel invoice in Model.Results.Items)
+            {
+                <tr>
+                    <td class="fw-semibold">
+                        <a asp-action="Details" asp-route-id="@invoice.Id">@(invoice.Number?.ToString() ?? "Borrador")</a>
+                    </td>
+                    <td>@invoice.CustomerName</td>
+                    <td>@invoice.IssueDate.ToString("dd/MM/yyyy")</td>
+                    <td>@invoice.PaymentTerm.ToDisplayName()</td>
+                    <td>@(invoice.DueDate?.ToString("dd/MM/yyyy") ?? "—")</td>
+                    <td>@invoice.Status.ToDisplayName()</td>
+                    <td class="text-end">₡@invoice.TotalAmount.ToString("N2")</td>
+                    <td>@invoice.CreatedByUserName</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<partial name="_Pagination" model="new InvoicePaginationViewModel(Model.Results.Page, Model.Results.TotalPages, Model.Results.HasPreviousPage, Model.Results.HasNextPage, Model.Search, Model.Status)" />

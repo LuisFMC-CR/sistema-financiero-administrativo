@@ -1,5 +1,4 @@
 using SistemaFinanciero.Domain.Catalogs;
-using SistemaFinanciero.Domain.Currencies;
 
 namespace SistemaFinanciero.UnitTests.Catalogs;
 
@@ -12,7 +11,7 @@ public sealed class LedgerAccountTests
     private static readonly Guid EditorId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
     [Fact]
-    public void Constructor_NormalizesFieldsAndCreatesAnActiveAccount()
+    public void Constructor_NormalizesFieldsAndCreatesAnActiveUnprotectedAccount()
     {
         Guid parentId = Guid.NewGuid();
 
@@ -23,7 +22,6 @@ public sealed class LedgerAccountTests
             LedgerAccountType.Income,
             parentId,
             cashKind: null,
-            currency: null,
             reference: " ",
             description: " Servicios profesionales ",
             CreatedAtUtc,
@@ -35,18 +33,16 @@ public sealed class LedgerAccountTests
         Assert.Equal(parentId, account.ParentId);
         Assert.False(account.IsCash);
         Assert.Null(account.CashKind);
-        Assert.Null(account.Currency);
         Assert.Null(account.Reference);
         Assert.Equal("Servicios profesionales", account.Description);
         Assert.True(account.IsActive);
+        Assert.False(account.IsProtected);
         Assert.Equal(CreatedAtUtc, account.UpdatedAtUtc);
         Assert.Equal(CreatorId, account.UpdatedByUserId);
     }
 
     [Theory]
     [InlineData(LedgerAccountType.Asset)]
-    [InlineData(LedgerAccountType.Liability)]
-    [InlineData(LedgerAccountType.Equity)]
     [InlineData(LedgerAccountType.Income)]
     [InlineData(LedgerAccountType.Expense)]
     public void Constructor_AcceptsEveryAccountTypeWhenItIsNotACashAccount(LedgerAccountType type)
@@ -58,11 +54,9 @@ public sealed class LedgerAccountTests
     }
 
     [Theory]
-    [InlineData(CashAccountKind.Cash, CurrencyCode.CRC)]
-    [InlineData(CashAccountKind.Bank, CurrencyCode.USD)]
-    public void Constructor_CreatesACashAccountWithItsKindAndFixedCurrency(
-        CashAccountKind kind,
-        CurrencyCode currency)
+    [InlineData(CashAccountKind.Cash)]
+    [InlineData(CashAccountKind.Bank)]
+    public void Constructor_CreatesACashAccountWithItsKind(CashAccountKind kind)
     {
         LedgerAccount account = new(
             Guid.NewGuid(),
@@ -71,7 +65,6 @@ public sealed class LedgerAccountTests
             LedgerAccountType.Asset,
             parentId: null,
             kind,
-            currency,
             reference: " Terminada en 1234 ",
             description: null,
             CreatedAtUtc,
@@ -79,44 +72,23 @@ public sealed class LedgerAccountTests
 
         Assert.True(account.IsCash);
         Assert.Equal(kind, account.CashKind);
-        Assert.Equal(currency, account.Currency);
         Assert.Equal("Terminada en 1234", account.Reference);
     }
 
     [Theory]
-    [InlineData(LedgerAccountType.Liability)]
-    [InlineData(LedgerAccountType.Equity)]
     [InlineData(LedgerAccountType.Income)]
     [InlineData(LedgerAccountType.Expense)]
     public void Constructor_RejectsACashAccountThatIsNotAnAsset(LedgerAccountType type)
     {
-        Assert.Throws<ArgumentException>(() => CreateAccount(type, CashAccountKind.Cash, CurrencyCode.CRC));
+        Assert.Throws<ArgumentException>(() => CreateAccount(type, CashAccountKind.Cash));
     }
 
     [Fact]
-    public void Constructor_RejectsACashAccountWithoutCurrency()
-    {
-        Assert.Throws<ArgumentException>(() =>
-            CreateAccount(LedgerAccountType.Asset, CashAccountKind.Bank, currency: null));
-    }
-
-    [Theory]
-    [InlineData(CurrencyCode.CRC)]
-    [InlineData(CurrencyCode.USD)]
-    public void Constructor_RejectsACurrencyOnAnAccountThatIsNotCash(CurrencyCode currency)
-    {
-        Assert.Throws<ArgumentException>(() =>
-            CreateAccount(LedgerAccountType.Asset, cashKind: null, currency));
-    }
-
-    [Fact]
-    public void Constructor_RejectsUndefinedTypeKindOrCurrency()
+    public void Constructor_RejectsUndefinedTypeOrKind()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => CreateAccount((LedgerAccountType)99));
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            CreateAccount(LedgerAccountType.Asset, (CashAccountKind)99, CurrencyCode.CRC));
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            CreateAccount(LedgerAccountType.Asset, CashAccountKind.Cash, (CurrencyCode)99));
+            CreateAccount(LedgerAccountType.Asset, (CashAccountKind)99));
     }
 
     [Theory]
@@ -135,7 +107,6 @@ public sealed class LedgerAccountTests
             null,
             null,
             null,
-            null,
             CreatedAtUtc,
             CreatorId));
     }
@@ -149,7 +120,6 @@ public sealed class LedgerAccountTests
             "Nombre",
             LedgerAccountType.Asset,
             Guid.Empty,
-            null,
             null,
             null,
             null,
@@ -171,7 +141,6 @@ public sealed class LedgerAccountTests
             null,
             null,
             null,
-            null,
             CreatedAtUtc,
             CreatorId));
     }
@@ -185,20 +154,19 @@ public sealed class LedgerAccountTests
     }
 
     [Fact]
-    public void UpdateDetails_ChangesTheEditableDataAndKeepsTypeKindAndCurrency()
+    public void UpdateDetails_ChangesTheEditableDataAndKeepsCodeTypeAndKind()
     {
-        LedgerAccount account = CreateAccount(LedgerAccountType.Asset, CashAccountKind.Bank, CurrencyCode.USD);
+        LedgerAccount account = CreateAccount(LedgerAccountType.Asset, CashAccountKind.Bank);
         DateTimeOffset changedAtUtc = CreatedAtUtc.AddMinutes(5);
 
-        account.UpdateDetails(" bco-2 ", " Banco dos ", " ", " Cuenta corriente ", changedAtUtc, EditorId);
+        account.UpdateDetails(" Banco dos ", " ", " Cuenta corriente ", changedAtUtc, EditorId);
 
-        Assert.Equal("BCO-2", account.Code);
+        Assert.Equal("COD", account.Code);
         Assert.Equal("Banco dos", account.Name);
         Assert.Null(account.Reference);
         Assert.Equal("Cuenta corriente", account.Description);
         Assert.Equal(LedgerAccountType.Asset, account.Type);
         Assert.Equal(CashAccountKind.Bank, account.CashKind);
-        Assert.Equal(CurrencyCode.USD, account.Currency);
         Assert.Equal(changedAtUtc, account.UpdatedAtUtc);
         Assert.Equal(EditorId, account.UpdatedByUserId);
         Assert.Equal(CreatorId, account.CreatedByUserId);
@@ -210,58 +178,12 @@ public sealed class LedgerAccountTests
         LedgerAccount account = CreateAccount(LedgerAccountType.Income);
 
         Assert.Throws<ArgumentException>(() =>
-            account.UpdateDetails("NUEVO", "   ", "Ref", "Desc", CreatedAtUtc.AddMinutes(1), EditorId));
+            account.UpdateDetails("   ", "Ref", "Desc", CreatedAtUtc.AddMinutes(1), EditorId));
 
-        Assert.Equal("COD", account.Code);
         Assert.Equal("Cuenta", account.Name);
         Assert.Null(account.Reference);
         Assert.Equal(CreatedAtUtc, account.UpdatedAtUtc);
         Assert.Equal(CreatorId, account.UpdatedByUserId);
-    }
-
-    [Fact]
-    public void ChangeParent_AssignsTheNewParentAndUpdatesTheAudit()
-    {
-        LedgerAccount account = CreateAccount(LedgerAccountType.Expense);
-        Guid parentId = Guid.NewGuid();
-        DateTimeOffset changedAtUtc = CreatedAtUtc.AddMinutes(5);
-
-        account.ChangeParent(parentId, changedAtUtc, EditorId);
-
-        Assert.Equal(parentId, account.ParentId);
-        Assert.Equal(changedAtUtc, account.UpdatedAtUtc);
-        Assert.Equal(EditorId, account.UpdatedByUserId);
-    }
-
-    [Fact]
-    public void ChangeParent_CanMakeTheAccountARootAgain()
-    {
-        LedgerAccount account = CreateAccount(LedgerAccountType.Expense, parentId: Guid.NewGuid());
-
-        account.ChangeParent(null, CreatedAtUtc.AddMinutes(5), EditorId);
-
-        Assert.Null(account.ParentId);
-    }
-
-    [Fact]
-    public void ChangeParent_WithTheSameParentChangesNothing()
-    {
-        Guid parentId = Guid.NewGuid();
-        LedgerAccount account = CreateAccount(LedgerAccountType.Expense, parentId: parentId);
-
-        account.ChangeParent(parentId, CreatedAtUtc.AddMinutes(5), EditorId);
-
-        Assert.Equal(CreatedAtUtc, account.UpdatedAtUtc);
-        Assert.Equal(CreatorId, account.UpdatedByUserId);
-    }
-
-    [Fact]
-    public void ChangeParent_RejectsTheAccountItself()
-    {
-        LedgerAccount account = CreateAccount(LedgerAccountType.Expense);
-
-        Assert.Throws<ArgumentException>(() =>
-            account.ChangeParent(account.Id, CreatedAtUtc.AddMinutes(5), EditorId));
     }
 
     [Fact]
@@ -307,7 +229,6 @@ public sealed class LedgerAccountTests
     private static LedgerAccount CreateAccount(
         LedgerAccountType type,
         CashAccountKind? cashKind = null,
-        CurrencyCode? currency = null,
         Guid? parentId = null)
     {
         return new LedgerAccount(
@@ -317,7 +238,6 @@ public sealed class LedgerAccountTests
             type,
             parentId,
             cashKind,
-            currency,
             null,
             null,
             CreatedAtUtc,

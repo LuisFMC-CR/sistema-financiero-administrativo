@@ -16,14 +16,9 @@ public sealed record FinancialCategoryLedgerAccountOptionViewModel(
     string Label,
     FinancialCategoryKind Kind);
 
-/// <summary>Entrada para crear o editar una categoría financiera.</summary>
+/// <summary>Entrada para crear o editar una categoría financiera. El código no se pide (regla 12).</summary>
 public class FinancialCategoryInputViewModel
 {
-    [Required(ErrorMessage = "El código es obligatorio.")]
-    [StringLength(30, ErrorMessage = "El código no puede superar 30 caracteres.")]
-    [Display(Name = "Código")]
-    public string Code { get; set; } = string.Empty;
-
     [Required(ErrorMessage = "El nombre es obligatorio.")]
     [StringLength(120, ErrorMessage = "El nombre no puede superar 120 caracteres.")]
     [Display(Name = "Nombre")]
@@ -51,10 +46,13 @@ public class FinancialCategoryInputViewModel
     public IReadOnlyList<FinancialCategoryLedgerAccountOptionViewModel> LedgerAccountOptions { get; set; } = [];
 }
 
-/// <summary>Entrada para editar una categoría con concurrencia optimista.</summary>
+/// <summary>Entrada para editar una categoría con concurrencia optimista. El código se muestra fijo.</summary>
 public sealed class FinancialCategoryEditViewModel : FinancialCategoryInputViewModel
 {
     [Required(ErrorMessage = "No fue posible validar la versión de la categoría.")]
     public string Version { get; set; } = string.Empty;
+
+    [ValidateNever]
+    public string Code { get; set; } = string.Empty;
 }
 

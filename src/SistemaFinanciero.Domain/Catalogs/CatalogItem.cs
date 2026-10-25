@@ -6,8 +6,20 @@ namespace SistemaFinanciero.Domain.Catalogs;
 /// Representa un producto o servicio facturable sin incorporar control de inventario.
 /// </summary>
 /// <remarks>
-/// Los precios son referencias editables para preparar documentos. Las líneas confirmadas deberán
-/// conservar su propia fotografía de descripción, moneda y precio.
+/// El precio es una referencia editable para preparar documentos, en colones. Las líneas confirmadas
+/// deberán conservar su propia fotografía de descripción y precio.
+///
+/// El código lo asigna el sistema al crear (<c>PRD-0001</c>/<c>SRV-0001</c> según el tipo, regla 12) y
+/// no cambia después; tampoco <see cref="Type"/>, porque el código ya lo codifica.
+///
+/// Conexiones: lo crea y edita <c>CatalogItemService</c> (Infrastructure/Catalogs/Items); se guarda en
+/// <c>catalogos.ProductosServicios</c> vía <c>CatalogItemConfiguration</c>; lo presenta
+/// <c>CatalogItemsController</c> (Web, ruta <c>/catalogos/productos-servicios</c>).
+/// <see cref="DefaultIncomeCategoryId"/> apunta a una <c>FinancialCategory</c> de tipo Ingreso.
+/// <see cref="DefaultTaxTypeId"/> apunta a un <c>TaxType</c> (RF-52): la tarifa de IVA que se propondrá
+/// al agregar el artículo a una línea de factura, editable en la línea misma. <see cref="Id"/> es el
+/// valor que <c>InvoiceLine.CatalogItemId</c> apunta cuando la línea viene de este catálogo; una línea
+/// con descripción libre lo deja nulo.
 /// </remarks>
 public sealed class CatalogItem
 {
@@ -41,8 +53,8 @@ public sealed class CatalogItem
         string? description,
         string unitOfMeasure,
         decimal? referencePriceCrc,
-        decimal? referencePriceUsd,
         Guid? defaultIncomeCategoryId,
+        Guid? defaultTaxTypeId,
         DateTimeOffset createdAtUtc,
         Guid createdByUserId)
     {
@@ -59,10 +71,10 @@ public sealed class CatalogItem
             UnitOfMeasureMaxLength,
             nameof(unitOfMeasure));
         ReferencePriceCrc = NormalizeReferencePrice(referencePriceCrc, nameof(referencePriceCrc));
-        ReferencePriceUsd = NormalizeReferencePrice(referencePriceUsd, nameof(referencePriceUsd));
         DefaultIncomeCategoryId = DomainRules.OptionalId(
             defaultIncomeCategoryId,
             nameof(defaultIncomeCategoryId));
+        DefaultTaxTypeId = DomainRules.OptionalId(defaultTaxTypeId, nameof(defaultTaxTypeId));
         CreatedAtUtc = DomainRules.RequiredUtcTimestamp(createdAtUtc, nameof(createdAtUtc));
         CreatedByUserId = DomainRules.RequiredId(createdByUserId, nameof(createdByUserId));
         UpdatedAtUtc = CreatedAtUtc;
@@ -91,13 +103,16 @@ public sealed class CatalogItem
     /// <summary>Obtiene el precio de referencia en colones, si fue definido.</summary>
     public decimal? ReferencePriceCrc { get; private set; }
 
-    /// <summary>Obtiene el precio de referencia en dólares, si fue definido.</summary>
-    public decimal? ReferencePriceUsd { get; private set; }
-
     /// <summary>
     /// Obtiene la categoría de ingreso sugerida. Application debe comprobar que sea de ingreso.
     /// </summary>
     public Guid? DefaultIncomeCategoryId { get; private set; }
+
+    /// <summary>
+    /// Obtiene la tarifa de IVA que se propone al agregar el artículo a una línea de factura (RF-52);
+    /// la línea puede cambiarla.
+    /// </summary>
+    public Guid? DefaultTaxTypeId { get; private set; }
 
     /// <summary>Indica si puede seleccionarse en operaciones nuevas.</summary>
     public bool IsActive { get; private set; }
@@ -118,23 +133,20 @@ public sealed class CatalogItem
     public byte[] RowVersion { get; private set; } = [];
 
     /// <summary>
-    /// Actualiza los datos editables y los precios de referencia del producto o servicio.
+    /// Actualiza los datos editables y los precios de referencia del producto o servicio. El código y
+    /// el tipo no cambian: el código codifica el tipo (<c>PRD-</c>/<c>SRV-</c>, regla 12).
     /// </summary>
     public void UpdateDetails(
-        string code,
         string name,
-        CatalogItemType type,
         string? description,
         string unitOfMeasure,
         decimal? referencePriceCrc,
-        decimal? referencePriceUsd,
         Guid? defaultIncomeCategoryId,
+        Guid? defaultTaxTypeId,
         DateTimeOffset updatedAtUtc,
         Guid updatedByUserId)
     {
-        string normalizedCode = DomainRules.NormalizedCode(code, CodeMaxLength, nameof(code));
         string normalizedName = DomainRules.RequiredText(name, NameMaxLength, nameof(name));
-        CatalogItemType normalizedType = DomainRules.DefinedEnum(type, nameof(type));
         string? normalizedDescription = DomainRules.OptionalText(
             description,
             DescriptionMaxLength,
@@ -146,22 +158,18 @@ public sealed class CatalogItem
         decimal? normalizedReferencePriceCrc = NormalizeReferencePrice(
             referencePriceCrc,
             nameof(referencePriceCrc));
-        decimal? normalizedReferencePriceUsd = NormalizeReferencePrice(
-            referencePriceUsd,
-            nameof(referencePriceUsd));
         Guid? normalizedDefaultIncomeCategoryId = DomainRules.OptionalId(
             defaultIncomeCategoryId,
             nameof(defaultIncomeCategoryId));
+        Guid? normalizedDefaultTaxTypeId = DomainRules.OptionalId(defaultTaxTypeId, nameof(defaultTaxTypeId));
         DateTimeOffset normalizedUpdatedAtUtc = ValidateUpdateAudit(updatedAtUtc, updatedByUserId);
 
-        Code = normalizedCode;
         Name = normalizedName;
-        Type = normalizedType;
         Description = normalizedDescription;
         UnitOfMeasure = normalizedUnitOfMeasure;
         ReferencePriceCrc = normalizedReferencePriceCrc;
-        ReferencePriceUsd = normalizedReferencePriceUsd;
         DefaultIncomeCategoryId = normalizedDefaultIncomeCategoryId;
+        DefaultTaxTypeId = normalizedDefaultTaxTypeId;
         Touch(normalizedUpdatedAtUtc, updatedByUserId);
     }
 

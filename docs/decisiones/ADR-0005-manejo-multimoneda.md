@@ -1,7 +1,7 @@
 # ADR-0005: Manejo multimoneda CRC/USD
 
 - **Fecha:** 2026-08-22
-- **Estado:** Aceptado
+- **Estado:** Reemplazado por [ADR-0015](ADR-0015-retiro-multimoneda.md)
 
 ## Contexto
 

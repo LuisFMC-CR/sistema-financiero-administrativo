@@ -91,6 +91,78 @@ public sealed class SystemParametersTests
         Assert.Equal(500_000m, parameters.AuthorizationLimitCrc);
     }
 
+    [Fact]
+    public void Constructor_StartsWithNoClosingDateConfigured()
+    {
+        SystemParameters parameters = CreateParameters(500_000m, 7);
+
+        Assert.Equal(DateOnly.MinValue, parameters.ClosingDate);
+        Assert.True(parameters.IsOpen(new DateOnly(2000, 1, 1)));
+        Assert.True(parameters.IsOpen(DateOnly.FromDateTime(DateTime.UtcNow)));
+    }
+
+    [Fact]
+    public void IsOpen_RejectsOnlyDatesOnOrBeforeTheClosingDate()
+    {
+        SystemParameters parameters = CreateParameters(500_000m, 7);
+        DateOnly today = new(2026, 10, 25);
+        parameters.ChangeClosingDate(new DateOnly(2026, 9, 30), today, reason: null, CreatedAtUtc.AddMinutes(5), EditorId);
+
+        Assert.False(parameters.IsOpen(new DateOnly(2026, 9, 30)));
+        Assert.False(parameters.IsOpen(new DateOnly(2026, 9, 15)));
+        Assert.True(parameters.IsOpen(new DateOnly(2026, 10, 1)));
+    }
+
+    [Fact]
+    public void ChangeClosingDate_AdvancingDoesNotRequireAReason()
+    {
+        SystemParameters parameters = CreateParameters(500_000m, 7);
+        DateOnly today = new(2026, 10, 25);
+
+        parameters.ChangeClosingDate(new DateOnly(2026, 9, 30), today, reason: null, CreatedAtUtc.AddMinutes(5), EditorId);
+
+        Assert.Equal(new DateOnly(2026, 9, 30), parameters.ClosingDate);
+        Assert.Equal(EditorId, parameters.UpdatedByUserId);
+    }
+
+    [Fact]
+    public void ChangeClosingDate_GoingBackwardsRequiresAReason()
+    {
+        SystemParameters parameters = CreateParameters(500_000m, 7);
+        DateOnly today = new(2026, 10, 25);
+        parameters.ChangeClosingDate(new DateOnly(2026, 9, 30), today, reason: null, CreatedAtUtc.AddMinutes(5), EditorId);
+
+        Assert.Throws<ArgumentException>(() =>
+            parameters.ChangeClosingDate(new DateOnly(2026, 8, 31), today, reason: null, CreatedAtUtc.AddMinutes(10), EditorId));
+
+        Assert.Equal(new DateOnly(2026, 9, 30), parameters.ClosingDate);
+    }
+
+    [Fact]
+    public void ChangeClosingDate_GoingBackwardsWithAReasonSucceeds()
+    {
+        SystemParameters parameters = CreateParameters(500_000m, 7);
+        DateOnly today = new(2026, 10, 25);
+        parameters.ChangeClosingDate(new DateOnly(2026, 9, 30), today, reason: null, CreatedAtUtc.AddMinutes(5), EditorId);
+
+        parameters.ChangeClosingDate(
+            new DateOnly(2026, 8, 31), today, "Reapertura para corregir un gasto de agosto", CreatedAtUtc.AddMinutes(10), EditorId);
+
+        Assert.Equal(new DateOnly(2026, 8, 31), parameters.ClosingDate);
+    }
+
+    [Fact]
+    public void ChangeClosingDate_RejectsADateAfterToday()
+    {
+        SystemParameters parameters = CreateParameters(500_000m, 7);
+        DateOnly today = new(2026, 10, 25);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            parameters.ChangeClosingDate(new DateOnly(2026, 10, 26), today, reason: null, CreatedAtUtc.AddMinutes(5), EditorId));
+
+        Assert.Equal(DateOnly.MinValue, parameters.ClosingDate);
+    }
+
     private static SystemParameters CreateParameters(decimal authorizationLimitCrc, int overdueAlertDays) =>
         new(authorizationLimitCrc, overdueAlertDays, CreatedAtUtc, CreatorId);
 }

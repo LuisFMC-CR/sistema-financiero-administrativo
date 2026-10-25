@@ -3,12 +3,18 @@ using SistemaFinanciero.Application.Catalogs.Common;
 namespace SistemaFinanciero.Application.Parameters;
 
 /// <summary>Datos para configurar o actualizar los parámetros del sistema.</summary>
+/// <remarks>
+/// Conexiones: lo recibe <c>ISystemParametersService.CreateAsync</c>/<c>UpdateAsync</c>, implementado
+/// por <c>SystemParametersService</c> (Infrastructure/Parameters); lo consume
+/// <c>SystemParametersController</c> (Web, ruta <c>/parametros</c>).
+/// </remarks>
 public sealed record SaveSystemParametersCommand(decimal AuthorizationLimitCrc, int OverdueAlertDays);
 
 /// <summary>Proyección administrativa de los parámetros del sistema.</summary>
 public sealed record SystemParametersModel(
     decimal AuthorizationLimitCrc,
     int OverdueAlertDays,
+    DateOnly ClosingDate,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc,
     string UpdatedByUserName,
@@ -34,6 +40,17 @@ public interface ISystemParametersService
     /// </summary>
     public Task<CatalogOperationResult> UpdateAsync(
         SaveSystemParametersCommand command,
+        string version,
+        Guid actorId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Cambia la fecha de cierre (regla 16). Adelantarla es el cierre mensual, sin motivo;
+    /// retrocederla es una reapertura y exige motivo. Nunca puede ser posterior a hoy.
+    /// </summary>
+    public Task<CatalogOperationResult> ChangeClosingDateAsync(
+        DateOnly newClosingDate,
+        string? reason,
         string version,
         Guid actorId,
         CancellationToken cancellationToken = default);

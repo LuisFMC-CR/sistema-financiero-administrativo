@@ -2,7 +2,13 @@ using SistemaFinanciero.Domain.Common;
 
 namespace SistemaFinanciero.Domain.Invoices;
 
-/// <summary>Línea inmutable de una factura, con su descripción e impuestos históricos.</summary>
+/// <summary>Línea inmutable de una factura, con su descripción y su IVA histórico.</summary>
+/// <remarks>
+/// Conexiones: vive dentro de un <see cref="Invoice"/> (<c>Invoice.AddLine</c>/<c>ReplaceLine</c>);
+/// <see cref="CatalogItemId"/> apunta opcionalmente a <c>CatalogItem</c>. Se guarda en
+/// <c>finanzas.FacturaLineas</c> vía <c>InvoiceLineConfiguration</c>. Recibe una
+/// <c>InvoiceTaxSpecification</c> obligatoria para construir su <see cref="Tax"/>.
+/// </remarks>
 public sealed class InvoiceLine
 {
     /// <summary>Máximo de caracteres para la descripción facturada.</summary>
@@ -11,14 +17,13 @@ public sealed class InvoiceLine
     /// <summary>Máximo de caracteres para la unidad visible.</summary>
     public const int UnitOfMeasureMaxLength = 30;
 
-    private readonly List<InvoiceLineTax> taxes = [];
-
     private InvoiceLine()
     {
     }
 
     /// <summary>
-    /// Crea una línea. Cantidad y precio unitario usan cuatro decimales; los importes, dos.
+    /// Crea una línea. Cantidad y precio unitario usan cuatro decimales; los importes, dos. Toda línea
+    /// lleva una sola tarifa de IVA, incluso cuando es la tarifa Exento (0 %).
     /// </summary>
     public InvoiceLine(
         Guid id,
@@ -28,8 +33,10 @@ public sealed class InvoiceLine
         decimal quantity,
         decimal unitPrice,
         decimal discountAmount,
-        IEnumerable<InvoiceTaxSpecification>? taxes)
+        InvoiceTaxSpecification tax)
     {
+        ArgumentNullException.ThrowIfNull(tax);
+
         Id = DomainRules.RequiredId(id, nameof(id));
         CatalogItemId = DomainRules.OptionalId(catalogItemId, nameof(catalogItemId));
         Description = DomainRules.RequiredText(description, DescriptionMaxLength, nameof(description));
@@ -47,8 +54,9 @@ public sealed class InvoiceLine
         }
 
         NetAmount = DomainRules.RoundMoney(GrossAmount - DiscountAmount);
-        AddTaxes(taxes);
-        TaxAmount = DomainRules.RoundMoney(this.taxes.Sum(tax => tax.Amount));
+        // La base gravable es siempre el neto de esta línea, nunca un valor recibido de fuera.
+        Tax = new InvoiceLineTax(tax, NetAmount);
+        TaxAmount = Tax.Amount;
         TotalAmount = DomainRules.RoundMoney(NetAmount + TaxAmount);
     }
 
@@ -91,8 +99,8 @@ public sealed class InvoiceLine
     /// <summary>Total final de la línea.</summary>
     public decimal TotalAmount { get; private set; }
 
-    /// <summary>Impuestos aplicados a la línea.</summary>
-    public IReadOnlyCollection<InvoiceLineTax> Taxes => taxes.AsReadOnly();
+    /// <summary>IVA aplicado a la línea.</summary>
+    public InvoiceLineTax Tax { get; private set; } = null!;
 
     /// <summary>Fija la posición de la línea. Solo la factura que la contiene la administra.</summary>
     internal void MoveTo(int position)
@@ -100,27 +108,6 @@ public sealed class InvoiceLine
         Position = position > 0
             ? position
             : throw new ArgumentOutOfRangeException(nameof(position), position, "La posición debe ser mayor que cero.");
-    }
-
-    private void AddTaxes(IEnumerable<InvoiceTaxSpecification>? specifications)
-    {
-        if (specifications is null)
-        {
-            return;
-        }
-
-        foreach (InvoiceTaxSpecification specification in specifications)
-        {
-            // La base gravable es siempre el neto de esta línea, nunca un valor recibido de fuera.
-            InvoiceLineTax tax = new(specification, NetAmount, Quantity);
-
-            if (taxes.Any(existing => existing.Code == tax.Code))
-            {
-                throw new ArgumentException("No se puede repetir un impuesto en la misma línea.", nameof(specifications));
-            }
-
-            taxes.Add(tax);
-        }
     }
 
     private static decimal RequirePositive(decimal value, string parameterName)

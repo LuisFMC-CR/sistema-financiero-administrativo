@@ -1,11 +1,22 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.Mvc;
+using QuestPDF.Infrastructure;
 using SistemaFinanciero.Infrastructure;
 using SistemaFinanciero.Infrastructure.Identity;
 using SistemaFinanciero.Web.Configuration;
 using SistemaFinanciero.Web.Security;
 
+QuestPDF.Settings.License = LicenseType.Community;
+
+// Punto de entrada único de la aplicación web.
+//
+// Conexiones: AddInfrastructure (Infrastructure/DependencyInjection.cs) registra todos los servicios
+// de Application; AddSystemAuthorization (Web/Configuration/AuthorizationExtensions.cs) registra las
+// políticas de SystemPolicies. Con el argumento --bootstrap-admin, en vez de levantar el sitio, ejecuta
+// IdentityBootstrapper una sola vez y termina. El pipeline normal aplica, en orden,
+// localización → HTTPS → enrutamiento → autenticación → PasswordChangeRequirementMiddleware
+// (bloquea todo menos cambiar la contraseña mientras haya una temporal pendiente) → autorización.
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddInfrastructure(builder.Configuration);

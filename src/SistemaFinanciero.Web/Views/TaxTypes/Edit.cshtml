@@ -5,7 +5,7 @@
 
 <div class="catalog-form">
     <h1 class="h2">Editar tipo de impuesto</h1>
-    <p class="text-body-secondary">El método de cálculo no puede modificarse. Los cambios no alteran las facturas ya creadas: cada línea conserva la tarifa que usó.</p>
+    <p class="text-body-secondary">Los cambios no alteran las facturas ya creadas: cada línea conserva la tarifa que usó.</p>
     <form method="post" asp-antiforgery="true" class="card card-body">
         <input asp-for="Version" type="hidden" />
         <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
@@ -21,14 +21,10 @@
                 <span asp-validation-for="Name" class="text-danger"></span>
             </div>
             <div class="col-md-6">
-                <label class="form-label">Método de cálculo</label>
-                <input value="@Model.CalculationType.ToDisplayName()" class="form-control" readonly />
-            </div>
-            <div class="col-md-6">
                 <label asp-for="Rate" class="form-label"></label>
                 <input asp-for="Rate" type="number" min="0" step="0.0001" class="form-control" />
                 <span asp-validation-for="Rate" class="text-danger"></span>
-                <div class="form-text">Un porcentaje va de 0 a 100. Un monto fijo se expresa en la moneda de la factura.</div>
+                <div class="form-text">Porcentaje de 0 a 100.</div>
             </div>
             <div class="col-12">
                 <label asp-for="Description" class="form-label"></label>

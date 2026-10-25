@@ -1,4 +1,3 @@
-using SistemaFinanciero.Domain.Currencies;
 using SistemaFinanciero.Domain.Invoices;
 
 namespace SistemaFinanciero.UnitTests.Invoices;
@@ -13,14 +12,16 @@ public sealed class InvoiceConfirmationTests
     private static readonly Guid ConfirmerId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
     [Fact]
-    public void Confirm_FixesTheStatusAndTheAuditOfACrcInvoiceWithoutRate()
+    public void Confirm_FixesTheStatusAuditAndNumber()
     {
-        Invoice invoice = CreateInvoiceWithLine(CurrencyCode.CRC);
+        Invoice invoice = CreateInvoiceWithLine();
 
-        invoice.Confirm(null, ConfirmedAtUtc, ConfirmerId);
+        Assert.Null(invoice.Number);
+
+        invoice.Confirm(ConfirmedAtUtc, ConfirmerId, 42L);
 
         Assert.Equal(InvoiceStatus.Confirmed, invoice.Status);
-        Assert.Null(invoice.ConfirmedCrcPerUsd);
+        Assert.Equal(42L, invoice.Number);
         Assert.Equal(ConfirmedAtUtc, invoice.ConfirmedAtUtc);
         Assert.Equal(ConfirmerId, invoice.ConfirmedByUserId);
         Assert.Equal(ConfirmedAtUtc, invoice.UpdatedAtUtc);
@@ -28,56 +29,41 @@ public sealed class InvoiceConfirmationTests
     }
 
     [Fact]
-    public void Confirm_IgnoresTheRateOfACrcInvoice()
+    public void Confirm_RejectsAnInvoiceWithoutLines()
     {
-        Invoice invoice = CreateInvoiceWithLine(CurrencyCode.CRC);
+        Invoice invoice = new(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            new DateOnly(2026, 9, 10),
+            PaymentTerm.Cash,
+            CreatedAtUtc,
+            CreatorId);
 
-        invoice.Confirm(512m, ConfirmedAtUtc, ConfirmerId);
-
-        Assert.Null(invoice.ConfirmedCrcPerUsd);
-    }
-
-    [Fact]
-    public void Confirm_KeepsTheRateOfAUsdInvoice()
-    {
-        Invoice invoice = CreateInvoiceWithLine(CurrencyCode.USD);
-
-        invoice.Confirm(512.5m, ConfirmedAtUtc, ConfirmerId);
-
-        Assert.Equal(512.5m, invoice.ConfirmedCrcPerUsd);
-    }
-
-    [Fact]
-    public void Confirm_RejectsAUsdInvoiceWithoutARate()
-    {
-        Invoice invoice = CreateInvoiceWithLine(CurrencyCode.USD);
-
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            invoice.Confirm(null, ConfirmedAtUtc, ConfirmerId));
-
-        AssertStillDraft(invoice);
+        Assert.Throws<InvalidOperationException>(() =>
+            invoice.Confirm(ConfirmedAtUtc, ConfirmerId, 1L));
     }
 
     [Theory]
-    [InlineData(0.0)]
-    [InlineData(-1.0)]
-    public void Confirm_RejectsAUsdInvoiceWithoutAPositiveRate(double rate)
+    [InlineData(0L)]
+    [InlineData(-1L)]
+    public void Confirm_LeavesTheInvoiceAsDraftWhenTheNumberIsNotPositive(long number)
     {
-        Invoice invoice = CreateInvoiceWithLine(CurrencyCode.USD);
+        Invoice invoice = CreateInvoiceWithLine();
 
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            invoice.Confirm((decimal)rate, ConfirmedAtUtc, ConfirmerId));
+            invoice.Confirm(ConfirmedAtUtc, ConfirmerId, number));
 
         AssertStillDraft(invoice);
+        Assert.Null(invoice.Number);
     }
 
     [Fact]
     public void Confirm_LeavesTheInvoiceAsDraftWhenTheUserIsEmpty()
     {
-        Invoice invoice = CreateInvoiceWithLine(CurrencyCode.USD);
+        Invoice invoice = CreateInvoiceWithLine();
 
         Assert.Throws<ArgumentException>(() =>
-            invoice.Confirm(512m, ConfirmedAtUtc, Guid.Empty));
+            invoice.Confirm(ConfirmedAtUtc, Guid.Empty, 1L));
 
         AssertStillDraft(invoice);
     }
@@ -85,10 +71,10 @@ public sealed class InvoiceConfirmationTests
     [Fact]
     public void Confirm_LeavesTheInvoiceAsDraftWhenTheInstantIsBeforeTheLastChange()
     {
-        Invoice invoice = CreateInvoiceWithLine(CurrencyCode.USD);
+        Invoice invoice = CreateInvoiceWithLine();
 
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            invoice.Confirm(512m, CreatedAtUtc.AddMinutes(-1), ConfirmerId));
+            invoice.Confirm(CreatedAtUtc.AddMinutes(-1), ConfirmerId, 1L));
 
         AssertStillDraft(invoice);
     }
@@ -96,11 +82,11 @@ public sealed class InvoiceConfirmationTests
     [Fact]
     public void Confirm_LeavesTheInvoiceAsDraftWhenTheInstantIsNotUtc()
     {
-        Invoice invoice = CreateInvoiceWithLine(CurrencyCode.USD);
+        Invoice invoice = CreateInvoiceWithLine();
         DateTimeOffset notUtc = new(2026, 9, 10, 12, 30, 0, TimeSpan.FromHours(-6));
 
         Assert.Throws<ArgumentException>(() =>
-            invoice.Confirm(512m, notUtc, ConfirmerId));
+            invoice.Confirm(notUtc, ConfirmerId, 1L));
 
         AssertStillDraft(invoice);
     }
@@ -108,18 +94,18 @@ public sealed class InvoiceConfirmationTests
     [Fact]
     public void Confirm_RejectsAnInvoiceThatIsNotADraft()
     {
-        Invoice invoice = CreateInvoiceWithLine(CurrencyCode.CRC);
-        invoice.Confirm(null, ConfirmedAtUtc, ConfirmerId);
+        Invoice invoice = CreateInvoiceWithLine();
+        invoice.Confirm(ConfirmedAtUtc, ConfirmerId, 1L);
 
         Assert.Throws<InvalidOperationException>(() =>
-            invoice.Confirm(null, ConfirmedAtUtc.AddMinutes(1), ConfirmerId));
+            invoice.Confirm(ConfirmedAtUtc.AddMinutes(1), ConfirmerId, 2L));
     }
 
     [Fact]
     public void Cancel_KeepsTheReasonAndTheAuditOfAConfirmedInvoice()
     {
-        Invoice invoice = CreateInvoiceWithLine(CurrencyCode.CRC);
-        invoice.Confirm(null, ConfirmedAtUtc, ConfirmerId);
+        Invoice invoice = CreateInvoiceWithLine();
+        invoice.Confirm(ConfirmedAtUtc, ConfirmerId, 1L);
         DateTimeOffset cancelledAtUtc = ConfirmedAtUtc.AddHours(1);
 
         invoice.Cancel("  Error de digitación  ", cancelledAtUtc, ConfirmerId);
@@ -134,7 +120,7 @@ public sealed class InvoiceConfirmationTests
     [Fact]
     public void Cancel_RejectsADraft()
     {
-        Invoice invoice = CreateInvoiceWithLine(CurrencyCode.CRC);
+        Invoice invoice = CreateInvoiceWithLine();
 
         Assert.Throws<InvalidOperationException>(() =>
             invoice.Cancel("Motivo", ConfirmedAtUtc, ConfirmerId));
@@ -145,8 +131,8 @@ public sealed class InvoiceConfirmationTests
     [InlineData("   ")]
     public void Cancel_LeavesTheInvoiceConfirmedWhenTheReasonIsMissing(string reason)
     {
-        Invoice invoice = CreateInvoiceWithLine(CurrencyCode.CRC);
-        invoice.Confirm(null, ConfirmedAtUtc, ConfirmerId);
+        Invoice invoice = CreateInvoiceWithLine();
+        invoice.Confirm(ConfirmedAtUtc, ConfirmerId, 1L);
 
         Assert.Throws<ArgumentException>(() =>
             invoice.Cancel(reason, ConfirmedAtUtc.AddHours(1), ConfirmerId));
@@ -157,8 +143,8 @@ public sealed class InvoiceConfirmationTests
     [Fact]
     public void Cancel_LeavesTheInvoiceConfirmedWhenTheUserIsEmpty()
     {
-        Invoice invoice = CreateInvoiceWithLine(CurrencyCode.CRC);
-        invoice.Confirm(null, ConfirmedAtUtc, ConfirmerId);
+        Invoice invoice = CreateInvoiceWithLine();
+        invoice.Confirm(ConfirmedAtUtc, ConfirmerId, 1L);
 
         Assert.Throws<ArgumentException>(() =>
             invoice.Cancel("Motivo válido", ConfirmedAtUtc.AddHours(1), Guid.Empty));
@@ -169,7 +155,6 @@ public sealed class InvoiceConfirmationTests
     private static void AssertStillDraft(Invoice invoice)
     {
         Assert.Equal(InvoiceStatus.Draft, invoice.Status);
-        Assert.Null(invoice.ConfirmedCrcPerUsd);
         Assert.Null(invoice.ConfirmedAtUtc);
         Assert.Null(invoice.ConfirmedByUserId);
         Assert.Equal(CreatedAtUtc, invoice.UpdatedAtUtc);
@@ -186,15 +171,13 @@ public sealed class InvoiceConfirmationTests
         Assert.Equal(ConfirmerId, invoice.UpdatedByUserId);
     }
 
-    private static Invoice CreateInvoiceWithLine(CurrencyCode currency)
+    private static Invoice CreateInvoiceWithLine()
     {
         Invoice invoice = new(
             Guid.NewGuid(),
             Guid.NewGuid(),
             new DateOnly(2026, 9, 10),
-            currency,
             PaymentTerm.Cash,
-            dueDate: null,
             CreatedAtUtc,
             CreatorId);
 
@@ -207,7 +190,7 @@ public sealed class InvoiceConfirmationTests
                 quantity: 1m,
                 unitPrice: 100m,
                 discountAmount: 0m,
-                taxes: null),
+                tax: new InvoiceTaxSpecification("IVA-EXENTO", "IVA exento", 0m)),
             CreatedAtUtc,
             CreatorId);
 

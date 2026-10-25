@@ -1,0 +1,32 @@
+@using SistemaFinanciero.Web.Models.Budgets
+@model BudgetEditViewModel
+@{
+    ViewData["Title"] = "Editar presupuesto";
+    DateOnly period = new(Model.PeriodYear, Model.PeriodMonth, 1);
+}
+
+<div class="catalog-form">
+    <h1 class="h2">Editar presupuesto</h1>
+    <p class="text-body-secondary">
+        @Model.CategoryLabel — @period.ToString("MMMM yyyy"). Un monto de ₡0 es válido.
+    </p>
+    <form method="post" class="card card-body">
+        <input asp-for="PeriodYear" type="hidden" />
+        <input asp-for="PeriodMonth" type="hidden" />
+        <input asp-for="Version" type="hidden" />
+        <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+        <div class="mb-3">
+            <label asp-for="Amount" class="form-label"></label>
+            <input asp-for="Amount" type="number" step="0.01" min="0" class="form-control" />
+            <span asp-validation-for="Amount" class="text-danger"></span>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">Guardar</button>
+            <a asp-action="Index" asp-route-year="@Model.PeriodYear" asp-route-month="@Model.PeriodMonth" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

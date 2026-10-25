@@ -177,7 +177,6 @@ public sealed class FinancialCategoriesController(
         // La cuenta es obligatoria en el formulario; Guid.Empty solo se usaría si esa validación se omitiera
         // y el servicio la rechaza igualmente.
         return new(
-            model.Code,
             model.Name,
             model.Kind,
             model.ParentId,

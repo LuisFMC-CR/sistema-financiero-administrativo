@@ -9,6 +9,13 @@ using SistemaFinanciero.Web.Models.Users;
 namespace SistemaFinanciero.Web.Controllers;
 
 /// <summary>Presenta la administración interna y no destructiva de cuentas de usuario.</summary>
+/// <remarks>
+/// Conexiones: usa <c>IUserAdministrationService</c> (Application), implementado por
+/// <c>UserAdministrationService</c> (Infrastructure). Exclusivo del rol Administrador
+/// (<c>ManageUsers</c>); ese rol no tiene acceso a ningún dato financiero, según la tabla de perfiles.
+/// No hereda <c>CatalogControllerBase</c> porque administra cuentas de Identity, no un catálogo
+/// financiero: repite su propia versión de <c>TryGetActorId</c>/<c>FormFailure</c>.
+/// </remarks>
 [Authorize(Policy = SystemPolicies.ManageUsers)]
 [Route("administracion/usuarios")]
 public sealed class UsersController(IUserAdministrationService service) : Controller

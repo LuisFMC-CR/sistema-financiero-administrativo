@@ -5,6 +5,13 @@ using SistemaFinanciero.Infrastructure.Identity;
 
 namespace SistemaFinanciero.Infrastructure.Persistence.Configurations;
 
+/// <summary>Mapea <see cref="CatalogItem"/> a la tabla <c>catalogos.ProductosServicios</c>.</summary>
+/// <remarks>
+/// Conexiones: <c>FinancialDbContext.OnModelCreating</c> la aplica por convención. La usa
+/// <c>CatalogItemService</c>; su clave foránea restrictiva hacia <c>FinancialCategory</c>
+/// (<c>DefaultIncomeCategoryId</c>) y hacia <c>TaxType</c> (<c>DefaultTaxTypeId</c>, RF-52) impide
+/// eliminar una categoría o una tarifa de IVA referenciada.
+/// </remarks>
 internal sealed class CatalogItemConfiguration : IEntityTypeConfiguration<CatalogItem>
 {
     public void Configure(EntityTypeBuilder<CatalogItem> builder)
@@ -23,9 +30,6 @@ internal sealed class CatalogItemConfiguration : IEntityTypeConfiguration<Catalo
                 table.HasCheckConstraint(
                     "CK_ProductosServicios_PriceCrc",
                     "[ReferencePriceCrc] IS NULL OR [ReferencePriceCrc] > 0");
-                table.HasCheckConstraint(
-                    "CK_ProductosServicios_PriceUsd",
-                    "[ReferencePriceUsd] IS NULL OR [ReferencePriceUsd] > 0");
             });
 
         builder.HasKey(item => item.Id);
@@ -42,7 +46,6 @@ internal sealed class CatalogItemConfiguration : IEntityTypeConfiguration<Catalo
             .HasMaxLength(CatalogItem.UnitOfMeasureMaxLength)
             .IsRequired();
         builder.Property(item => item.ReferencePriceCrc).HasPrecision(18, 4);
-        builder.Property(item => item.ReferencePriceUsd).HasPrecision(18, 4);
         builder.Property(item => item.IsActive)
             .HasDefaultValue(true);
         builder.Property(item => item.CreatedAtUtc).IsRequired();
@@ -60,6 +63,11 @@ internal sealed class CatalogItemConfiguration : IEntityTypeConfiguration<Catalo
             .HasForeignKey(item => item.DefaultIncomeCategoryId)
             .OnDelete(DeleteBehavior.Restrict)
             .HasConstraintName("FK_ProductosServicios_CategoriasFinancieras");
+        builder.HasOne<TaxType>()
+            .WithMany()
+            .HasForeignKey(item => item.DefaultTaxTypeId)
+            .OnDelete(DeleteBehavior.Restrict)
+            .HasConstraintName("FK_ProductosServicios_TiposImpuesto");
         builder.HasOne<ApplicationUser>()
             .WithMany()
             .HasForeignKey(item => item.CreatedByUserId)

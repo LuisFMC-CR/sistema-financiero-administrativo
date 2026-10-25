@@ -1,0 +1,62 @@
+@using SistemaFinanciero.Web.Models.Receivables
+@model RegisterReceivablePaymentStartViewModel
+@{
+    ViewData["Title"] = "Registrar abono";
+}
+
+<div class="catalog-form">
+    <h1 class="h2">Registrar abono</h1>
+    <p class="text-body-secondary">
+        Elija el cliente y el monto total a abonar. El sistema propondrá el reparto entre sus facturas
+        pendientes, de la más antigua a la más nueva, y podrá editarlo antes de confirmar.
+    </p>
+    <form method="post" class="card card-body">
+        <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label asp-for="CustomerId" class="form-label"></label>
+                <select asp-for="CustomerId" asp-items="Model.CustomerOptions" class="form-select">
+                    <option value="">Seleccione un cliente</option>
+                </select>
+                <span asp-validation-for="CustomerId" class="text-danger"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="Amount" class="form-label"></label>
+                <input asp-for="Amount" type="number" step="0.01" min="0.01" class="form-control" />
+                <span asp-validation-for="Amount" class="text-danger"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="CashAccountId" class="form-label"></label>
+                <select asp-for="CashAccountId" asp-items="Model.CashAccountOptions" class="form-select">
+                    <option value="">Seleccione una cuenta de efectivo</option>
+                </select>
+                <span asp-validation-for="CashAccountId" class="text-danger"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="CategoryId" class="form-label"></label>
+                <select asp-for="CategoryId" asp-items="Model.CategoryOptions" class="form-select">
+                    <option value="">Seleccione una categoría</option>
+                </select>
+                <span asp-validation-for="CategoryId" class="text-danger"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="Reference" class="form-label"></label>
+                <input asp-for="Reference" class="form-control" />
+                <span asp-validation-for="Reference" class="text-danger"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="PaymentDate" class="form-label"></label>
+                <input asp-for="PaymentDate" type="date" class="form-control" />
+                <span asp-validation-for="PaymentDate" class="text-danger"></span>
+            </div>
+        </div>
+        <div class="d-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-primary">Proponer reparto</button>
+            <a asp-controller="Receivables" asp-action="Index" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

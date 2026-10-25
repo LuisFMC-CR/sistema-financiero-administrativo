@@ -1,6 +1,5 @@
 using SistemaFinanciero.Application.Catalogs.TaxTypes;
 using SistemaFinanciero.Domain.Catalogs;
-using SistemaFinanciero.Domain.Invoices;
 
 namespace SistemaFinanciero.UnitTests.Catalogs;
 
@@ -20,7 +19,6 @@ public sealed class ReferenceTaxTypesTests
                 Guid.NewGuid(),
                 reference.Code,
                 reference.Name,
-                reference.CalculationType,
                 reference.Rate,
                 reference.Description,
                 CreatedAtUtc,
@@ -41,7 +39,7 @@ public sealed class ReferenceTaxTypesTests
     }
 
     [Fact]
-    public void ReferenceTaxTypes_CoverTheRatesListedInAdr0009()
+    public void ReferenceTaxTypes_CoverExactlyTheRatesRequiredByRule3()
     {
         decimal[] rates = ReferenceTaxTypes.All
             .Select(reference => reference.Rate)
@@ -49,22 +47,9 @@ public sealed class ReferenceTaxTypesTests
             .Order()
             .ToArray();
 
-        Assert.Equal([0m, 0.5m, 1m, 2m, 4m, 13m], rates);
+        Assert.Equal([0m, 13m], rates);
+        Assert.Contains(ReferenceTaxTypes.All, reference => reference.Code == "IVA-13" && reference.Rate == 13m);
         Assert.Contains(ReferenceTaxTypes.All, reference => reference.Code == "IVA-EXENTO" && reference.Rate == 0m);
-        Assert.Contains(
-            ReferenceTaxTypes.All,
-            reference => reference.Code == "IVA-0-SIN-CREDITO" && reference.Rate == 0m);
-    }
-
-    [Fact]
-    public void ReferenceTaxTypes_ArePercentagesAndAskForAccountingValidation()
-    {
-        Assert.All(
-            ReferenceTaxTypes.All,
-            reference =>
-            {
-                Assert.Equal(TaxCalculationType.Percentage, reference.CalculationType);
-                Assert.Contains("asesoría contable", reference.Description);
-            });
+        Assert.Equal(2, ReferenceTaxTypes.All.Count);
     }
 }

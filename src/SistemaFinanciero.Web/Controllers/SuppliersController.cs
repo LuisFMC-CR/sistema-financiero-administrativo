@@ -8,6 +8,11 @@ using SistemaFinanciero.Web.Models.Catalogs;
 namespace SistemaFinanciero.Web.Controllers;
 
 /// <summary>Presenta el mantenimiento administrativo de proveedores.</summary>
+/// <remarks>
+/// Conexiones: usa <c>ISupplierCatalogService</c> (Application), implementado por
+/// <c>SupplierCatalogService</c> (Infrastructure). Mismas políticas que <c>CustomersController</c>.
+/// Nadie más lo consume todavía: el módulo de Gastos, que elegiría un proveedor, no existe.
+/// </remarks>
 [Authorize(Policy = SystemPolicies.ViewBusinessCatalogs)]
 [Route("catalogos/proveedores")]
 public sealed class SuppliersController(ISupplierCatalogService service) : CatalogControllerBase
@@ -149,15 +154,15 @@ public sealed class SuppliersController(ISupplierCatalogService service) : Catal
         return RedirectToAction(nameof(Index));
     }
 
-    private static SaveSupplierCommand ToCommand(BusinessContactInputViewModel model)
+    private static SaveSupplierCommand ToCommand(SupplierInputViewModel model)
     {
         return new(
-            model.Code,
             model.Name,
             model.Identification,
             model.Email,
             model.Phone,
-            model.Address);
+            model.Address,
+            model.EconomicActivity);
     }
 
     private static SupplierEditViewModel ToEditModel(SupplierModel supplier)
@@ -170,6 +175,7 @@ public sealed class SuppliersController(ISupplierCatalogService service) : Catal
             Email = supplier.Email,
             Phone = supplier.Phone,
             Address = supplier.Address,
+            EconomicActivity = supplier.EconomicActivity,
             Version = supplier.Version,
         };
     }

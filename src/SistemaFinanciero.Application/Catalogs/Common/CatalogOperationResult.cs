@@ -3,6 +3,12 @@ namespace SistemaFinanciero.Application.Catalogs.Common;
 /// <summary>
 /// Clasifica el resultado esperado de una modificación de catálogo sin exponer detalles técnicos.
 /// </summary>
+/// <remarks>
+/// Conexiones: lo producen las fábricas de <see cref="CatalogOperationResult"/> dentro de cada
+/// <c>I...Service</c> de Catalogs y de <c>ISystemParametersService</c>. Lo interpretan
+/// <c>CatalogControllerBase.FormFailure</c> y <c>StateFailure</c> (Web) para decidir el mensaje, el
+/// código 409 de concurrencia, o redirigir.
+/// </remarks>
 public enum CatalogOperationStatus
 {
     /// <summary>La operación se confirmó.</summary>

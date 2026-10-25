@@ -1,6 +1,12 @@
 namespace SistemaFinanciero.Application.Security;
 
 /// <summary>Acciones administrativas admitidas en la bitácora de seguridad.</summary>
+/// <remarks>
+/// Conexiones: es el valor de <c>SecurityAuditEvent.Action</c> (Infrastructure/Identity). Lo escriben
+/// <c>IdentityBootstrapper</c>, <c>UserAdministrationService</c> y <c>UserAccountService</c> cada vez
+/// que hacen una acción sensible sobre una cuenta. La bitácora de parámetros financieros
+/// (<c>SystemParameterChange</c>) es independiente y no usa este enum.
+/// </remarks>
 public enum SecurityAuditAction
 {
     /// <summary>El bootstrap creó el primer administrador.</summary>

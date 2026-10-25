@@ -1,0 +1,39 @@
+@using SistemaFinanciero.Web.Models.Queries
+@model QueriesIndexViewModel
+
+@if (Model.Results.TotalPages > 1)
+{
+    <nav aria-label="Paginación de Consultas" class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+        <span class="text-body-secondary">Página @Model.Results.Page de @Model.Results.TotalPages</span>
+        <ul class="pagination mb-0">
+            <li class="page-item @(!Model.Results.HasPreviousPage ? "disabled" : null)">
+                <a class="page-link"
+                   asp-action="Index"
+                   asp-route-type="@Model.Type"
+                   asp-route-dateFrom="@Model.DateFrom"
+                   asp-route-dateTo="@Model.DateTo"
+                   asp-route-status="@Model.Status"
+                   asp-route-customerName="@Model.CustomerName"
+                   asp-route-supplierName="@Model.SupplierName"
+                   asp-route-categoryName="@Model.CategoryName"
+                   asp-route-cashAccountName="@Model.CashAccountName"
+                   asp-route-page="@(Model.Results.Page - 1)"
+                   aria-disabled="@(!Model.Results.HasPreviousPage)">Anterior</a>
+            </li>
+            <li class="page-item @(!Model.Results.HasNextPage ? "disabled" : null)">
+                <a class="page-link"
+                   asp-action="Index"
+                   asp-route-type="@Model.Type"
+                   asp-route-dateFrom="@Model.DateFrom"
+                   asp-route-dateTo="@Model.DateTo"
+                   asp-route-status="@Model.Status"
+                   asp-route-customerName="@Model.CustomerName"
+                   asp-route-supplierName="@Model.SupplierName"
+                   asp-route-categoryName="@Model.CategoryName"
+                   asp-route-cashAccountName="@Model.CashAccountName"
+                   asp-route-page="@(Model.Results.Page + 1)"
+                   aria-disabled="@(!Model.Results.HasNextPage)">Siguiente</a>
+            </li>
+        </ul>
+    </nav>
+}

@@ -1,0 +1,21 @@
+@using SistemaFinanciero.Web.Models.Expenses
+@model ExpenseCreateViewModel
+@{
+    ViewData["Title"] = "Nuevo gasto";
+}
+
+<div class="catalog-form">
+    <h1 class="h2">Nuevo gasto</h1>
+    <p class="text-body-secondary">Se crea como borrador con su código asignado por el sistema (GAS-001).</p>
+    <form asp-action="Create" method="post" class="card card-body">
+        <partial name="_HeaderForm" model="Model" />
+        <div class="d-flex gap-2 mt-4">
+            <button type="submit" class="btn btn-primary">Crear borrador</button>
+            <a asp-action="Index" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

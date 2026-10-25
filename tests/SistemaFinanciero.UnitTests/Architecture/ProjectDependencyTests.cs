@@ -1,5 +1,5 @@
 using SistemaFinanciero.Application.Security;
-using SistemaFinanciero.Domain.Currencies;
+using SistemaFinanciero.Domain.Catalogs;
 
 namespace SistemaFinanciero.UnitTests.Architecture;
 
@@ -8,7 +8,7 @@ public sealed class ProjectDependencyTests
     [Fact]
     public void Domain_DoesNotReferenceOtherSolutionProjects()
     {
-        string[] solutionReferences = typeof(ExchangeRate)
+        string[] solutionReferences = typeof(Customer)
             .Assembly
             .GetReferencedAssemblies()
             .Select(reference => reference.Name ?? string.Empty)

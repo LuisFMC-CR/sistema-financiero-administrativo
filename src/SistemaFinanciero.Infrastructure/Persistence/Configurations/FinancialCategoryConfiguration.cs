@@ -5,6 +5,15 @@ using SistemaFinanciero.Infrastructure.Identity;
 
 namespace SistemaFinanciero.Infrastructure.Persistence.Configurations;
 
+/// <summary>
+/// Mapea <see cref="FinancialCategory"/> a la tabla <c>catalogos.CategoriasFinancieras</c>.
+/// </summary>
+/// <remarks>
+/// Conexiones: <c>FinancialDbContext.OnModelCreating</c> la aplica por convención. La usa
+/// <c>FinancialCategoryService</c>; su clave foránea obligatoria y restrictiva hacia
+/// <c>LedgerAccount</c> (<c>LedgerAccountId</c>) impide guardar una categoría sin cuenta contable o
+/// borrar una cuenta que una categoría ya usa.
+/// </remarks>
 internal sealed class FinancialCategoryConfiguration : IEntityTypeConfiguration<FinancialCategory>
 {
     public void Configure(EntityTypeBuilder<FinancialCategory> builder)

@@ -1,0 +1,126 @@
+@using SistemaFinanciero.Application.Invoices
+@using SistemaFinanciero.Domain.Invoices
+@using SistemaFinanciero.Web.Models.Invoices
+@model InvoiceDetailsViewModel
+@{
+    ViewData["Title"] = "Detalle de factura";
+    InvoiceModel invoice = Model.Invoice;
+    bool isDraft = invoice.Status == InvoiceStatus.Draft;
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+    <div>
+        <h1 class="h2 mb-1">Factura @(invoice.Number?.ToString() ?? "— (borrador)")</h1>
+        <p class="text-body-secondary mb-0">
+            Estado: <strong>@invoice.Status.ToDisplayName()</strong>
+            @if (invoice.Status == InvoiceStatus.Cancelled && !string.IsNullOrWhiteSpace(invoice.CancellationReason))
+            {
+                <text> — Motivo: @invoice.CancellationReason</text>
+            }
+        </p>
+    </div>
+    <div class="d-flex gap-2">
+        @if (Model.CanEditDraft)
+        {
+            <a asp-action="EditHeader" asp-route-id="@invoice.Id" class="btn btn-outline-primary">Editar encabezado</a>
+        }
+        @if (Model.CanConfirm)
+        {
+            <a asp-action="Confirm" asp-route-id="@invoice.Id" class="btn btn-success">Confirmar</a>
+        }
+        @if (Model.CanCancel)
+        {
+            <a asp-action="Cancel" asp-route-id="@invoice.Id" class="btn btn-danger">Anular</a>
+        }
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card card-body h-100">
+            <h2 class="h5">Cliente</h2>
+            <p class="mb-1">@invoice.CustomerName</p>
+            <h2 class="h5 mt-3">Condiciones</h2>
+            <p class="mb-1">Emisión: @invoice.IssueDate.ToString("dd/MM/yyyy")</p>
+            <p class="mb-1">Plazo de pago: @invoice.PaymentTerm.ToDisplayName()</p>
+            <p class="mb-0">Vencimiento: @(invoice.DueDate?.ToString("dd/MM/yyyy") ?? "—")</p>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card card-body h-100">
+            <h2 class="h5">Totales</h2>
+            <p class="mb-1">Subtotal: ₡@invoice.GrossAmount.ToString("N2")</p>
+            <p class="mb-1">Descuentos: ₡@invoice.DiscountAmount.ToString("N2")</p>
+            <p class="mb-1">Monto neto: ₡@invoice.NetAmount.ToString("N2")</p>
+            <p class="mb-1">IVA: ₡@invoice.TaxAmount.ToString("N2")</p>
+            <p class="mb-0 fw-semibold">Total: ₡@invoice.TotalAmount.ToString("N2")</p>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-2">
+    <h2 class="h5 mb-0">Líneas</h2>
+    @if (Model.CanEditDraft)
+    {
+        <a asp-action="AddLine" asp-route-id="@invoice.Id" class="btn btn-sm btn-primary">Agregar línea</a>
+    }
+</div>
+
+<div class="table-responsive bg-white border rounded">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th scope="col">#</th>
+                <th scope="col">Descripción</th>
+                <th scope="col">Unidad</th>
+                <th scope="col" class="text-end">Cantidad</th>
+                <th scope="col" class="text-end">Precio unitario</th>
+                <th scope="col" class="text-end">Descuento</th>
+                <th scope="col" class="text-end">Neto</th>
+                <th scope="col">IVA</th>
+                <th scope="col" class="text-end">Monto IVA</th>
+                <th scope="col" class="text-end">Total</th>
+                @if (Model.CanEditDraft)
+                {
+                    <th scope="col" class="text-end">Acciones</th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @if (invoice.Lines.Count == 0)
+            {
+                <tr><td colspan="@(Model.CanEditDraft ? 11 : 10)" class="text-center text-body-secondary py-4">Esta factura no tiene líneas.</td></tr>
+            }
+            @foreach (InvoiceLineModel line in invoice.Lines)
+            {
+                <tr>
+                    <td>@line.Position</td>
+                    <td>@line.Description</td>
+                    <td>@line.UnitOfMeasure</td>
+                    <td class="text-end">@line.Quantity.ToString("N4")</td>
+                    <td class="text-end">₡@line.UnitPrice.ToString("N4")</td>
+                    <td class="text-end">₡@line.DiscountAmount.ToString("N2")</td>
+                    <td class="text-end">₡@line.NetAmount.ToString("N2")</td>
+                    <td>@line.TaxName (@line.TaxRate.ToString("0.##")%)</td>
+                    <td class="text-end">₡@line.TaxAmount.ToString("N2")</td>
+                    <td class="text-end">₡@line.TotalAmount.ToString("N2")</td>
+                    @if (Model.CanEditDraft)
+                    {
+                        <td class="text-end text-nowrap">
+                            <a asp-action="EditLine" asp-route-id="@invoice.Id" asp-route-lineId="@line.Id" class="btn btn-sm btn-outline-primary">Editar</a>
+                            <form asp-action="RemoveLine" asp-route-id="@invoice.Id" asp-route-lineId="@line.Id" method="post" class="d-inline js-confirm-form"
+                                  data-confirm-message="¿Confirma que desea quitar esta línea?">
+                                <input type="hidden" name="version" value="@invoice.Version" />
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Quitar</button>
+                            </form>
+                        </td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<p class="text-body-secondary mt-3">
+    <small>Documento administrativo interno. No sustituye el comprobante electrónico oficial.</small>
+</p>

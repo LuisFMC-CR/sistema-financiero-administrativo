@@ -67,29 +67,19 @@ if (categoryKind instanceof HTMLSelectElement && categoryParent instanceof HTMLS
     filterParentCategories();
 }
 
-// Formulario de cuentas contables: la cuenta superior se filtra por tipo y los campos de efectivo
-// (subtipo y moneda) solo se muestran para cuentas de tipo Activo marcadas como de efectivo. El
-// servidor valida las mismas reglas, esto solo evita que el usuario elija combinaciones inválidas.
-const ledgerType = document.getElementById("ledger-account-type");
+// Formulario de cuentas contables: el tipo lo hereda la cuenta superior elegida, así que los campos
+// de efectivo (subtipo) solo se habilitan cuando esa cuenta superior es de tipo Activo. El servidor
+// valida la misma regla; esto solo evita que el usuario elija combinaciones inválidas.
 const ledgerParent = document.getElementById("ledger-account-parent");
 const ledgerIsCash = document.getElementById("ledger-account-is-cash");
 const ledgerCashFields = document.getElementById("ledger-account-cash-fields");
 
-if (ledgerType instanceof HTMLSelectElement && ledgerParent instanceof HTMLSelectElement) {
+if (ledgerParent instanceof HTMLSelectElement) {
     const refreshLedgerForm = () => {
-        Array.from(ledgerParent.options).forEach((option) => {
-            const optionType = option.dataset.accountType;
-            const belongsToType = optionType === undefined || optionType === ledgerType.value;
-            option.hidden = !belongsToType;
-            option.disabled = !belongsToType;
-
-            if (!belongsToType && option.selected) {
-                ledgerParent.value = "";
-            }
-        });
+        const selectedOption = ledgerParent.options[ledgerParent.selectedIndex];
+        const canBeCash = selectedOption?.dataset.accountType === "Asset";
 
         if (ledgerIsCash instanceof HTMLInputElement) {
-            const canBeCash = ledgerType.value === "Asset";
             ledgerIsCash.disabled = !canBeCash;
 
             if (!canBeCash) {
@@ -102,11 +92,35 @@ if (ledgerType instanceof HTMLSelectElement && ledgerParent instanceof HTMLSelec
         }
     };
 
-    ledgerType.addEventListener("change", refreshLedgerForm);
+    ledgerParent.addEventListener("change", refreshLedgerForm);
 
     if (ledgerIsCash instanceof HTMLInputElement) {
         ledgerIsCash.addEventListener("change", refreshLedgerForm);
     }
 
     refreshLedgerForm();
+}
+
+// Línea de factura: al elegir un producto o servicio del catálogo, se propone su tarifa de IVA
+// predeterminada (RF-52). El usuario sigue pudiendo cambiarla; por eso esto solo actúa cuando el
+// artículo cambia, nunca al cargar la página con una línea ya guardada.
+const invoiceLineCatalogItem = document.getElementById("invoice-line-catalog-item");
+const invoiceLineTaxType = document.getElementById("invoice-line-tax-type");
+
+if (invoiceLineCatalogItem instanceof HTMLSelectElement && invoiceLineTaxType instanceof HTMLSelectElement) {
+    invoiceLineCatalogItem.addEventListener("change", () => {
+        const selectedOption = invoiceLineCatalogItem.options[invoiceLineCatalogItem.selectedIndex];
+        const defaultTaxTypeId = selectedOption?.dataset.defaultTaxType;
+
+        if (!defaultTaxTypeId) {
+            return;
+        }
+
+        const matchingOption = Array.from(invoiceLineTaxType.options)
+            .find((option) => option.value === defaultTaxTypeId);
+
+        if (matchingOption) {
+            invoiceLineTaxType.value = defaultTaxTypeId;
+        }
+    });
 }

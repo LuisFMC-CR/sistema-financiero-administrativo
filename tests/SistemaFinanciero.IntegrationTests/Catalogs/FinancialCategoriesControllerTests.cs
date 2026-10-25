@@ -6,7 +6,6 @@ using SistemaFinanciero.Application.Catalogs.Categories;
 using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Catalogs.LedgerAccounts;
 using SistemaFinanciero.Domain.Catalogs;
-using SistemaFinanciero.Domain.Currencies;
 using SistemaFinanciero.Web.Controllers;
 using SistemaFinanciero.Web.Models.Catalogs;
 
@@ -24,7 +23,6 @@ public sealed class FinancialCategoriesControllerTests
         FinancialCategoriesController controller = CreateController(categories, new FakeLedgerAccountService());
         FinancialCategoryInputViewModel model = new()
         {
-            Code = "ING",
             Name = "Ingresos",
             Kind = FinancialCategoryKind.Income,
             LedgerAccountId = IncomeAccountId,
@@ -42,7 +40,7 @@ public sealed class FinancialCategoriesControllerTests
         FakeCategoryService categories = new();
         FakeLedgerAccountService ledger = new();
         FinancialCategoriesController controller = CreateController(categories, ledger);
-        controller.ModelState.AddModelError(nameof(FinancialCategoryInputViewModel.Code), "El código es obligatorio.");
+        controller.ModelState.AddModelError(nameof(FinancialCategoryInputViewModel.Name), "El nombre es obligatorio.");
         FinancialCategoryInputViewModel model = new();
 
         IActionResult result = await controller.Create(model, CancellationToken.None);
@@ -72,7 +70,6 @@ public sealed class FinancialCategoriesControllerTests
         IActionResult result = await controller.Create(
             new FinancialCategoryInputViewModel
             {
-                Code = "ING",
                 Name = "Ingresos",
                 Kind = FinancialCategoryKind.Income,
                 LedgerAccountId = ExpenseAccountId,
@@ -263,7 +260,6 @@ public sealed class FinancialCategoriesControllerTests
             });
 
         public Task<IReadOnlyList<CashAccountOption>> GetActiveCashAccountsAsync(
-            CurrencyCode? currency = null,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<CashAccountOption>>([]);
 

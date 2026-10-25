@@ -8,9 +8,15 @@ using SistemaFinanciero.Web.Models.Parameters;
 namespace SistemaFinanciero.Web.Controllers;
 
 /// <summary>
-/// Presenta los parámetros únicos del sistema: el límite de autorización y los días de alerta de
-/// vencimiento. Consultan Gerencia y Finanzas; solo Gerencia los define.
+/// Presenta los parámetros únicos del sistema: el límite de autorización, los días de alerta de
+/// vencimiento y la fecha de cierre. Consultan Gerencia y Finanzas; solo Gerencia los define.
 /// </summary>
+/// <remarks>
+/// La fecha de cierre (regla 16) tiene su propio formulario y su propia acción
+/// (<see cref="ChangeClosingDate"/>), separada de <see cref="Save"/> (límite y días): adelantarla no
+/// exige motivo, retrocederla (reapertura) sí, y ese motivo no tiene sentido en el formulario de
+/// límite y días.
+/// </remarks>
 [Authorize(Policy = SystemPolicies.ViewFinancialReports)]
 [Route("parametros")]
 public sealed class SystemParametersController(ISystemParametersService service) : CatalogControllerBase
@@ -19,7 +25,7 @@ public sealed class SystemParametersController(ISystemParametersService service)
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
     {
         SystemParametersModel? current = await service.GetAsync(cancellationToken);
-        return View(ToViewModel(current));
+        return View(ToPageViewModel(current));
     }
 
     [Authorize(Policy = SystemPolicies.ManageSystemParameters)]
@@ -28,7 +34,12 @@ public sealed class SystemParametersController(ISystemParametersService service)
     {
         if (!ModelState.IsValid)
         {
-            return View(nameof(Index), model);
+            SystemParametersModel? current = await service.GetAsync(cancellationToken);
+            return View(nameof(Index), new SystemParametersPageViewModel
+            {
+                Parameters = model,
+                ClosingDateForm = ToClosingDateViewModel(current),
+            });
         }
 
         if (!TryGetActorId(out Guid actorId))
@@ -59,8 +70,69 @@ public sealed class SystemParametersController(ISystemParametersService service)
             ModelState.Remove(nameof(model.Version));
         }
 
-        return FormFailure(result, latestModel, nameof(Index));
+        return FormFailure(
+            result,
+            new SystemParametersPageViewModel
+            {
+                Parameters = latestModel,
+                ClosingDateForm = ToClosingDateViewModel(latest),
+            },
+            nameof(Index));
     }
+
+    [Authorize(Policy = SystemPolicies.ManageSystemParameters)]
+    [HttpPost("fecha-cierre")]
+    public async Task<IActionResult> ChangeClosingDate(
+        ChangeClosingDateViewModel model,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            SystemParametersModel? current = await service.GetAsync(cancellationToken);
+            return View(nameof(Index), new SystemParametersPageViewModel
+            {
+                Parameters = ToViewModel(current),
+                ClosingDateForm = model,
+            });
+        }
+
+        if (!TryGetActorId(out Guid actorId))
+        {
+            return Forbid();
+        }
+
+        CatalogOperationResult result = await service.ChangeClosingDateAsync(
+            model.NewClosingDate, model.Reason, model.Version, actorId, cancellationToken);
+
+        if (result.IsSuccess)
+        {
+            SetSuccessMessage("La fecha de cierre se actualizó correctamente.");
+            return RedirectToAction(nameof(Index));
+        }
+
+        SystemParametersModel? latest = await service.GetAsync(cancellationToken);
+
+        if (result.Status == CatalogOperationStatus.ConcurrencyConflict && latest is not null)
+        {
+            model.Version = latest.Version;
+            ModelState.Remove(nameof(model.Version));
+        }
+
+        return FormFailure(
+            result,
+            new SystemParametersPageViewModel
+            {
+                Parameters = ToViewModel(latest),
+                ClosingDateForm = model,
+            },
+            nameof(Index));
+    }
+
+    private static SystemParametersPageViewModel ToPageViewModel(SystemParametersModel? current) => new()
+    {
+        Parameters = ToViewModel(current),
+        ClosingDateForm = ToClosingDateViewModel(current),
+    };
 
     private static SystemParametersViewModel ToViewModel(SystemParametersModel? current)
     {
@@ -70,9 +142,21 @@ public sealed class SystemParametersController(ISystemParametersService service)
             {
                 AuthorizationLimitCrc = current.AuthorizationLimitCrc,
                 OverdueAlertDays = current.OverdueAlertDays,
+                ClosingDate = current.ClosingDate,
                 Version = current.Version,
                 UpdatedAtUtc = current.UpdatedAtUtc,
                 UpdatedByUserName = current.UpdatedByUserName,
+            };
+    }
+
+    private static ChangeClosingDateViewModel ToClosingDateViewModel(SystemParametersModel? current)
+    {
+        return current is null
+            ? new ChangeClosingDateViewModel()
+            : new ChangeClosingDateViewModel
+            {
+                NewClosingDate = current.ClosingDate,
+                Version = current.Version,
             };
     }
 }

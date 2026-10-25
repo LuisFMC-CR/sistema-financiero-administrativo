@@ -1,0 +1,30 @@
+@using SistemaFinanciero.Domain.Invoices
+@using SistemaFinanciero.Web.Models.Invoices
+@model InvoiceCreateViewModel
+
+<div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+<div class="row g-3">
+    <div class="col-md-6">
+        <label asp-for="CustomerId" class="form-label"></label>
+        <select asp-for="CustomerId" asp-items="Model.CustomerOptions" class="form-select">
+            <option value="">Seleccione un cliente</option>
+        </select>
+        <span asp-validation-for="CustomerId" class="text-danger"></span>
+    </div>
+    <div class="col-md-3">
+        <label asp-for="IssueDate" class="form-label"></label>
+        <input asp-for="IssueDate" type="date" class="form-control" />
+        <span asp-validation-for="IssueDate" class="text-danger"></span>
+    </div>
+    <div class="col-md-3">
+        <label asp-for="PaymentTerm" class="form-label"></label>
+        <select asp-for="PaymentTerm" class="form-select">
+            @foreach (PaymentTerm term in Enum.GetValues<PaymentTerm>())
+            {
+                <option value="@term">@term.ToDisplayName()</option>
+            }
+        </select>
+        <span asp-validation-for="PaymentTerm" class="text-danger"></span>
+        <div class="form-text">El vencimiento se calcula automáticamente a partir de la fecha de emisión y el plazo elegido.</div>
+    </div>
+</div>

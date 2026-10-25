@@ -6,6 +6,12 @@ namespace SistemaFinanciero.Web.Configuration;
 /// <summary>
 /// Configura las políticas de autorización acordadas para los perfiles internos.
 /// </summary>
+/// <remarks>
+/// Conexiones: <c>Program.cs</c> llama a <c>AddSystemAuthorization</c> una sola vez al iniciar; es el
+/// único lugar donde se decide qué roles (<c>SystemRoles</c>, Application) satisfacen cada política de
+/// <c>SystemPolicies</c> (Application). Cada controlador solo referencia el nombre de la política, nunca
+/// un rol directamente.
+/// </remarks>
 public static class AuthorizationExtensions
 {
     /// <summary>
@@ -36,18 +42,27 @@ public static class AuthorizationExtensions
                     SystemRoles.Assistant))
             .AddPolicy(
                 SystemPolicies.ManageBusinessContacts,
-                policy => policy.RequireRole(SystemRoles.Finance, SystemRoles.Assistant))
+                policy => policy.RequireRole(SystemRoles.Management, SystemRoles.Finance, SystemRoles.Assistant))
             .AddPolicy(
                 SystemPolicies.ManageBusinessCatalogs,
-                policy => policy.RequireRole(SystemRoles.Finance))
+                policy => policy.RequireRole(SystemRoles.Management, SystemRoles.Finance))
+            .AddPolicy(
+                SystemPolicies.ViewFinancialTransactions,
+                policy => policy.RequireRole(
+                    SystemRoles.Management,
+                    SystemRoles.Finance,
+                    SystemRoles.Assistant))
             .AddPolicy(
                 SystemPolicies.CreateFinancialDrafts,
-                policy => policy.RequireRole(SystemRoles.Finance, SystemRoles.Assistant))
+                policy => policy.RequireRole(SystemRoles.Management, SystemRoles.Finance, SystemRoles.Assistant))
             .AddPolicy(
                 SystemPolicies.ConfirmFinancialTransactions,
-                policy => policy.RequireRole(SystemRoles.Finance))
+                policy => policy.RequireRole(SystemRoles.Management, SystemRoles.Finance))
             .AddPolicy(
                 SystemPolicies.VoidFinancialTransactions,
+                policy => policy.RequireRole(SystemRoles.Management))
+            .AddPolicy(
+                SystemPolicies.AdjustFinancialBalances,
                 policy => policy.RequireRole(SystemRoles.Management))
             .AddPolicy(
                 SystemPolicies.ViewFinancialReports,

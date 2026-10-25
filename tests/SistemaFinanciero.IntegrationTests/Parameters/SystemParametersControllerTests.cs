@@ -65,7 +65,8 @@ public sealed class SystemParametersControllerTests
     {
         RecordingSystemParametersService service = new()
         {
-            Current = new SystemParametersModel(500_000m, 7, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "version-vigente"),
+            Current = new SystemParametersModel(
+                500_000m, 7, new DateOnly(2026, 1, 1), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "version-vigente"),
             OperationResult = CatalogOperationResult.Concurrent(),
         };
         SystemParametersController controller = CreateController(service);
@@ -79,10 +80,10 @@ public sealed class SystemParametersControllerTests
         IActionResult result = await controller.Save(model, CancellationToken.None);
 
         ViewResult view = Assert.IsType<ViewResult>(result);
-        SystemParametersViewModel returnedModel = Assert.IsType<SystemParametersViewModel>(view.Model);
-        Assert.Equal("version-vigente", returnedModel.Version);
+        SystemParametersPageViewModel pageModel = Assert.IsType<SystemParametersPageViewModel>(view.Model);
+        Assert.Equal("version-vigente", pageModel.Parameters.Version);
         // El monto propuesto se conserva en el formulario para que el usuario no lo vuelva a digitar.
-        Assert.Equal(600_000m, returnedModel.AuthorizationLimitCrc);
+        Assert.Equal(600_000m, pageModel.Parameters.AuthorizationLimitCrc);
         Assert.Equal(StatusCodes.Status409Conflict, controller.Response.StatusCode);
     }
 
@@ -109,8 +110,8 @@ public sealed class SystemParametersControllerTests
         IActionResult result = await controller.Index(CancellationToken.None);
 
         ViewResult view = Assert.IsType<ViewResult>(result);
-        SystemParametersViewModel model = Assert.IsType<SystemParametersViewModel>(view.Model);
-        Assert.Equal(string.Empty, model.Version);
+        SystemParametersPageViewModel model = Assert.IsType<SystemParametersPageViewModel>(view.Model);
+        Assert.Equal(string.Empty, model.Parameters.Version);
     }
 
     [Fact]
@@ -118,17 +119,83 @@ public sealed class SystemParametersControllerTests
     {
         RecordingSystemParametersService service = new()
         {
-            Current = new SystemParametersModel(500_000m, 7, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "v1"),
+            Current = new SystemParametersModel(
+                500_000m, 7, new DateOnly(2026, 1, 1), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "v1"),
         };
         SystemParametersController controller = CreateController(service);
 
         IActionResult result = await controller.Index(CancellationToken.None);
 
         ViewResult view = Assert.IsType<ViewResult>(result);
-        SystemParametersViewModel model = Assert.IsType<SystemParametersViewModel>(view.Model);
-        Assert.Equal(500_000m, model.AuthorizationLimitCrc);
-        Assert.Equal("v1", model.Version);
-        Assert.Equal("Gerente", model.UpdatedByUserName);
+        SystemParametersPageViewModel model = Assert.IsType<SystemParametersPageViewModel>(view.Model);
+        Assert.Equal(500_000m, model.Parameters.AuthorizationLimitCrc);
+        Assert.Equal("v1", model.Parameters.Version);
+        Assert.Equal("Gerente", model.Parameters.UpdatedByUserName);
+        Assert.Equal(new DateOnly(2026, 1, 1), model.Parameters.ClosingDate);
+        Assert.Equal(new DateOnly(2026, 1, 1), model.ClosingDateForm.NewClosingDate);
+        Assert.Equal("v1", model.ClosingDateForm.Version);
+    }
+
+    [Fact]
+    public async Task ChangeClosingDate_CallsServiceAndRedirectsOnSuccess()
+    {
+        RecordingSystemParametersService service = new()
+        {
+            Current = new SystemParametersModel(
+                500_000m, 7, new DateOnly(2026, 1, 1), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "v1"),
+        };
+        SystemParametersController controller = CreateController(service);
+        ChangeClosingDateViewModel model = new()
+        {
+            NewClosingDate = new DateOnly(2026, 2, 1),
+            Version = "v1",
+        };
+
+        IActionResult result = await controller.ChangeClosingDate(model, CancellationToken.None);
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal(1, service.ChangeClosingDateCalls);
+        Assert.Equal(new DateOnly(2026, 2, 1), service.LastNewClosingDate);
+        Assert.Equal("v1", service.LastClosingDateVersion);
+    }
+
+    [Fact]
+    public async Task ChangeClosingDate_OnInvalidResult_ReturnsIndexWithThePageModel()
+    {
+        RecordingSystemParametersService service = new()
+        {
+            Current = new SystemParametersModel(
+                500_000m, 7, new DateOnly(2026, 2, 1), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "v1"),
+            OperationResult = CatalogOperationResult.Invalid("El motivo de la reapertura es obligatorio."),
+        };
+        SystemParametersController controller = CreateController(service);
+        ChangeClosingDateViewModel model = new()
+        {
+            NewClosingDate = new DateOnly(2026, 1, 1),
+            Version = "v1",
+        };
+
+        IActionResult result = await controller.ChangeClosingDate(model, CancellationToken.None);
+
+        ViewResult view = Assert.IsType<ViewResult>(result);
+        Assert.Equal("Index", view.ViewName);
+        SystemParametersPageViewModel pageModel = Assert.IsType<SystemParametersPageViewModel>(view.Model);
+        Assert.Equal(new DateOnly(2026, 1, 1), pageModel.ClosingDateForm.NewClosingDate);
+        Assert.Equal(new DateOnly(2026, 2, 1), pageModel.Parameters.ClosingDate);
+    }
+
+    [Fact]
+    public async Task ChangeClosingDate_WithoutAnAuthenticatedUser_IsForbidden()
+    {
+        RecordingSystemParametersService service = new();
+        SystemParametersController controller = CreateController(service, withActor: false);
+
+        IActionResult result = await controller.ChangeClosingDate(
+            new ChangeClosingDateViewModel { NewClosingDate = new DateOnly(2026, 1, 1), Version = "v1" },
+            CancellationToken.None);
+
+        Assert.IsType<ForbidResult>(result);
+        Assert.Equal(0, service.ChangeClosingDateCalls);
     }
 
     private static SystemParametersController CreateController(
@@ -166,9 +233,15 @@ public sealed class SystemParametersControllerTests
 
         public int UpdateCalls { get; private set; }
 
+        public int ChangeClosingDateCalls { get; private set; }
+
         public SaveSystemParametersCommand? LastCommand { get; private set; }
 
         public string? LastUpdateVersion { get; private set; }
+
+        public DateOnly? LastNewClosingDate { get; private set; }
+
+        public string? LastClosingDateVersion { get; private set; }
 
         public SystemParametersModel? Current { get; init; }
 
@@ -196,6 +269,19 @@ public sealed class SystemParametersControllerTests
             UpdateCalls++;
             LastCommand = command;
             LastUpdateVersion = version;
+            return Task.FromResult(OperationResult);
+        }
+
+        public Task<CatalogOperationResult> ChangeClosingDateAsync(
+            DateOnly newClosingDate,
+            string? reason,
+            string version,
+            Guid actorId,
+            CancellationToken cancellationToken = default)
+        {
+            ChangeClosingDateCalls++;
+            LastNewClosingDate = newClosingDate;
+            LastClosingDateVersion = version;
             return Task.FromResult(OperationResult);
         }
     }

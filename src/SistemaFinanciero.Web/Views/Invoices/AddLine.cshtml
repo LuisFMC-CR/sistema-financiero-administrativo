@@ -1,0 +1,20 @@
+@using SistemaFinanciero.Web.Models.Invoices
+@model InvoiceLineInputViewModel
+@{
+    ViewData["Title"] = "Agregar línea";
+}
+
+<div class="catalog-form">
+    <h1 class="h2">Agregar línea</h1>
+    <form method="post" class="card card-body">
+        <partial name="_LineForm" model="Model" />
+        <div class="d-flex gap-2 mt-4">
+            <button type="submit" class="btn btn-primary">Agregar línea</button>
+            <a asp-action="Details" asp-route-id="@ViewContext.RouteData.Values["id"]" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

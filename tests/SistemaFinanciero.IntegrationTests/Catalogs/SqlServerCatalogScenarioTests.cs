@@ -3,12 +3,10 @@ using Microsoft.Extensions.DependencyInjection;
 using SistemaFinanciero.Application.Catalogs.Categories;
 using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Catalogs.Customers;
-using SistemaFinanciero.Application.Catalogs.ExchangeRates;
 using SistemaFinanciero.Application.Catalogs.Items;
 using SistemaFinanciero.Application.Catalogs.LedgerAccounts;
 using SistemaFinanciero.Application.Catalogs.Suppliers;
 using SistemaFinanciero.Domain.Catalogs;
-using SistemaFinanciero.Domain.Currencies;
 using SistemaFinanciero.Infrastructure.Identity;
 using SistemaFinanciero.Infrastructure.Persistence;
 
@@ -36,10 +34,9 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
             ICustomerCatalogService customers = services.GetRequiredService<ICustomerCatalogService>();
             ISupplierCatalogService suppliers = services.GetRequiredService<ISupplierCatalogService>();
             string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
-            string code = $"CLI-{suffix}";
+            string uniqueName = $"Cliente de integración {suffix}";
             SaveCustomerCommand original = new(
-                code,
-                "Cliente de integración",
+                uniqueName,
                 $"ID-{suffix}",
                 "cliente@example.test",
                 null,
@@ -48,8 +45,9 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
             Assert.True((await customers.CreateAsync(original, actorId)).IsSuccess);
 
             PagedResult<CustomerModel> activePage = await customers.SearchAsync(
-                new CatalogQuery(code, CatalogStatusFilter.Active));
+                new CatalogQuery(uniqueName, CatalogStatusFilter.Active));
             CustomerModel created = Assert.Single(activePage.Items);
+            string code = created.Code;
 
             SaveCustomerCommand updated = original with { Name = "Cliente actualizado" };
             Assert.True((await customers.UpdateAsync(
@@ -67,6 +65,7 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
 
             CustomerModel current = (await customers.GetAsync(created.Id))!;
             Assert.Equal("Cliente actualizado", current.Name);
+            Assert.Equal(code, current.Code);
             Assert.True((await customers.SetActiveAsync(
                 current.Id,
                 false,
@@ -78,16 +77,18 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
             Assert.Single((await customers.SearchAsync(
                 new CatalogQuery(code, CatalogStatusFilter.Inactive))).Items);
 
+            // La identificación es obligatoria y única (RF-50): crear de nuevo con la misma
+            // identificación es el duplicado ahora que el código lo asigna el sistema (regla 12).
             CatalogOperationResult duplicate = await customers.CreateAsync(original, actorId);
             Assert.Equal(CatalogOperationStatus.Duplicate, duplicate.Status);
 
+            string pagedNamePrefix = $"Cliente paginado {suffix}";
             for (int index = 0; index < 21; index++)
             {
                 Assert.True((await customers.CreateAsync(
                     new SaveCustomerCommand(
-                        $"PG-{suffix}-{index:D2}",
-                        $"Cliente paginado {index:D2}",
-                        null,
+                        $"{pagedNamePrefix} {index:D2}",
+                        $"PG-ID-{suffix}-{index:D2}",
                         null,
                         null,
                         null),
@@ -95,23 +96,24 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
             }
 
             PagedResult<CustomerModel> secondPage = await customers.SearchAsync(
-                new CatalogQuery($"PG-{suffix}", CatalogStatusFilter.Active, page: 2, pageSize: 10));
+                new CatalogQuery(pagedNamePrefix, CatalogStatusFilter.Active, page: 2, pageSize: 10));
             Assert.Equal(21, secondPage.TotalCount);
             Assert.Equal(10, secondPage.Items.Count);
             Assert.True(secondPage.HasPreviousPage);
             Assert.True(secondPage.HasNextPage);
 
+            string supplierName = $"Proveedor de integración {suffix}";
             Assert.True((await suppliers.CreateAsync(
                 new SaveSupplierCommand(
-                    $"PRV-{suffix}",
-                    "Proveedor de integración",
+                    supplierName,
                     $"PRV-ID-{suffix}",
                     null,
                     null,
-                    null),
+                    null,
+                    "Comercio al detalle"),
                 actorId)).IsSuccess);
             Assert.Single((await suppliers.SearchAsync(
-                new CatalogQuery($"PRV-{suffix}", CatalogStatusFilter.Active))).Items);
+                new CatalogQuery(supplierName, CatalogStatusFilter.Active))).Items);
         });
     }
 
@@ -127,24 +129,28 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
             ILedgerAccountService ledgerAccounts = services.GetRequiredService<ILedgerAccountService>();
             string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
 
-            // Toda categoría necesita una cuenta contable activa de su mismo tipo.
+            // Toda categoría necesita una cuenta contable activa de su mismo tipo. El servicio ya no
+            // crea cuentas raíz (regla 13): se agregan como detalle bajo los grupos del catálogo base.
+            Guid incomeRootId = Assert.Single((await ledgerAccounts.SearchAsync(
+                new CatalogQuery("2", CatalogStatusFilter.Active))).Items, account => account.Code == "2").Id;
+            Guid expenseRootId = Assert.Single((await ledgerAccounts.SearchAsync(
+                new CatalogQuery("3", CatalogStatusFilter.Active))).Items, account => account.Code == "3").Id;
+
             Assert.True((await ledgerAccounts.CreateAsync(
-                new CreateLedgerAccountCommand(
-                    $"LI-{suffix}", "Cuenta de ingresos", LedgerAccountType.Income, null, null, null, null, null),
+                new CreateLedgerAccountCommand($"Cuenta de ingresos {suffix}", incomeRootId, null, null, null),
                 actorId)).IsSuccess);
             Assert.True((await ledgerAccounts.CreateAsync(
-                new CreateLedgerAccountCommand(
-                    $"LG-{suffix}", "Cuenta de gastos", LedgerAccountType.Expense, null, null, null, null, null),
+                new CreateLedgerAccountCommand($"Cuenta de gastos {suffix}", expenseRootId, null, null, null),
                 actorId)).IsSuccess);
             Guid incomeAccountId = (await ledgerAccounts.GetActiveOptionsAsync(LedgerAccountType.Income))
-                .Single(option => option.Code == $"LI-{suffix}").Id;
+                .Single(option => option.Name == $"Cuenta de ingresos {suffix}").Id;
             Guid expenseAccountId = (await ledgerAccounts.GetActiveOptionsAsync(LedgerAccountType.Expense))
-                .Single(option => option.Code == $"LG-{suffix}").Id;
+                .Single(option => option.Name == $"Cuenta de gastos {suffix}").Id;
 
+            string incomeCategoryName = $"Ingresos de integración {suffix}";
             Assert.True((await categories.CreateAsync(
                 new SaveFinancialCategoryCommand(
-                    $"ING-{suffix}",
-                    "Ingresos de integración",
+                    incomeCategoryName,
                     FinancialCategoryKind.Income,
                     null,
                     incomeAccountId,
@@ -152,12 +158,12 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
                 actorId)).IsSuccess);
 
             FinancialCategoryModel parent = Assert.Single((await categories.SearchAsync(
-                new CatalogQuery($"ING-{suffix}", CatalogStatusFilter.Active))).Items);
+                new CatalogQuery(incomeCategoryName, CatalogStatusFilter.Active))).Items);
 
+            string subCategoryName = $"Subcategoría de integración {suffix}";
             Assert.True((await categories.CreateAsync(
                 new SaveFinancialCategoryCommand(
-                    $"SUB-{suffix}",
-                    "Subcategoría de integración",
+                    subCategoryName,
                     FinancialCategoryKind.Income,
                     parent.Id,
                     incomeAccountId,
@@ -165,24 +171,23 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
                 actorId)).IsSuccess);
 
             FinancialCategoryModel child = Assert.Single((await categories.SearchAsync(
-                new CatalogQuery($"SUB-{suffix}", CatalogStatusFilter.Active))).Items);
+                new CatalogQuery(subCategoryName, CatalogStatusFilter.Active))).Items);
 
+            string expenseCategoryName = $"Gasto de integración {suffix}";
             Assert.True((await categories.CreateAsync(
                 new SaveFinancialCategoryCommand(
-                    $"GAS-{suffix}",
-                    "Gasto de integración",
+                    expenseCategoryName,
                     FinancialCategoryKind.Expense,
                     null,
                     expenseAccountId,
                     null),
                 actorId)).IsSuccess);
             FinancialCategoryModel expense = Assert.Single((await categories.SearchAsync(
-                new CatalogQuery($"GAS-{suffix}", CatalogStatusFilter.Active))).Items);
+                new CatalogQuery(expenseCategoryName, CatalogStatusFilter.Active))).Items);
 
             CatalogOperationResult wrongKind = await categories.UpdateAsync(
                 child.Id,
                 new SaveFinancialCategoryCommand(
-                    child.Code,
                     child.Name,
                     child.Kind,
                     expense.Id,
@@ -195,7 +200,6 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
             CatalogOperationResult cycle = await categories.UpdateAsync(
                 parent.Id,
                 new SaveFinancialCategoryCommand(
-                    parent.Code,
                     parent.Name,
                     parent.Kind,
                     child.Id,
@@ -205,16 +209,16 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
                 actorId);
             Assert.Equal(CatalogOperationStatus.Invalid, cycle.Status);
 
+            string itemName = $"Servicio de integración {suffix}";
             Assert.True((await items.CreateAsync(
-                new SaveCatalogItemCommand(
-                    $"SRV-{suffix}",
-                    "Servicio de integración",
+                new CreateCatalogItemCommand(
+                    itemName,
                     CatalogItemType.Service,
                     null,
                     "hora",
-                    null,
                     25.12345m,
-                    child.Id),
+                    child.Id,
+                    null),
                 actorId)).IsSuccess);
 
             CatalogOperationResult dependency = await categories.SetActiveAsync(
@@ -225,8 +229,8 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
             Assert.Equal(CatalogOperationStatus.DependencyConflict, dependency.Status);
 
             CatalogItemModel item = Assert.Single((await items.SearchAsync(
-                new CatalogQuery($"SRV-{suffix}", CatalogStatusFilter.Active))).Items);
-            Assert.Equal(25.1235m, item.ReferencePriceUsd);
+                new CatalogQuery(itemName, CatalogStatusFilter.Active))).Items);
+            Assert.Equal(25.1235m, item.ReferencePriceCrc);
             Assert.True((await items.SetActiveAsync(
                 item.Id,
                 false,
@@ -254,31 +258,6 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
                 inactiveChild.Version,
                 actorId);
             Assert.Equal(CatalogOperationStatus.Invalid, inactiveParent.Status);
-        });
-    }
-
-    [Fact]
-    [Trait("Category", "SqlServer")]
-    public Task RateScenario_PreservesPrecisionAndUniqueDate()
-    {
-        return RunInRollbackTransactionAsync(async (services, actorId) =>
-        {
-            IDailyExchangeRateService rates = services.GetRequiredService<IDailyExchangeRateService>();
-
-            DateOnly date = new(2099, 1, 1);
-            SaveDailyExchangeRateCommand rateCommand = new(
-                date,
-                510.1234567m,
-                "Fuente ficticia",
-                null);
-            Assert.True((await rates.CreateAsync(rateCommand, actorId)).IsSuccess);
-
-            DailyExchangeRateModel savedRate = Assert.Single((await rates.SearchAsync(
-                new PageQuery(date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)))).Items);
-            Assert.Equal(510.123457m, savedRate.CrcPerUsd);
-
-            CatalogOperationResult duplicate = await rates.CreateAsync(rateCommand, actorId);
-            Assert.Equal(CatalogOperationStatus.Duplicate, duplicate.Status);
         });
     }
 

@@ -1,0 +1,64 @@
+@using SistemaFinanciero.Web.Models.Payables
+@model RegisterSupplierPaymentAllocateViewModel
+@{
+    ViewData["Title"] = "Reparto del pago";
+}
+
+<div class="catalog-form" style="max-width: 860px;">
+    <h1 class="h2">Reparto del pago</h1>
+    <p class="text-body-secondary">
+        Proveedor: <strong>@Model.SupplierName</strong> — Cuenta de efectivo: @Model.CashAccountLabel —
+        Referencia: @Model.Reference — Fecha: @Model.PaymentDate.ToString("dd/MM/yyyy")
+    </p>
+    <p class="text-body-secondary">
+        Reparto propuesto de la más antigua a la más nueva. Edite el monto de cada línea antes de
+        confirmar; las líneas en cero no se registran.
+    </p>
+
+    <form asp-action="Register" method="post">
+        <input type="hidden" asp-for="SupplierId" />
+        <input type="hidden" asp-for="CashAccountId" />
+        <input type="hidden" asp-for="Reference" />
+        <input type="hidden" asp-for="PaymentDate" />
+        <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+
+        <div class="table-responsive bg-white border rounded">
+            <table class="table align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col">Gasto</th>
+                        <th scope="col">Vencimiento</th>
+                        <th scope="col" class="text-end">Saldo</th>
+                        <th scope="col" class="text-end">Monto a aplicar</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (int i = 0; i < Model.Allocations.Count; i++)
+                    {
+                        <tr>
+                            <td>
+                                <input type="hidden" asp-for="Allocations[i].PayableId" />
+                                @Model.Allocations[i].ExpenseLabel
+                            </td>
+                            <td>@Model.Allocations[i].DueDate.ToString("dd/MM/yyyy")</td>
+                            <td class="text-end">₡@Model.Allocations[i].Balance.ToString("N2")</td>
+                            <td style="min-width: 160px;">
+                                <input asp-for="Allocations[i].Amount" type="number" step="0.01" min="0" class="form-control form-control-sm" />
+                                <span asp-validation-for="Allocations[i].Amount" class="text-danger"></span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="d-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-success">Registrar pago</button>
+            <a asp-action="Start" class="btn btn-outline-secondary">Empezar de nuevo</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

@@ -5,6 +5,13 @@ using SistemaFinanciero.Infrastructure.Identity;
 
 namespace SistemaFinanciero.Infrastructure.Persistence.Configurations;
 
+/// <summary>Mapea <see cref="LedgerAccount"/> a la tabla <c>catalogos.CuentasContables</c>.</summary>
+/// <remarks>
+/// Conexiones: <c>FinancialDbContext.OnModelCreating</c> la aplica por convención. La usa
+/// <c>LedgerAccountService</c>; su restricción <c>CHECK</c> de efectivo y su clave foránea
+/// autorreferente (cuenta superior) son la contraparte en base de datos de las reglas que ya valida el
+/// dominio.
+/// </remarks>
 internal sealed class LedgerAccountConfiguration : IEntityTypeConfiguration<LedgerAccount>
 {
     public void Configure(EntityTypeBuilder<LedgerAccount> builder)
@@ -19,17 +26,13 @@ internal sealed class LedgerAccountConfiguration : IEntityTypeConfiguration<Ledg
                     "LEN(LTRIM(RTRIM([Code]))) > 0");
                 table.HasCheckConstraint(
                     "CK_CuentasContables_Type",
-                    "[Type] IN (1, 2, 3, 4, 5)");
+                    "[Type] IN (1, 4, 5)");
                 table.HasCheckConstraint(
                     "CK_CuentasContables_CashKind",
                     "[CashKind] IS NULL OR [CashKind] IN (1, 2)");
                 table.HasCheckConstraint(
-                    "CK_CuentasContables_Currency",
-                    "[Currency] IS NULL OR [Currency] IN ('CRC', 'USD')");
-                table.HasCheckConstraint(
                     "CK_CuentasContables_Cash",
-                    "([CashKind] IS NULL AND [Currency] IS NULL) OR " +
-                    "([CashKind] IS NOT NULL AND [Currency] IS NOT NULL AND [Type] = 1)");
+                    "[CashKind] IS NULL OR [Type] = 1");
                 table.HasCheckConstraint(
                     "CK_CuentasContables_Parent",
                     "[ParentId] IS NULL OR [ParentId] <> [Id]");
@@ -44,16 +47,14 @@ internal sealed class LedgerAccountConfiguration : IEntityTypeConfiguration<Ledg
             .IsRequired();
         builder.Property(account => account.Type).IsRequired();
         builder.Property(account => account.CashKind);
-        builder.Property(account => account.Currency)
-            .HasConversion<string>()
-            .HasColumnType("char(3)")
-            .IsUnicode(false);
         builder.Property(account => account.Reference)
             .HasMaxLength(LedgerAccount.ReferenceMaxLength);
         builder.Property(account => account.Description)
             .HasMaxLength(LedgerAccount.DescriptionMaxLength);
         builder.Property(account => account.IsActive)
             .HasDefaultValue(true);
+        builder.Property(account => account.IsProtected)
+            .HasDefaultValue(false);
         builder.Property(account => account.CreatedAtUtc).IsRequired();
         builder.Property(account => account.UpdatedAtUtc).IsRequired();
         builder.Property(account => account.RowVersion).IsRowVersion();

@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Catalogs.TaxTypes;
-using SistemaFinanciero.Domain.Invoices;
 using SistemaFinanciero.Web.Controllers;
 using SistemaFinanciero.Web.Models.Catalogs;
 
@@ -17,7 +16,7 @@ public sealed class TaxTypesControllerTests
     {
         RecordingTaxTypeService service = new();
         TaxTypesController controller = CreateController(service);
-        TaxTypeCreateViewModel model = CreateModel(TaxCalculationType.Percentage, rate: 100.5m);
+        TaxTypeCreateViewModel model = CreateModel(rate: 100.5m);
 
         IActionResult result = await controller.Create(model, CancellationToken.None);
 
@@ -27,19 +26,18 @@ public sealed class TaxTypesControllerTests
     }
 
     [Fact]
-    public async Task Create_WithAFixedAmountAboveOneHundred_CallsTheService()
+    public async Task Create_WithValidData_CallsTheService()
     {
         RecordingTaxTypeService service = new();
         TaxTypesController controller = CreateController(service);
-        TaxTypeCreateViewModel model = CreateModel(TaxCalculationType.FixedAmountPerUnit, rate: 250m);
+        TaxTypeCreateViewModel model = CreateModel(rate: 13m);
 
         IActionResult result = await controller.Create(model, CancellationToken.None);
 
         RedirectToActionResult redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal(nameof(TaxTypesController.Index), redirect.ActionName);
         Assert.Equal(1, service.CreateCalls);
-        Assert.Equal(TaxCalculationType.FixedAmountPerUnit, service.LastCreate!.CalculationType);
-        Assert.Equal(250m, service.LastCreate.Rate);
+        Assert.Equal(13m, service.LastCreate!.Rate);
     }
 
     [Fact]
@@ -51,9 +49,7 @@ public sealed class TaxTypesControllerTests
         };
         TaxTypesController controller = CreateController(service);
 
-        IActionResult result = await controller.Create(
-            CreateModel(TaxCalculationType.Percentage, rate: 13m),
-            CancellationToken.None);
+        IActionResult result = await controller.Create(CreateModel(rate: 13m), CancellationToken.None);
 
         ViewResult view = Assert.IsType<ViewResult>(result);
         Assert.Equal(nameof(TaxTypesController.Create), view.ViewName);
@@ -61,10 +57,10 @@ public sealed class TaxTypesControllerTests
     }
 
     [Fact]
-    public async Task Edit_NeverTakesTheCalculationTypeFromTheForm()
+    public async Task Edit_WithARateAboveOneHundred_ReturnsAnErrorWithoutCallingTheService()
     {
         Guid id = Guid.NewGuid();
-        RecordingTaxTypeService service = new() { Current = CreateTaxType(id, TaxCalculationType.Percentage, 13m) };
+        RecordingTaxTypeService service = new() { Current = CreateTaxType(id, 13m) };
         TaxTypesController controller = CreateController(service);
         TaxTypeEditViewModel model = new()
         {
@@ -72,15 +68,11 @@ public sealed class TaxTypesControllerTests
             Name = "IVA",
             Rate = 150m,
             Version = "v1",
-
-            // Un formulario manipulado intenta presentar el impuesto como monto fijo para evitar el tope de 100 %.
-            CalculationType = TaxCalculationType.FixedAmountPerUnit,
         };
 
         IActionResult result = await controller.Edit(id, model, CancellationToken.None);
 
         Assert.IsType<ViewResult>(result);
-        Assert.Equal(TaxCalculationType.Percentage, model.CalculationType);
         Assert.True(controller.ModelState.ContainsKey(nameof(model.Rate)));
         Assert.Equal(0, service.UpdateCalls);
     }
@@ -89,7 +81,7 @@ public sealed class TaxTypesControllerTests
     public async Task Edit_WithValidData_UpdatesAndRedirects()
     {
         Guid id = Guid.NewGuid();
-        RecordingTaxTypeService service = new() { Current = CreateTaxType(id, TaxCalculationType.Percentage, 13m) };
+        RecordingTaxTypeService service = new() { Current = CreateTaxType(id, 13m) };
         TaxTypesController controller = CreateController(service);
         TaxTypeEditViewModel model = new() { Code = "IVA-13", Name = "IVA", Rate = 12m, Version = "v1" };
 
@@ -107,7 +99,7 @@ public sealed class TaxTypesControllerTests
         Guid id = Guid.NewGuid();
         RecordingTaxTypeService service = new()
         {
-            Current = CreateTaxType(id, TaxCalculationType.Percentage, 13m, version: "version-vigente"),
+            Current = CreateTaxType(id, 13m, version: "version-vigente"),
             OperationResult = CatalogOperationResult.Concurrent(),
         };
         TaxTypesController controller = CreateController(service);
@@ -140,7 +132,7 @@ public sealed class TaxTypesControllerTests
     {
         RecordingTaxTypeService service = new()
         {
-            LoadResult = new ReferenceTaxTypesLoadResult(CatalogOperationResult.Succeeded(), 5, 3),
+            LoadResult = new ReferenceTaxTypesLoadResult(CatalogOperationResult.Succeeded(), 1, 1),
         };
         TaxTypesController controller = CreateController(service);
 
@@ -148,8 +140,8 @@ public sealed class TaxTypesControllerTests
 
         Assert.IsType<RedirectToActionResult>(result);
         string message = Assert.IsType<string>(controller.TempData["SuccessMessage"]);
-        Assert.Contains("5", message);
-        Assert.Contains("3 ya existían", message);
+        Assert.Contains("1", message);
+        Assert.Contains("1 ya existían", message);
     }
 
     [Fact]
@@ -157,7 +149,7 @@ public sealed class TaxTypesControllerTests
     {
         RecordingTaxTypeService service = new()
         {
-            LoadResult = new ReferenceTaxTypesLoadResult(CatalogOperationResult.Succeeded(), 0, 8),
+            LoadResult = new ReferenceTaxTypesLoadResult(CatalogOperationResult.Succeeded(), 0, 2),
         };
         TaxTypesController controller = CreateController(service);
 
@@ -216,25 +208,22 @@ public sealed class TaxTypesControllerTests
         Assert.Equal(CatalogStatusFilter.Active, service.LastQuery.Status);
     }
 
-    private static TaxTypeCreateViewModel CreateModel(TaxCalculationType calculationType, decimal rate) =>
+    private static TaxTypeCreateViewModel CreateModel(decimal rate) =>
         new()
         {
             Code = "ESP",
             Name = "Impuesto",
-            CalculationType = calculationType,
             Rate = rate,
         };
 
     private static TaxTypeModel CreateTaxType(
         Guid id,
-        TaxCalculationType calculationType,
         decimal rate,
         string version = "v1") =>
         new(
             id,
             "IVA-13",
             "IVA",
-            calculationType,
             rate,
             null,
             IsActive: true,

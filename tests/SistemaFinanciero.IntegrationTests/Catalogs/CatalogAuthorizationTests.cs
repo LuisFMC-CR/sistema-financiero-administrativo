@@ -37,18 +37,19 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
     }
 
     [Fact]
-    public void ManageContactsPolicy_AllowsFinanceAndAssistantOnly()
+    public void ManageContactsPolicy_AllowsManagementFinanceAndAssistantOnly()
     {
         AssertPolicyRoles(
             SystemPolicies.ManageBusinessContacts,
+            SystemRoles.Management,
             SystemRoles.Finance,
             SystemRoles.Assistant);
     }
 
     [Fact]
-    public void ManageFinancialCatalogsPolicy_AllowsFinanceOnly()
+    public void ManageFinancialCatalogsPolicy_AllowsManagementAndFinanceOnly()
     {
-        AssertPolicyRoles(SystemPolicies.ManageBusinessCatalogs, SystemRoles.Finance);
+        AssertPolicyRoles(SystemPolicies.ManageBusinessCatalogs, SystemRoles.Management, SystemRoles.Finance);
     }
 
     [Theory]
@@ -56,7 +57,6 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
     [InlineData("/catalogos/proveedores")]
     [InlineData("/catalogos/productos-servicios")]
     [InlineData("/catalogos/categorias-financieras")]
-    [InlineData("/catalogos/tipos-cambio")]
     [InlineData("/catalogos/tipos-impuesto")]
     [InlineData("/catalogos/cuentas-contables")]
     [InlineData("/catalogos/tipos-retencion")]
@@ -77,7 +77,6 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
 
     [Theory]
     [InlineData("/catalogos/productos-servicios/crear")]
-    [InlineData("/catalogos/tipos-cambio/crear")]
     [InlineData("/catalogos/tipos-impuesto/crear")]
     [InlineData("/catalogos/cuentas-contables/crear")]
     [InlineData("/catalogos/categorias-financieras/crear")]
@@ -324,7 +323,6 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
             Task.FromResult<IReadOnlyList<LedgerAccountOption>>([]);
 
         public Task<IReadOnlyList<CashAccountOption>> GetActiveCashAccountsAsync(
-            SistemaFinanciero.Domain.Currencies.CurrencyCode? currency = null,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<CashAccountOption>>([]);
 

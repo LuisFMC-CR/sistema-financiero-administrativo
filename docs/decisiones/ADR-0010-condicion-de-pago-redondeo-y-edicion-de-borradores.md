@@ -1,7 +1,8 @@
 # ADR-0010: Condición de pago, redondeo, base gravable y edición de borradores de factura
 
 - **Fecha:** 2026-09-26
-- **Estado:** Aceptado
+- **Estado:** Actualizado por [ADR-0020](ADR-0020-plazos-de-pago-fijos.md) en cuanto a la condición de
+  pago y el vencimiento; el resto sigue vigente.
 - **Complementa:** [ADR-0009](ADR-0009-facturacion-administrativa.md)
 
 ## Contexto

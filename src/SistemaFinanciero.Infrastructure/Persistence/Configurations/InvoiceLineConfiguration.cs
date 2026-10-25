@@ -5,7 +5,16 @@ using SistemaFinanciero.Domain.Invoices;
 
 namespace SistemaFinanciero.Infrastructure.Persistence.Configurations;
 
-/// <summary>Configura líneas e impuestos conservados como detalles de una factura.</summary>
+/// <summary>Configura líneas de factura y el IVA que cada una conserva como detalle.</summary>
+/// <remarks>
+/// Conexiones: <c>FinancialDbContext.OnModelCreating</c> la aplica por convención. Declara
+/// <c>ValueGeneratedNever()</c> en el <c>Id</c> porque lo asigna el dominio
+/// (<c>InvoiceLine</c>), no la base de datos; sin eso, EF confundiría una línea nueva con una existente
+/// al guardarla. <see cref="InvoiceLine.Tax"/> es un tipo propietario de EF Core: como cada línea lleva
+/// una sola tarifa de IVA, no necesita su propia tabla ni clave; vive como columnas de
+/// <c>finanzas.FacturaLineas</c>. Su clave foránea restrictiva hacia <c>TaxType</c> (<c>TaxTypeId</c>,
+/// opcional) impide borrar un tipo de impuesto que una línea ya usó.
+/// </remarks>
 internal sealed class InvoiceLineConfiguration : IEntityTypeConfiguration<InvoiceLine>
 {
     public void Configure(EntityTypeBuilder<InvoiceLine> builder)
@@ -19,6 +28,9 @@ internal sealed class InvoiceLineConfiguration : IEntityTypeConfiguration<Invoic
                     "CK_FacturaLineas_Amounts",
                     "[Quantity] > 0 AND [UnitPrice] >= 0 AND [GrossAmount] >= 0 AND [DiscountAmount] >= 0 AND [DiscountAmount] <= [GrossAmount] AND [NetAmount] >= 0 AND [TaxAmount] >= 0 AND [TotalAmount] >= 0");
                 table.HasCheckConstraint("CK_FacturaLineas_Position", "[Position] > 0");
+                table.HasCheckConstraint(
+                    "CK_FacturaLineas_Tax_RateAmount",
+                    "[Tax_Rate] >= 0 AND [Tax_TaxableAmount] >= 0 AND [Tax_Amount] >= 0");
             });
         builder.HasKey(line => line.Id);
 
@@ -42,11 +54,21 @@ internal sealed class InvoiceLineConfiguration : IEntityTypeConfiguration<Invoic
         builder.HasOne<CatalogItem>().WithMany().HasForeignKey(line => line.CatalogItemId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_FacturaLineas_ProductosServicios");
 
-        builder.HasMany(line => line.Taxes)
-            .WithOne()
-            .HasForeignKey("InvoiceLineId")
-            .IsRequired()
-            .OnDelete(DeleteBehavior.Cascade)
-            .HasConstraintName("FK_FacturaLineaImpuestos_FacturaLineas");
+        builder.OwnsOne(line => line.Tax, tax =>
+        {
+            tax.Property(t => t.Code).HasColumnName("Tax_Code")
+                .HasMaxLength(InvoiceLineTax.CodeMaxLength).IsRequired();
+            tax.Property(t => t.Name).HasColumnName("Tax_Name")
+                .HasMaxLength(InvoiceLineTax.NameMaxLength).IsRequired();
+            tax.Property(t => t.Rate).HasColumnName("Tax_Rate").HasPrecision(18, 4).IsRequired();
+            tax.Property(t => t.TaxableAmount).HasColumnName("Tax_TaxableAmount").HasPrecision(18, 2).IsRequired();
+            tax.Property(t => t.Amount).HasColumnName("Tax_Amount").HasPrecision(18, 2).IsRequired();
+            tax.Property(t => t.TaxTypeId).HasColumnName("TaxTypeId");
+            tax.HasOne<TaxType>()
+                .WithMany()
+                .HasForeignKey(t => t.TaxTypeId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_FacturaLineas_TiposImpuesto");
+        });
     }
 }

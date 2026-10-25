@@ -3,6 +3,12 @@ namespace SistemaFinanciero.Domain.Common;
 /// <summary>
 /// Centraliza validaciones pequeñas compartidas por las entidades sin introducir una jerarquía de persistencia.
 /// </summary>
+/// <remarks>
+/// Conexiones: es <c>internal</c>, así que solo lo usan las entidades de este mismo proyecto
+/// (Domain) — prácticamente todas (<c>Customer</c>, <c>Invoice</c>, <c>LedgerAccount</c>,
+/// <c>TaxType</c>, <c>SystemParameters</c>, etc.) para validar texto, identificadores, enums y
+/// redondeo. Ninguna otra capa lo ve ni debería verlo.
+/// </remarks>
 internal static class DomainRules
 {
     /// <summary>Decimales de los importes, impuestos, totales, saldos y pagos.</summary>

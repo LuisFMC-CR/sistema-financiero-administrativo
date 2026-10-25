@@ -1,4 +1,3 @@
-using SistemaFinanciero.Domain.Currencies;
 using SistemaFinanciero.Domain.Invoices;
 
 namespace SistemaFinanciero.UnitTests.Invoices;
@@ -43,27 +42,11 @@ public sealed class InvoiceRoundingTests
     public void Line_RoundsAPercentageTaxToTwoDecimals()
     {
         // 13 % de 10,05 = 1,3065, que se redondea a 1,31.
-        InvoiceLine line = CreateLine(quantity: 1m, unitPrice: 10.05m, taxes: [PercentageTax(13m)]);
+        InvoiceLine line = CreateLine(quantity: 1m, unitPrice: 10.05m, tax: PercentageTax(13m));
 
-        Assert.Equal(1.31m, line.Taxes.Single().Amount);
+        Assert.Equal(1.31m, line.Tax.Amount);
         Assert.Equal(1.31m, line.TaxAmount);
         Assert.Equal(11.36m, line.TotalAmount);
-    }
-
-    [Fact]
-    public void Line_RoundsAFixedAmountPerUnitTaxToTwoDecimals()
-    {
-        // 2,5 unidades por 0,3333 = 0,83325, que se redondea a 0,83.
-        InvoiceTaxSpecification specification = new(
-            Guid.NewGuid(),
-            "ESP",
-            "Impuesto específico",
-            TaxCalculationType.FixedAmountPerUnit,
-            0.3333m);
-
-        InvoiceLine line = CreateLine(quantity: 2.5m, unitPrice: 100m, taxes: [specification]);
-
-        Assert.Equal(0.83m, line.Taxes.Single().Amount);
     }
 
     [Theory]
@@ -71,21 +54,21 @@ public sealed class InvoiceRoundingTests
     [InlineData(0.12345, 0.1235)]
     public void Line_KeepsFourDecimalsInTheTaxRate(decimal rate, decimal expectedRate)
     {
-        InvoiceLine line = CreateLine(quantity: 1m, unitPrice: 100m, taxes: [PercentageTax(rate)]);
+        InvoiceLine line = CreateLine(quantity: 1m, unitPrice: 100m, tax: PercentageTax(rate));
 
-        Assert.Equal(expectedRate, line.Taxes.Single().Rate);
+        Assert.Equal(expectedRate, line.Tax.Rate);
     }
 
     [Fact]
     public void Invoice_SumsRoundedLinesIntoTwoDecimalTotals()
     {
-        Invoice invoice = CreateInvoice(CurrencyCode.CRC);
+        Invoice invoice = CreateInvoice();
         invoice.AddLine(
-            CreateLine(quantity: 1m, unitPrice: 10.05m, taxes: [PercentageTax(13m)]),
+            CreateLine(quantity: 1m, unitPrice: 10.05m, tax: PercentageTax(13m)),
             CreatedAtUtc,
             UserId);
         invoice.AddLine(
-            CreateLine(quantity: 1m, unitPrice: 0.125m, taxes: [PercentageTax(13m)]),
+            CreateLine(quantity: 1m, unitPrice: 0.125m, tax: PercentageTax(13m)),
             CreatedAtUtc,
             UserId);
 
@@ -96,25 +79,12 @@ public sealed class InvoiceRoundingTests
         Assert.Equal(11.51m, invoice.TotalAmount);
     }
 
-    [Fact]
-    public void Confirm_KeepsSixDecimalsInTheUsdRate()
-    {
-        Invoice invoice = CreateInvoice(CurrencyCode.USD);
-        invoice.AddLine(CreateLine(quantity: 1m, unitPrice: 100m), CreatedAtUtc, UserId);
-
-        invoice.Confirm(512.1234567m, CreatedAtUtc.AddMinutes(5), UserId);
-
-        Assert.Equal(512.123457m, invoice.ConfirmedCrcPerUsd);
-    }
-
-    private static Invoice CreateInvoice(CurrencyCode currency) =>
+    private static Invoice CreateInvoice() =>
         new(
             Guid.NewGuid(),
             Guid.NewGuid(),
             new DateOnly(2026, 9, 10),
-            currency,
             PaymentTerm.Cash,
-            dueDate: null,
             CreatedAtUtc,
             UserId);
 
@@ -122,7 +92,7 @@ public sealed class InvoiceRoundingTests
         decimal quantity,
         decimal unitPrice,
         decimal discountAmount = 0m,
-        IEnumerable<InvoiceTaxSpecification>? taxes = null) =>
+        InvoiceTaxSpecification? tax = null) =>
         new(
             Guid.NewGuid(),
             catalogItemId: null,
@@ -131,13 +101,11 @@ public sealed class InvoiceRoundingTests
             quantity,
             unitPrice,
             discountAmount,
-            taxes);
+            tax ?? ExemptTax());
 
     private static InvoiceTaxSpecification PercentageTax(decimal rate) =>
-        new(
-            Guid.NewGuid(),
-            "IVA",
-            "Impuesto al valor agregado",
-            TaxCalculationType.Percentage,
-            rate);
+        new("IVA", "Impuesto al valor agregado", rate);
+
+    private static InvoiceTaxSpecification ExemptTax() =>
+        new("IVA-EXENTO", "IVA exento", 0m);
 }

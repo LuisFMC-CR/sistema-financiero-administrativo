@@ -8,6 +8,12 @@ using SistemaFinanciero.Web.Models.Catalogs;
 namespace SistemaFinanciero.Web.Controllers;
 
 /// <summary>Presenta el mantenimiento administrativo de clientes.</summary>
+/// <remarks>
+/// Conexiones: usa <c>ICustomerCatalogService</c> (Application), implementado por
+/// <c>CustomerCatalogService</c> (Infrastructure). Consultan Gerencia, Finanzas y Asistente
+/// (<c>ViewBusinessCatalogs</c>); solo Finanzas y Asistente mantienen (<c>ManageBusinessContacts</c>).
+/// <see cref="Index"/> alimenta el selector de cliente que necesitará la futura pantalla de facturas.
+/// </remarks>
 [Authorize(Policy = SystemPolicies.ViewBusinessCatalogs)]
 [Route("catalogos/clientes")]
 public sealed class CustomersController(ICustomerCatalogService service) : CatalogControllerBase
@@ -152,7 +158,6 @@ public sealed class CustomersController(ICustomerCatalogService service) : Catal
     private static SaveCustomerCommand ToCommand(BusinessContactInputViewModel model)
     {
         return new(
-            model.Code,
             model.Name,
             model.Identification,
             model.Email,

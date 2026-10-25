@@ -9,6 +9,13 @@ namespace SistemaFinanciero.Infrastructure.Identity;
 /// <summary>
 /// Ejecuta cambios compuestos de Identity de forma atómica y respeta transacciones externas de prueba.
 /// </summary>
+/// <remarks>
+/// Conexiones: es <c>internal</c>; envuelve cada operación de <c>UserAdministrationService</c> y
+/// <c>UserAccountService</c>. Es el equivalente, para Identity, de lo que
+/// <c>CatalogPersistence.SaveChangesAsync</c> hace para los catálogos: si la operación falla, revierte
+/// (o retrocede a un punto de guardado, cuando una prueba ya abrió su propia transacción) en vez de
+/// dejar cambios a medias.
+/// </remarks>
 internal static class IdentityPersistence
 {
     private const string SavepointName = "UserSecurityOperation";

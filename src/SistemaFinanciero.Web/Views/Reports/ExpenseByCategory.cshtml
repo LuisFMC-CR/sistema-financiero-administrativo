@@ -1,0 +1,80 @@
+@using SistemaFinanciero.Application.Reports
+@using SistemaFinanciero.Web.Models.Reports
+@model ExpenseByCategoryReportViewModel
+@{
+    ViewData["Title"] = "Gastos por período y categoría";
+}
+
+<h1 class="h2 mb-1">Gastos por período y categoría</h1>
+<p class="text-body-secondary mb-3">Gastos confirmados entre dos fechas, agrupados por categoría (regla de negocio 8).</p>
+
+<form method="get" asp-action="ExpenseByCategory" class="row gy-2 gx-3 align-items-end mb-3">
+    <div class="col-auto">
+        <label class="form-label small mb-0" for="periodFrom">Desde</label>
+        <input class="form-control form-control-sm" type="date" id="periodFrom" name="periodFrom" value="@Model.PeriodFrom.ToString("yyyy-MM-dd")" required />
+    </div>
+    <div class="col-auto">
+        <label class="form-label small mb-0" for="periodTo">Hasta</label>
+        <input class="form-control form-control-sm" type="date" id="periodTo" name="periodTo" value="@Model.PeriodTo.ToString("yyyy-MM-dd")" required />
+    </div>
+    <div class="col-auto">
+        <label class="form-label small mb-0" for="categoryId">Categoría</label>
+        <select class="form-select form-select-sm" id="categoryId" name="categoryId" asp-items="Model.CategoryOptions">
+            <option value="">Todas</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary btn-sm">Consultar</button>
+    </div>
+    @if (Model.Result is not null)
+    {
+        <div class="col-auto">
+            <a class="btn btn-outline-secondary btn-sm" asp-action="ExpenseByCategoryPdf" asp-route-periodFrom="@Model.PeriodFrom.ToString("yyyy-MM-dd")" asp-route-periodTo="@Model.PeriodTo.ToString("yyyy-MM-dd")" asp-route-categoryId="@Model.CategoryId">Exportar PDF</a>
+            <a class="btn btn-outline-secondary btn-sm" asp-action="ExpenseByCategoryExcel" asp-route-periodFrom="@Model.PeriodFrom.ToString("yyyy-MM-dd")" asp-route-periodTo="@Model.PeriodTo.ToString("yyyy-MM-dd")" asp-route-categoryId="@Model.CategoryId">Exportar Excel</a>
+        </div>
+    }
+</form>
+
+@if (Model.Result is ExpenseByCategoryReportResult result)
+{
+    <div class="table-responsive bg-white border rounded">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th scope="col">Código</th>
+                    <th scope="col">Categoría</th>
+                    <th scope="col" class="text-end">Cantidad</th>
+                    <th scope="col" class="text-end">Neto</th>
+                    <th scope="col" class="text-end">IVA</th>
+                    <th scope="col" class="text-end">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (result.Lines.Count == 0)
+                {
+                    <tr><td colspan="6" class="text-center text-body-secondary py-4">No hay gastos confirmados en el período indicado.</td></tr>
+                }
+                @foreach (ExpenseByCategoryReportLine line in result.Lines)
+                {
+                    <tr>
+                        <td>@line.CategoryCode</td>
+                        <td>@line.CategoryName</td>
+                        <td class="text-end">@line.Count</td>
+                        <td class="text-end">₡@line.NetAmount.ToString("N2")</td>
+                        <td class="text-end">₡@line.TaxAmount.ToString("N2")</td>
+                        <td class="text-end">₡@line.TotalAmount.ToString("N2")</td>
+                    </tr>
+                }
+            </tbody>
+            @if (result.Lines.Count > 0)
+            {
+                <tfoot>
+                    <tr class="fw-semibold">
+                        <td colspan="5" class="text-end">Total</td>
+                        <td class="text-end">₡@result.GrandTotal.ToString("N2")</td>
+                    </tr>
+                </tfoot>
+            }
+        </table>
+    </div>
+}

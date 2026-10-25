@@ -5,6 +5,14 @@ using SistemaFinanciero.Application.Catalogs.Common;
 namespace SistemaFinanciero.Web.Controllers;
 
 /// <summary>Proporciona comportamiento de presentación común a los catálogos.</summary>
+/// <remarks>
+/// Conexiones: la heredan todos los controladores de catálogo (<c>CustomersController</c>,
+/// <c>TaxTypesController</c>, <c>LedgerAccountsController</c>, <c>SystemParametersController</c>,
+/// etc.). <see cref="TryGetActorId"/> lee el <c>Guid</c> del usuario autenticado desde el claim
+/// <c>ClaimTypes.NameIdentifier</c> que la cookie de Identity ya trae; <see cref="FormFailure{TModel}"/>
+/// y <see cref="StateFailure"/> traducen un <c>CatalogOperationResult</c> (Application) en la respuesta
+/// HTTP correcta (409, 404 o el formulario con el error).
+/// </remarks>
 public abstract class CatalogControllerBase : Controller
 {
     private const int SearchMaxLength = 100;

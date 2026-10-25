@@ -5,6 +5,17 @@ namespace SistemaFinanciero.Domain.Catalogs;
 /// <summary>
 /// Representa una persona u organización a la que la empresa puede facturar.
 /// </summary>
+/// <remarks>
+/// El código lo asigna el sistema al crear (<c>CLI-0001</c>, regla 12) y no cambia después; tampoco la
+/// identificación, que es obligatoria y única en esta tabla.
+///
+/// Conexiones: lo crea y edita <c>CustomerCatalogService</c> (Infrastructure/Catalogs/Customers); se
+/// guarda en <c>catalogos.Clientes</c> vía <c>CustomerConfiguration</c>; lo presenta
+/// <c>CustomersController</c> (Web, ruta <c>/catalogos/clientes</c>). <see cref="Id"/> es el valor que
+/// <c>Invoice.CustomerId</c> apunta sin una referencia de objeto (son proyectos distintos: Domain no
+/// puede depender de sí mismo circularmente entre carpetas de módulo, así que el vínculo es solo por
+/// identificador).
+/// </remarks>
 public sealed class Customer
 {
     /// <summary>Longitud máxima del código visible del cliente.</summary>
@@ -36,7 +47,7 @@ public sealed class Customer
         Guid id,
         string code,
         string name,
-        string? identification,
+        string identification,
         string? email,
         string? phone,
         string? address,
@@ -46,7 +57,7 @@ public sealed class Customer
         Id = DomainRules.RequiredId(id, nameof(id));
         Code = DomainRules.NormalizedCode(code, CodeMaxLength, nameof(code));
         Name = DomainRules.RequiredText(name, NameMaxLength, nameof(name));
-        Identification = DomainRules.OptionalText(
+        Identification = DomainRules.RequiredText(
             identification,
             IdentificationMaxLength,
             nameof(identification));
@@ -69,8 +80,8 @@ public sealed class Customer
     /// <summary>Obtiene el nombre completo o razón social.</summary>
     public string Name { get; private set; } = string.Empty;
 
-    /// <summary>Obtiene la identificación fiscal o personal, cuando se conoce.</summary>
-    public string? Identification { get; private set; }
+    /// <summary>Obtiene la identificación fiscal o personal, obligatoria y única.</summary>
+    public string Identification { get; private set; } = string.Empty;
 
     /// <summary>Obtiene el correo electrónico de contacto.</summary>
     public string? Email { get; private set; }
@@ -100,21 +111,19 @@ public sealed class Customer
     public byte[] RowVersion { get; private set; } = [];
 
     /// <summary>
-    /// Actualiza los datos editables del cliente y conserva su identidad.
+    /// Actualiza los datos editables del cliente y conserva su identidad. El código no cambia.
     /// </summary>
     public void UpdateDetails(
-        string code,
         string name,
-        string? identification,
+        string identification,
         string? email,
         string? phone,
         string? address,
         DateTimeOffset updatedAtUtc,
         Guid updatedByUserId)
     {
-        string normalizedCode = DomainRules.NormalizedCode(code, CodeMaxLength, nameof(code));
         string normalizedName = DomainRules.RequiredText(name, NameMaxLength, nameof(name));
-        string? normalizedIdentification = DomainRules.OptionalText(
+        string normalizedIdentification = DomainRules.RequiredText(
             identification,
             IdentificationMaxLength,
             nameof(identification));
@@ -123,7 +132,6 @@ public sealed class Customer
         string? normalizedAddress = DomainRules.OptionalText(address, AddressMaxLength, nameof(address));
         DateTimeOffset normalizedUpdatedAtUtc = ValidateUpdateAudit(updatedAtUtc, updatedByUserId);
 
-        Code = normalizedCode;
         Name = normalizedName;
         Identification = normalizedIdentification;
         Email = normalizedEmail;

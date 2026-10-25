@@ -6,6 +6,11 @@ using SistemaFinanciero.Application.Security.Users;
 namespace SistemaFinanciero.Web.Models.Users;
 
 /// <summary>Datos requeridos para presentar el listado administrativo de usuarios.</summary>
+/// <remarks>
+/// Conexiones: lo construye <c>UsersController.Index</c> a partir de
+/// <c>IUserAdministrationService.SearchAsync</c> (Application/Infrastructure); lo consume
+/// <c>Views/Users/Index.cshtml</c>.
+/// </remarks>
 public sealed record UserIndexViewModel(
     PagedResult<UserModel> Results,
     string? Search,
@@ -101,6 +106,13 @@ public sealed class UserVersionViewModel
 }
 
 /// <summary>Entrada cerrada para asignar una contraseña temporal a otra cuenta.</summary>
+/// <remarks>
+/// Conexiones: la recibe <c>UsersController.ResetPassword</c>, que llama a
+/// <c>IUserAdministrationService.ResetPasswordAsync</c>. Es el camino normal para restablecer el
+/// acceso de otra cuenta; exige ya estar autenticado como Administrador, por eso no sirvió para
+/// recuperar el acceso al primer administrador cuando perdió su propia contraseña (ver
+/// <c>IUserAdministrationService</c> en Application).
+/// </remarks>
 public sealed class UserResetPasswordViewModel
 {
     /// <summary>Nombre informativo obtenido nuevamente desde el servidor.</summary>

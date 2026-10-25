@@ -5,6 +5,13 @@ using SistemaFinanciero.Infrastructure.Identity;
 
 namespace SistemaFinanciero.Infrastructure.Persistence.Configurations;
 
+/// <summary>Mapea <see cref="SystemParameters"/> a la tabla <c>finanzas.ParametrosSistema</c>.</summary>
+/// <remarks>
+/// Conexiones: <c>FinancialDbContext.OnModelCreating</c> la aplica por convención. La usa
+/// <c>SystemParametersService</c>. El identificador siempre vale
+/// <see cref="SystemParameters.SingletonId"/>, así que la clave primaria por sí sola impide que exista
+/// una segunda fila.
+/// </remarks>
 internal sealed class SystemParametersConfiguration : IEntityTypeConfiguration<SystemParameters>
 {
     public void Configure(EntityTypeBuilder<SystemParameters> builder)
@@ -28,6 +35,7 @@ internal sealed class SystemParametersConfiguration : IEntityTypeConfiguration<S
             .HasPrecision(18, 2)
             .IsRequired();
         builder.Property(parameters => parameters.OverdueAlertDays).IsRequired();
+        builder.Property(parameters => parameters.ClosingDate).HasColumnType("date").IsRequired();
         builder.Property(parameters => parameters.CreatedAtUtc).IsRequired();
         builder.Property(parameters => parameters.UpdatedAtUtc).IsRequired();
         builder.Property(parameters => parameters.RowVersion).IsRowVersion();

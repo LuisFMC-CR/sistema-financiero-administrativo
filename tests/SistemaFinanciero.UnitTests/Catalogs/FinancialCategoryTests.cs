@@ -142,21 +142,21 @@ public sealed class FinancialCategoryTests
     }
 
     [Fact]
-    public void UpdateDetails_DoesNotExposeKindParentOrLedgerAccountAsEditableData()
+    public void UpdateDetails_DoesNotExposeCodeKindParentOrLedgerAccountAsEditableData()
     {
         FinancialCategory category = CreateCategory();
+        string originalCode = category.Code;
         FinancialCategoryKind originalKind = category.Kind;
         Guid? originalParentId = category.ParentId;
         Guid originalLedgerAccountId = category.LedgerAccountId;
 
         category.UpdateDetails(
-            " gas-op ",
             " Gastos operativos ",
             " ",
             CreatedAtUtc.AddMinutes(5),
             EditorId);
 
-        Assert.Equal("GAS-OP", category.Code);
+        Assert.Equal(originalCode, category.Code);
         Assert.Equal("Gastos operativos", category.Name);
         Assert.Null(category.Description);
         Assert.Equal(originalKind, category.Kind);

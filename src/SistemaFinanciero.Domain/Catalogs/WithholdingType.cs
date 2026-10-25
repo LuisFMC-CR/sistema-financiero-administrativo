@@ -3,13 +3,19 @@ using SistemaFinanciero.Domain.Common;
 namespace SistemaFinanciero.Domain.Catalogs;
 
 /// <summary>
-/// Representa un tipo de retención con tarifa porcentual configurable, que se aplica al registrar un
-/// abono o un pago.
+/// Representa un tipo de retención con tarifa porcentual configurable, que un cliente obligado por ley
+/// aplica al pagar una factura.
 /// </summary>
 /// <remarks>
-/// A diferencia de un tipo de impuesto, una retención es siempre un porcentaje: no existe un monto fijo
-/// por unidad. La base y el monto de una retención concreta no viven en este catálogo, porque dependen
-/// del abono o pago al que se aplique; este catálogo solo conserva el tipo y su tarifa vigente.
+/// La retención es siempre un porcentaje: no existe un monto fijo por unidad. La base y el monto de una
+/// retención concreta no viven en este catálogo, porque dependen del abono al que se aplique; este
+/// catálogo solo conserva el tipo y su tarifa vigente. Los pagos a proveedores nunca llevan retención.
+///
+/// Conexiones: lo crea y edita <c>WithholdingTypeService</c> (Infrastructure/Catalogs/WithholdingTypes);
+/// se guarda en <c>catalogos.TiposRetencion</c> vía <c>WithholdingTypeConfiguration</c>; lo presenta
+/// <c>WithholdingTypesController</c> (Web, ruta <c>/catalogos/tipos-retencion</c>). Todavía ningún
+/// documento lo consume: la pantalla de abonos que registraría una retención concreta no se ha
+/// construido (ver ADR-0013).
 /// </remarks>
 public sealed class WithholdingType
 {
@@ -66,7 +72,7 @@ public sealed class WithholdingType
     /// <summary>Obtiene la descripción opcional.</summary>
     public string? Description { get; private set; }
 
-    /// <summary>Indica si puede seleccionarse en abonos o pagos nuevos.</summary>
+    /// <summary>Indica si puede seleccionarse en abonos nuevos.</summary>
     public bool IsActive { get; private set; }
 
     /// <summary>Obtiene el instante UTC de creación.</summary>
@@ -109,13 +115,13 @@ public sealed class WithholdingType
         Touch(normalizedUpdatedAtUtc, updatedByUserId);
     }
 
-    /// <summary>Habilita el tipo para abonos y pagos nuevos.</summary>
+    /// <summary>Habilita el tipo para abonos nuevos.</summary>
     public void Activate(DateTimeOffset updatedAtUtc, Guid updatedByUserId)
     {
         SetActive(true, updatedAtUtc, updatedByUserId);
     }
 
-    /// <summary>Deshabilita el tipo sin afectar los abonos o pagos que ya lo usaron.</summary>
+    /// <summary>Deshabilita el tipo sin afectar los abonos que ya lo usaron.</summary>
     public void Deactivate(DateTimeOffset updatedAtUtc, Guid updatedByUserId)
     {
         SetActive(false, updatedAtUtc, updatedByUserId);

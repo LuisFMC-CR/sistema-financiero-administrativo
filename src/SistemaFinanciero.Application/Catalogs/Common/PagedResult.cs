@@ -3,6 +3,13 @@ namespace SistemaFinanciero.Application.Catalogs.Common;
 /// <summary>
 /// Resultado inmutable de una consulta paginada ejecutada en el servidor.
 /// </summary>
+/// <remarks>
+/// Conexiones: lo devuelve todo <c>SearchAsync</c> de Catalogs y Security (clientes, proveedores,
+/// productos, categorías, cuentas contables, tipos de impuesto, tipos de retención, usuarios). Las
+/// vistas <c>Index</c> lo reciben dentro de <c>CatalogIndexViewModel&lt;T&gt;</c> (Web/Models/Catalogs)
+/// y <c>_CatalogPagination.cshtml</c> usa <see cref="TotalPages"/>, <see cref="HasPreviousPage"/> y
+/// <see cref="HasNextPage"/> para dibujar los botones de página.
+/// </remarks>
 /// <typeparam name="T">Tipo de fila devuelta.</typeparam>
 public sealed record PagedResult<T>
 {

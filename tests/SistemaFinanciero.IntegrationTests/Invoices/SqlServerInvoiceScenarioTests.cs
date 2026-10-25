@@ -1,8 +1,8 @@
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using SistemaFinanciero.Domain.Catalogs;
-using SistemaFinanciero.Domain.Currencies;
 using SistemaFinanciero.Domain.Invoices;
 using SistemaFinanciero.Infrastructure.Identity;
 using SistemaFinanciero.Infrastructure.Persistence;
@@ -24,7 +24,7 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
 
     [Fact]
     [Trait("Category", "SqlServer")]
-    public Task DraftEditingScenario_PersistsReplacedAndRemovedLinesWithoutOrphans()
+    public Task DraftEditingScenario_PersistsReplacedAndRemovedLines()
     {
         return RunInRollbackTransactionAsync(async (context, actorId) =>
         {
@@ -34,13 +34,12 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
             Guid firstLineId = invoice.Lines.First().Id;
             Guid secondLineId = invoice.Lines.Last().Id;
 
-            Assert.True(invoice.Number > 0);
+            Assert.Null(invoice.Number);
             Assert.Equal(2, await CountLinesAsync(context, invoiceId));
-            Assert.Equal(2, await CountLineTaxesAsync(context, invoiceId));
 
-            // Reemplazo: la línea anterior y su impuesto desaparecen, y aparecen los nuevos.
+            // Reemplazo: la línea anterior y su IVA desaparecen, y aparece la nueva.
             Invoice reloaded = await LoadAsync(context, invoiceId);
-            InvoiceLine replacement = CreateLine(quantity: 3m, unitPrice: 100m, [Vat(13m)]);
+            InvoiceLine replacement = CreateLine(quantity: 3m, unitPrice: 100m, Vat(13m));
             reloaded.ReplaceLine(firstLineId, replacement, now.AddSeconds(10), actorId);
             await context.SaveChangesAsync();
 
@@ -49,23 +48,21 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
                 new HashSet<Guid> { replacement.Id, secondLineId },
                 reloaded.Lines.Select(line => line.Id).ToHashSet());
             Assert.Equal(2, await CountLinesAsync(context, invoiceId));
-            Assert.Equal(2, await CountLineTaxesAsync(context, invoiceId));
             Assert.Equal(400m, reloaded.NetAmount);
             Assert.Equal(44m, reloaded.TaxAmount);
             Assert.Equal(444m, reloaded.TotalAmount);
 
-            InvoiceLineTax replacementTax = reloaded.Lines.Single(line => line.Id == replacement.Id).Taxes.Single();
+            InvoiceLineTax replacementTax = reloaded.Lines.Single(line => line.Id == replacement.Id).Tax;
             Assert.Equal(300m, replacementTax.TaxableAmount);
             Assert.Equal(39m, replacementTax.Amount);
 
-            // Eliminación: la línea y su impuesto también se van de la base.
+            // Eliminación: la línea y su IVA también se van de la base.
             reloaded.RemoveLine(secondLineId, now.AddSeconds(20), actorId);
             await context.SaveChangesAsync();
 
             reloaded = await LoadAsync(context, invoiceId);
             Assert.Equal(replacement.Id, Assert.Single(reloaded.Lines).Id);
             Assert.Equal(1, await CountLinesAsync(context, invoiceId));
-            Assert.Equal(1, await CountLineTaxesAsync(context, invoiceId));
             Assert.Equal(300m, reloaded.NetAmount);
             Assert.Equal(39m, reloaded.TaxAmount);
             Assert.Equal(339m, reloaded.TotalAmount);
@@ -88,7 +85,7 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
             for (int index = 3; index <= 6; index++)
             {
                 reloaded.AddLine(
-                    CreateLine(1m, 10m, [], $"Línea {index}"),
+                    CreateLine(1m, 10m, Exempt(), $"Línea {index}"),
                     now.AddSeconds(index * 10),
                     actorId);
             }
@@ -103,7 +100,7 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
 
             // Reemplazo en el medio: la línea nueva conserva la posición 3 después de releer.
             Guid thirdId = reloaded.Lines.ElementAt(2).Id;
-            reloaded.ReplaceLine(thirdId, CreateLine(1m, 10m, [], "Línea 3 corregida"), now.AddMinutes(2), actorId);
+            reloaded.ReplaceLine(thirdId, CreateLine(1m, 10m, Exempt(), "Línea 3 corregida"), now.AddMinutes(2), actorId);
             await context.SaveChangesAsync();
 
             reloaded = await LoadAsync(context, invoiceId);
@@ -122,7 +119,7 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
 
             // Quitar una del medio y agregar otra: la secuencia sigue consecutiva en la base.
             reloaded.RemoveLine(reloaded.Lines.ElementAt(2).Id, now.AddMinutes(4), actorId);
-            reloaded.AddLine(CreateLine(1m, 10m, [], "Línea 7"), now.AddMinutes(5), actorId);
+            reloaded.AddLine(CreateLine(1m, 10m, Exempt(), "Línea 7"), now.AddMinutes(5), actorId);
             await context.SaveChangesAsync();
 
             reloaded = await LoadAsync(context, invoiceId);
@@ -152,7 +149,6 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
                 Guid.NewGuid(),
                 $"VINC-{suffix}",
                 "Impuesto vinculado",
-                TaxCalculationType.Percentage,
                 13m,
                 null,
                 now,
@@ -165,19 +161,13 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
             InvoiceLine linked = CreateLine(
                 quantity: 1m,
                 unitPrice: 100m,
-                [new InvoiceTaxSpecification(
-                    Guid.NewGuid(),
-                    taxType.Code,
-                    taxType.Name,
-                    taxType.CalculationType,
-                    taxType.Rate,
-                    taxType.Id)],
+                new InvoiceTaxSpecification(taxType.Code, taxType.Name, taxType.Rate, taxType.Id),
                 "Línea con impuesto del catálogo");
             reloaded.AddLine(linked, now.AddSeconds(10), actorId);
             await context.SaveChangesAsync();
 
             reloaded = await LoadAsync(context, invoice.Id);
-            InvoiceLineTax stored = reloaded.Lines.Single(line => line.Id == linked.Id).Taxes.Single();
+            InvoiceLineTax stored = reloaded.Lines.Single(line => line.Id == linked.Id).Tax;
             Assert.Equal(taxType.Id, stored.TaxTypeId);
             Assert.Equal(13m, stored.Rate);
 
@@ -188,7 +178,7 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
             await context.SaveChangesAsync();
 
             reloaded = await LoadAsync(context, invoice.Id);
-            stored = reloaded.Lines.Single(line => line.Id == linked.Id).Taxes.Single();
+            stored = reloaded.Lines.Single(line => line.Id == linked.Id).Tax;
             Assert.Equal("Impuesto vinculado", stored.Name);
             Assert.Equal(13m, stored.Rate);
             Assert.Equal(13m, stored.Amount);
@@ -198,7 +188,7 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
             Exception deleteError = await Assert.ThrowsAnyAsync<Exception>(() =>
                 context.Database.ExecuteSqlInterpolatedAsync(
                     $"DELETE FROM catalogos.TiposImpuesto WHERE Id = {taxType.Id}"));
-            Assert.Contains("FK_FacturaLineaImpuestos_TiposImpuesto", deleteError.ToString());
+            Assert.Contains("FK_FacturaLineas_TiposImpuesto", deleteError.ToString());
         });
     }
 
@@ -215,18 +205,12 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
                 CreateLine(
                     1m,
                     100m,
-                    [new InvoiceTaxSpecification(
-                        Guid.NewGuid(),
-                        "FANTASMA",
-                        "Tipo inexistente",
-                        TaxCalculationType.Percentage,
-                        13m,
-                        Guid.NewGuid())]),
+                    new InvoiceTaxSpecification("FANTASMA", "Tipo inexistente", 13m, Guid.NewGuid())),
                 now.AddSeconds(10),
                 actorId);
 
             DbUpdateException error = await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
-            Assert.Contains("FK_FacturaLineaImpuestos_TiposImpuesto", error.ToString());
+            Assert.Contains("FK_FacturaLineas_TiposImpuesto", error.ToString());
         });
     }
 
@@ -245,9 +229,7 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
             reloaded.UpdateHeader(
                 reloaded.CustomerId,
                 newIssueDate,
-                CurrencyCode.CRC,
                 PaymentTerm.Cash,
-                dueDate: null,
                 now.AddSeconds(10),
                 actorId);
             await context.SaveChangesAsync();
@@ -257,13 +239,45 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
             Assert.Equal(PaymentTerm.Cash, reloaded.PaymentTerm);
             Assert.Null(reloaded.DueDate);
 
-            reloaded.Confirm(null, now.AddSeconds(20), actorId);
+            long number = await GetNextInvoiceNumberAsync(context);
+            reloaded.Confirm(now.AddSeconds(20), actorId, number);
             await context.SaveChangesAsync();
 
             reloaded = await LoadAsync(context, invoiceId);
             Assert.Equal(InvoiceStatus.Confirmed, reloaded.Status);
+            Assert.Equal(number, reloaded.Number);
             Assert.Equal(actorId, reloaded.ConfirmedByUserId);
             Assert.Equal(2, reloaded.Lines.Count);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task NumberScenario_AllowsSeveralDraftsAndAssignsDistinctConsecutiveNumbersOnlyAtConfirm()
+    {
+        return RunInRollbackTransactionAsync(async (context, actorId) =>
+        {
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+
+            // Dos borradores sin número no chocan contra el índice único filtrado (RF-34).
+            Invoice firstDraft = await CreateSavedInvoiceAsync(context, actorId, now);
+            Invoice secondDraft = await CreateSavedInvoiceAsync(context, actorId, now.AddSeconds(1));
+            Assert.Null(firstDraft.Number);
+            Assert.Null(secondDraft.Number);
+
+            Invoice reloadedFirst = await LoadAsync(context, firstDraft.Id);
+            long firstNumber = await GetNextInvoiceNumberAsync(context);
+            reloadedFirst.Confirm(now.AddSeconds(10), actorId, firstNumber);
+            await context.SaveChangesAsync();
+
+            Invoice reloadedSecond = await LoadAsync(context, secondDraft.Id);
+            long secondNumber = await GetNextInvoiceNumberAsync(context);
+            reloadedSecond.Confirm(now.AddSeconds(11), actorId, secondNumber);
+            await context.SaveChangesAsync();
+
+            Assert.NotEqual(firstNumber, secondNumber);
+            Assert.Equal(firstNumber, (await LoadAsync(context, firstDraft.Id)).Number);
+            Assert.Equal(secondNumber, (await LoadAsync(context, secondDraft.Id)).Number);
         });
     }
 
@@ -301,13 +315,8 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
 
             Exception taxableError = await Assert.ThrowsAnyAsync<Exception>(() =>
                 context.Database.ExecuteSqlInterpolatedAsync(
-                    $"""
-                    UPDATE t SET TaxableAmount = -1
-                    FROM finanzas.FacturaLineaImpuestos t
-                    JOIN finanzas.FacturaLineas l ON l.Id = t.InvoiceLineId
-                    WHERE l.InvoiceId = {invoiceId}
-                    """));
-            Assert.Contains("CK_FacturaLineaImpuestos_RateAmount", taxableError.ToString());
+                    $"UPDATE finanzas.FacturaLineas SET Tax_TaxableAmount = -1 WHERE InvoiceId = {invoiceId}"));
+            Assert.Contains("CK_FacturaLineas_Tax_RateAmount", taxableError.ToString());
         });
     }
 
@@ -321,7 +330,7 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
             Guid.NewGuid(),
             $"CLI-{suffix}",
             "Cliente de facturas",
-            null,
+            $"ID-{suffix}",
             null,
             null,
             null,
@@ -334,15 +343,13 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
             Guid.NewGuid(),
             customer.Id,
             issueDate,
-            CurrencyCode.CRC,
-            PaymentTerm.Credit,
-            issueDate.AddDays(30),
+            PaymentTerm.Credit30,
             now,
             actorId);
 
         // Primera línea: 100 con IVA 13 % = 13. Segunda: 2 x 50 = 100 con selectivo 5 % = 5.
-        invoice.AddLine(CreateLine(quantity: 1m, unitPrice: 100m, [Vat(13m)]), now.AddSeconds(1), actorId);
-        invoice.AddLine(CreateLine(quantity: 2m, unitPrice: 50m, [Selective(5m)]), now.AddSeconds(2), actorId);
+        invoice.AddLine(CreateLine(quantity: 1m, unitPrice: 100m, Vat(13m)), now.AddSeconds(1), actorId);
+        invoice.AddLine(CreateLine(quantity: 2m, unitPrice: 50m, Selective(5m)), now.AddSeconds(2), actorId);
 
         context.Invoices.Add(invoice);
         await context.SaveChangesAsync();
@@ -356,7 +363,6 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
 
         return await context.Invoices
             .Include(invoice => invoice.Lines)
-            .ThenInclude(line => line.Taxes)
             .SingleAsync(invoice => invoice.Id == invoiceId);
     }
 
@@ -364,16 +370,36 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
         context.Set<InvoiceLine>()
             .CountAsync(line => EF.Property<Guid>(line, "InvoiceId") == invoiceId);
 
-    private static Task<int> CountLineTaxesAsync(FinancialDbContext context, Guid invoiceId) =>
-        context.Set<InvoiceLineTax>()
-            .CountAsync(tax => context.Set<InvoiceLine>().Any(line =>
-                line.Id == EF.Property<Guid>(tax, "InvoiceLineId")
-                && EF.Property<Guid>(line, "InvoiceId") == invoiceId));
+    /// <summary>
+    /// Obtiene el siguiente número de la secuencia <c>finanzas.Seq_FacturaNumero</c> (RF-34, migración
+    /// <c>AddInvoiceNumberSequence</c>) como lo haría el futuro <c>IInvoiceService</c> al confirmar: un
+    /// comando ADO.NET directo, porque SQL Server no permite <c>NEXT VALUE FOR</c> dentro de la
+    /// subconsulta que EF generaría al componer <c>SqlQueryRaw</c>. Mismo patrón que
+    /// <c>CatalogPersistence.GenerateSequentialCodeAsync</c> usa para los códigos de catálogo.
+    /// </summary>
+    private static async Task<long> GetNextInvoiceNumberAsync(FinancialDbContext context)
+    {
+        await context.Database.OpenConnectionAsync();
+
+        try
+        {
+            using DbCommand command = context.Database.GetDbConnection().CreateCommand();
+            command.CommandText = "SELECT NEXT VALUE FOR finanzas.Seq_FacturaNumero;";
+            command.Transaction = context.Database.CurrentTransaction?.GetDbTransaction();
+
+            object? result = await command.ExecuteScalarAsync();
+            return Convert.ToInt64(result, System.Globalization.CultureInfo.InvariantCulture);
+        }
+        finally
+        {
+            await context.Database.CloseConnectionAsync();
+        }
+    }
 
     private static InvoiceLine CreateLine(
         decimal quantity,
         decimal unitPrice,
-        IEnumerable<InvoiceTaxSpecification> taxes,
+        InvoiceTaxSpecification tax,
         string description = "Servicio de soporte") =>
         new(
             Guid.NewGuid(),
@@ -383,13 +409,16 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
             quantity,
             unitPrice,
             discountAmount: 0m,
-            taxes);
+            tax);
 
     private static InvoiceTaxSpecification Vat(decimal rate) =>
-        new(Guid.NewGuid(), "IVA", "Impuesto al valor agregado", TaxCalculationType.Percentage, rate);
+        new("IVA", "Impuesto al valor agregado", rate);
 
     private static InvoiceTaxSpecification Selective(decimal rate) =>
-        new(Guid.NewGuid(), "SEL", "Impuesto selectivo", TaxCalculationType.Percentage, rate);
+        new("SEL", "Impuesto selectivo", rate);
+
+    private static InvoiceTaxSpecification Exempt() =>
+        new("IVA-EXENTO", "IVA exento", 0m);
 
     private async Task RunInRollbackTransactionAsync(
         Func<FinancialDbContext, Guid, Task> scenario)

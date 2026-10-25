@@ -9,6 +9,13 @@ using SistemaFinanciero.Web.Models.Catalogs;
 namespace SistemaFinanciero.Web.Controllers;
 
 /// <summary>Presenta el catálogo de cuentas contables, incluidas las cajas y los bancos.</summary>
+/// <remarks>
+/// Conexiones: usa <c>ILedgerAccountService</c> (Application). El usuario solo agrega cuentas de
+/// detalle dentro de los grupos del catálogo base (regla 13): por eso <c>Create</c> exige elegir una
+/// cuenta superior y nunca pide código ni tipo (el servicio los calcula). <c>Edit</c> solo permite
+/// cambiar nombre, referencia y descripción (regla 12); código, tipo y cuenta superior se muestran de
+/// solo lectura.
+/// </remarks>
 [Authorize(Policy = SystemPolicies.ViewBusinessCatalogs)]
 [Route("catalogos/cuentas-contables")]
 public sealed class LedgerAccountsController(ILedgerAccountService service) : CatalogControllerBase
@@ -74,14 +81,7 @@ public sealed class LedgerAccountsController(ILedgerAccountService service) : Ca
     public async Task<IActionResult> Edit(Guid id, CancellationToken cancellationToken)
     {
         LedgerAccountModel? account = await service.GetAsync(id, cancellationToken);
-        if (account is null)
-        {
-            return NotFound();
-        }
-
-        LedgerAccountEditViewModel model = ToEditModel(account);
-        await PopulateParentOptionsAsync(model, id, account.ParentName, cancellationToken);
-        return View(model);
+        return account is null ? NotFound() : View(ToEditModel(account));
     }
 
     [Authorize(Policy = SystemPolicies.ManageBusinessCatalogs)]
@@ -91,20 +91,16 @@ public sealed class LedgerAccountsController(ILedgerAccountService service) : Ca
         LedgerAccountEditViewModel model,
         CancellationToken cancellationToken)
     {
-        // Tipo, subtipo de efectivo y moneda son inmutables: nunca se toman del formulario.
         LedgerAccountModel? current = await service.GetAsync(id, cancellationToken);
         if (current is null)
         {
             return NotFound();
         }
 
-        RestoreFixedData(model, current);
+        PopulateDisplayFields(model, current);
 
         if (!ModelState.IsValid)
         {
-            // El nombre solo se conoce si la cuenta superior elegida es la que ya tenía guardada.
-            string? currentParentName = current.ParentId == model.ParentId ? current.ParentName : null;
-            await PopulateParentOptionsAsync(model, id, currentParentName, cancellationToken);
             return View(model);
         }
 
@@ -115,12 +111,7 @@ public sealed class LedgerAccountsController(ILedgerAccountService service) : Ca
 
         CatalogOperationResult result = await service.UpdateAsync(
             id,
-            new UpdateLedgerAccountCommand(
-                model.Code,
-                model.Name,
-                model.ParentId,
-                model.Reference,
-                model.Description),
+            new UpdateLedgerAccountCommand(model.Name, model.Reference, model.Description),
             model.Version,
             actorId,
             cancellationToken);
@@ -137,8 +128,7 @@ public sealed class LedgerAccountsController(ILedgerAccountService service) : Ca
             return NotFound();
         }
 
-        RestoreFixedData(model, latest);
-        string? selectedParentName = latest.ParentId == model.ParentId ? latest.ParentName : null;
+        PopulateDisplayFields(model, latest);
 
         if (result.Status == CatalogOperationStatus.ConcurrencyConflict)
         {
@@ -146,7 +136,6 @@ public sealed class LedgerAccountsController(ILedgerAccountService service) : Ca
             ModelState.Remove(nameof(model.Version));
         }
 
-        await PopulateParentOptionsAsync(model, id, selectedParentName, cancellationToken);
         return FormFailure(result, model, nameof(Edit));
     }
 
@@ -186,39 +175,36 @@ public sealed class LedgerAccountsController(ILedgerAccountService service) : Ca
 
     private static CreateLedgerAccountCommand ToCommand(LedgerAccountCreateViewModel model)
     {
-        // El subtipo y la moneda solo cuentan cuando la cuenta es de efectivo; si no, se descartan.
+        // El subtipo solo cuenta cuando la cuenta es de efectivo; si no, se descarta.
         return new CreateLedgerAccountCommand(
-            model.Code,
             model.Name,
-            model.Type,
             model.ParentId,
             model.IsCash ? model.CashKind : null,
-            model.IsCash ? model.Currency : null,
             model.Reference,
             model.Description);
     }
 
     private static LedgerAccountEditViewModel ToEditModel(LedgerAccountModel account)
     {
-        return new LedgerAccountEditViewModel
+        LedgerAccountEditViewModel model = new()
         {
-            Code = account.Code,
             Name = account.Name,
-            ParentId = account.ParentId,
             Reference = account.Reference,
             Description = account.Description,
-            Type = account.Type,
-            CashKind = account.CashKind,
-            Currency = account.Currency,
             Version = account.Version,
         };
+
+        PopulateDisplayFields(model, account);
+        return model;
     }
 
-    private static void RestoreFixedData(LedgerAccountEditViewModel model, LedgerAccountModel current)
+    private static void PopulateDisplayFields(LedgerAccountEditViewModel model, LedgerAccountModel account)
     {
-        model.Type = current.Type;
-        model.CashKind = current.CashKind;
-        model.Currency = current.Currency;
+        model.Code = account.Code;
+        model.Type = account.Type;
+        model.ParentName = account.ParentName;
+        model.CashKind = account.CashKind;
+        model.IsProtected = account.IsProtected;
     }
 
     private async Task PopulateParentOptionsAsync(
@@ -237,37 +223,6 @@ public sealed class LedgerAccountsController(ILedgerAccountService service) : Ca
                 option.Id,
                 $"{option.Code} - {option.Name}",
                 type)));
-        }
-
-        model.ParentOptions = options;
-    }
-
-    private async Task PopulateParentOptionsAsync(
-        LedgerAccountEditViewModel model,
-        Guid accountId,
-        string? selectedParentName,
-        CancellationToken cancellationToken)
-    {
-        IReadOnlyList<LedgerAccountOption> typeOptions = await service.GetParentOptionsAsync(
-            model.Type,
-            accountId,
-            cancellationToken);
-
-        List<LedgerAccountParentOptionViewModel> options = typeOptions
-            .Select(option => new LedgerAccountParentOptionViewModel(
-                option.Id,
-                $"{option.Code} - {option.Name}",
-                model.Type))
-            .ToList();
-
-        // Si la cuenta superior actual ya no está disponible (por ejemplo, está inactiva), se muestra
-        // para no cambiarla sin que el usuario lo decida.
-        if (model.ParentId is Guid selectedId && options.All(option => option.Id != selectedId))
-        {
-            options.Add(new LedgerAccountParentOptionViewModel(
-                selectedId,
-                selectedParentName ?? "Cuenta superior seleccionada no disponible",
-                model.Type));
         }
 
         model.ParentOptions = options;

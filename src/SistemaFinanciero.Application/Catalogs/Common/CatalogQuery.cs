@@ -3,6 +3,12 @@ namespace SistemaFinanciero.Application.Catalogs.Common;
 /// <summary>
 /// Define búsqueda, estado y paginación para un catálogo con baja lógica.
 /// </summary>
+/// <remarks>
+/// Conexiones: la construye cada controlador de catálogo en su acción <c>Index</c> (vía
+/// <c>CatalogControllerBase.NormalizeSearch</c>/<c>NormalizeStatus</c>) y la recibe
+/// <c>SearchAsync</c> de cada <c>I...Service</c> de Catalogs (clientes, proveedores, productos,
+/// categorías, cuentas contables, tipos de impuesto, tipos de retención).
+/// </remarks>
 public sealed record CatalogQuery
 {
     /// <summary>

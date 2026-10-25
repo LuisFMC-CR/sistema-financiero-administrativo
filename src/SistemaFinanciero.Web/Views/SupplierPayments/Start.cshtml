@@ -1,0 +1,55 @@
+@using SistemaFinanciero.Web.Models.Payables
+@model RegisterSupplierPaymentStartViewModel
+@{
+    ViewData["Title"] = "Registrar pago";
+}
+
+<div class="catalog-form">
+    <h1 class="h2">Registrar pago</h1>
+    <p class="text-body-secondary">
+        Elija el proveedor y el monto total a pagar. El sistema propondrá el reparto entre sus cuentas
+        por pagar pendientes, de la más antigua a la más nueva, y podrá editarlo antes de confirmar.
+    </p>
+    <form method="post" class="card card-body">
+        <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label asp-for="SupplierId" class="form-label"></label>
+                <select asp-for="SupplierId" asp-items="Model.SupplierOptions" class="form-select">
+                    <option value="">Seleccione un proveedor</option>
+                </select>
+                <span asp-validation-for="SupplierId" class="text-danger"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="Amount" class="form-label"></label>
+                <input asp-for="Amount" type="number" step="0.01" min="0.01" class="form-control" />
+                <span asp-validation-for="Amount" class="text-danger"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="CashAccountId" class="form-label"></label>
+                <select asp-for="CashAccountId" asp-items="Model.CashAccountOptions" class="form-select">
+                    <option value="">Seleccione una cuenta de efectivo</option>
+                </select>
+                <span asp-validation-for="CashAccountId" class="text-danger"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="Reference" class="form-label"></label>
+                <input asp-for="Reference" class="form-control" />
+                <span asp-validation-for="Reference" class="text-danger"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="PaymentDate" class="form-label"></label>
+                <input asp-for="PaymentDate" type="date" class="form-control" />
+                <span asp-validation-for="PaymentDate" class="text-danger"></span>
+            </div>
+        </div>
+        <div class="d-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-primary">Proponer reparto</button>
+            <a asp-controller="Payables" asp-action="Index" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

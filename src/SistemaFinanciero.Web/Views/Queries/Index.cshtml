@@ -1,0 +1,168 @@
+@using SistemaFinanciero.Application.Expenses
+@using SistemaFinanciero.Application.Incomes
+@using SistemaFinanciero.Application.Invoices
+@using SistemaFinanciero.Application.Payables
+@using SistemaFinanciero.Application.Receivables
+@using SistemaFinanciero.Web.Models.Expenses
+@using SistemaFinanciero.Web.Models.Incomes
+@using SistemaFinanciero.Web.Models.Invoices
+@using SistemaFinanciero.Web.Models.Payables
+@using SistemaFinanciero.Web.Models.Queries
+@using SistemaFinanciero.Web.Models.Receivables
+@model QueriesIndexViewModel
+@{
+    ViewData["Title"] = "Consultas";
+    bool showCustomer = Model.Type is QueryDocumentType.Invoice or QueryDocumentType.Receivable;
+    bool showSupplier = Model.Type is QueryDocumentType.Expense or QueryDocumentType.Payable;
+    bool showCategory = Model.Type is QueryDocumentType.Expense or QueryDocumentType.Income;
+    bool showCashAccount = Model.Type is QueryDocumentType.Income;
+    string dateLabel = Model.Type is QueryDocumentType.Receivable or QueryDocumentType.Payable ? "Vencimiento" : "Fecha";
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+    <div>
+        <h1 class="h2 mb-1">Consultas</h1>
+        <p class="text-body-secondary mb-0">Filtros combinados por tipo de documento, con detalle e historial.</p>
+    </div>
+</div>
+
+@if (Model.OverdueIndicator is not null)
+{
+    <div class="mb-3">
+        <partial name="_OverdueIndicator" model="Model.OverdueIndicator" />
+    </div>
+}
+
+<form method="get" role="search" class="card card-body mb-3">
+    <div class="row g-3">
+        <div class="col-md-3">
+            <label class="form-label">Tipo de documento</label>
+            <select name="type" class="form-select" onchange="this.form.submit()">
+                @foreach (QueryDocumentType type in Enum.GetValues<QueryDocumentType>())
+                {
+                    if (type == Model.Type)
+                    {
+                        <option value="@type" selected>@type.ToDisplayName()</option>
+                    }
+                    else
+                    {
+                        <option value="@type">@type.ToDisplayName()</option>
+                    }
+                }
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">@dateLabel desde</label>
+            <input name="dateFrom" type="date" value="@Model.DateFrom?.ToString("yyyy-MM-dd")" class="form-control" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">@dateLabel hasta</label>
+            <input name="dateTo" type="date" value="@Model.DateTo?.ToString("yyyy-MM-dd")" class="form-control" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Estado</label>
+            <select name="status" class="form-select">
+                <option value="">Todos</option>
+                @switch (Model.Type)
+                {
+                    case QueryDocumentType.Invoice:
+                        foreach (InvoiceStatusFilter value in Enum.GetValues<InvoiceStatusFilter>())
+                        {
+                            <option value="@value" selected="@(Model.Status == value.ToString())">@value.ToDisplayName()</option>
+                        }
+                        break;
+                    case QueryDocumentType.Expense:
+                        foreach (ExpenseStatusFilter value in Enum.GetValues<ExpenseStatusFilter>())
+                        {
+                            <option value="@value" selected="@(Model.Status == value.ToString())">@value.ToDisplayName()</option>
+                        }
+                        break;
+                    case QueryDocumentType.Receivable:
+                        foreach (ReceivableStatusFilter value in Enum.GetValues<ReceivableStatusFilter>())
+                        {
+                            <option value="@value" selected="@(Model.Status == value.ToString())">@value.ToDisplayName()</option>
+                        }
+                        break;
+                    case QueryDocumentType.Payable:
+                        foreach (PayableStatusFilter value in Enum.GetValues<PayableStatusFilter>())
+                        {
+                            <option value="@value" selected="@(Model.Status == value.ToString())">@value.ToDisplayName()</option>
+                        }
+                        break;
+                    case QueryDocumentType.Income:
+                        foreach (IncomeStatusFilter value in Enum.GetValues<IncomeStatusFilter>())
+                        {
+                            <option value="@value" selected="@(Model.Status == value.ToString())">@value.ToDisplayName()</option>
+                        }
+                        break;
+                }
+            </select>
+        </div>
+        @if (showCustomer)
+        {
+            <div class="col-md-4">
+                <label class="form-label">Cliente</label>
+                <input name="customerName" value="@Model.CustomerName" class="form-control" placeholder="Nombre del cliente" />
+            </div>
+        }
+        @if (showSupplier)
+        {
+            <div class="col-md-4">
+                <label class="form-label">Proveedor</label>
+                <input name="supplierName" value="@Model.SupplierName" class="form-control" placeholder="Nombre del proveedor" />
+            </div>
+        }
+        @if (showCategory)
+        {
+            <div class="col-md-4">
+                <label class="form-label">Categoría</label>
+                <input name="categoryName" value="@Model.CategoryName" class="form-control" placeholder="Nombre de la categoría" />
+            </div>
+        }
+        @if (showCashAccount)
+        {
+            <div class="col-md-4">
+                <label class="form-label">Cuenta contable</label>
+                <input name="cashAccountName" value="@Model.CashAccountName" class="form-control" placeholder="Cuenta de efectivo" />
+            </div>
+        }
+    </div>
+    <div class="d-flex gap-2 mt-3">
+        <button type="submit" class="btn btn-primary">Buscar</button>
+        <a asp-action="Index" asp-route-type="@Model.Type" class="btn btn-outline-secondary">Limpiar</a>
+    </div>
+</form>
+
+<div class="table-responsive bg-white border rounded">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th scope="col">Código / número</th>
+                <th scope="col">@dateLabel</th>
+                <th scope="col">Cliente / proveedor / categoría</th>
+                <th scope="col" class="text-end">Monto</th>
+                <th scope="col">Estado</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.Results.Items.Count == 0)
+            {
+                <tr><td colspan="5" class="text-center text-body-secondary py-4">No se encontraron resultados.</td></tr>
+            }
+            @foreach (QueryResultRow row in Model.Results.Items)
+            {
+                <tr>
+                    <td class="fw-semibold">
+                        <a asp-controller="@row.DetailsController" asp-action="Details" asp-route-id="@row.Id">@row.Label</a>
+                    </td>
+                    <td>@row.Date.ToString("dd/MM/yyyy")</td>
+                    <td>@(row.SecondaryText ?? "—")</td>
+                    <td class="text-end">₡@row.Amount.ToString("N2")</td>
+                    <td>@row.Status</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<partial name="_Pagination" model="Model" />

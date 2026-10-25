@@ -1,4 +1,3 @@
-using SistemaFinanciero.Domain.Currencies;
 using SistemaFinanciero.Domain.Invoices;
 
 namespace SistemaFinanciero.UnitTests.Invoices;
@@ -12,69 +11,41 @@ public sealed class InvoicePaymentTermTests
     private static readonly Guid UserId = Guid.Parse("11111111-1111-1111-1111-111111111111");
 
     [Fact]
-    public void Constructor_AcceptsACashInvoiceWithoutDueDate()
+    public void Constructor_LeavesTheDueDateEmptyForCash()
     {
-        Invoice invoice = CreateInvoice(PaymentTerm.Cash, dueDate: null);
+        Invoice invoice = CreateInvoice(PaymentTerm.Cash);
 
         Assert.Equal(PaymentTerm.Cash, invoice.PaymentTerm);
         Assert.Null(invoice.DueDate);
     }
 
-    [Fact]
-    public void Constructor_RejectsADueDateOnACashInvoice()
+    [Theory]
+    [InlineData(PaymentTerm.Credit30, 30)]
+    [InlineData(PaymentTerm.Credit60, 60)]
+    [InlineData(PaymentTerm.Credit90, 90)]
+    public void Constructor_CalculatesTheDueDateAsTheIssueDatePlusTheDaysOfTheTerm(
+        PaymentTerm paymentTerm,
+        int days)
     {
-        Assert.Throws<ArgumentException>(() =>
-            CreateInvoice(PaymentTerm.Cash, IssueDate.AddDays(30)));
-    }
+        Invoice invoice = CreateInvoice(paymentTerm);
 
-    [Fact]
-    public void Constructor_AcceptsACreditInvoiceWithADueDate()
-    {
-        DateOnly dueDate = IssueDate.AddDays(30);
-
-        Invoice invoice = CreateInvoice(PaymentTerm.Credit, dueDate);
-
-        Assert.Equal(PaymentTerm.Credit, invoice.PaymentTerm);
-        Assert.Equal(dueDate, invoice.DueDate);
-    }
-
-    [Fact]
-    public void Constructor_AcceptsACreditInvoiceDueOnTheIssueDate()
-    {
-        Invoice invoice = CreateInvoice(PaymentTerm.Credit, IssueDate);
-
-        Assert.Equal(IssueDate, invoice.DueDate);
-    }
-
-    [Fact]
-    public void Constructor_RejectsACreditInvoiceWithoutDueDate()
-    {
-        Assert.Throws<ArgumentException>(() =>
-            CreateInvoice(PaymentTerm.Credit, dueDate: null));
-    }
-
-    [Fact]
-    public void Constructor_RejectsACreditInvoiceDueBeforeTheIssueDate()
-    {
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            CreateInvoice(PaymentTerm.Credit, IssueDate.AddDays(-1)));
+        Assert.Equal(paymentTerm, invoice.PaymentTerm);
+        Assert.Equal(IssueDate.AddDays(days), invoice.DueDate);
     }
 
     [Fact]
     public void Constructor_RejectsAnUndefinedPaymentTerm()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            CreateInvoice((PaymentTerm)99, dueDate: null));
+            CreateInvoice((PaymentTerm)99));
     }
 
-    private static Invoice CreateInvoice(PaymentTerm paymentTerm, DateOnly? dueDate) =>
+    private static Invoice CreateInvoice(PaymentTerm paymentTerm) =>
         new(
             Guid.NewGuid(),
             Guid.NewGuid(),
             IssueDate,
-            CurrencyCode.CRC,
             paymentTerm,
-            dueDate,
             CreatedAtUtc,
             UserId);
 }

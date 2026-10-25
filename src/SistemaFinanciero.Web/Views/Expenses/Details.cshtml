@@ -1,0 +1,71 @@
+@using SistemaFinanciero.Application.Expenses
+@using SistemaFinanciero.Domain.Expenses
+@using SistemaFinanciero.Web.Models.Expenses
+@using SistemaFinanciero.Web.Models.Invoices
+@model ExpenseDetailsViewModel
+@{
+    ViewData["Title"] = "Detalle de gasto";
+    ExpenseModel expense = Model.Expense;
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+    <div>
+        <h1 class="h2 mb-1">Gasto @expense.Code</h1>
+        <p class="text-body-secondary mb-0">
+            Estado: <strong>@expense.Status.ToDisplayName()</strong>
+            @if (expense.Status == ExpenseStatus.Cancelled && !string.IsNullOrWhiteSpace(expense.CancellationReason))
+            {
+                <text> — Motivo: @expense.CancellationReason</text>
+            }
+        </p>
+    </div>
+    <div class="d-flex gap-2">
+        @if (Model.CanEditDraft)
+        {
+            <a asp-action="EditHeader" asp-route-id="@expense.Id" class="btn btn-outline-primary">Editar encabezado</a>
+        }
+        @if (Model.CanConfirm)
+        {
+            <a asp-action="Confirm" asp-route-id="@expense.Id" class="btn btn-success">Confirmar</a>
+        }
+        @if (Model.CanCancel)
+        {
+            <a asp-action="Cancel" asp-route-id="@expense.Id" class="btn btn-danger">Anular</a>
+        }
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card card-body h-100">
+            <h2 class="h5">Proveedor</h2>
+            <p class="mb-1">@expense.SupplierName</p>
+            <h2 class="h5 mt-3">Categoría</h2>
+            <p class="mb-1">@expense.CategoryName</p>
+            <h2 class="h5 mt-3">Condiciones</h2>
+            <p class="mb-1">Descripción: @expense.Description</p>
+            <p class="mb-1">Fecha: @expense.IssueDate.ToString("dd/MM/yyyy")</p>
+            <p class="mb-1">Plazo de pago: @expense.PaymentTerm.ToDisplayName()</p>
+            <p class="mb-1">Vencimiento: @(expense.DueDate?.ToString("dd/MM/yyyy") ?? "—")</p>
+            <p class="mb-0">Medio de pago: @expense.PaymentMethod.ToDisplayName()</p>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card card-body h-100">
+            <h2 class="h5">Montos</h2>
+            <p class="mb-1">Monto neto: ₡@expense.NetAmount.ToString("N2")</p>
+            <p class="mb-1">IVA: @expense.TaxName (@expense.TaxRate.ToString("0.##")%) — ₡@expense.TaxAmount.ToString("N2")</p>
+            <p class="mb-0 fw-semibold">Total: ₡@expense.TotalAmount.ToString("N2")</p>
+            @if (expense.Status == ExpenseStatus.Confirmed && expense.CashAccountId is not null)
+            {
+                <h2 class="h5 mt-3">Pago de contado</h2>
+                <p class="mb-1">Cuenta de efectivo: @expense.CashAccountName</p>
+                <p class="mb-0">Referencia: @expense.Reference</p>
+            }
+        </div>
+    </div>
+</div>
+
+<p class="text-body-secondary mt-3">
+    <small>Creado por @expense.CreatedByUserName el @expense.CreatedAtUtc.ToString("dd/MM/yyyy HH:mm").</small>
+</p>

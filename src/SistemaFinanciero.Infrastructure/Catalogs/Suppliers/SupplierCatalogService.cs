@@ -9,6 +9,11 @@ namespace SistemaFinanciero.Infrastructure.Catalogs.Suppliers;
 /// <summary>
 /// Ejecuta los casos de uso de proveedores sobre SQL Server.
 /// </summary>
+/// <remarks>
+/// Conexiones: implementa <c>ISupplierCatalogService</c> (Application); se registra en
+/// <c>DependencyInjection.AddInfrastructure</c>; lo inyecta <c>SuppliersController</c> (Web). Lee y
+/// escribe <c>FinancialDbContext.Suppliers</c> (tabla <c>catalogos.Proveedores</c>).
+/// </remarks>
 internal sealed class SupplierCatalogService(
     FinancialDbContext dbContext,
     TimeProvider timeProvider) : ISupplierCatalogService
@@ -59,6 +64,21 @@ internal sealed class SupplierCatalogService(
         return supplier is null ? null : Map(supplier);
     }
 
+    public async Task<IReadOnlyList<SupplierOption>> GetActiveOptionsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Set<Supplier>()
+            .AsNoTracking()
+            .Where(supplier => supplier.IsActive)
+            .OrderBy(supplier => supplier.Name)
+            .Select(supplier => new SupplierOption(
+                supplier.Id,
+                supplier.Code,
+                supplier.Name,
+                supplier.Identification))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<CatalogOperationResult> CreateAsync(
         SaveSupplierCommand command,
         Guid actorId,
@@ -68,14 +88,22 @@ internal sealed class SupplierCatalogService(
 
         try
         {
+            string code = await CatalogPersistence.GenerateSequentialCodeAsync(
+                dbContext,
+                "catalogos.Seq_ProveedorCodigo",
+                "PRV",
+                4,
+                cancellationToken);
+
             Supplier supplier = new(
                 Guid.NewGuid(),
-                command.Code,
+                code,
                 command.Name,
                 command.Identification,
                 command.Email,
                 command.Phone,
                 command.Address,
+                command.EconomicActivity,
                 timeProvider.GetUtcNow(),
                 actorId);
 
@@ -118,12 +146,12 @@ internal sealed class SupplierCatalogService(
         try
         {
             supplier.UpdateDetails(
-                command.Code,
                 command.Name,
                 command.Identification,
                 command.Email,
                 command.Phone,
                 command.Address,
+                command.EconomicActivity,
                 timeProvider.GetUtcNow(),
                 actorId);
 
@@ -201,6 +229,7 @@ internal sealed class SupplierCatalogService(
             supplier.Email,
             supplier.Phone,
             supplier.Address,
+            supplier.EconomicActivity,
             supplier.IsActive,
             supplier.CreatedAtUtc,
             supplier.UpdatedAtUtc,

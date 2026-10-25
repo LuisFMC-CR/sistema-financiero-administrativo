@@ -10,6 +10,14 @@ namespace SistemaFinanciero.Infrastructure.Identity;
 /// <summary>
 /// Crea los roles fijos y el primer administrador mediante una operación explícita.
 /// </summary>
+/// <remarks>
+/// Conexiones: la invoca <c>Program.cs</c> solo cuando el proceso arranca con el argumento
+/// <c>--bootstrap-admin</c>, leyendo <c>BootstrapAdmin:FullName</c>/<c>Email</c>/<c>Password</c> de la
+/// configuración (nunca del código). Es idempotente: si ya existe un Administrador activo, no hace
+/// nada. No es la única vía de emergencia: cuando ese administrador pierde su contraseña y no hay otro
+/// activo, se recurre a un script aparte que usa <c>UserManager</c> directamente, como se hizo en esta
+/// sesión.
+/// </remarks>
 public sealed partial class IdentityBootstrapper(
     UserManager<ApplicationUser> userManager,
     RoleManager<IdentityRole<Guid>> roleManager,

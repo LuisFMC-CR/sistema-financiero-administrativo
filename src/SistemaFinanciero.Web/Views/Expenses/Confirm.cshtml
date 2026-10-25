@@ -1,0 +1,71 @@
+@using SistemaFinanciero.Web.Models.Expenses
+@model ExpenseConfirmViewModel
+@{
+    ViewData["Title"] = "Confirmar gasto";
+}
+
+<div class="catalog-form">
+    <h1 class="h2">Confirmar gasto</h1>
+    <p class="text-body-secondary">
+        Una vez confirmado no se puede editar. Total a confirmar: ₡@Model.TotalAmount.ToString("N2").
+    </p>
+    <form method="post" class="card card-body">
+        <input asp-for="Version" type="hidden" />
+        <input asp-for="IsCash" type="hidden" />
+        <input asp-for="TotalAmount" type="hidden" />
+        <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+
+        @if (!Model.HasBudget)
+        {
+            <div class="alert alert-secondary" role="alert">
+                No hay presupuesto configurado para esta categoría este mes; puede continuar.
+            </div>
+        }
+        else if (Model.ExceedsAvailableBudget)
+        {
+            <div class="alert alert-warning" role="alert">
+                Este gasto supera el disponible del presupuesto: disponible ₡@Model.AvailableAmountBeforeThisExpense.ToString("N2")
+                de ₡@Model.BudgetedAmount?.ToString("N2") presupuestados. Puede confirmarlo igual.
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-light border" role="alert">
+                Disponible del presupuesto antes de este gasto: ₡@Model.AvailableAmountBeforeThisExpense.ToString("N2")
+                de ₡@Model.BudgetedAmount?.ToString("N2") presupuestados.
+            </div>
+        }
+
+        @if (Model.IsCash)
+        {
+            <p class="text-body-secondary">Este gasto es de contado: el medio de pago ya quedó fijo desde el borrador.</p>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label asp-for="CashAccountId" class="form-label"></label>
+                    <select asp-for="CashAccountId" asp-items="Model.CashAccountOptions" class="form-select">
+                        <option value="">Seleccione una cuenta de efectivo</option>
+                    </select>
+                    <span asp-validation-for="CashAccountId" class="text-danger"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Reference" class="form-label"></label>
+                    <input asp-for="Reference" class="form-control" />
+                    <span asp-validation-for="Reference" class="text-danger"></span>
+                </div>
+            </div>
+        }
+        else
+        {
+            <p class="text-body-secondary">Este gasto es a crédito: al confirmarlo se genera su cuenta por pagar.</p>
+        }
+
+        <div class="d-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-success">Confirmar</button>
+            <a asp-action="Details" asp-route-id="@ViewContext.RouteData.Values["id"]" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

@@ -1,6 +1,11 @@
 namespace SistemaFinanciero.Domain.Catalogs;
 
 /// <summary>Relaciona la naturaleza de una categoría con el tipo de cuenta contable que le corresponde.</summary>
+/// <remarks>
+/// Conexiones: la llama <c>FinancialCategoryService.ValidateLedgerAccountAsync</c> (Infrastructure) para
+/// comprobar que la cuenta elegida sea del tipo correcto, y la prueba unitaria
+/// <c>FinancialCategoryTests</c>.
+/// </remarks>
 public static class FinancialCategoryKindExtensions
 {
     /// <summary>

@@ -6,8 +6,16 @@ namespace SistemaFinanciero.Domain.Catalogs;
 /// Clasifica administrativamente ingresos o gastos y puede formar una jerarquía.
 /// </summary>
 /// <remarks>
-/// La naturaleza de la categoría no cambia después de su creación. La validación del tipo del padre
-/// y la detección de ciclos requieren consultar la jerarquía completa y corresponden a Application.
+/// El código lo asigna el sistema al crear (<c>ING-001</c>/<c>GAS-001</c> según la naturaleza, regla 12)
+/// y no cambia después, igual que la naturaleza. La validación del tipo del padre y la detección de
+/// ciclos requieren consultar la jerarquía completa y corresponden a Application.
+///
+/// Conexiones: la crea y edita <c>FinancialCategoryService</c> (Infrastructure/Catalogs/Categories); se
+/// guarda en <c>catalogos.CategoriasFinancieras</c> vía <c>FinancialCategoryConfiguration</c>; la
+/// presenta <c>FinancialCategoriesController</c> (Web, ruta <c>/catalogos/categorias-financieras</c>).
+/// <see cref="LedgerAccountId"/> apunta a una <c>LedgerAccount</c> del tipo que corresponde según
+/// <c>FinancialCategoryKindExtensions</c>. <see cref="Id"/> es el valor que
+/// <c>CatalogItem.DefaultIncomeCategoryId</c> apunta.
 /// </remarks>
 public sealed class FinancialCategory
 {
@@ -98,15 +106,13 @@ public sealed class FinancialCategory
     /// <summary>Obtiene el token de concurrencia administrado por la persistencia.</summary>
     public byte[] RowVersion { get; private set; } = [];
 
-    /// <summary>Actualiza código, nombre y descripción sin alterar la naturaleza.</summary>
+    /// <summary>Actualiza nombre y descripción sin alterar la naturaleza. El código no cambia.</summary>
     public void UpdateDetails(
-        string code,
         string name,
         string? description,
         DateTimeOffset updatedAtUtc,
         Guid updatedByUserId)
     {
-        string normalizedCode = DomainRules.NormalizedCode(code, CodeMaxLength, nameof(code));
         string normalizedName = DomainRules.RequiredText(name, NameMaxLength, nameof(name));
         string? normalizedDescription = DomainRules.OptionalText(
             description,
@@ -114,7 +120,6 @@ public sealed class FinancialCategory
             nameof(description));
         DateTimeOffset normalizedUpdatedAtUtc = ValidateUpdateAudit(updatedAtUtc, updatedByUserId);
 
-        Code = normalizedCode;
         Name = normalizedName;
         Description = normalizedDescription;
         Touch(normalizedUpdatedAtUtc, updatedByUserId);

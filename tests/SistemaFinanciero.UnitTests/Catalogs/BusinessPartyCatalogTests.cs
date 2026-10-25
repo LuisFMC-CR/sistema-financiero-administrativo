@@ -64,21 +64,22 @@ public sealed class BusinessPartyCatalogTests
         DateTimeOffset changedAtUtc = CreatedAtUtc.AddMinutes(10);
 
         supplier.UpdateDetails(
-            " prov-002 ",
             " Proveedor actualizado ",
-            " ",
+            " 3-101-000002 ",
             null,
             " 8888-8888 ",
+            "   ",
             "   ",
             changedAtUtc,
             EditorId);
 
-        Assert.Equal("PROV-002", supplier.Code);
+        Assert.Equal("PROV-001", supplier.Code);
         Assert.Equal("Proveedor actualizado", supplier.Name);
-        Assert.Null(supplier.Identification);
+        Assert.Equal("3-101-000002", supplier.Identification);
         Assert.Null(supplier.Email);
         Assert.Equal("8888-8888", supplier.Phone);
         Assert.Null(supplier.Address);
+        Assert.Null(supplier.EconomicActivity);
         Assert.Equal(changedAtUtc, supplier.UpdatedAtUtc);
         Assert.Equal(EditorId, supplier.UpdatedByUserId);
     }
@@ -90,9 +91,8 @@ public sealed class BusinessPartyCatalogTests
         string originalName = customer.Name;
 
         Assert.Throws<ArgumentOutOfRangeException>(() => customer.UpdateDetails(
-            "CLI-002",
             "Nombre que no debe aplicarse",
-            null,
+            customer.Identification,
             null,
             null,
             null,
@@ -112,6 +112,7 @@ public sealed class BusinessPartyCatalogTests
             Guid.NewGuid(),
             "PROV-001",
             "Proveedor",
+            "3-101-000001",
             null,
             null,
             null,
@@ -126,7 +127,7 @@ public sealed class BusinessPartyCatalogTests
             Guid.NewGuid(),
             "CLI-001",
             "Cliente",
-            null,
+            "3-101-000001",
             null,
             null,
             null,
@@ -140,6 +141,7 @@ public sealed class BusinessPartyCatalogTests
             Guid.NewGuid(),
             "PROV-001",
             "Proveedor",
+            "3-101-000002",
             null,
             null,
             null,

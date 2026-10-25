@@ -7,7 +7,7 @@ using SistemaFinanciero.Web.Models.Catalogs;
 
 namespace SistemaFinanciero.Web.Controllers;
 
-/// <summary>Presenta los tipos de retención que se aplican al registrar abonos y pagos.</summary>
+/// <summary>Presenta los tipos de retención que un cliente aplica al pagar una factura.</summary>
 [Authorize(Policy = SystemPolicies.ViewBusinessCatalogs)]
 [Route("catalogos/tipos-retencion")]
 public sealed class WithholdingTypesController(IWithholdingTypeService service) : CatalogControllerBase

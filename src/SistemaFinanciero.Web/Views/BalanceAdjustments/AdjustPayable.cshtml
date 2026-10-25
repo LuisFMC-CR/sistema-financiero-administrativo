@@ -1,0 +1,44 @@
+@using SistemaFinanciero.Domain.Adjustments
+@using SistemaFinanciero.Web.Models.Adjustments
+@model BalanceAdjustmentFormViewModel
+@{
+    ViewData["Title"] = "Ajustar saldo";
+}
+
+<div class="catalog-form">
+    <h1 class="h2">Ajustar saldo</h1>
+    <p class="text-body-secondary">
+        @Model.AccountLabel — saldo actual ₡@Model.CurrentBalance.ToString("N2") de un monto original de
+        ₡@Model.OriginalAmount.ToString("N2"). El ajuste no genera ingresos ni pagos ni toca efectivo,
+        documento o presupuesto; un error se corrige con otro ajuste en sentido contrario.
+    </p>
+    <form method="post" class="card card-body">
+        <input asp-for="Version" type="hidden" />
+        <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+        <div class="mb-3">
+            <label asp-for="Direction" class="form-label"></label>
+            <select asp-for="Direction" class="form-select">
+                <option value="@BalanceAdjustmentDirection.Decrease">Disminución</option>
+                <option value="@BalanceAdjustmentDirection.Increase">Aumento</option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label asp-for="Amount" class="form-label"></label>
+            <input asp-for="Amount" class="form-control" type="number" step="0.01" />
+            <span asp-validation-for="Amount" class="text-danger"></span>
+        </div>
+        <div class="mb-3">
+            <label asp-for="Reason" class="form-label"></label>
+            <textarea asp-for="Reason" class="form-control" rows="3"></textarea>
+            <span asp-validation-for="Reason" class="text-danger"></span>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-warning">Confirmar ajuste</button>
+            <a asp-controller="Payables" asp-action="Details" asp-route-id="@ViewContext.RouteData.Values["id"]" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

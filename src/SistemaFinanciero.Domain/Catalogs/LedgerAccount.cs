@@ -1,17 +1,26 @@
 using SistemaFinanciero.Domain.Common;
-using SistemaFinanciero.Domain.Currencies;
 
 namespace SistemaFinanciero.Domain.Catalogs;
 
 /// <summary>
 /// Cuenta del catálogo contable, con jerarquía opcional. Las cajas y los bancos son cuentas de Activo
-/// «de efectivo», con moneda fija.
+/// «de efectivo». El sistema opera solo en colones.
 /// </summary>
 /// <remarks>
-/// Es solo clasificación, no partida doble. El tipo, el subtipo de efectivo y la moneda son
-/// inmutables, y el saldo no se almacena: se calculará desde los movimientos vigentes. La validación del
+/// Es solo clasificación, no partida doble. El código, el tipo, la cuenta superior y el subtipo de
+/// efectivo son inmutables; solo el nombre, la referencia y la descripción se editan después de
+/// crearla. El saldo no se almacena: se calculará desde los movimientos vigentes. La validación del
 /// tipo de la cuenta superior y de los ciclos requiere consultar la jerarquía y corresponde a
-/// Application.
+/// Application, igual que el cálculo del código jerárquico (regla 12).
+///
+/// Conexiones: la crea y edita <c>LedgerAccountService</c> (Infrastructure/Catalogs/LedgerAccounts); se
+/// guarda en <c>catalogos.CuentasContables</c> vía <c>LedgerAccountConfiguration</c>; la presenta
+/// <c>LedgerAccountsController</c> (Web, ruta <c>/catalogos/cuentas-contables</c>).
+/// <c>FinancialCategory.LedgerAccountId</c> apunta aquí. Reemplazó a la extinta
+/// <c>FinancialAccount</c> (ver ADR-0012); sus cuentas de efectivo (<see cref="CashKind"/> no nulo) son
+/// las que usarán los futuros ingresos y pagos como caja o banco de origen/destino. Las cuentas de
+/// grupo del catálogo base (<see cref="IsProtected"/>) las siembra una migración (regla 13), nunca el
+/// dominio: por eso no hay un parámetro de constructor para marcarlas.
 /// </remarks>
 public sealed class LedgerAccount
 {
@@ -32,8 +41,8 @@ public sealed class LedgerAccount
     }
 
     /// <summary>
-    /// Crea una cuenta contable activa. Una cuenta de efectivo indica su subtipo y su moneda, y es de
-    /// tipo Activo; las demás no tienen ni subtipo ni moneda.
+    /// Crea una cuenta contable activa. Una cuenta de efectivo indica su subtipo y es de tipo Activo;
+    /// las demás no tienen subtipo.
     /// </summary>
     public LedgerAccount(
         Guid id,
@@ -42,7 +51,6 @@ public sealed class LedgerAccount
         LedgerAccountType type,
         Guid? parentId,
         CashAccountKind? cashKind,
-        CurrencyCode? currency,
         string? reference,
         string? description,
         DateTimeOffset createdAtUtc,
@@ -53,7 +61,7 @@ public sealed class LedgerAccount
         Name = DomainRules.RequiredText(name, NameMaxLength, nameof(name));
         Type = DomainRules.DefinedEnum(type, nameof(type));
         ParentId = ValidateParent(parentId);
-        (CashKind, Currency) = ValidateCash(Type, cashKind, currency);
+        CashKind = ValidateCash(Type, cashKind);
         Reference = DomainRules.OptionalText(reference, ReferenceMaxLength, nameof(reference));
         Description = DomainRules.OptionalText(description, DescriptionMaxLength, nameof(description));
         CreatedAtUtc = DomainRules.RequiredUtcTimestamp(createdAtUtc, nameof(createdAtUtc));
@@ -61,6 +69,7 @@ public sealed class LedgerAccount
         UpdatedAtUtc = CreatedAtUtc;
         UpdatedByUserId = CreatedByUserId;
         IsActive = true;
+        IsProtected = false;
     }
 
     /// <summary>Obtiene el identificador técnico estable.</summary>
@@ -83,9 +92,6 @@ public sealed class LedgerAccount
     /// </summary>
     public CashAccountKind? CashKind { get; private set; }
 
-    /// <summary>Obtiene la moneda inmutable de una cuenta de efectivo; nula en las demás.</summary>
-    public CurrencyCode? Currency { get; private set; }
-
     /// <summary>Indica si es una cuenta de efectivo, que puede recibir o entregar dinero.</summary>
     public bool IsCash => CashKind is not null;
 
@@ -97,6 +103,12 @@ public sealed class LedgerAccount
 
     /// <summary>Indica si puede seleccionarse en operaciones nuevas.</summary>
     public bool IsActive { get; private set; }
+
+    /// <summary>
+    /// Indica si es una cuenta de grupo del catálogo base (regla 13): no se puede renombrar, cambiar
+    /// su referencia ni desactivar. Solo lo asignan las migraciones de siembra.
+    /// </summary>
+    public bool IsProtected { get; private set; }
 
     /// <summary>Obtiene el instante UTC de creación.</summary>
     public DateTimeOffset CreatedAtUtc { get; private set; }
@@ -113,16 +125,19 @@ public sealed class LedgerAccount
     /// <summary>Obtiene el token de concurrencia administrado por la persistencia.</summary>
     public byte[] RowVersion { get; private set; } = [];
 
-    /// <summary>Actualiza código, nombre, referencia y descripción sin alterar tipo, subtipo ni moneda.</summary>
+    /// <summary>
+    /// Actualiza nombre, referencia y descripción, sin alterar código, tipo, subtipo ni cuenta
+    /// superior. Una cuenta de grupo protegida rechaza el cambio.
+    /// </summary>
     public void UpdateDetails(
-        string code,
         string name,
         string? reference,
         string? description,
         DateTimeOffset updatedAtUtc,
         Guid updatedByUserId)
     {
-        string normalizedCode = DomainRules.NormalizedCode(code, CodeMaxLength, nameof(code));
+        EnsureNotProtected();
+
         string normalizedName = DomainRules.RequiredText(name, NameMaxLength, nameof(name));
         string? normalizedReference = DomainRules.OptionalText(
             reference,
@@ -134,30 +149,9 @@ public sealed class LedgerAccount
             nameof(description));
         DateTimeOffset normalizedUpdatedAtUtc = ValidateUpdateAudit(updatedAtUtc, updatedByUserId);
 
-        Code = normalizedCode;
         Name = normalizedName;
         Reference = normalizedReference;
         Description = normalizedDescription;
-        Touch(normalizedUpdatedAtUtc, updatedByUserId);
-    }
-
-    /// <summary>
-    /// Cambia la cuenta superior después de que Application haya validado tipo y ausencia de ciclos.
-    /// </summary>
-    public void ChangeParent(
-        Guid? parentId,
-        DateTimeOffset updatedAtUtc,
-        Guid updatedByUserId)
-    {
-        Guid? normalizedParentId = ValidateParent(parentId);
-
-        if (ParentId == normalizedParentId)
-        {
-            return;
-        }
-
-        DateTimeOffset normalizedUpdatedAtUtc = ValidateUpdateAudit(updatedAtUtc, updatedByUserId);
-        ParentId = normalizedParentId;
         Touch(normalizedUpdatedAtUtc, updatedByUserId);
     }
 
@@ -185,18 +179,13 @@ public sealed class LedgerAccount
         return normalizedParentId;
     }
 
-    private static (CashAccountKind? CashKind, CurrencyCode? Currency) ValidateCash(
+    private static CashAccountKind? ValidateCash(
         LedgerAccountType type,
-        CashAccountKind? cashKind,
-        CurrencyCode? currency)
+        CashAccountKind? cashKind)
     {
         if (cashKind is null)
         {
-            return currency is null
-                ? (null, null)
-                : throw new ArgumentException(
-                    "Una cuenta que no es de efectivo no tiene moneda.",
-                    nameof(currency));
+            return null;
         }
 
         CashAccountKind validKind = DomainRules.DefinedEnum(cashKind.Value, nameof(cashKind));
@@ -208,14 +197,7 @@ public sealed class LedgerAccount
                 nameof(cashKind));
         }
 
-        if (currency is null)
-        {
-            throw new ArgumentException(
-                "Una cuenta de efectivo requiere una moneda.",
-                nameof(currency));
-        }
-
-        return (validKind, DomainRules.DefinedEnum(currency.Value, nameof(currency)));
+        return validKind;
     }
 
     private void SetActive(bool isActive, DateTimeOffset updatedAtUtc, Guid updatedByUserId)
@@ -225,9 +207,20 @@ public sealed class LedgerAccount
             return;
         }
 
+        EnsureNotProtected();
+
         DateTimeOffset normalizedUpdatedAtUtc = ValidateUpdateAudit(updatedAtUtc, updatedByUserId);
         IsActive = isActive;
         Touch(normalizedUpdatedAtUtc, updatedByUserId);
+    }
+
+    private void EnsureNotProtected()
+    {
+        if (IsProtected)
+        {
+            throw new InvalidOperationException(
+                "Una cuenta de grupo del catálogo base no se puede modificar ni desactivar.");
+        }
     }
 
     private DateTimeOffset ValidateUpdateAudit(

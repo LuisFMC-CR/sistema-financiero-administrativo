@@ -5,11 +5,10 @@
 - Llaves primarias nuevas: `uniqueidentifier`/`Guid`.
 - Tablas de seguridad: esquema SQL `seguridad`.
 - Catálogos de partes y clasificación: esquema SQL `catalogos`.
-- Tipos de cambio y documentos financieros: esquema SQL `finanzas`.
+- Documentos financieros: esquema SQL `finanzas`.
 - Nombres únicos mediante valores normalizados de Identity.
 - Precios de referencia: `decimal` con cuatro decimales declarados explícitamente.
-- Tipo de cambio: `decimal` con seis decimales declarados explícitamente.
-- Código monetario: CRC o USD.
+- El sistema opera solo en colones (CRC); no hay moneda ni tipo de cambio.
 - Instantes técnicos: UTC; fechas de documentos: fecha de negocio sin hora.
 - Migraciones en `SistemaFinanciero.Infrastructure/Persistence/Migrations`.
 - Códigos de catálogo recortados, normalizados a mayúsculas e indexados de forma única dentro de su
@@ -104,7 +103,6 @@ erDiagram
     Usuarios ||--o{ ProductosServicios : audita
     Usuarios ||--o{ CategoriasFinancieras : audita
     Usuarios ||--o{ CuentasContables : audita
-    Usuarios ||--o{ TiposCambioDiarios : audita
     CategoriasFinancieras o|--o{ CategoriasFinancieras : contiene
     CategoriasFinancieras o|--o{ ProductosServicios : categoria_predeterminada
     CuentasContables o|--o{ CuentasContables : contiene
@@ -123,7 +121,6 @@ Cada relación de auditoría representa las referencias de creación y última m
 | `catalogos.ProductosServicios` | Catálogo facturable unificado, sin existencias de inventario. |
 | `catalogos.CategoriasFinancieras` | Clasificación jerárquica de ingreso o gasto. |
 | `catalogos.CuentasContables` | Catálogo jerárquico de cuentas de clasificación; incluye las cajas y bancos como cuentas de efectivo. |
-| `finanzas.TiposCambioDiarios` | Una tasa manual CRC por USD para cada fecha de negocio. |
 
 ### Campos comunes auditables
 
@@ -139,46 +136,46 @@ Clientes, proveedores, productos/servicios, categorías y cuentas comparten conc
 | `UpdatedByUserId` | `uniqueidentifier` | No | FK restrictiva | Usuario responsable del último cambio. |
 | `RowVersion` | `rowversion` | No | Concurrencia | Evita sobrescrituras silenciosas. |
 
-`finanzas.TiposCambioDiarios` posee los mismos campos de auditoría y `RowVersion`, pero no `IsActive`:
-una tasa se corrige de forma auditada en la fila única de su fecha.
-
 ### `catalogos.Clientes` y `catalogos.Proveedores`
 
 Ambas tablas tienen la misma forma inicial, pero no comparten identidad ni ciclo de vida:
 
 | Campo | Tipo SQL | Nulo | Restricción | Descripción |
 |---|---|---:|---|---|
-| `Code` | `nvarchar(30)` | No | Único por tabla | Código visible normalizado en mayúsculas. |
+| `Code` | `nvarchar(30)` | No | Único por tabla; inmutable | Código visible (`CLI-0001`/`PRV-0001`, regla 12) que asigna el sistema al crear, a partir de `catalogos.Seq_ClienteCodigo`/`Seq_ProveedorCodigo`. |
 | `Name` | `nvarchar(150)` | No | — | Nombre completo o razón social. |
-| `Identification` | `nvarchar(50)` | Sí | Único por tabla cuando existe | Identificación fiscal o personal cuando se conoce. |
+| `Identification` | `nvarchar(50)` | No | Único por tabla (`UX_Clientes_Identification`/`UX_Proveedores_Identification`) | Identificación fiscal o personal, obligatoria (RF-50/RF-51). |
 | `Email` | `nvarchar(254)` | Sí | — | Correo de contacto. |
 | `Phone` | `nvarchar(30)` | Sí | — | Teléfono de contacto. |
 | `Address` | `nvarchar(500)` | Sí | — | Dirección administrativa. |
+| `EconomicActivity` | `nvarchar(200)` | Sí | Solo en `Proveedores` | Actividad económica declarada del proveedor. |
 
 La misma identificación puede existir en ambas tablas porque una persona puede cumplir ambos papeles.
-Cambiar un registro no actualiza silenciosamente el otro.
+Cambiar un registro no actualiza silenciosamente el otro. El código lo asigna el sistema al crear
+(migración `AdjustExistingCatalogs`) y ya no se edita; antes era un campo libre del formulario.
 
 ### `catalogos.ProductosServicios`
 
 | Campo | Tipo SQL | Nulo | Restricción | Descripción |
 |---|---|---:|---|---|
-| `Code` | `nvarchar(30)` | No | Único | Código visible normalizado. |
+| `Code` | `nvarchar(30)` | No | Único; inmutable | Código visible (`PRD-0001`/`SRV-0001` según `Type`, regla 12) que asigna el sistema al crear, a partir de `catalogos.Seq_ProductoCodigo`/`Seq_ServicioCodigo`. |
 | `Name` | `nvarchar(150)` | No | — | Nombre facturable. |
 | `Type` | Valor restringido | No | Producto/Servicio | Clasifica el artículo; no habilita inventario. |
 | `Description` | `nvarchar(500)` | Sí | — | Descripción administrativa. |
 | `UnitOfMeasure` | `nvarchar(30)` | No | — | Unidad visible para capturas futuras. |
 | `ReferencePriceCrc` | `decimal(18,4)` | Sí | Mayor que cero | Precio de referencia en CRC. |
-| `ReferencePriceUsd` | `decimal(18,4)` | Sí | Mayor que cero | Precio de referencia en USD. |
-| `DefaultIncomeCategoryId` | `uniqueidentifier` | Sí | FK restrictiva | Categoría activa de ingreso sugerida; no obliga documentos futuros. |
+| `DefaultIncomeCategoryId` | `uniqueidentifier` | Sí | FK restrictiva a `catalogos.CategoriasFinancieras` | Categoría activa de ingreso sugerida; no obliga documentos futuros. |
+| `DefaultTaxTypeId` | `uniqueidentifier` | Sí | FK restrictiva a `catalogos.TiposImpuesto` (`FK_ProductosServicios_TiposImpuesto`) | Tarifa de IVA activa que se propone al agregar el artículo a una línea de factura (RF-52); la línea puede cambiarla. |
 
-Ambos precios pueden ser nulos para servicios de precio variable. Cuando existe un precio se conserva
-con cuatro decimales; el redondeo del total monetario se realizará al crear documentos.
+El precio puede ser nulo para servicios de precio variable. Cuando existe se conserva con cuatro
+decimales; el redondeo del total monetario se realizará al crear documentos. El código ya no se escribe
+en el formulario: lo asigna el sistema según `Type` (migración `AdjustExistingCatalogs`).
 
 ### `catalogos.CategoriasFinancieras`
 
 | Campo | Tipo SQL | Nulo | Restricción | Descripción |
 |---|---|---:|---|---|
-| `Code` | `nvarchar(30)` | No | Único | Código visible normalizado. |
+| `Code` | `nvarchar(30)` | No | Único; inmutable | Código visible (`ING-001`/`GAS-001` según `Kind`, regla 12) que asigna el sistema al crear, a partir de `catalogos.Seq_CategoriaIngresoCodigo`/`Seq_CategoriaGastoCodigo` (arrancan en 6 y 11 para no chocar con el catálogo base `ING-001..005`/`GAS-001..010` de `SeedBaseChartOfAccounts`). |
 | `Name` | `nvarchar(120)` | No | — | Nombre de la categoría. |
 | `Kind` | Valor restringido | No | Ingreso/Gasto; inmutable | Naturaleza financiera administrativa. |
 | `ParentId` | `uniqueidentifier` | Sí | FK autorreferente restrictiva | Categoría padre del mismo tipo. |
@@ -199,24 +196,56 @@ Comparte los campos comunes auditables de los catálogos: `Id`, `IsActive`, `Cre
 
 | Campo | Tipo SQL | Nulo | Restricción | Descripción |
 |---|---|---:|---|---|
-| `Code` | `nvarchar(30)` | No | Único (`UX_CuentasContables_Code`); no vacío | Código visible normalizado en mayúsculas. |
+| `Code` | `nvarchar(30)` | No | Único (`UX_CuentasContables_Code`); no vacío; inmutable | Código jerárquico (`3.1.07`) que el sistema calcula como el siguiente hijo libre del padre (regla 12). |
 | `Name` | `nvarchar(120)` | No | — | Nombre de la cuenta. |
-| `Type` | Entero | No | 1 = Activo, 2 = Pasivo, 3 = Patrimonio, 4 = Ingreso, 5 = Gasto; inmutable | Naturaleza de la cuenta. |
-| `ParentId` | `uniqueidentifier` | Sí | FK autorreferente restrictiva; distinta de `Id` | Cuenta superior del mismo tipo, sin ciclos. |
+| `Type` | Entero | No | 1 = Activo, 4 = Ingreso, 5 = Gasto; inmutable | Naturaleza de la cuenta; sin pasivo ni patrimonio (regla 1). Se hereda de la cuenta superior al crear. |
+| `ParentId` | `uniqueidentifier` | Sí | FK autorreferente restrictiva; distinta de `Id`; inmutable | Cuenta superior del mismo tipo, sin ciclos. Obligatoria al crear desde la interfaz (regla 13: el usuario solo agrega detalle dentro de un grupo). |
 | `CashKind` | Entero | Sí | 1 = Caja, 2 = Banco; inmutable | Subtipo cuando la cuenta es de efectivo; nulo en las demás. |
-| `Currency` | `char(3)` | Sí | CRC o USD; inmutable | Moneda exclusiva de una cuenta de efectivo; nula en las demás. |
 | `Reference` | `nvarchar(100)` | Sí | — | Referencia no sensible; no debe almacenar credenciales bancarias. |
 | `Description` | `nvarchar(300)` | Sí | — | Explicación de uso. |
+| `IsProtected` | `bit` | No | Predeterminado 0 | Marca las cuentas de grupo del catálogo base (regla 13): no se renombran, ni cambian su referencia, ni se desactivan. Solo la siembra inicial la pone en 1; el dominio nunca la expone como parámetro de creación. |
 
-`CK_CuentasContables_Cash` exige que `CashKind` y `Currency` estén ambos presentes o ambos ausentes, y que
-una cuenta de efectivo sea de tipo Activo. Las demás restricciones `CHECK` cubren el código no vacío, los
-valores permitidos de `Type`, `CashKind` y `Currency`, y que una cuenta no sea su propia superior. La
-aplicación además valida que la cuenta superior esté activa, sea del mismo tipo, no sea de efectivo y no
-produzca ciclos.
+`CK_CuentasContables_Cash` exige que una cuenta de efectivo (`CashKind` no nulo) sea de tipo Activo. Las
+demás restricciones `CHECK` cubren el código no vacío, los valores permitidos de `Type` y `CashKind`, y
+que una cuenta no sea su propia superior. La aplicación además valida, al crear, que la cuenta superior
+esté activa y no sea de efectivo; después de creada, código, tipo y cuenta superior quedan fijos (regla
+12): solo cambian nombre, referencia y descripción, y nunca en una cuenta protegida.
 
 No existe un campo `Balance`: los saldos se calcularán en un incremento transaccional desde movimientos
 confirmados y saldos iniciales controlados. La tabla anterior `finanzas.CuentasFinancieras` se migró aquí
 y se eliminó (ADR-0012).
+
+#### Catálogo base (regla 13, migración `SeedBaseChartOfAccounts`)
+
+El sistema se instala con 9 cuentas de grupo protegidas y 17 cuentas de detalle (2 de efectivo, 5 de
+ingreso y 10 de gasto), más una categoría financiera inicial por cada cuenta de detalle de ingreso o
+gasto (mismo nombre, códigos `ING-001`–`ING-005` y `GAS-001`–`GAS-010`). Como estas filas necesitan un
+usuario creador (FK obligatoria) y la migración corre antes de que exista cualquier usuario real, la
+misma migración inserta primero un usuario técnico "Sistema" (`sistema@interno.local`, inactivo, sin
+contraseña, sin rol) y lo usa como autor de todo el catálogo base.
+
+| Código | Cuenta | Tipo | Clase |
+|---|---|---|---|
+| 1 | Activo | Activo | Grupo |
+| 1.1 | Efectivo | Activo | Grupo |
+| 1.1.01 | Caja chica | Activo (efectivo) | Detalle |
+| 1.1.02 | Cuenta bancaria principal | Activo (efectivo) | Detalle |
+| 2 | Ingresos | Ingreso | Grupo |
+| 2.1 | Ingresos por servicios | Ingreso | Grupo |
+| 2.1.01–2.1.03 | Soporte técnico; Mantenimiento y reparación de equipos; Instalación de infraestructura informática | Ingreso | Detalle |
+| 2.2 | Ingresos por ventas | Ingreso | Grupo |
+| 2.2.01 | Venta de equipos y repuestos | Ingreso | Detalle |
+| 2.3 | Otros ingresos | Ingreso | Grupo |
+| 2.3.01 | Otros ingresos de la operación | Ingreso | Detalle |
+| 3 | Gastos | Gasto | Grupo |
+| 3.1 | Gastos de operación | Gasto | Grupo |
+| 3.1.01–3.1.06 | Alquiler; Electricidad y agua; Internet y telefonía; Materiales y repuestos; Software y licencias; Transporte y combustible | Gasto | Detalle |
+| 3.2 | Gastos administrativos | Gasto | Grupo |
+| 3.2.01–3.2.04 | Papelería y suministros de oficina; Servicios profesionales; Comisiones bancarias; Otros gastos administrativos | Gasto | Detalle |
+
+Las cuentas de grupo (primer y segundo nivel) tienen `IsProtected = 1`. Las de detalle sembradas,
+incluidas las de efectivo, no están protegidas: se pueden renombrar o inactivar como cualquier cuenta
+que agregue el usuario después.
 
 ### `catalogos.TiposRetencion`
 
@@ -231,9 +260,10 @@ Comparte los campos comunes auditables de los catálogos: `Id`, `IsActive`, `Cre
 | `Rate` | `decimal(18,4)` | No | Entre 0 y 100 (`CK_TiposRetencion_Rate`) | Porcentaje de retención. |
 | `Description` | `nvarchar(300)` | Sí | — | Explicación de uso. |
 
-A diferencia de `TiposImpuesto`, no tiene columna de método de cálculo: una retención es siempre
-porcentual. La base y el monto de una retención concreta no se guardan aquí, porque dependen del abono o
-el pago al que se aplique; ese registro se construirá junto con los abonos y pagos.
+Es la retención que un cliente obligado por ley aplica al pagar una factura (nunca un pago a un
+proveedor); no viene precargada, la empresa define nombre y porcentaje. La base y el monto de una
+retención concreta no se guardan aquí, porque dependen del abono al que se aplique; ese registro se
+construirá junto con los abonos.
 
 ### `finanzas.ParametrosSistema` y `finanzas.ParametrosSistemaHistorial`
 
@@ -261,34 +291,15 @@ lo protege contra modificaciones y borrados (`FinancialDbContext.EnsureAppendOnl
 | `ChangedAtUtc` | `datetimeoffset` | No | Índice `IX_ParametrosSistemaHistorial_ChangedAtUtc` | Instante del cambio. |
 | `ChangedByUserId` | `uniqueidentifier` | No | FK restrictiva | Usuario de Gerencia que hizo el cambio. |
 
-### `finanzas.TiposCambioDiarios`
-
-| Campo | Tipo SQL | Nulo | Restricción | Descripción |
-|---|---|---:|---|---|
-| `Id` | `uniqueidentifier` | No | PK | Identificador técnico estable. |
-| `EffectiveDate` | `date` | No | Único | Fecha de negocio de la tasa. |
-| `CrcPerUsd` | `decimal(18,6)` | No | Mayor que cero | CRC equivalentes a un USD. |
-| `Source` | `nvarchar(100)` | No | Requerido por dominio y aplicación | Fuente informada durante el registro manual. |
-| `Notes` | `nvarchar(300)` | Sí | — | Aclaración opcional. |
-| `CreatedAtUtc` | `datetimeoffset` | No | UTC | Instante de creación. |
-| `CreatedByUserId` | `uniqueidentifier` | No | FK restrictiva | Usuario creador. |
-| `UpdatedAtUtc` | `datetimeoffset` | No | UTC | Instante de creación o corrección más reciente. |
-| `UpdatedByUserId` | `uniqueidentifier` | No | FK restrictiva | Usuario responsable del último cambio. |
-| `RowVersion` | `rowversion` | No | Concurrencia | Detecta correcciones simultáneas. |
-
-La unicidad de `EffectiveDate` asegura una sola tasa operativa diaria. Los documentos futuros copiarán
-la tasa utilizada y no dependerán de una consulta histórica mutable.
-
 ## Incremento de facturación
 
-Las facturas son documentos administrativos internos (ADR-0009 y ADR-0010). Tienen tres tablas en el
-esquema `finanzas`. Los valores de los estados y las monedas se guardan como enteros restringidos.
+Las facturas son documentos administrativos internos (ADR-0009 y ADR-0010). Tienen dos tablas en el
+esquema `finanzas`. Los valores de los estados se guardan como enteros restringidos.
 
 | Tabla | Propósito |
 |---|---|
-| `finanzas.Facturas` | Encabezado: cliente, fechas, moneda, condición de pago, estado y totales. |
-| `finanzas.FacturaLineas` | Líneas de productos o servicios con su descripción, cantidades e importes. |
-| `finanzas.FacturaLineaImpuestos` | Fotografía de cada impuesto aplicado a una línea. |
+| `finanzas.Facturas` | Encabezado: cliente, fechas, condición de pago, estado y totales. |
+| `finanzas.FacturaLineas` | Líneas de productos o servicios con su descripción, cantidades, importes y el IVA de cada una. |
 
 ### `finanzas.Facturas`
 
@@ -298,26 +309,25 @@ esquema `finanzas`. Los valores de los estados y las monedas se guardan como ent
 | `Number` | `bigint` identidad | No | Único (`UX_Facturas_Number`) | Consecutivo interno; no es numeración fiscal. |
 | `CustomerId` | `uniqueidentifier` | No | FK restrictiva a `catalogos.Clientes` | Cliente facturado. |
 | `IssueDate` | `date` | No | — | Fecha de negocio; editable solo en borrador. |
-| `Currency` | Entero | No | 1 = CRC, 2 = USD | Moneda única de la factura; no cambia si hay líneas. |
-| `PaymentTerm` | Entero | No | 1 = contado, 2 = crédito | Condición de pago. |
-| `DueDate` | `date` | Sí | Ver abajo | Vencimiento; solo existe en facturas a crédito. |
+| `PaymentTerm` | Entero | No | 1 = contado, 2 = crédito 30 días, 3 = crédito 60 días, 4 = crédito 90 días | Condición de pago; lista fija de la regla 14, sin catálogo propio. |
+| `DueDate` | `date` | Sí | Ver abajo | Vencimiento; lo calcula el dominio como `IssueDate` más los días del plazo, nunca se recibe. |
 | `Status` | Entero | No | 1 = borrador, 2 = confirmada, 3 = anulada | Estado del documento. |
 | `GrossAmount` | `decimal(18,2)` | No | Mayor o igual que cero | Total antes de descuentos e impuestos. |
 | `DiscountAmount` | `decimal(18,2)` | No | Mayor o igual que cero | Total de descuentos. |
 | `NetAmount` | `decimal(18,2)` | No | Mayor o igual que cero | Total antes de impuestos. |
 | `TaxAmount` | `decimal(18,2)` | No | Mayor o igual que cero | Total de impuestos. |
 | `TotalAmount` | `decimal(18,2)` | No | Mayor o igual que cero | Total a cobrar. |
-| `ConfirmedCrcPerUsd` | `decimal(18,6)` | Sí | Obligatoria y positiva si es USD y no es borrador | Tasa CRC por USD fijada al confirmar. |
 | `ConfirmedAtUtc`, `ConfirmedByUserId` | `datetimeoffset`, `uniqueidentifier` | Sí | FK restrictiva a usuarios | Confirmación. |
 | `CancellationReason`, `CancelledAtUtc`, `CancelledByUserId` | `nvarchar(300)`, `datetimeoffset`, `uniqueidentifier` | Sí | FK restrictiva a usuarios | Anulación con motivo. |
 | `CreatedAtUtc`, `CreatedByUserId`, `UpdatedAtUtc`, `UpdatedByUserId` | Como los campos comunes | No | FK restrictivas a usuarios | Auditoría. |
 | `RowVersion` | `rowversion` | No | Concurrencia | Evita sobrescrituras silenciosas. |
 
 Restricciones `CHECK` de la tabla:
-- `CK_Facturas_PaymentTerm`: la condición de pago es 1 o 2.
-- `CK_Facturas_DueDate`: una factura de contado no tiene vencimiento; una a crédito lo tiene y no es
-  anterior a `IssueDate`.
-- `CK_Facturas_Status`, `CK_Facturas_Currency`, `CK_Facturas_Totals` y `CK_Facturas_UsdRate`.
+- `CK_Facturas_PaymentTerm`: la condición de pago es 1, 2, 3 o 4.
+- `CK_Facturas_DueDate`: de contado (1) no tiene vencimiento; a crédito (2, 3 o 4) el vencimiento debe
+  ser exactamente `IssueDate` más 30, 60 o 90 días según el plazo, con `DATEADD` — la misma fórmula
+  que usa `Invoice.CalculateDueDate` en el dominio (regla 14, ADR-0020).
+- `CK_Facturas_Status` y `CK_Facturas_Totals`.
 
 Índices: `IX_Facturas_Status_IssueDate` y `IX_Facturas_CustomerId_Status`. Como las facturas no se
 eliminan, no existe un campo de baja lógica: su ciclo de vida es el estado.
@@ -337,44 +347,34 @@ eliminan, no existe un campo de baja lógica: su ciclo de vida es el estado.
 | `GrossAmount` | `decimal(18,2)` | No | Mayor o igual que cero | Cantidad por precio, redondeado. |
 | `DiscountAmount` | `decimal(18,2)` | No | Entre cero y el bruto | Descuento monetario de la línea. |
 | `NetAmount` | `decimal(18,2)` | No | Mayor o igual que cero | Bruto menos descuento; base gravable. |
-| `TaxAmount` | `decimal(18,2)` | No | Mayor o igual que cero | Suma de los impuestos de la línea. |
-| `TotalAmount` | `decimal(18,2)` | No | Mayor o igual que cero | Neto más impuestos. |
+| `TaxAmount` | `decimal(18,2)` | No | Mayor o igual que cero | Impuesto de la línea (igual a `Tax_Amount`). |
+| `TotalAmount` | `decimal(18,2)` | No | Mayor o igual que cero | Neto más impuesto. |
+| `TaxTypeId` | `uniqueidentifier` | Sí | FK restrictiva a `catalogos.TiposImpuesto` (`FK_FacturaLineas_TiposImpuesto`) | Tipo de impuesto del catálogo de origen; nulo si no se usó uno. |
+| `Tax_Code` | `nvarchar(30)` | No | — | Código del IVA, normalizado en mayúsculas. |
+| `Tax_Name` | `nvarchar(120)` | No | — | Nombre del IVA al aplicarlo. |
+| `Tax_Rate` | `decimal(18,4)` | No | Mayor o igual que cero (`CK_FacturaLineas_Tax_RateAmount`) | Porcentaje de IVA utilizado. |
+| `Tax_TaxableAmount` | `decimal(18,2)` | No | Mayor o igual que cero (`CK_FacturaLineas_Tax_RateAmount`) | Base gravable: el neto de la línea. |
+| `Tax_Amount` | `decimal(18,2)` | No | Mayor o igual que cero (`CK_FacturaLineas_Tax_RateAmount`) | IVA calculado y redondeado. |
 
-La cascada existe para que reemplazar o quitar una línea de un borrador elimine también sus impuestos;
-la aplicación nunca elimina facturas. La línea es inmutable: modificarla se hace reemplazándola por otra
-con un identificador nuevo, que ocupa la misma posición. Al quitar una línea se renumeran las
-siguientes para que las posiciones sigan siendo consecutivas.
-
-### `finanzas.FacturaLineaImpuestos`
-
-| Campo | Tipo SQL | Nulo | Restricción | Descripción |
-|---|---|---:|---|---|
-| `Id` | `uniqueidentifier` | No | PK | Identificador técnico de la fotografía. |
-| `InvoiceLineId` | `uniqueidentifier` | No | FK en cascada a `FacturaLineas` | Línea a la que pertenece. |
-| `TaxTypeId` | `uniqueidentifier` | Sí | FK restrictiva a `catalogos.TiposImpuesto` (`FK_FacturaLineaImpuestos_TiposImpuesto`) | Tipo de impuesto del catálogo de origen; nulo si no se usó uno. |
-| `Code` | `nvarchar(30)` | No | Único por línea (`UX_FacturaLineaImpuestos_Line_Code`) | Código del impuesto, normalizado en mayúsculas. |
-| `Name` | `nvarchar(120)` | No | — | Nombre del impuesto al aplicarlo. |
-| `CalculationType` | Entero | No | 1 = porcentaje, 2 = monto fijo por unidad | Método de cálculo. |
-| `Rate` | `decimal(18,4)` | No | Mayor o igual que cero | Porcentaje o monto por unidad utilizado. |
-| `TaxableAmount` | `decimal(18,2)` | No | Mayor o igual que cero | Base gravable: el neto de la línea. |
-| `Amount` | `decimal(18,2)` | No | Mayor o igual que cero | Impuesto calculado y redondeado. |
-
-Los cambios posteriores del catálogo de impuestos no alteran estas filas: código, nombre, método,
-tarifa, base y monto son una copia. `TaxTypeId` solo registra de qué tipo del catálogo provienen y, al
-ser restrictiva, impide eliminar un tipo que ya se usó.
+Cada línea lleva una sola tarifa de IVA, siempre presente (incluso Exento 0 %): es un tipo propietario
+de EF Core (`InvoiceLine.Tax`), no una tabla aparte, así que vive como las columnas `Tax_*` de esta
+misma tabla. Los cambios posteriores del catálogo de impuestos no alteran estos valores: código,
+nombre, tarifa, base y monto son una copia. `TaxTypeId` solo registra de qué tipo del catálogo provino
+y, al ser restrictiva, impide eliminar un tipo que ya se usó. La línea es inmutable: modificarla se
+hace reemplazándola por otra con un identificador nuevo, que ocupa la misma posición. Al quitar una
+línea se renumeran las siguientes para que las posiciones sigan siendo consecutivas.
 
 ### `catalogos.TiposImpuesto`
 
-Catálogo de impuestos con tarifa configurable (ADR-0011). Comparte los campos comunes auditables de los
-catálogos: `Id`, `IsActive`, `CreatedAtUtc`, `CreatedByUserId`, `UpdatedAtUtc`, `UpdatedByUserId` y
-`RowVersion`.
+Catálogo de tarifas de IVA (ADR-0011). Solo el IVA, siempre porcentual: no existe un método de cálculo
+de monto fijo. Comparte los campos comunes auditables de los catálogos: `Id`, `IsActive`,
+`CreatedAtUtc`, `CreatedByUserId`, `UpdatedAtUtc`, `UpdatedByUserId` y `RowVersion`.
 
 | Campo | Tipo SQL | Nulo | Restricción | Descripción |
 |---|---|---:|---|---|
 | `Code` | `nvarchar(30)` | No | Único (`UX_TiposImpuesto_Code`); no vacío | Código visible normalizado en mayúsculas. |
 | `Name` | `nvarchar(120)` | No | — | Nombre del impuesto. |
-| `CalculationType` | Entero | No | 1 = porcentaje, 2 = monto fijo por unidad; inmutable | Método de cálculo. |
-| `Rate` | `decimal(18,4)` | No | Mayor o igual que cero; hasta 100 si es porcentaje (`CK_TiposImpuesto_Rate`) | Porcentaje o monto por unidad. |
+| `Rate` | `decimal(18,4)` | No | Entre 0 y 100 (`CK_TiposImpuesto_Rate`) | Porcentaje de IVA. |
 | `Description` | `nvarchar(300)` | Sí | — | Explicación de uso. |
 
 Índice `IX_TiposImpuesto_IsActive_Name` para los listados. Un tipo con tarifa cero representa los

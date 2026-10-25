@@ -2,16 +2,26 @@
 
 <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
 <div class="row g-3">
-    <div class="col-md-4">
-        <label asp-for="Code" class="form-label"></label>
-        <input asp-for="Code" class="form-control text-uppercase" autocomplete="off" />
-        <span asp-validation-for="Code" class="text-danger"></span>
-    </div>
-    <div class="col-md-8">
-        <label asp-for="Name" class="form-label"></label>
-        <input asp-for="Name" class="form-control" autocomplete="organization" />
-        <span asp-validation-for="Name" class="text-danger"></span>
-    </div>
+    @if (Model is CustomerEditViewModel editModel)
+    {
+        <div class="col-md-4">
+            <label class="form-label">Código</label>
+            <input type="text" class="form-control" value="@editModel.Code" disabled readonly />
+        </div>
+        <div class="col-md-8">
+            <label asp-for="Name" class="form-label"></label>
+            <input asp-for="Name" class="form-control" autocomplete="organization" />
+            <span asp-validation-for="Name" class="text-danger"></span>
+        </div>
+    }
+    else
+    {
+        <div class="col-md-12">
+            <label asp-for="Name" class="form-label"></label>
+            <input asp-for="Name" class="form-control" autocomplete="organization" />
+            <span asp-validation-for="Name" class="text-danger"></span>
+        </div>
+    }
     <div class="col-md-4">
         <label asp-for="Identification" class="form-label"></label>
         <input asp-for="Identification" class="form-control" autocomplete="off" />

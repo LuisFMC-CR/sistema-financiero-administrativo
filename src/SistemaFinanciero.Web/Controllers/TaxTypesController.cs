@@ -4,12 +4,11 @@ using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Catalogs.TaxTypes;
 using SistemaFinanciero.Application.Security;
 using SistemaFinanciero.Domain.Catalogs;
-using SistemaFinanciero.Domain.Invoices;
 using SistemaFinanciero.Web.Models.Catalogs;
 
 namespace SistemaFinanciero.Web.Controllers;
 
-/// <summary>Presenta los tipos de impuesto que las líneas de factura pueden aplicar.</summary>
+/// <summary>Presenta las tarifas de IVA que las líneas de factura pueden aplicar.</summary>
 [Authorize(Policy = SystemPolicies.ViewBusinessCatalogs)]
 [Route("catalogos/tipos-impuesto")]
 public sealed class TaxTypesController(ITaxTypeService service) : CatalogControllerBase
@@ -40,7 +39,7 @@ public sealed class TaxTypesController(ITaxTypeService service) : CatalogControl
         TaxTypeCreateViewModel model,
         CancellationToken cancellationToken)
     {
-        ValidatePercentageRate(model.CalculationType, model.Rate, nameof(model.Rate));
+        ValidatePercentageRate(model.Rate, nameof(model.Rate));
 
         if (!ModelState.IsValid)
         {
@@ -56,7 +55,6 @@ public sealed class TaxTypesController(ITaxTypeService service) : CatalogControl
             new CreateTaxTypeCommand(
                 model.Code,
                 model.Name,
-                model.CalculationType,
                 model.Rate,
                 model.Description),
             actorId,
@@ -86,15 +84,13 @@ public sealed class TaxTypesController(ITaxTypeService service) : CatalogControl
         TaxTypeEditViewModel model,
         CancellationToken cancellationToken)
     {
-        // El método de cálculo nunca se toma del formulario: es inmutable y se lee del registro actual.
         TaxTypeModel? current = await service.GetAsync(id, cancellationToken);
         if (current is null)
         {
             return NotFound();
         }
 
-        model.CalculationType = current.CalculationType;
-        ValidatePercentageRate(model.CalculationType, model.Rate, nameof(model.Rate));
+        ValidatePercentageRate(model.Rate, nameof(model.Rate));
 
         if (!ModelState.IsValid)
         {
@@ -125,7 +121,6 @@ public sealed class TaxTypesController(ITaxTypeService service) : CatalogControl
             return NotFound();
         }
 
-        model.CalculationType = latest.CalculationType;
         if (result.Status == CatalogOperationStatus.ConcurrencyConflict)
         {
             model.Version = latest.Version;
@@ -198,9 +193,9 @@ public sealed class TaxTypesController(ITaxTypeService service) : CatalogControl
         return RedirectToAction(nameof(Index));
     }
 
-    private void ValidatePercentageRate(TaxCalculationType calculationType, decimal rate, string key)
+    private void ValidatePercentageRate(decimal rate, string key)
     {
-        if (calculationType == TaxCalculationType.Percentage && rate > TaxType.MaxPercentageRate)
+        if (rate > TaxType.MaxPercentageRate)
         {
             ModelState.AddModelError(key, "La tarifa porcentual no puede superar 100 %.");
         }
@@ -214,7 +209,6 @@ public sealed class TaxTypesController(ITaxTypeService service) : CatalogControl
             Name = taxType.Name,
             Rate = taxType.Rate,
             Description = taxType.Description,
-            CalculationType = taxType.CalculationType,
             Version = taxType.Version,
         };
     }

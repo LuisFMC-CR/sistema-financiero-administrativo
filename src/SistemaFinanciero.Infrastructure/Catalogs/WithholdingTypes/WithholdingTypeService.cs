@@ -9,6 +9,12 @@ namespace SistemaFinanciero.Infrastructure.Catalogs.WithholdingTypes;
 /// <summary>
 /// Ejecuta los casos de uso del catálogo de tipos de retención.
 /// </summary>
+/// <remarks>
+/// Conexiones: implementa <c>IWithholdingTypeService</c> (Application); se registra en
+/// <c>DependencyInjection.AddInfrastructure</c>; lo inyecta <c>WithholdingTypesController</c> (Web). Lee
+/// y escribe <c>FinancialDbContext.WithholdingTypes</c> (tabla <c>catalogos.TiposRetencion</c>). Nadie
+/// más lo consume todavía: no hay abonos ni pagos que apliquen una retención.
+/// </remarks>
 internal sealed class WithholdingTypeService(
     FinancialDbContext dbContext,
     TimeProvider timeProvider) : IWithholdingTypeService

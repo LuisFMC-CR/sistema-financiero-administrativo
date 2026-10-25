@@ -5,10 +5,10 @@ namespace SistemaFinanciero.Application.Catalogs.Categories;
 
 /// <summary>
 /// Datos editables de una categoría financiera. La cuenta contable es obligatoria y debe ser del tipo
-/// que corresponde a la naturaleza de la categoría.
+/// que corresponde a la naturaleza de la categoría. El código no se incluye porque lo asigna el
+/// sistema según la naturaleza (regla 12).
 /// </summary>
 public sealed record SaveFinancialCategoryCommand(
-    string Code,
     string Name,
     FinancialCategoryKind Kind,
     Guid? ParentId,
@@ -36,6 +36,13 @@ public sealed record FinancialCategoryModel(
 public sealed record FinancialCategoryOption(Guid Id, string Code, string Name);
 
 /// <summary>Casos de uso de categorías financieras jerárquicas.</summary>
+/// <remarks>
+/// Conexiones: lo implementa <c>FinancialCategoryService</c> (Infrastructure/Catalogs/Categories); lo
+/// consume <c>FinancialCategoriesController</c> (Web, ruta <c>/catalogos/categorias-financieras</c>),
+/// que también inyecta <c>ILedgerAccountService</c> para armar el selector de cuenta contable.
+/// <see cref="GetActiveOptionsAsync"/> es lo que usará <c>CatalogItemsController</c> cuando ofrezca
+/// categorías de ingreso predeterminadas.
+/// </remarks>
 public interface IFinancialCategoryService
 {
     /// <summary>Busca categorías financieras con filtros y paginación.</summary>

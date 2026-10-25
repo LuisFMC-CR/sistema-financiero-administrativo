@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Catalogs.LedgerAccounts;
 using SistemaFinanciero.Domain.Catalogs;
-using SistemaFinanciero.Domain.Currencies;
 using SistemaFinanciero.Infrastructure.Persistence;
 
 namespace SistemaFinanciero.Infrastructure.Catalogs.LedgerAccounts;
@@ -11,11 +10,21 @@ namespace SistemaFinanciero.Infrastructure.Catalogs.LedgerAccounts;
 /// Ejecuta los casos de uso y las reglas jerárquicas del catálogo de cuentas contables, sin almacenar
 /// saldos.
 /// </summary>
+/// <remarks>
+/// Conexiones: implementa <c>ILedgerAccountService</c> (Application); se registra en
+/// <c>DependencyInjection.AddInfrastructure</c>; lo inyectan <c>LedgerAccountsController</c> y
+/// <c>FinancialCategoriesController</c> (Web, este último solo para los selectores). Lee y escribe
+/// <c>FinancialDbContext.LedgerAccounts</c> (tabla <c>catalogos.CuentasContables</c>) y consulta
+/// <c>FinancialCategories</c> al desactivar, para no dejar una cuenta usada por una categoría activa.
+/// <see cref="CreateAsync"/> calcula el código jerárquico (regla 12) como el siguiente hijo libre del
+/// padre, con reintento ante colisiones de concurrencia sobre el índice único de código.
+/// </remarks>
 internal sealed class LedgerAccountService(
     FinancialDbContext dbContext,
     TimeProvider timeProvider) : ILedgerAccountService
 {
     private const string DuplicateCodeMessage = "Ya existe una cuenta contable con el mismo código.";
+    private const int MaxCodeGenerationAttempts = 5;
 
     public async Task<PagedResult<LedgerAccountModel>> SearchAsync(
         CatalogQuery query,
@@ -137,21 +146,12 @@ internal sealed class LedgerAccountService(
     }
 
     public async Task<IReadOnlyList<CashAccountOption>> GetActiveCashAccountsAsync(
-        CurrencyCode? currency = null,
         CancellationToken cancellationToken = default)
     {
-        IQueryable<LedgerAccount> accounts = dbContext.Set<LedgerAccount>()
+        List<LedgerAccount> stored = await dbContext.Set<LedgerAccount>()
             .AsNoTracking()
-            .Where(account => account.IsActive && account.CashKind != null);
-
-        if (currency is CurrencyCode currencyFilter)
-        {
-            accounts = accounts.Where(account => account.Currency == currencyFilter);
-        }
-
-        List<LedgerAccount> stored = await accounts
-            .OrderBy(account => account.Currency)
-            .ThenBy(account => account.Name)
+            .Where(account => account.IsActive && account.CashKind != null)
+            .OrderBy(account => account.Name)
             .ToListAsync(cancellationToken);
 
         return stored
@@ -159,8 +159,7 @@ internal sealed class LedgerAccountService(
                 account.Id,
                 account.Code,
                 account.Name,
-                account.CashKind!.Value,
-                account.Currency!.Value))
+                account.CashKind!.Value))
             .ToArray();
     }
 
@@ -171,44 +170,62 @@ internal sealed class LedgerAccountService(
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        CatalogOperationResult? parentValidation = await ValidateParentAsync(
-            command.ParentId,
-            command.Type,
-            currentAccountId: null,
-            cancellationToken);
+        LedgerAccount? parent = await dbContext.Set<LedgerAccount>()
+            .AsNoTracking()
+            .SingleOrDefaultAsync(candidate => candidate.Id == command.ParentId, cancellationToken);
 
-        if (parentValidation is not null)
+        if (parent is null || !parent.IsActive)
         {
-            return parentValidation;
+            return CatalogOperationResult.Invalid("La cuenta superior seleccionada no existe o está inactiva.");
         }
 
-        try
+        if (parent.IsCash)
         {
-            LedgerAccount account = new(
-                Guid.NewGuid(),
-                command.Code,
-                command.Name,
-                command.Type,
-                command.ParentId,
-                command.CashKind,
-                command.Currency,
-                command.Reference,
-                command.Description,
-                timeProvider.GetUtcNow(),
-                actorId);
-
-            dbContext.Add(account);
-
-            return await CatalogPersistence.SaveChangesAsync(
-                dbContext,
-                DuplicateCodeMessage,
-                cancellationToken);
+            return CatalogOperationResult.Invalid("Una cuenta de efectivo no puede tener cuentas hijas.");
         }
-        catch (ArgumentException exception)
+
+        for (int attempt = 1; attempt <= MaxCodeGenerationAttempts; attempt++)
         {
-            dbContext.ChangeTracker.Clear();
-            return CatalogOperationResult.Invalid(exception.Message);
+            string code = await ComputeNextChildCodeAsync(parent, cancellationToken);
+
+            try
+            {
+                LedgerAccount account = new(
+                    Guid.NewGuid(),
+                    code,
+                    command.Name,
+                    parent.Type,
+                    parent.Id,
+                    command.CashKind,
+                    command.Reference,
+                    command.Description,
+                    timeProvider.GetUtcNow(),
+                    actorId);
+
+                dbContext.Add(account);
+
+                CatalogOperationResult result = await CatalogPersistence.SaveChangesAsync(
+                    dbContext,
+                    DuplicateCodeMessage,
+                    cancellationToken);
+
+                if (result.Status != CatalogOperationStatus.Duplicate)
+                {
+                    return result;
+                }
+
+                // Otra transacción generó el mismo código al mismo tiempo: se recalcula y reintenta.
+                dbContext.ChangeTracker.Clear();
+            }
+            catch (ArgumentException exception)
+            {
+                dbContext.ChangeTracker.Clear();
+                return CatalogOperationResult.Invalid(exception.Message);
+            }
         }
+
+        return CatalogOperationResult.Invalid(
+            "No fue posible generar un código único para la cuenta; intente nuevamente.");
     }
 
     public async Task<CatalogOperationResult> UpdateAsync(
@@ -228,34 +245,26 @@ internal sealed class LedgerAccountService(
             return CatalogOperationResult.Missing();
         }
 
+        if (account.IsProtected)
+        {
+            dbContext.ChangeTracker.Clear();
+            return CatalogOperationResult.Invalid(
+                "Una cuenta de grupo del catálogo base no se puede modificar.");
+        }
+
         if (!CatalogPersistence.TrySetOriginalVersion(dbContext, account, version))
         {
             return CatalogOperationResult.Invalid("El token de concurrencia no es válido.");
         }
 
-        CatalogOperationResult? parentValidation = await ValidateParentAsync(
-            command.ParentId,
-            account.Type,
-            id,
-            cancellationToken);
-
-        if (parentValidation is not null)
-        {
-            dbContext.ChangeTracker.Clear();
-            return parentValidation;
-        }
-
         try
         {
-            DateTimeOffset now = timeProvider.GetUtcNow();
             account.UpdateDetails(
-                command.Code,
                 command.Name,
                 command.Reference,
                 command.Description,
-                now,
+                timeProvider.GetUtcNow(),
                 actorId);
-            account.ChangeParent(command.ParentId, now, actorId);
 
             return await CatalogPersistence.SaveChangesAsync(
                 dbContext,
@@ -284,26 +293,19 @@ internal sealed class LedgerAccountService(
             return CatalogOperationResult.Missing();
         }
 
+        if (account.IsProtected)
+        {
+            dbContext.ChangeTracker.Clear();
+            return CatalogOperationResult.Invalid(
+                "Una cuenta de grupo del catálogo base no se puede desactivar.");
+        }
+
         if (!CatalogPersistence.TrySetOriginalVersion(dbContext, account, version))
         {
             return CatalogOperationResult.Invalid("El token de concurrencia no es válido.");
         }
 
-        if (isActive)
-        {
-            CatalogOperationResult? parentValidation = await ValidateParentAsync(
-                account.ParentId,
-                account.Type,
-                account.Id,
-                cancellationToken);
-
-            if (parentValidation is not null)
-            {
-                dbContext.ChangeTracker.Clear();
-                return parentValidation;
-            }
-        }
-        else
+        if (!isActive)
         {
             bool hasActiveChildren = await dbContext.Set<LedgerAccount>()
                 .AsNoTracking()
@@ -331,6 +333,19 @@ internal sealed class LedgerAccountService(
                     "La cuenta está asignada a categorías financieras activas. Reasígnelas o desactívelas primero.");
             }
         }
+        else if (account.ParentId is Guid parentId)
+        {
+            bool parentIsActive = await dbContext.Set<LedgerAccount>()
+                .AsNoTracking()
+                .AnyAsync(candidate => candidate.Id == parentId && candidate.IsActive, cancellationToken);
+
+            if (!parentIsActive)
+            {
+                dbContext.ChangeTracker.Clear();
+                return CatalogOperationResult.Invalid(
+                    "No se puede reactivar una cuenta cuya cuenta superior está inactiva.");
+            }
+        }
 
         try
         {
@@ -355,70 +370,25 @@ internal sealed class LedgerAccountService(
         }
     }
 
-    private async Task<CatalogOperationResult?> ValidateParentAsync(
-        Guid? parentId,
-        LedgerAccountType type,
-        Guid? currentAccountId,
+    private async Task<string> ComputeNextChildCodeAsync(
+        LedgerAccount parent,
         CancellationToken cancellationToken)
     {
-        if (parentId is null)
-        {
-            return null;
-        }
+        string prefix = parent.Code + ".";
 
-        if (parentId == currentAccountId)
-        {
-            return CatalogOperationResult.Invalid("Una cuenta no puede ser su propia cuenta superior.");
-        }
-
-        LedgerAccount? parent = await dbContext.Set<LedgerAccount>()
+        List<string> siblingCodes = await dbContext.Set<LedgerAccount>()
             .AsNoTracking()
-            .SingleOrDefaultAsync(candidate => candidate.Id == parentId.Value, cancellationToken);
+            .Where(account => account.ParentId == parent.Id)
+            .Select(account => account.Code)
+            .ToListAsync(cancellationToken);
 
-        if (parent is null || !parent.IsActive)
-        {
-            return CatalogOperationResult.Invalid("La cuenta superior seleccionada no existe o está inactiva.");
-        }
+        int nextSuffix = siblingCodes
+            .Where(code => code.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            .Select(code => int.TryParse(code[prefix.Length..], out int value) ? value : 0)
+            .DefaultIfEmpty(0)
+            .Max() + 1;
 
-        if (parent.Type != type)
-        {
-            return CatalogOperationResult.Invalid("La cuenta superior debe ser del mismo tipo.");
-        }
-
-        if (parent.IsCash)
-        {
-            return CatalogOperationResult.Invalid("Una cuenta de efectivo no puede tener cuentas hijas.");
-        }
-
-        if (currentAccountId is null)
-        {
-            return null;
-        }
-
-        AccountLink[] links = await dbContext.Set<LedgerAccount>()
-            .AsNoTracking()
-            .Select(account => new AccountLink(account.Id, account.ParentId))
-            .ToArrayAsync(cancellationToken);
-
-        Dictionary<Guid, Guid?> parentById = links.ToDictionary(link => link.Id, link => link.ParentId);
-        HashSet<Guid> visited = [];
-        Guid? cursor = parentId;
-
-        while (cursor is Guid cursorId)
-        {
-            if (cursorId == currentAccountId.Value)
-            {
-                return CatalogOperationResult.Invalid(
-                    "La cuenta superior seleccionada produciría un ciclo en la jerarquía.");
-            }
-
-            if (!visited.Add(cursorId) || !parentById.TryGetValue(cursorId, out cursor))
-            {
-                break;
-            }
-        }
-
-        return null;
+        return $"{parent.Code}.{nextSuffix:D2}";
     }
 
     private async Task<IReadOnlyDictionary<Guid, string>> GetParentNamesAsync(
@@ -491,10 +461,10 @@ internal sealed class LedgerAccountService(
                 ? parentName
                 : null,
             account.CashKind,
-            account.Currency,
             account.Reference,
             account.Description,
             account.IsActive,
+            account.IsProtected,
             account.CreatedAtUtc,
             account.UpdatedAtUtc,
             CatalogPersistence.EncodeVersion(account.RowVersion));
@@ -507,6 +477,4 @@ internal sealed class LedgerAccountService(
         string Name,
         bool IsActive,
         bool IsCash);
-
-    private sealed record AccountLink(Guid Id, Guid? ParentId);
 }

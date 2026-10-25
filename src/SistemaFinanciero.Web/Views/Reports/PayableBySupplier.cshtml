@@ -1,0 +1,56 @@
+@using SistemaFinanciero.Application.Reports
+@using SistemaFinanciero.Web.Models.Reports
+@model PayableBySupplierReportViewModel
+@{
+    ViewData["Title"] = "Cuentas por pagar por proveedor";
+    PayableBySupplierReportResult result = Model.Result;
+}
+
+<h1 class="h2 mb-1">Cuentas por pagar por proveedor</h1>
+<p class="text-body-secondary mb-3">Cuentas por pagar vigentes a la fecha, agrupadas por proveedor (regla de negocio 8).</p>
+
+<div class="d-flex justify-content-end gap-2 mb-3">
+    @if (result.Lines.Count > 0)
+    {
+        <a class="btn btn-outline-secondary btn-sm" asp-action="PayableBySupplierPdf">Exportar PDF</a>
+        <a class="btn btn-outline-secondary btn-sm" asp-action="PayableBySupplierExcel">Exportar Excel</a>
+    }
+</div>
+
+<div class="table-responsive bg-white border rounded">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th scope="col">Proveedor</th>
+                <th scope="col" class="text-end">Cantidad</th>
+                <th scope="col" class="text-end">Saldo total</th>
+                <th scope="col" class="text-end">Vence más próximo</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (result.Lines.Count == 0)
+            {
+                <tr><td colspan="4" class="text-center text-body-secondary py-4">No hay cuentas por pagar vigentes.</td></tr>
+            }
+            @foreach (PayableBySupplierReportLine line in result.Lines)
+            {
+                <tr>
+                    <td>@line.SupplierName</td>
+                    <td class="text-end">@line.PayableCount</td>
+                    <td class="text-end">₡@line.TotalBalance.ToString("N2")</td>
+                    <td class="text-end">@line.EarliestDueDate.ToString("dd/MM/yyyy")</td>
+                </tr>
+            }
+        </tbody>
+        @if (result.Lines.Count > 0)
+        {
+            <tfoot>
+                <tr class="fw-semibold">
+                    <td colspan="2" class="text-end">Total</td>
+                    <td class="text-end">₡@result.GrandTotalBalance.ToString("N2")</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        }
+    </table>
+</div>

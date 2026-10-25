@@ -4,6 +4,12 @@ using SistemaFinanciero.Infrastructure.Identity;
 
 namespace SistemaFinanciero.Infrastructure.Persistence.Configurations;
 
+/// <summary>Mapea <see cref="SecurityAuditEvent"/> a la tabla <c>seguridad.EventosSeguridad</c>.</summary>
+/// <remarks>
+/// Conexiones: <c>FinancialDbContext.OnModelCreating</c> la aplica por convención; el carácter
+/// de solo inserción de la tabla lo hace cumplir <c>FinancialDbContext.EnsureAppendOnlyLogsAreNotMutated</c>,
+/// no esta clase.
+/// </remarks>
 internal sealed class SecurityAuditEventConfiguration
     : IEntityTypeConfiguration<SecurityAuditEvent>
 {

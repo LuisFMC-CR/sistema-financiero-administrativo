@@ -5,42 +5,26 @@
 
 <div class="catalog-form">
     <h1 class="h2">Nueva cuenta contable</h1>
-    <p class="text-body-secondary">El tipo, el subtipo de efectivo y la moneda quedarán fijos después de crear la cuenta.</p>
+    <p class="text-body-secondary">El código y el tipo los asigna el sistema a partir de la cuenta superior elegida; el subtipo de efectivo queda fijo después de crear la cuenta.</p>
     <form asp-action="Create" method="post" class="card card-body">
         <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
         <div class="row g-3">
-            <div class="col-md-4">
-                <label asp-for="Code" class="form-label"></label>
-                <input asp-for="Code" class="form-control text-uppercase" autocomplete="off" />
-                <span asp-validation-for="Code" class="text-danger"></span>
-            </div>
             <div class="col-md-8">
                 <label asp-for="Name" class="form-label"></label>
                 <input asp-for="Name" class="form-control" />
                 <span asp-validation-for="Name" class="text-danger"></span>
             </div>
-            <div class="col-md-6">
-                <label asp-for="Type" class="form-label"></label>
-                <select asp-for="Type" id="ledger-account-type" class="form-select">
-                    <option value="Asset">Activo</option>
-                    <option value="Liability">Pasivo</option>
-                    <option value="Equity">Patrimonio</option>
-                    <option value="Income">Ingreso</option>
-                    <option value="Expense">Gasto</option>
-                </select>
-                <span asp-validation-for="Type" class="text-danger"></span>
-            </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <label asp-for="ParentId" class="form-label"></label>
                 <select asp-for="ParentId" id="ledger-account-parent" class="form-select">
-                    <option value="">Sin cuenta superior</option>
+                    <option value="">Seleccione un grupo</option>
                     @foreach (LedgerAccountParentOptionViewModel option in Model.ParentOptions)
                     {
                         <option value="@option.Id" data-account-type="@option.Type">@option.Label</option>
                     }
                 </select>
                 <span asp-validation-for="ParentId" class="text-danger"></span>
-                <div class="form-text">Solo se muestran cuentas del mismo tipo. Una caja o un banco no puede ser cuenta superior.</div>
+                <div class="form-text">Solo se agregan cuentas de detalle dentro de un grupo del catálogo base.</div>
             </div>
             <div class="col-12">
                 <div class="form-check">
@@ -48,7 +32,7 @@
                     <label asp-for="IsCash" class="form-check-label"></label>
                 </div>
                 <span asp-validation-for="IsCash" class="text-danger"></span>
-                <div class="form-text">Solo las cuentas de tipo Activo pueden ser de efectivo. Reciben o entregan dinero en una sola moneda.</div>
+                <div class="form-text">Solo las cuentas de tipo Activo pueden ser de efectivo.</div>
             </div>
             <div class="col-12" id="ledger-account-cash-fields">
                 <div class="row g-3">
@@ -59,14 +43,6 @@
                             <option value="Bank">Cuenta bancaria</option>
                         </select>
                         <span asp-validation-for="CashKind" class="text-danger"></span>
-                    </div>
-                    <div class="col-md-6">
-                        <label asp-for="Currency" class="form-label"></label>
-                        <select asp-for="Currency" class="form-select">
-                            <option value="CRC">CRC - Colón costarricense</option>
-                            <option value="USD">USD - Dólar estadounidense</option>
-                        </select>
-                        <span asp-validation-for="Currency" class="text-danger"></span>
                     </div>
                 </div>
             </div>

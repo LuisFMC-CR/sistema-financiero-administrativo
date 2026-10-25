@@ -5,6 +5,12 @@ namespace SistemaFinanciero.Infrastructure.Identity;
 /// <summary>
 /// Traduce los errores esperados de Identity a mensajes comprensibles para la interfaz en español.
 /// </summary>
+/// <remarks>
+/// Conexiones: se registra con <c>.AddErrorDescriber&lt;SpanishIdentityErrorDescriber&gt;()</c> en
+/// <c>DependencyInjection</c>; Identity la usa internamente cada vez que <c>UserManager</c> devuelve un
+/// <c>IdentityResult</c> fallido (creación de cuenta, cambio de contraseña, etc.), antes de que
+/// <c>UserAdministrationService</c>/<c>UserAccountService</c> tomen ese mensaje.
+/// </remarks>
 internal sealed class SpanishIdentityErrorDescriber : IdentityErrorDescriber
 {
     public override IdentityError DefaultError() => Error(

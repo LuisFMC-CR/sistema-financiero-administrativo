@@ -137,6 +137,15 @@ public sealed record UserOperationResult(UserOperationStatus Status, string? Mes
 }
 
 /// <summary>Casos de uso administrativos disponibles únicamente para el rol Administrador.</summary>
+/// <remarks>
+/// Conexiones: lo implementa <c>UserAdministrationService</c> (Infrastructure/Identity); lo consume
+/// <c>UsersController</c> (Web, ruta <c>/administracion/usuarios</c>), protegido con
+/// <c>SystemPolicies.ManageUsers</c>. Cada operación sensible queda en <c>SecurityAuditEvent</c>. Este
+/// servicio es el único camino «normal» para restablecer una contraseña ajena; la herramienta de
+/// recuperación de emergencia usada para recuperar el acceso al primer administrador lo rodea
+/// a propósito, llamando directamente a <c>UserManager</c>, porque ese camino normal exige ya estar
+/// autenticado como Administrador.
+/// </remarks>
 public interface IUserAdministrationService
 {
     /// <summary>Busca y pagina cuentas sin exponer hashes, tokens ni sellos internos.</summary>

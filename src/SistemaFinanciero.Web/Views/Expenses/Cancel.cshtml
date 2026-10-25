@@ -1,0 +1,30 @@
+@using SistemaFinanciero.Web.Models.Expenses
+@model ExpenseCancelViewModel
+@{
+    ViewData["Title"] = "Anular gasto";
+}
+
+<div class="catalog-form">
+    <h1 class="h2">Anular gasto</h1>
+    <p class="text-body-secondary">
+        La anulación no se revierte. Si el gasto es a crédito, su cuenta por pagar también se anula,
+        siempre que no tenga pagos vigentes.
+    </p>
+    <form method="post" class="card card-body">
+        <input asp-for="Version" type="hidden" />
+        <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+        <div class="mb-3">
+            <label asp-for="Reason" class="form-label"></label>
+            <textarea asp-for="Reason" class="form-control" rows="3"></textarea>
+            <span asp-validation-for="Reason" class="text-danger"></span>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-danger">Confirmar anulación</button>
+            <a asp-action="Details" asp-route-id="@ViewContext.RouteData.Values["id"]" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

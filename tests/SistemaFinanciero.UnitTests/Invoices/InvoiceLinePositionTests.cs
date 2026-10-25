@@ -1,4 +1,3 @@
-using SistemaFinanciero.Domain.Currencies;
 using SistemaFinanciero.Domain.Invoices;
 
 namespace SistemaFinanciero.UnitTests.Invoices;
@@ -105,9 +104,7 @@ public sealed class InvoiceLinePositionTests
             Guid.NewGuid(),
             Guid.NewGuid(),
             new DateOnly(2026, 9, 10),
-            CurrencyCode.CRC,
             PaymentTerm.Cash,
-            dueDate: null,
             CreatedAtUtc,
             UserId);
 
@@ -131,5 +128,5 @@ public sealed class InvoiceLinePositionTests
             quantity: 1m,
             unitPrice: 100m,
             discountAmount: 0m,
-            taxes: null);
+            tax: new InvoiceTaxSpecification("IVA-EXENTO", "IVA exento", 0m));
 }

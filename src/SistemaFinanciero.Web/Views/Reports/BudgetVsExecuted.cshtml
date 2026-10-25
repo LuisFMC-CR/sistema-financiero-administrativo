@@ -1,0 +1,76 @@
+@using System.Globalization
+@using SistemaFinanciero.Application.Budgets
+@using SistemaFinanciero.Application.Reports
+@using SistemaFinanciero.Web.Models.Reports
+@model BudgetVsExecutedReportViewModel
+@{
+    ViewData["Title"] = "Presupuesto contra lo ejecutado";
+    DateOnly currentPeriod = new(Model.PeriodYear, Model.PeriodMonth, 1);
+    DateOnly previousPeriod = currentPeriod.AddMonths(-1);
+    DateOnly nextPeriod = currentPeriod.AddMonths(1);
+    string periodLabel = currentPeriod.ToString("MMMM yyyy", CultureInfo.GetCultureInfo("es-CR"));
+}
+
+<h1 class="h2 mb-1">Presupuesto contra lo ejecutado</h1>
+<p class="text-body-secondary mb-3">Un mes, por categoría de gasto de último nivel (regla de negocio 8).</p>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+    <div class="d-flex align-items-center gap-2">
+        <a class="btn btn-outline-secondary btn-sm" asp-action="BudgetVsExecuted" asp-route-periodYear="@previousPeriod.Year" asp-route-periodMonth="@previousPeriod.Month">« Anterior</a>
+        <span class="fw-semibold text-capitalize">@periodLabel</span>
+        <a class="btn btn-outline-secondary btn-sm" asp-action="BudgetVsExecuted" asp-route-periodYear="@nextPeriod.Year" asp-route-periodMonth="@nextPeriod.Month">Siguiente »</a>
+    </div>
+    @if (Model.Result is { Lines.Count: > 0 })
+    {
+        <div class="d-flex gap-2">
+            <a class="btn btn-outline-secondary btn-sm" asp-action="BudgetVsExecutedPdf" asp-route-periodYear="@Model.PeriodYear" asp-route-periodMonth="@Model.PeriodMonth">Exportar PDF</a>
+            <a class="btn btn-outline-secondary btn-sm" asp-action="BudgetVsExecutedExcel" asp-route-periodYear="@Model.PeriodYear" asp-route-periodMonth="@Model.PeriodMonth">Exportar Excel</a>
+        </div>
+    }
+</div>
+
+@if (Model.Result is BudgetVsExecutedReportResult result)
+{
+    <div class="table-responsive bg-white border rounded">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th scope="col">Categoría</th>
+                    <th scope="col" class="text-end">Presupuestado</th>
+                    <th scope="col" class="text-end">Ejecutado</th>
+                    <th scope="col" class="text-end">Disponible</th>
+                    <th scope="col" class="text-end">Variación</th>
+                    <th scope="col" class="text-end">Variación %</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (result.Lines.Count == 0)
+                {
+                    <tr><td colspan="6" class="text-center text-body-secondary py-4">No hay categorías de gasto de último nivel activas.</td></tr>
+                }
+                @foreach (BudgetModel line in result.Lines)
+                {
+                    <tr>
+                        <td>@line.CategoryCode - @line.CategoryName</td>
+                        <td class="text-end">@(line.BudgetedAmount is decimal budgeted ? $"₡{budgeted:N2}" : "Sin presupuesto")</td>
+                        <td class="text-end">₡@line.ExecutedAmount.ToString("N2")</td>
+                        <td class="text-end">@(line.AvailableAmount is decimal available ? $"₡{available:N2}" : "—")</td>
+                        <td class="text-end @(line.VarianceAmount is > 0 ? "text-danger" : null)">@(line.VarianceAmount is decimal variance ? $"₡{variance:N2}" : "—")</td>
+                        <td class="text-end">@(line.VariancePercent is decimal percent ? percent.ToString("P1") : "—")</td>
+                    </tr>
+                }
+            </tbody>
+            @if (result.Lines.Count > 0)
+            {
+                <tfoot>
+                    <tr class="fw-semibold">
+                        <td class="text-end">Total</td>
+                        <td class="text-end">₡@result.TotalBudgeted.ToString("N2")</td>
+                        <td class="text-end">₡@result.TotalExecuted.ToString("N2")</td>
+                        <td colspan="3"></td>
+                    </tr>
+                </tfoot>
+            }
+        </table>
+    </div>
+}

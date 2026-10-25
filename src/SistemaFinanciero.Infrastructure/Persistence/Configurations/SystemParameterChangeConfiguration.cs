@@ -8,6 +8,11 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Configurations;
 /// <summary>
 /// Configura la bitácora, de solo inserción, de cambios en los parámetros del sistema.
 /// </summary>
+/// <remarks>
+/// Conexiones: <c>FinancialDbContext.OnModelCreating</c> la aplica por convención. Solo
+/// <c>SystemParametersService</c> le agrega filas; nadie las modifica, protegido por
+/// <c>FinancialDbContext.EnsureAppendOnlyLogsAreNotMutated</c>.
+/// </remarks>
 internal sealed class SystemParameterChangeConfiguration : IEntityTypeConfiguration<SystemParameterChange>
 {
     public void Configure(EntityTypeBuilder<SystemParameterChange> builder)

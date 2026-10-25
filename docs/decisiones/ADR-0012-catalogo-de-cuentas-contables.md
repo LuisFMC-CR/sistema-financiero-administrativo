@@ -1,7 +1,7 @@
 # ADR-0012: Catálogo de cuentas contables
 
 - **Fecha:** 2026-09-27
-- **Estado:** Aceptado
+- **Estado:** Actualizado por [ADR-0017](ADR-0017-catalogo-base-protegido-cuentas-contables.md)
 - **Complementa:** [ADR-0009](ADR-0009-facturacion-administrativa.md)
 
 ## Contexto

@@ -9,6 +9,14 @@ namespace SistemaFinanciero.Infrastructure.Catalogs.TaxTypes;
 /// <summary>
 /// Ejecuta los casos de uso del catálogo de tipos de impuesto.
 /// </summary>
+/// <remarks>
+/// Conexiones: implementa <c>ITaxTypeService</c> (Application); se registra en
+/// <c>DependencyInjection.AddInfrastructure</c>; lo inyecta <c>TaxTypesController</c> (Web). Lee y
+/// escribe <c>FinancialDbContext.TaxTypes</c> (tabla <c>catalogos.TiposImpuesto</c>);
+/// <see cref="LoadReferenceTaxTypesAsync"/> usa <c>ReferenceTaxTypes.All</c> (Application) para crear
+/// solo las tarifas que faltan. <see cref="GetActiveOptionsAsync"/> es lo que debería alimentar el
+/// selector de impuestos de una futura pantalla de facturas.
+/// </remarks>
 internal sealed class TaxTypeService(
     FinancialDbContext dbContext,
     TimeProvider timeProvider) : ITaxTypeService
@@ -78,7 +86,6 @@ internal sealed class TaxTypeService(
                 taxType.Id,
                 taxType.Code,
                 taxType.Name,
-                taxType.CalculationType,
                 taxType.Rate))
             .ToListAsync(cancellationToken);
     }
@@ -96,7 +103,6 @@ internal sealed class TaxTypeService(
                 Guid.NewGuid(),
                 command.Code,
                 command.Name,
-                command.CalculationType,
                 command.Rate,
                 command.Description,
                 timeProvider.GetUtcNow(),
@@ -228,7 +234,6 @@ internal sealed class TaxTypeService(
                     Guid.NewGuid(),
                     reference.Code,
                     reference.Name,
-                    reference.CalculationType,
                     reference.Rate,
                     reference.Description,
                     now,
@@ -257,7 +262,6 @@ internal sealed class TaxTypeService(
             taxType.Id,
             taxType.Code,
             taxType.Name,
-            taxType.CalculationType,
             taxType.Rate,
             taxType.Description,
             taxType.IsActive,

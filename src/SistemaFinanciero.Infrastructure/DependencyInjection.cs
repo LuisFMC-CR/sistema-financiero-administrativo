@@ -3,33 +3,54 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using SistemaFinanciero.Application.Adjustments;
+using SistemaFinanciero.Application.Budgets;
 using SistemaFinanciero.Application.Catalogs.Categories;
 using SistemaFinanciero.Application.Catalogs.Customers;
-using SistemaFinanciero.Application.Catalogs.ExchangeRates;
 using SistemaFinanciero.Application.Catalogs.Items;
 using SistemaFinanciero.Application.Catalogs.LedgerAccounts;
 using SistemaFinanciero.Application.Catalogs.Suppliers;
 using SistemaFinanciero.Application.Catalogs.TaxTypes;
 using SistemaFinanciero.Application.Catalogs.WithholdingTypes;
+using SistemaFinanciero.Application.Expenses;
+using SistemaFinanciero.Application.Incomes;
+using SistemaFinanciero.Application.Invoices;
 using SistemaFinanciero.Application.Parameters;
+using SistemaFinanciero.Application.Payables;
+using SistemaFinanciero.Application.Receivables;
+using SistemaFinanciero.Application.Reports;
 using SistemaFinanciero.Application.Security.Users;
+using SistemaFinanciero.Infrastructure.Adjustments;
+using SistemaFinanciero.Infrastructure.Budgets;
 using SistemaFinanciero.Infrastructure.Catalogs.Categories;
 using SistemaFinanciero.Infrastructure.Catalogs.Customers;
-using SistemaFinanciero.Infrastructure.Catalogs.ExchangeRates;
 using SistemaFinanciero.Infrastructure.Catalogs.Items;
 using SistemaFinanciero.Infrastructure.Catalogs.LedgerAccounts;
 using SistemaFinanciero.Infrastructure.Catalogs.Suppliers;
 using SistemaFinanciero.Infrastructure.Catalogs.TaxTypes;
 using SistemaFinanciero.Infrastructure.Catalogs.WithholdingTypes;
+using SistemaFinanciero.Infrastructure.Expenses;
 using SistemaFinanciero.Infrastructure.Identity;
+using SistemaFinanciero.Infrastructure.Incomes;
+using SistemaFinanciero.Infrastructure.Invoices;
 using SistemaFinanciero.Infrastructure.Parameters;
+using SistemaFinanciero.Infrastructure.Payables;
 using SistemaFinanciero.Infrastructure.Persistence;
+using SistemaFinanciero.Infrastructure.Receivables;
+using SistemaFinanciero.Infrastructure.Reports;
 
 namespace SistemaFinanciero.Infrastructure;
 
 /// <summary>
 /// Registra la persistencia y los servicios de identidad de la aplicación.
 /// </summary>
+/// <remarks>
+/// Conexiones: <c>Program.cs</c> (Web) llama a <c>AddInfrastructure</c> una sola vez al iniciar. Es el
+/// único lugar donde se asocia cada interfaz de Application (<c>ICustomerCatalogService</c>,
+/// <c>ITaxTypeService</c>, <c>ILedgerAccountService</c>, <c>ISystemParametersService</c>, etc.) con su
+/// implementación concreta de este proyecto: si un servicio nuevo no se registra aquí, la inyección de
+/// dependencias del controlador que lo necesite fallará en tiempo de ejecución.
+/// </remarks>
 public static class DependencyInjection
 {
     /// <summary>
@@ -109,11 +130,20 @@ public static class DependencyInjection
         services.AddScoped<ISupplierCatalogService, SupplierCatalogService>();
         services.AddScoped<ICatalogItemService, CatalogItemService>();
         services.AddScoped<IFinancialCategoryService, FinancialCategoryService>();
-        services.AddScoped<IDailyExchangeRateService, DailyExchangeRateService>();
         services.AddScoped<ITaxTypeService, TaxTypeService>();
         services.AddScoped<ILedgerAccountService, LedgerAccountService>();
         services.AddScoped<IWithholdingTypeService, WithholdingTypeService>();
         services.AddScoped<ISystemParametersService, SystemParametersService>();
+        services.AddScoped<IInvoiceService, InvoiceService>();
+        services.AddScoped<IReceivableService, ReceivableService>();
+        services.AddScoped<IReceivablePaymentService, ReceivablePaymentService>();
+        services.AddScoped<IIncomeService, IncomeService>();
+        services.AddScoped<IExpenseService, ExpenseService>();
+        services.AddScoped<IPayableService, PayableService>();
+        services.AddScoped<ISupplierPaymentService, SupplierPaymentService>();
+        services.AddScoped<IBudgetService, BudgetService>();
+        services.AddScoped<IReportService, ReportService>();
+        services.AddScoped<IBalanceAdjustmentService, BalanceAdjustmentService>();
 
         return services;
     }

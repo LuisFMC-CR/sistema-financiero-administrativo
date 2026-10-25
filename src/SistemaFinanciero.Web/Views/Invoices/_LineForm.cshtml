@@ -1,0 +1,61 @@
+@using SistemaFinanciero.Web.Models.Invoices
+@model InvoiceLineInputViewModel
+
+<div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+<input asp-for="Version" type="hidden" />
+<div class="row g-3">
+    <div class="col-md-6">
+        <label asp-for="CatalogItemId" class="form-label"></label>
+        <select asp-for="CatalogItemId" id="invoice-line-catalog-item" class="form-select">
+            <option value="">Sin artículo del catálogo</option>
+            @foreach (InvoiceLineCatalogItemOptionViewModel option in Model.CatalogItemOptions)
+            {
+                <option value="@option.Id" data-default-tax-type="@option.DefaultTaxTypeId">@option.Label</option>
+            }
+        </select>
+        <span asp-validation-for="CatalogItemId" class="text-danger"></span>
+        <div class="form-text">Es solo referencia; la descripción y el precio se capturan abajo.</div>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="Description" class="form-label"></label>
+        <input asp-for="Description" class="form-control" />
+        <span asp-validation-for="Description" class="text-danger"></span>
+    </div>
+    <div class="col-md-3">
+        <label asp-for="UnitOfMeasure" class="form-label"></label>
+        <input asp-for="UnitOfMeasure" class="form-control" placeholder="Ej. unidad, hora, mes" />
+        <span asp-validation-for="UnitOfMeasure" class="text-danger"></span>
+    </div>
+    <div class="col-md-3">
+        <label asp-for="Quantity" class="form-label"></label>
+        <input asp-for="Quantity" type="number" min="0.0001" step="0.0001" class="form-control" />
+        <span asp-validation-for="Quantity" class="text-danger"></span>
+    </div>
+    <div class="col-md-3">
+        <label asp-for="UnitPrice" class="form-label"></label>
+        <div class="input-group">
+            <span class="input-group-text">₡</span>
+            <input asp-for="UnitPrice" type="number" min="0" step="0.0001" class="form-control" />
+        </div>
+        <span asp-validation-for="UnitPrice" class="text-danger"></span>
+    </div>
+    <div class="col-md-3">
+        <label asp-for="DiscountAmount" class="form-label"></label>
+        <div class="input-group">
+            <span class="input-group-text">₡</span>
+            <input asp-for="DiscountAmount" type="number" min="0" step="0.01" class="form-control" />
+        </div>
+        <span asp-validation-for="DiscountAmount" class="text-danger"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="TaxTypeId" class="form-label"></label>
+        <select asp-for="TaxTypeId" id="invoice-line-tax-type" asp-items="Model.TaxTypeOptions" class="form-select">
+            <option value="">Seleccione una tarifa de IVA</option>
+        </select>
+        <span asp-validation-for="TaxTypeId" class="text-danger"></span>
+        <div class="form-text">
+            Se propone sola al elegir el producto o servicio; puede cambiarla. El IVA se calcula sobre
+            el monto neto (cantidad × precio − descuento).
+        </div>
+    </div>
+</div>

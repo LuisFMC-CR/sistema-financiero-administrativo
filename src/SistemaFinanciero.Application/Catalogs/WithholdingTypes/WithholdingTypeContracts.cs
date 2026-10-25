@@ -3,6 +3,11 @@ using SistemaFinanciero.Application.Catalogs.Common;
 namespace SistemaFinanciero.Application.Catalogs.WithholdingTypes;
 
 /// <summary>Datos requeridos para crear un tipo de retención.</summary>
+/// <remarks>
+/// Conexiones: lo recibe <c>IWithholdingTypeService.CreateAsync</c>, implementado por
+/// <c>WithholdingTypeService</c> (Infrastructure/Catalogs/WithholdingTypes); lo consume
+/// <c>WithholdingTypesController</c> (Web, ruta <c>/catalogos/tipos-retencion</c>).
+/// </remarks>
 public sealed record CreateWithholdingTypeCommand(
     string Code,
     string Name,
@@ -28,7 +33,7 @@ public sealed record WithholdingTypeModel(
     DateTimeOffset UpdatedAtUtc,
     string Version);
 
-/// <summary>Opción activa para el selector de retenciones de un abono o un pago.</summary>
+/// <summary>Opción activa para el selector de retenciones de un abono.</summary>
 public sealed record WithholdingTypeOption(Guid Id, string Code, string Name, decimal Rate);
 
 /// <summary>Casos de uso del catálogo de tipos de retención.</summary>
@@ -60,7 +65,7 @@ public interface IWithholdingTypeService
         Guid actorId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Activa o desactiva un tipo de retención sin afectar abonos o pagos existentes.</summary>
+    /// <summary>Activa o desactiva un tipo de retención sin afectar abonos existentes.</summary>
     public Task<CatalogOperationResult> SetActiveAsync(
         Guid id,
         bool isActive,

@@ -1,14 +1,19 @@
 using SistemaFinanciero.Domain.Common;
-using SistemaFinanciero.Domain.Invoices;
 
 namespace SistemaFinanciero.Domain.Catalogs;
 
 /// <summary>
-/// Representa un tipo de impuesto configurable que las líneas de factura pueden aplicar.
+/// Representa una tarifa de IVA configurable que las líneas de factura pueden aplicar.
 /// </summary>
 /// <remarks>
-/// El método de cálculo es inmutable porque cambiarlo altera el significado de la tarifa. Las facturas
-/// no dependen de estos valores después de creadas: cada línea conserva su propia fotografía.
+/// La tarifa es siempre porcentual. Las facturas no dependen de estos valores después de creadas: cada
+/// línea conserva su propia fotografía.
+///
+/// Conexiones: lo crea y edita <c>TaxTypeService</c> (Infrastructure/Catalogs/TaxTypes); se guarda en
+/// <c>catalogos.TiposImpuesto</c> vía <c>TaxTypeConfiguration</c>; lo presenta
+/// <c>TaxTypesController</c> (Web, ruta <c>/catalogos/tipos-impuesto</c>), incluido el botón que carga
+/// las tarifas de <c>ReferenceTaxTypes</c>. <see cref="Id"/> es el valor que
+/// <c>InvoiceLineTax.TaxTypeId</c> apunta cuando la línea usó un tipo de este catálogo.
 /// </remarks>
 public sealed class TaxType
 {
@@ -21,19 +26,18 @@ public sealed class TaxType
     /// <summary>Longitud máxima de la descripción.</summary>
     public const int DescriptionMaxLength = 300;
 
-    /// <summary>Tarifa máxima de un impuesto porcentual.</summary>
+    /// <summary>Tarifa máxima admitida.</summary>
     public const decimal MaxPercentageRate = 100m;
 
     private TaxType()
     {
     }
 
-    /// <summary>Crea un tipo de impuesto activo con método de cálculo fijo.</summary>
+    /// <summary>Crea una tarifa de IVA activa.</summary>
     public TaxType(
         Guid id,
         string code,
         string name,
-        TaxCalculationType calculationType,
         decimal rate,
         string? description,
         DateTimeOffset createdAtUtc,
@@ -42,8 +46,7 @@ public sealed class TaxType
         Id = DomainRules.RequiredId(id, nameof(id));
         Code = DomainRules.NormalizedCode(code, CodeMaxLength, nameof(code));
         Name = DomainRules.RequiredText(name, NameMaxLength, nameof(name));
-        CalculationType = DomainRules.DefinedEnum(calculationType, nameof(calculationType));
-        Rate = RequireRate(CalculationType, rate, nameof(rate));
+        Rate = RequireRate(rate, nameof(rate));
         Description = DomainRules.OptionalText(description, DescriptionMaxLength, nameof(description));
         CreatedAtUtc = DomainRules.RequiredUtcTimestamp(createdAtUtc, nameof(createdAtUtc));
         CreatedByUserId = DomainRules.RequiredId(createdByUserId, nameof(createdByUserId));
@@ -61,10 +64,7 @@ public sealed class TaxType
     /// <summary>Obtiene el nombre del impuesto.</summary>
     public string Name { get; private set; } = string.Empty;
 
-    /// <summary>Obtiene el método de cálculo, que no cambia después de crear el tipo.</summary>
-    public TaxCalculationType CalculationType { get; private set; }
-
-    /// <summary>Obtiene el porcentaje o el monto fijo por unidad, con cuatro decimales.</summary>
+    /// <summary>Obtiene el porcentaje de la tarifa, con cuatro decimales.</summary>
     public decimal Rate { get; private set; }
 
     /// <summary>Obtiene la descripción opcional.</summary>
@@ -88,7 +88,7 @@ public sealed class TaxType
     /// <summary>Obtiene el token de concurrencia administrado por la persistencia.</summary>
     public byte[] RowVersion { get; private set; } = [];
 
-    /// <summary>Actualiza código, nombre, tarifa y descripción sin alterar el método de cálculo.</summary>
+    /// <summary>Actualiza código, nombre, tarifa y descripción.</summary>
     public void UpdateDetails(
         string code,
         string name,
@@ -99,7 +99,7 @@ public sealed class TaxType
     {
         string normalizedCode = DomainRules.NormalizedCode(code, CodeMaxLength, nameof(code));
         string normalizedName = DomainRules.RequiredText(name, NameMaxLength, nameof(name));
-        decimal normalizedRate = RequireRate(CalculationType, rate, nameof(rate));
+        decimal normalizedRate = RequireRate(rate, nameof(rate));
         string? normalizedDescription = DomainRules.OptionalText(
             description,
             DescriptionMaxLength,
@@ -125,10 +125,7 @@ public sealed class TaxType
         SetActive(false, updatedAtUtc, updatedByUserId);
     }
 
-    private static decimal RequireRate(
-        TaxCalculationType calculationType,
-        decimal rate,
-        string parameterName)
+    private static decimal RequireRate(decimal rate, string parameterName)
     {
         decimal roundedRate = DomainRules.Round(rate, DomainRules.QuantityDecimalPlaces);
 
@@ -140,7 +137,7 @@ public sealed class TaxType
                 "La tarifa del impuesto no puede ser negativa.");
         }
 
-        if (calculationType == TaxCalculationType.Percentage && roundedRate > MaxPercentageRate)
+        if (roundedRate > MaxPercentageRate)
         {
             throw new ArgumentOutOfRangeException(
                 parameterName,

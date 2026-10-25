@@ -4,7 +4,6 @@ using Microsoft.Extensions.DependencyInjection;
 using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Catalogs.TaxTypes;
 using SistemaFinanciero.Domain.Catalogs;
-using SistemaFinanciero.Domain.Invoices;
 using SistemaFinanciero.Infrastructure.Identity;
 using SistemaFinanciero.Infrastructure.Persistence;
 
@@ -35,7 +34,6 @@ public sealed class SqlServerTaxTypeScenarioTests : IClassFixture<FinancialWebAp
             CreateTaxTypeCommand original = new(
                 code,
                 "Impuesto de integración",
-                TaxCalculationType.Percentage,
                 8.5m,
                 "Descripción original");
 
@@ -48,7 +46,6 @@ public sealed class SqlServerTaxTypeScenarioTests : IClassFixture<FinancialWebAp
             TaxTypeModel created = Assert.Single((await taxTypes.SearchAsync(
                 new CatalogQuery(code, CatalogStatusFilter.Active))).Items);
             Assert.Equal(8.5m, created.Rate);
-            Assert.Equal(TaxCalculationType.Percentage, created.CalculationType);
 
             // La búsqueda también encuentra por nombre y por descripción.
             Assert.Single((await taxTypes.SearchAsync(
@@ -70,7 +67,6 @@ public sealed class SqlServerTaxTypeScenarioTests : IClassFixture<FinancialWebAp
             Assert.Equal("Impuesto actualizado", current.Name);
             Assert.Equal(9m, current.Rate);
             Assert.Null(current.Description);
-            Assert.Equal(TaxCalculationType.Percentage, current.CalculationType);
 
             // Una tarifa porcentual por encima de 100 se rechaza en el servicio, sin llegar a la base.
             CatalogOperationResult tooHigh = await taxTypes.UpdateAsync(
@@ -109,7 +105,7 @@ public sealed class SqlServerTaxTypeScenarioTests : IClassFixture<FinancialWebAp
             if (!storedCodes.Contains(customCode))
             {
                 Assert.True((await taxTypes.CreateAsync(
-                    new CreateTaxTypeCommand(customCode, "IVA personalizado", TaxCalculationType.Percentage, 12m, null),
+                    new CreateTaxTypeCommand(customCode, "IVA personalizado", 12m, null),
                     actorId)).IsSuccess);
                 TaxTypeModel custom = Assert.Single((await taxTypes.SearchAsync(
                     new CatalogQuery(customCode, CatalogStatusFilter.Active))).Items);
@@ -160,7 +156,7 @@ public sealed class SqlServerTaxTypeScenarioTests : IClassFixture<FinancialWebAp
             ITaxTypeService taxTypes = services.GetRequiredService<ITaxTypeService>();
             string code = $"C-{Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()}";
             Assert.True((await taxTypes.CreateAsync(
-                new CreateTaxTypeCommand(code, "Restricciones", TaxCalculationType.Percentage, 13m, null),
+                new CreateTaxTypeCommand(code, "Restricciones", 13m, null),
                 actorId)).IsSuccess);
             Guid id = (await context.Set<TaxType>().SingleAsync(taxType => taxType.Code == code)).Id;
             context.ChangeTracker.Clear();
@@ -175,19 +171,10 @@ public sealed class SqlServerTaxTypeScenarioTests : IClassFixture<FinancialWebAp
                     $"UPDATE catalogos.TiposImpuesto SET Rate = -1 WHERE Id = {id}"));
             Assert.Contains("CK_TiposImpuesto_Rate", negative.ToString());
 
-            Exception undefinedType = await Assert.ThrowsAnyAsync<Exception>(() =>
-                context.Database.ExecuteSqlInterpolatedAsync(
-                    $"UPDATE catalogos.TiposImpuesto SET CalculationType = 9 WHERE Id = {id}"));
-            Assert.Contains("CK_TiposImpuesto_CalculationType", undefinedType.ToString());
-
             Exception blankCode = await Assert.ThrowsAnyAsync<Exception>(() =>
                 context.Database.ExecuteSqlInterpolatedAsync(
                     $"UPDATE catalogos.TiposImpuesto SET Code = '   ' WHERE Id = {id}"));
             Assert.Contains("CK_TiposImpuesto_Codigo_NoVacio", blankCode.ToString());
-
-            // Un monto fijo por unidad sí puede superar 100: el tope solo aplica a los porcentajes.
-            await context.Database.ExecuteSqlInterpolatedAsync(
-                $"UPDATE catalogos.TiposImpuesto SET CalculationType = 2, Rate = 250 WHERE Id = {id}");
         });
     }
 

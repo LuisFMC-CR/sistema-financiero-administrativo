@@ -1,0 +1,22 @@
+@using SistemaFinanciero.Web.Models.Expenses
+@model ExpenseHeaderEditViewModel
+@{
+    ViewData["Title"] = "Editar encabezado de gasto";
+}
+
+<div class="catalog-form">
+    <h1 class="h2">Editar encabezado de gasto</h1>
+    <p class="text-body-secondary">Solo se puede modificar mientras el gasto es borrador.</p>
+    <form method="post" class="card card-body">
+        <input asp-for="Version" type="hidden" />
+        <partial name="_HeaderForm" model="Model" />
+        <div class="d-flex gap-2 mt-4">
+            <button type="submit" class="btn btn-primary">Guardar cambios</button>
+            <a asp-action="Details" asp-route-id="@ViewContext.RouteData.Values["id"]" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

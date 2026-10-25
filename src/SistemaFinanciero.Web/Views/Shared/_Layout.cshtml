@@ -5,10 +5,14 @@
         .Any(claim => bool.TryParse(claim.Value, out bool required) && required);
     bool canViewCatalogs = isAuthenticated && !mustChangePassword &&
         (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ViewBusinessCatalogs)).Succeeded;
+    bool canViewInvoices = isAuthenticated && !mustChangePassword &&
+        (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ViewFinancialTransactions)).Succeeded;
     bool canManageUsers = isAuthenticated && !mustChangePassword &&
         (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ManageUsers)).Succeeded;
-    bool canViewParameters = isAuthenticated && !mustChangePassword &&
+    bool canViewFinancialReports = isAuthenticated && !mustChangePassword &&
         (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ViewFinancialReports)).Succeeded;
+    string sidebarBrandLabel = (isAuthenticated ? User.FindFirst(SystemClaimTypes.FullName)?.Value : null)
+        ?? "Sistema Financiero";
 }
 <html lang="es">
 <head>
@@ -28,7 +32,7 @@
             <div class="sidebar-brand">
                 <a asp-controller="Home" asp-action="Index" class="sidebar-brand-link">
                     <span class="brand-mark" aria-hidden="true">SF</span>
-                    <span class="sidebar-label">Sistema Financiero</span>
+                    <span class="sidebar-label">@sidebarBrandLabel</span>
                 </a>
                 <button class="sidebar-toggle" type="button" aria-label="Contraer menú" aria-expanded="true" aria-controls="app-sidebar" data-sidebar-toggle>
                     <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5" /></svg>
@@ -38,6 +42,31 @@
                 <a class="sidebar-link" asp-controller="Home" asp-action="Index" title="Inicio">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" /></svg><span class="sidebar-label">Inicio</span>
                 </a>
+                @if (canViewInvoices || canViewFinancialReports)
+                {
+                    <p class="sidebar-heading sidebar-label">Facturación</p>
+                    @if (canViewInvoices)
+                    {
+                        <a class="sidebar-link" asp-controller="Invoices" asp-action="Index" title="Facturas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v18l-2.5-1.5L12 21l-2.5-1.5L7 21zM9 8h6M9 12h6M9 16h3" /></svg><span class="sidebar-label">Facturas</span></a>
+                    }
+                    @if (canViewFinancialReports)
+                    {
+                        <a class="sidebar-link" asp-controller="Receivables" asp-action="Index" title="Cuentas por cobrar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10h18M3 6h18v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1zM7 14h4" /></svg><span class="sidebar-label">Cuentas por cobrar</span></a>
+                        <a class="sidebar-link" asp-controller="Incomes" asp-action="Index" title="Ingresos"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14" /></svg><span class="sidebar-label">Ingresos</span></a>
+                    }
+                }
+                @if (canViewInvoices || canViewFinancialReports)
+                {
+                    <p class="sidebar-heading sidebar-label">Gastos</p>
+                    @if (canViewInvoices)
+                    {
+                        <a class="sidebar-link" asp-controller="Expenses" asp-action="Index" title="Gastos"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v18l-2.5-1.5L12 21l-2.5-1.5L7 21zM9 8h6M9 12h6M9 16h3" /></svg><span class="sidebar-label">Gastos</span></a>
+                    }
+                    @if (canViewFinancialReports)
+                    {
+                        <a class="sidebar-link" asp-controller="Payables" asp-action="Index" title="Cuentas por pagar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10h18M3 6h18v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1zM7 14h4" /></svg><span class="sidebar-label">Cuentas por pagar</span></a>
+                    }
+                }
                 @if (canViewCatalogs)
                 {
                     <p class="sidebar-heading sidebar-label">Catálogos</p>
@@ -46,13 +75,18 @@
                     <a class="sidebar-link" asp-controller="CatalogItems" asp-action="Index" title="Productos y servicios"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 8-9 5-9-5 9-5zM3 8v8l9 5 9-5V8" /></svg><span class="sidebar-label">Productos y servicios</span></a>
                     <a class="sidebar-link" asp-controller="FinancialCategories" asp-action="Index" title="Categorías financieras"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zm10 0h6v6h-6zM9 14h6v6H9zM7 10v2h10v-2m-5 2v2" /></svg><span class="sidebar-label">Categorías financieras</span></a>
                     <a class="sidebar-link" asp-controller="LedgerAccounts" asp-action="Index" title="Cuentas contables"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h16M8 5v14" /></svg><span class="sidebar-label">Cuentas contables</span></a>
-                    <a class="sidebar-link" asp-controller="ExchangeRates" asp-action="Index" title="Tipos de cambio"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v18m10-18v18M4 7h10a3 3 0 0 1 0 6H10a3 3 0 0 0 0 6h10" /></svg><span class="sidebar-label">Tipos de cambio</span></a>
                     <p class="sidebar-heading sidebar-label">Impuestos y Retenciones</p>
                     <a class="sidebar-link" asp-controller="TaxTypes" asp-action="Index" title="Tipos de impuesto"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19 19 5M7.5 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm9 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z" /></svg><span class="sidebar-label">Tipos de impuesto</span></a>
                     <a class="sidebar-link" asp-controller="WithholdingTypes" asp-action="Index" title="Tipos de retención"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14" /></svg><span class="sidebar-label">Tipos de retención</span></a>
                 }
-                @if (canViewParameters)
+                @if (canViewFinancialReports)
                 {
+                    <p class="sidebar-heading sidebar-label">Presupuesto</p>
+                    <a class="sidebar-link" asp-controller="Budgets" asp-action="Index" title="Presupuesto"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5a1 1 0 0 1 1-1h11l4 4v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM16 4v4h4M8 13h8M8 17h5" /></svg><span class="sidebar-label">Presupuesto</span></a>
+                    <p class="sidebar-heading sidebar-label">Consultas</p>
+                    <a class="sidebar-link" asp-controller="Queries" asp-action="Index" title="Consultas"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg><span class="sidebar-label">Consultas</span></a>
+                    <p class="sidebar-heading sidebar-label">Reportes</p>
+                    <a class="sidebar-link" asp-controller="Reports" asp-action="Index" title="Reportes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5a1 1 0 0 1 1-1h11l4 4v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM16 4v4h4M8 11h8v6H8z" /></svg><span class="sidebar-label">Reportes</span></a>
                     <p class="sidebar-heading sidebar-label">Mantenimiento</p>
                     <a class="sidebar-link" asp-controller="SystemParameters" asp-action="Index" title="Parámetros del sistema"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v3m0 12v3m9-9h-3M6 12H3m14.5-6.5-2.1 2.1M8.6 15.4l-2.1 2.1m11-2.1 2.1 2.1M8.6 8.6 6.5 6.5" /><circle cx="12" cy="12" r="3" /></svg><span class="sidebar-label">Parámetros del sistema</span></a>
                 }
@@ -75,6 +109,17 @@
             <footer class="app-footer">&copy; 2026 - Sistema web de control financiero-administrativo</footer>
         </div>
     </div>
+}
+else if (ViewData["FullBleed"] as bool? == true)
+{
+    bool hasFlashMessage = TempData.Peek("SuccessMessage") is string || TempData.Peek("ErrorMessage") is string;
+    <main role="main">
+        @if (hasFlashMessage)
+        {
+            <div class="container pt-3"><partial name="_FlashMessages" /></div>
+        }
+        @RenderBody()
+    </main>
 }
 else
 {

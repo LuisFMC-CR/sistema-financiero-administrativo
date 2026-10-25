@@ -5,6 +5,11 @@ namespace SistemaFinanciero.Web.Models.Account;
 /// <summary>
 /// Datos necesarios para autenticar a un usuario interno.
 /// </summary>
+/// <remarks>
+/// Conexiones: la recibe <c>AccountController.Login</c>, que usa <c>SignInManager&lt;ApplicationUser&gt;</c>
+/// de Identity directamente (no pasa por <c>IUserAccountService</c>). La vista es
+/// <c>Views/Account/Login.cshtml</c>.
+/// </remarks>
 public sealed class LoginViewModel
 {
     [Required(ErrorMessage = "El correo electrónico es obligatorio.")]

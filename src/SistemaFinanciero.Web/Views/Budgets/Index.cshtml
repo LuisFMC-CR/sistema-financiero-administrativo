@@ -1,0 +1,59 @@
+@using SistemaFinanciero.Application.Budgets
+@using SistemaFinanciero.Web.Models.Budgets
+@model BudgetIndexViewModel
+@{
+    ViewData["Title"] = "Presupuesto";
+    DateOnly currentPeriod = new(Model.PeriodYear, Model.PeriodMonth, 1);
+    DateOnly previousPeriod = currentPeriod.AddMonths(-1);
+    DateOnly nextPeriod = currentPeriod.AddMonths(1);
+    // La aplicación fija la cultura es-CR en Program.cs, así que el mes sale en español sin indicarla aquí.
+    string periodLabel = currentPeriod.ToString("MMMM yyyy");
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+    <div>
+        <h1 class="h2 mb-1">Presupuesto</h1>
+        <p class="text-body-secondary mb-0">Mensual, por categoría de gasto de último nivel; las superiores solo suman.</p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <a class="btn btn-outline-secondary btn-sm" asp-action="Index" asp-route-year="@previousPeriod.Year" asp-route-month="@previousPeriod.Month">« Anterior</a>
+        <span class="fw-semibold text-capitalize">@periodLabel</span>
+        <a class="btn btn-outline-secondary btn-sm" asp-action="Index" asp-route-year="@nextPeriod.Year" asp-route-month="@nextPeriod.Month">Siguiente »</a>
+    </div>
+</div>
+
+<div class="table-responsive bg-white border rounded">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th scope="col">Categoría</th>
+                <th scope="col" class="text-end">Presupuestado</th>
+                <th scope="col" class="text-end">Ejecutado</th>
+                <th scope="col" class="text-end">Disponible</th>
+                <th scope="col" class="text-end">Variación</th>
+                <th scope="col" class="text-end">Variación %</th>
+                <th scope="col" class="text-end">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.Results.Count == 0)
+            {
+                <tr><td colspan="7" class="text-center text-body-secondary py-4">No hay categorías de gasto de último nivel activas.</td></tr>
+            }
+            @foreach (BudgetModel budget in Model.Results)
+            {
+                <tr>
+                    <td>@budget.CategoryCode - @budget.CategoryName</td>
+                    <td class="text-end">@(budget.BudgetedAmount is decimal budgeted ? $"₡{budgeted:N2}" : "Sin presupuesto")</td>
+                    <td class="text-end">₡@budget.ExecutedAmount.ToString("N2")</td>
+                    <td class="text-end">@(budget.AvailableAmount is decimal available ? $"₡{available:N2}" : "—")</td>
+                    <td class="text-end @(budget.VarianceAmount is > 0 ? "text-danger" : null)">@(budget.VarianceAmount is decimal variance ? $"₡{variance:N2}" : "—")</td>
+                    <td class="text-end">@(budget.VariancePercent is decimal percent ? percent.ToString("P1") : "—")</td>
+                    <td class="text-end">
+                        <a asp-action="Edit" asp-route-categoryId="@budget.CategoryId" asp-route-year="@Model.PeriodYear" asp-route-month="@Model.PeriodMonth" class="btn btn-sm btn-outline-primary">Editar</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

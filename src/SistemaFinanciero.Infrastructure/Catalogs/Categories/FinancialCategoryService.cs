@@ -9,6 +9,14 @@ namespace SistemaFinanciero.Infrastructure.Catalogs.Categories;
 /// <summary>
 /// Ejecuta los casos de uso y las reglas jerárquicas de categorías financieras.
 /// </summary>
+/// <remarks>
+/// Conexiones: implementa <c>IFinancialCategoryService</c> (Application); se registra en
+/// <c>DependencyInjection.AddInfrastructure</c>; lo inyecta <c>FinancialCategoriesController</c> (Web).
+/// Lee y escribe <c>FinancialDbContext.FinancialCategories</c> (tabla
+/// <c>catalogos.CategoriasFinancieras</c>) y valida <c>LedgerAccountId</c> contra
+/// <c>FinancialDbContext.LedgerAccounts</c>, con la misma lógica de jerarquía (sin ciclos, padre del
+/// mismo tipo) que repite <c>LedgerAccountService</c>.
+/// </remarks>
 internal sealed class FinancialCategoryService(
     FinancialDbContext dbContext,
     TimeProvider timeProvider) : IFinancialCategoryService
@@ -152,9 +160,23 @@ internal sealed class FinancialCategoryService(
 
         try
         {
+            string code = command.Kind == FinancialCategoryKind.Income
+                ? await CatalogPersistence.GenerateSequentialCodeAsync(
+                    dbContext,
+                    "catalogos.Seq_CategoriaIngresoCodigo",
+                    "ING",
+                    3,
+                    cancellationToken)
+                : await CatalogPersistence.GenerateSequentialCodeAsync(
+                    dbContext,
+                    "catalogos.Seq_CategoriaGastoCodigo",
+                    "GAS",
+                    3,
+                    cancellationToken);
+
             FinancialCategory category = new(
                 Guid.NewGuid(),
-                command.Code,
+                code,
                 command.Name,
                 command.Kind,
                 command.ParentId,
@@ -232,7 +254,6 @@ internal sealed class FinancialCategoryService(
         {
             DateTimeOffset now = timeProvider.GetUtcNow();
             category.UpdateDetails(
-                command.Code,
                 command.Name,
                 command.Description,
                 now,

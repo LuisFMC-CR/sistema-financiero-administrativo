@@ -12,6 +12,14 @@ namespace SistemaFinanciero.Web.Controllers;
 /// <summary>
 /// Expone únicamente las operaciones de cuenta necesarias para usuarios internos.
 /// </summary>
+/// <remarks>
+/// Conexiones: usa <c>UserManager</c>/<c>SignInManager</c> de Identity directamente para
+/// <c>Login</c>/<c>Logout</c>, e <c>IUserAccountService</c> (Application) para
+/// <c>ChangePassword</c>. <c>ChangePassword</c> y <c>Logout</c> llevan
+/// <c>[AllowBeforePasswordChange]</c> porque son las únicas acciones que
+/// <c>PasswordChangeRequirementMiddleware</c> deja pasar con una contraseña temporal pendiente. No
+/// existe registro público: toda cuenta la crea un Administrador desde <c>UsersController</c>.
+/// </remarks>
 [Route("cuenta")]
 public sealed partial class AccountController(
     UserManager<ApplicationUser> userManager,

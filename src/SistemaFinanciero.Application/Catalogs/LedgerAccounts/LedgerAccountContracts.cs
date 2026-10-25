@@ -1,30 +1,33 @@
 using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Domain.Catalogs;
-using SistemaFinanciero.Domain.Currencies;
 
 namespace SistemaFinanciero.Application.Catalogs.LedgerAccounts;
 
 /// <summary>
-/// Datos requeridos para crear una cuenta contable. Una cuenta de efectivo indica subtipo y moneda.
+/// Datos requeridos para crear una cuenta contable de detalle. El código lo calcula el servicio como
+/// el siguiente hijo libre de <see cref="ParentId"/> (regla 12); el tipo se hereda de la cuenta
+/// superior. Una cuenta de efectivo indica su subtipo.
 /// </summary>
+/// <remarks>
+/// Conexiones: lo recibe <c>ILedgerAccountService.CreateAsync</c>, implementado por
+/// <c>LedgerAccountService</c> (Infrastructure/Catalogs/LedgerAccounts), consumido por
+/// <c>LedgerAccountsController</c> (Web, ruta <c>/catalogos/cuentas-contables</c>). El usuario solo
+/// agrega cuentas de detalle dentro de los grupos del catálogo base (regla 13): por eso
+/// <see cref="ParentId"/> es obligatorio y no hay un parámetro de tipo ni de código.
+/// </remarks>
 public sealed record CreateLedgerAccountCommand(
-    string Code,
     string Name,
-    LedgerAccountType Type,
-    Guid? ParentId,
+    Guid ParentId,
     CashAccountKind? CashKind,
-    CurrencyCode? Currency,
     string? Reference,
     string? Description);
 
 /// <summary>
-/// Datos editables de una cuenta existente; tipo, subtipo de efectivo y moneda se omiten porque son
-/// inmutables.
+/// Datos editables de una cuenta existente; código, tipo, subtipo de efectivo y cuenta superior se
+/// omiten porque son inmutables (regla 12).
 /// </summary>
 public sealed record UpdateLedgerAccountCommand(
-    string Code,
     string Name,
-    Guid? ParentId,
     string? Reference,
     string? Description);
 
@@ -37,10 +40,10 @@ public sealed record LedgerAccountModel(
     Guid? ParentId,
     string? ParentName,
     CashAccountKind? CashKind,
-    CurrencyCode? Currency,
     string? Reference,
     string? Description,
     bool IsActive,
+    bool IsProtected,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc,
     string Version)
@@ -57,8 +60,7 @@ public sealed record CashAccountOption(
     Guid Id,
     string Code,
     string Name,
-    CashAccountKind CashKind,
-    CurrencyCode Currency);
+    CashAccountKind CashKind);
 
 /// <summary>Casos de uso del catálogo de cuentas contables jerárquicas.</summary>
 public interface ILedgerAccountService
@@ -85,9 +87,8 @@ public interface ILedgerAccountService
         LedgerAccountType type,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Lista las cajas y bancos activos, opcionalmente de una sola moneda.</summary>
+    /// <summary>Lista las cajas y bancos activos.</summary>
     public Task<IReadOnlyList<CashAccountOption>> GetActiveCashAccountsAsync(
-        CurrencyCode? currency = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>Crea una cuenta contable.</summary>

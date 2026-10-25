@@ -7,6 +7,13 @@ namespace SistemaFinanciero.Infrastructure.Identity;
 /// </summary>
 /// <remarks>
 /// Los usuarios se desactivan de forma lógica para conservar la trazabilidad de sus operaciones.
+///
+/// Conexiones: es el <c>TUser</c> de Identity en <c>FinancialDbContext</c> (tabla
+/// <c>seguridad.Usuarios</c>); todas las entidades de negocio apuntan a su <see cref="IdentityUser{T}.Id"/>
+/// en sus columnas <c>CreatedByUserId</c>/<c>UpdatedByUserId</c>, sin referencia de objeto (viven en
+/// proyectos distintos). <c>UserAdministrationService</c> lo administra; <c>UserAccountService</c>
+/// cambia su contraseña; <c>ApplicationUserClaimsPrincipalFactory</c> lee
+/// <see cref="MustChangePassword"/> al iniciar sesión.
 /// </remarks>
 public sealed class ApplicationUser : IdentityUser<Guid>
 {

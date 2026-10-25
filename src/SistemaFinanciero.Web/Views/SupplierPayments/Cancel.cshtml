@@ -1,0 +1,30 @@
+@using SistemaFinanciero.Web.Models.Payables
+@model SupplierPaymentCancelViewModel
+@{
+    ViewData["Title"] = "Anular pago";
+}
+
+<div class="catalog-form">
+    <h1 class="h2">Anular pago</h1>
+    <p class="text-body-secondary">
+        Referencia @Model.ReferenceLabel por ₡@Model.Amount.ToString("N2"). La anulación no se revierte
+        y restituye el saldo de la cuenta por pagar.
+    </p>
+    <form method="post" class="card card-body">
+        <input asp-for="Version" type="hidden" />
+        <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+        <div class="mb-3">
+            <label asp-for="Reason" class="form-label"></label>
+            <textarea asp-for="Reason" class="form-control" rows="3"></textarea>
+            <span asp-validation-for="Reason" class="text-danger"></span>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-danger">Confirmar anulación</button>
+            <a asp-controller="Payables" asp-action="Index" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

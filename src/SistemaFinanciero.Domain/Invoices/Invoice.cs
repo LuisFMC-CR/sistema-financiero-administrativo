@@ -1,9 +1,17 @@
 using SistemaFinanciero.Domain.Common;
-using SistemaFinanciero.Domain.Currencies;
 
 namespace SistemaFinanciero.Domain.Invoices;
 
 /// <summary>Factura administrativa que conserva sus líneas y valores al confirmarse.</summary>
+/// <remarks>
+/// Conexiones: se guarda en <c>finanzas.Facturas</c> vía <c>InvoiceConfiguration</c>, con sus líneas
+/// (<see cref="InvoiceLine"/>) en cascada. <see cref="CustomerId"/> apunta a <c>Customer</c>. Hoy no
+/// existe ningún <c>IInvoiceService</c> ni <c>InvoicesController</c>: solo hay dominio, persistencia y
+/// pruebas (<c>InvoiceDraftEditingTests</c>, <c>InvoiceConfirmationTests</c>,
+/// <c>SqlServerInvoiceScenarioTests</c>...). Nadie puede crear una factura desde el navegador todavía;
+/// es el primer bloque pendiente del paso 2 de <c>CLAUDE.md</c>. Al confirmarse, debería generar una
+/// cuenta por cobrar (crédito) o un ingreso (contado), pero esas entidades tampoco existen aún.
+/// </remarks>
 public sealed class Invoice
 {
     private readonly List<InvoiceLine> lines = [];
@@ -13,25 +21,22 @@ public sealed class Invoice
     }
 
     /// <summary>
-    /// Crea un borrador de factura para un cliente en una única moneda. Una factura a crédito exige
-    /// fecha de vencimiento; una de contado no la admite.
+    /// Crea un borrador de factura para un cliente. El vencimiento no se recibe: se calcula a partir
+    /// del plazo de pago (regla 14).
     /// </summary>
     public Invoice(
         Guid id,
         Guid customerId,
         DateOnly issueDate,
-        CurrencyCode currency,
         PaymentTerm paymentTerm,
-        DateOnly? dueDate,
         DateTimeOffset createdAtUtc,
         Guid createdByUserId)
     {
         Id = DomainRules.RequiredId(id, nameof(id));
         CustomerId = DomainRules.RequiredId(customerId, nameof(customerId));
         IssueDate = RequireDate(issueDate, nameof(issueDate));
-        Currency = DomainRules.DefinedEnum(currency, nameof(currency));
         PaymentTerm = DomainRules.DefinedEnum(paymentTerm, nameof(paymentTerm));
-        DueDate = RequireDueDate(PaymentTerm, IssueDate, dueDate, nameof(dueDate));
+        DueDate = CalculateDueDate(PaymentTerm, IssueDate);
         CreatedAtUtc = DomainRules.RequiredUtcTimestamp(createdAtUtc, nameof(createdAtUtc));
         CreatedByUserId = DomainRules.RequiredId(createdByUserId, nameof(createdByUserId));
         UpdatedAtUtc = CreatedAtUtc;
@@ -42,17 +47,16 @@ public sealed class Invoice
     /// <summary>Identificador técnico estable de la factura.</summary>
     public Guid Id { get; private set; }
 
-    /// <summary>Consecutivo administrativo generado al guardar la factura.</summary>
-    public long Number { get; private set; }
+    /// <summary>
+    /// Consecutivo administrativo (RF-34), asignado solo al confirmar; un borrador no tiene número.
+    /// </summary>
+    public long? Number { get; private set; }
 
     /// <summary>Cliente de origen de la factura.</summary>
     public Guid CustomerId { get; private set; }
 
     /// <summary>Fecha de negocio de la factura.</summary>
     public DateOnly IssueDate { get; private set; }
-
-    /// <summary>Moneda única usada por todos los importes de la factura.</summary>
-    public CurrencyCode Currency { get; private set; }
 
     /// <summary>Condición de pago: contado o crédito.</summary>
     public PaymentTerm PaymentTerm { get; private set; }
@@ -77,9 +81,6 @@ public sealed class Invoice
 
     /// <summary>Total final a cobrar.</summary>
     public decimal TotalAmount { get; private set; }
-
-    /// <summary>Tasa CRC por USD conservada al confirmar una factura USD.</summary>
-    public decimal? ConfirmedCrcPerUsd { get; private set; }
 
     /// <summary>Instante UTC de confirmación, cuando corresponde.</summary>
     public DateTimeOffset? ConfirmedAtUtc { get; private set; }
@@ -116,14 +117,13 @@ public sealed class Invoice
 
     /// <summary>
     /// Modifica los datos del encabezado mientras la factura es borrador. Valida el conjunto completo
-    /// antes de asignar, y no permite cambiar la moneda cuando ya existen líneas.
+    /// antes de asignar y recalcula el vencimiento a partir del plazo de pago (regla 14); el
+    /// vencimiento no se recibe como dato.
     /// </summary>
     public void UpdateHeader(
         Guid customerId,
         DateOnly issueDate,
-        CurrencyCode currency,
         PaymentTerm paymentTerm,
-        DateOnly? dueDate,
         DateTimeOffset updatedAtUtc,
         Guid updatedByUserId)
     {
@@ -131,21 +131,13 @@ public sealed class Invoice
 
         Guid validCustomerId = DomainRules.RequiredId(customerId, nameof(customerId));
         DateOnly validIssueDate = RequireDate(issueDate, nameof(issueDate));
-        CurrencyCode validCurrency = DomainRules.DefinedEnum(currency, nameof(currency));
         PaymentTerm validPaymentTerm = DomainRules.DefinedEnum(paymentTerm, nameof(paymentTerm));
-        DateOnly? validDueDate = RequireDueDate(validPaymentTerm, validIssueDate, dueDate, nameof(dueDate));
-
-        if (validCurrency != Currency && lines.Count > 0)
-        {
-            throw new InvalidOperationException("No se puede cambiar la moneda de una factura que ya tiene líneas.");
-        }
 
         Touch(updatedAtUtc, updatedByUserId);
         CustomerId = validCustomerId;
         IssueDate = validIssueDate;
-        Currency = validCurrency;
         PaymentTerm = validPaymentTerm;
-        DueDate = validDueDate;
+        DueDate = CalculateDueDate(validPaymentTerm, validIssueDate);
     }
 
     /// <summary>Agrega una línea al final, únicamente mientras la factura es borrador.</summary>
@@ -200,8 +192,12 @@ public sealed class Invoice
         RecalculateTotals();
     }
 
-    /// <summary>Confirma el documento y fija la tasa histórica requerida por la moneda.</summary>
-    public void Confirm(decimal? crcPerUsd, DateTimeOffset confirmedAtUtc, Guid confirmedByUserId)
+    /// <summary>
+    /// Confirma el documento y le asigna su consecutivo (RF-34). El número lo calcula quien llama
+    /// (una secuencia de SQL Server, regla 12) porque el dominio no conoce la base de datos; este
+    /// método solo exige que sea positivo y nunca lo vuelve a cambiar.
+    /// </summary>
+    public void Confirm(DateTimeOffset confirmedAtUtc, Guid confirmedByUserId, long number)
     {
         EnsureDraft();
 
@@ -210,13 +206,14 @@ public sealed class Invoice
             throw new InvalidOperationException("No se puede confirmar una factura sin líneas.");
         }
 
-        // Todo se valida antes de asignar: si algún dato es inválido, la factura sigue siendo borrador.
-        decimal? confirmedRate = Currency == CurrencyCode.USD
-            ? RequirePositiveRate(crcPerUsd)
-            : null;
+        if (number <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(number), number, "El número de factura debe ser mayor que cero.");
+        }
+
         Touch(confirmedAtUtc, confirmedByUserId);
 
-        ConfirmedCrcPerUsd = confirmedRate;
+        Number = number;
         ConfirmedByUserId = confirmedByUserId;
         ConfirmedAtUtc = confirmedAtUtc;
         Status = InvoiceStatus.Confirmed;
@@ -292,39 +289,10 @@ public sealed class Invoice
         ? value
         : throw new ArgumentException("La fecha de emisión es obligatoria.", parameterName);
 
-    private static DateOnly? RequireDueDate(
-        PaymentTerm paymentTerm,
-        DateOnly issueDate,
-        DateOnly? dueDate,
-        string parameterName)
-    {
-        if (paymentTerm == PaymentTerm.Cash)
-        {
-            return dueDate is null
-                ? null
-                : throw new ArgumentException("Una factura de contado no tiene fecha de vencimiento.", parameterName);
-        }
-
-        if (dueDate is null)
-        {
-            throw new ArgumentException("Una factura a crédito requiere fecha de vencimiento.", parameterName);
-        }
-
-        return dueDate.Value >= issueDate
-            ? dueDate
-            : throw new ArgumentOutOfRangeException(
-                parameterName,
-                dueDate,
-                "El vencimiento no puede ser anterior a la fecha de emisión.");
-    }
-
-    private static decimal RequirePositiveRate(decimal? value)
-    {
-        if (value is null || value <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(value), "La factura USD requiere una tasa positiva.");
-        }
-
-        return DomainRules.Round(value.Value, ExchangeRate.RateDecimalPlaces);
-    }
+    // Regla 14: el vencimiento no se digita, se calcula como la fecha de emisión más los días de
+    // crédito del plazo. De contado no tiene vencimiento.
+    private static DateOnly? CalculateDueDate(PaymentTerm paymentTerm, DateOnly issueDate) =>
+        paymentTerm == PaymentTerm.Cash
+            ? null
+            : issueDate.AddDays(PaymentTermDays.GetDays(paymentTerm));
 }

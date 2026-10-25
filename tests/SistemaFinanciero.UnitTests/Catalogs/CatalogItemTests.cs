@@ -14,6 +14,7 @@ public sealed class CatalogItemTests
     public void Constructor_NormalizesTextAndKeepsFourReferencePriceDecimals()
     {
         Guid categoryId = Guid.NewGuid();
+        Guid taxTypeId = Guid.NewGuid();
 
         CatalogItem item = new(
             Guid.NewGuid(),
@@ -23,8 +24,8 @@ public sealed class CatalogItemTests
             " Atención remota ",
             " mes ",
             123.45678m,
-            1.23444m,
             categoryId,
+            taxTypeId,
             CreatedAtUtc,
             CreatorId);
 
@@ -34,19 +35,19 @@ public sealed class CatalogItemTests
         Assert.Equal("Atención remota", item.Description);
         Assert.Equal("mes", item.UnitOfMeasure);
         Assert.Equal(123.4568m, item.ReferencePriceCrc);
-        Assert.Equal(1.2344m, item.ReferencePriceUsd);
         Assert.Equal(categoryId, item.DefaultIncomeCategoryId);
+        Assert.Equal(taxTypeId, item.DefaultTaxTypeId);
         Assert.True(item.IsActive);
     }
 
     [Fact]
-    public void Constructor_AllowsMissingReferencePricesAndCategory()
+    public void Constructor_AllowsMissingReferencePriceAndCategory()
     {
-        CatalogItem item = CreateItem(referencePriceCrc: null, referencePriceUsd: null);
+        CatalogItem item = CreateItem(referencePriceCrc: null);
 
         Assert.Null(item.ReferencePriceCrc);
-        Assert.Null(item.ReferencePriceUsd);
         Assert.Null(item.DefaultIncomeCategoryId);
+        Assert.Null(item.DefaultTaxTypeId);
     }
 
     [Theory]
@@ -57,36 +58,35 @@ public sealed class CatalogItemTests
         decimal invalidPrice)
     {
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            CreateItem(referencePriceCrc: invalidPrice, referencePriceUsd: null));
+            CreateItem(referencePriceCrc: invalidPrice));
     }
 
     [Fact]
     public void UpdateDetails_ChangesEditableValuesAndAudit()
     {
-        CatalogItem item = CreateItem(referencePriceCrc: 100m, referencePriceUsd: null);
+        CatalogItem item = CreateItem(referencePriceCrc: 100m);
         Guid categoryId = Guid.NewGuid();
+        Guid taxTypeId = Guid.NewGuid();
         DateTimeOffset changedAtUtc = CreatedAtUtc.AddMinutes(5);
 
         item.UpdateDetails(
-            " prod-002 ",
             " Equipo ",
-            CatalogItemType.Product,
             " ",
             " unidad ",
-            null,
             20.12345m,
             categoryId,
+            taxTypeId,
             changedAtUtc,
             EditorId);
 
-        Assert.Equal("PROD-002", item.Code);
+        Assert.Equal("ITEM-001", item.Code);
         Assert.Equal("Equipo", item.Name);
-        Assert.Equal(CatalogItemType.Product, item.Type);
+        Assert.Equal(CatalogItemType.Service, item.Type);
         Assert.Null(item.Description);
         Assert.Equal("unidad", item.UnitOfMeasure);
-        Assert.Null(item.ReferencePriceCrc);
-        Assert.Equal(20.1235m, item.ReferencePriceUsd);
+        Assert.Equal(20.1235m, item.ReferencePriceCrc);
         Assert.Equal(categoryId, item.DefaultIncomeCategoryId);
+        Assert.Equal(taxTypeId, item.DefaultTaxTypeId);
         Assert.Equal(changedAtUtc, item.UpdatedAtUtc);
         Assert.Equal(EditorId, item.UpdatedByUserId);
     }
@@ -108,7 +108,7 @@ public sealed class CatalogItemTests
             CreatorId));
     }
 
-    private static CatalogItem CreateItem(decimal? referencePriceCrc, decimal? referencePriceUsd)
+    private static CatalogItem CreateItem(decimal? referencePriceCrc)
     {
         return new CatalogItem(
             Guid.NewGuid(),
@@ -118,7 +118,7 @@ public sealed class CatalogItemTests
             null,
             "unidad",
             referencePriceCrc,
-            referencePriceUsd,
+            null,
             null,
             CreatedAtUtc,
             CreatorId);

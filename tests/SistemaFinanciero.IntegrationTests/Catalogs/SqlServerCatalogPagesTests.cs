@@ -129,17 +129,23 @@ public sealed class SqlServerCatalogPagesTests : IClassFixture<FinancialWebAppli
         LedgerAccount account = (await FindAnyAsync<LedgerAccount>(candidate => candidate.Id == category.LedgerAccountId))!;
         using HttpClient client = CreateFinanceClient();
 
-        using HttpResponseMessage list = await client.GetAsync("/catalogos/categorias-financieras?status=All");
+        // Con el catálogo base ya hay varias categorías reales: se filtra por código para que la
+        // encontrada no quede fuera de la primera página.
+        using HttpResponseMessage list = await client.GetAsync(
+            $"/catalogos/categorias-financieras?status=All&search={Uri.EscapeDataString(category.Code)}");
         string listBody = await list.Content.ReadAsStringAsync();
         Assert.True(list.IsSuccessStatusCode, listBody);
         Assert.Contains("Cuenta contable", listBody);
-        Assert.Contains(System.Net.WebUtility.HtmlEncode($"{account.Code} - {account.Name}"), listBody);
+        // El nombre puede llevar tildes: Razor las codifica con HtmlEncoder.Default (referencias
+        // numéricas hexadecimales, p. ej. &#xE9;), distinto de WebUtility.HtmlEncode (decimales).
+        string encodedLabel = $"{account.Code} - {HtmlEncoder.Default.Encode(account.Name)}";
+        Assert.Contains(encodedLabel, listBody);
 
         using HttpResponseMessage edit = await client.GetAsync($"/catalogos/categorias-financieras/editar/{category.Id}");
         string editBody = await edit.Content.ReadAsStringAsync();
         Assert.True(edit.IsSuccessStatusCode, editBody);
         Assert.Contains("financial-category-ledger-account", editBody);
-        Assert.Contains(System.Net.WebUtility.HtmlEncode($"{account.Code} - {account.Name}"), editBody);
+        Assert.Contains(encodedLabel, editBody);
     }
 
     [Fact]

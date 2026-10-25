@@ -1,6 +1,5 @@
 using System.ComponentModel.DataAnnotations;
 using SistemaFinanciero.Domain.Catalogs;
-using SistemaFinanciero.Domain.Invoices;
 using SistemaFinanciero.Web.Models.Catalogs;
 
 namespace SistemaFinanciero.IntegrationTests.Catalogs;
@@ -8,16 +7,14 @@ namespace SistemaFinanciero.IntegrationTests.Catalogs;
 public sealed class CatalogViewModelValidationTests
 {
     [Fact]
-    public void CatalogItem_AllowsBothReferencePricesToRemainUndefined()
+    public void CatalogItem_AllowsTheReferencePriceToRemainUndefined()
     {
         CatalogItemInputViewModel model = new()
         {
-            Code = "SRV-001",
             Name = "Servicio variable",
             Type = CatalogItemType.Service,
             UnitOfMeasure = "hora",
             ReferencePriceCrc = null,
-            ReferencePriceUsd = null,
         };
 
         Assert.Empty(Validate(model));
@@ -28,7 +25,6 @@ public sealed class CatalogViewModelValidationTests
     {
         CatalogItemInputViewModel model = new()
         {
-            Code = "PROD-001",
             Name = "Producto",
             Type = CatalogItemType.Product,
             UnitOfMeasure = "unidad",
@@ -45,16 +41,39 @@ public sealed class CatalogViewModelValidationTests
     {
         CustomerInputViewModel model = new()
         {
-            Code = new string('A', 31),
+            Identification = new string('I', 51),
             Name = new string('N', 151),
             Phone = new string('1', 31),
         };
 
         List<ValidationResult> results = Validate(model);
 
-        Assert.Contains(results, result => result.MemberNames.Contains(nameof(model.Code)));
+        Assert.Contains(results, result => result.MemberNames.Contains(nameof(model.Identification)));
         Assert.Contains(results, result => result.MemberNames.Contains(nameof(model.Name)));
         Assert.Contains(results, result => result.MemberNames.Contains(nameof(model.Phone)));
+    }
+
+    [Fact]
+    public void Contact_RequiresIdentification()
+    {
+        CustomerInputViewModel model = new() { Name = "Cliente", Identification = string.Empty };
+
+        Assert.Contains(
+            Validate(model),
+            result => result.MemberNames.Contains(nameof(model.Identification)));
+    }
+
+    [Fact]
+    public void Supplier_AllowsAnOptionalEconomicActivity()
+    {
+        SupplierInputViewModel model = new()
+        {
+            Name = "Proveedor",
+            Identification = "3-101-000001",
+            EconomicActivity = null,
+        };
+
+        Assert.Empty(Validate(model));
     }
 
     [Fact]
@@ -64,7 +83,6 @@ public sealed class CatalogViewModelValidationTests
         {
             Code = "IVA-0",
             Name = "IVA 0 %",
-            CalculationType = TaxCalculationType.Percentage,
             Rate = 0m,
         };
 
@@ -79,21 +97,6 @@ public sealed class CatalogViewModelValidationTests
         Assert.Contains(
             Validate(model),
             result => result.MemberNames.Contains(nameof(model.Rate)));
-    }
-
-    [Fact]
-    public void TaxType_RejectsAnUndefinedCalculationType()
-    {
-        TaxTypeCreateViewModel model = new()
-        {
-            Code = "IVA",
-            Name = "IVA",
-            CalculationType = (TaxCalculationType)99,
-        };
-
-        Assert.Contains(
-            Validate(model),
-            result => result.MemberNames.Contains(nameof(model.CalculationType)));
     }
 
     [Fact]
@@ -128,63 +131,47 @@ public sealed class CatalogViewModelValidationTests
     }
 
     [Fact]
-    public void LedgerAccount_AllowsACashAssetAndANonCashAccountOfAnyType()
+    public void LedgerAccount_AllowsACashAccountAndANonCashAccountWithAParent()
     {
-        LedgerAccountCreateViewModel cashAsset = new()
+        LedgerAccountCreateViewModel cashAccount = new()
         {
-            Code = "BCO",
             Name = "Banco",
-            Type = LedgerAccountType.Asset,
+            ParentId = Guid.NewGuid(),
             IsCash = true,
         };
-        LedgerAccountCreateViewModel liability = new()
+        LedgerAccountCreateViewModel plainAccount = new()
         {
-            Code = "PAS",
-            Name = "Pasivos",
-            Type = LedgerAccountType.Liability,
+            Name = "Detalle",
+            ParentId = Guid.NewGuid(),
         };
 
-        Assert.Empty(Validate(cashAsset));
-        Assert.Empty(Validate(liability));
+        Assert.Empty(Validate(cashAccount));
+        Assert.Empty(Validate(plainAccount));
     }
 
-    [Theory]
-    [InlineData(LedgerAccountType.Liability)]
-    [InlineData(LedgerAccountType.Equity)]
-    [InlineData(LedgerAccountType.Income)]
-    [InlineData(LedgerAccountType.Expense)]
-    public void LedgerAccount_RejectsACashAccountThatIsNotAnAsset(LedgerAccountType type)
+    [Fact]
+    public void LedgerAccount_RequiresAParent()
+    {
+        LedgerAccountCreateViewModel model = new() { Name = "Detalle", ParentId = Guid.Empty };
+
+        Assert.Contains(
+            Validate(model),
+            result => result.MemberNames.Contains(nameof(model.ParentId)));
+    }
+
+    [Fact]
+    public void LedgerAccount_RejectsAnUndefinedCashKind()
     {
         LedgerAccountCreateViewModel model = new()
         {
-            Code = "X",
             Name = "X",
-            Type = type,
-            IsCash = true,
+            ParentId = Guid.NewGuid(),
+            CashKind = (CashAccountKind)99,
         };
 
         Assert.Contains(
             Validate(model),
-            result => result.MemberNames.Contains(nameof(model.IsCash)));
-    }
-
-    [Fact]
-    public void LedgerAccount_RejectsUndefinedTypeKindAndCurrency()
-    {
-        LedgerAccountCreateViewModel model = new()
-        {
-            Code = "X",
-            Name = "X",
-            Type = (LedgerAccountType)99,
-            CashKind = (CashAccountKind)99,
-            Currency = (SistemaFinanciero.Domain.Currencies.CurrencyCode)99,
-        };
-
-        List<ValidationResult> results = Validate(model);
-
-        Assert.Contains(results, result => result.MemberNames.Contains(nameof(model.Type)));
-        Assert.Contains(results, result => result.MemberNames.Contains(nameof(model.CashKind)));
-        Assert.Contains(results, result => result.MemberNames.Contains(nameof(model.Currency)));
+            result => result.MemberNames.Contains(nameof(model.CashKind)));
     }
 
     [Fact]
@@ -192,21 +179,19 @@ public sealed class CatalogViewModelValidationTests
     {
         LedgerAccountCreateViewModel tooLong = new()
         {
-            Code = new string('A', 31),
             Name = new string('N', 121),
+            ParentId = Guid.NewGuid(),
             Reference = new string('R', 101),
             Description = new string('D', 301),
         };
-        LedgerAccountCreateViewModel missing = new() { Code = string.Empty, Name = string.Empty };
+        LedgerAccountCreateViewModel missing = new() { Name = string.Empty, ParentId = Guid.NewGuid() };
 
         List<ValidationResult> longResults = Validate(tooLong);
         List<ValidationResult> missingResults = Validate(missing);
 
-        Assert.Contains(longResults, result => result.MemberNames.Contains(nameof(tooLong.Code)));
         Assert.Contains(longResults, result => result.MemberNames.Contains(nameof(tooLong.Name)));
         Assert.Contains(longResults, result => result.MemberNames.Contains(nameof(tooLong.Reference)));
         Assert.Contains(longResults, result => result.MemberNames.Contains(nameof(tooLong.Description)));
-        Assert.Contains(missingResults, result => result.MemberNames.Contains(nameof(missing.Code)));
         Assert.Contains(missingResults, result => result.MemberNames.Contains(nameof(missing.Name)));
     }
 
@@ -215,14 +200,12 @@ public sealed class CatalogViewModelValidationTests
     {
         FinancialCategoryInputViewModel withoutAccount = new()
         {
-            Code = "ING",
             Name = "Ingresos",
             Kind = FinancialCategoryKind.Income,
             LedgerAccountId = null,
         };
         FinancialCategoryInputViewModel withAccount = new()
         {
-            Code = "ING",
             Name = "Ingresos",
             Kind = FinancialCategoryKind.Income,
             LedgerAccountId = Guid.NewGuid(),

@@ -5,6 +5,11 @@ using SistemaFinanciero.Infrastructure.Identity;
 
 namespace SistemaFinanciero.Infrastructure.Persistence.Configurations;
 
+/// <summary>Mapea <see cref="Supplier"/> a la tabla <c>catalogos.Proveedores</c>.</summary>
+/// <remarks>
+/// Conexiones: <c>FinancialDbContext.OnModelCreating</c> la aplica por convención. La usa
+/// <c>SupplierCatalogService</c> a través del <c>DbContext</c>.
+/// </remarks>
 internal sealed class SupplierConfiguration : IEntityTypeConfiguration<Supplier>
 {
     public void Configure(EntityTypeBuilder<Supplier> builder)
@@ -24,13 +29,16 @@ internal sealed class SupplierConfiguration : IEntityTypeConfiguration<Supplier>
             .HasMaxLength(Supplier.NameMaxLength)
             .IsRequired();
         builder.Property(supplier => supplier.Identification)
-            .HasMaxLength(Supplier.IdentificationMaxLength);
+            .HasMaxLength(Supplier.IdentificationMaxLength)
+            .IsRequired();
         builder.Property(supplier => supplier.Email)
             .HasMaxLength(Supplier.EmailMaxLength);
         builder.Property(supplier => supplier.Phone)
             .HasMaxLength(Supplier.PhoneMaxLength);
         builder.Property(supplier => supplier.Address)
             .HasMaxLength(Supplier.AddressMaxLength);
+        builder.Property(supplier => supplier.EconomicActivity)
+            .HasMaxLength(Supplier.EconomicActivityMaxLength);
         builder.Property(supplier => supplier.IsActive)
             .HasDefaultValue(true);
         builder.Property(supplier => supplier.CreatedAtUtc).IsRequired();
@@ -42,7 +50,6 @@ internal sealed class SupplierConfiguration : IEntityTypeConfiguration<Supplier>
             .HasDatabaseName("UX_Proveedores_Code");
         builder.HasIndex(supplier => supplier.Identification)
             .IsUnique()
-            .HasFilter("[Identification] IS NOT NULL")
             .HasDatabaseName("UX_Proveedores_Identification");
         builder.HasIndex(supplier => new { supplier.IsActive, supplier.Name })
             .HasDatabaseName("IX_Proveedores_IsActive_Name");

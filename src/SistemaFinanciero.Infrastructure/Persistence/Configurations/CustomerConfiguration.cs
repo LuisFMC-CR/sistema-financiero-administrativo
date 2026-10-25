@@ -5,6 +5,12 @@ using SistemaFinanciero.Infrastructure.Identity;
 
 namespace SistemaFinanciero.Infrastructure.Persistence.Configurations;
 
+/// <summary>Mapea <see cref="Customer"/> a la tabla <c>catalogos.Clientes</c>.</summary>
+/// <remarks>
+/// Conexiones: <c>FinancialDbContext.OnModelCreating</c> la aplica automáticamente, por convención de
+/// EF Core, al recorrer el ensamblado. Solo la toca <c>CustomerCatalogService</c> indirectamente, a
+/// través del <c>DbContext</c>.
+/// </remarks>
 internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
 {
     public void Configure(EntityTypeBuilder<Customer> builder)
@@ -24,7 +30,8 @@ internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
             .HasMaxLength(Customer.NameMaxLength)
             .IsRequired();
         builder.Property(customer => customer.Identification)
-            .HasMaxLength(Customer.IdentificationMaxLength);
+            .HasMaxLength(Customer.IdentificationMaxLength)
+            .IsRequired();
         builder.Property(customer => customer.Email)
             .HasMaxLength(Customer.EmailMaxLength);
         builder.Property(customer => customer.Phone)
@@ -42,7 +49,6 @@ internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
             .HasDatabaseName("UX_Clientes_Code");
         builder.HasIndex(customer => customer.Identification)
             .IsUnique()
-            .HasFilter("[Identification] IS NOT NULL")
             .HasDatabaseName("UX_Clientes_Identification");
         builder.HasIndex(customer => new { customer.IsActive, customer.Name })
             .HasDatabaseName("IX_Clientes_IsActive_Name");

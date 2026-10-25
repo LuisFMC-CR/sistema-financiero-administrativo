@@ -9,6 +9,11 @@ namespace SistemaFinanciero.Infrastructure.Catalogs.Customers;
 /// <summary>
 /// Ejecuta los casos de uso de clientes sobre SQL Server.
 /// </summary>
+/// <remarks>
+/// Conexiones: implementa <c>ICustomerCatalogService</c> (Application); se registra en
+/// <c>DependencyInjection.AddInfrastructure</c>; lo inyecta <c>CustomersController</c> (Web). Lee y
+/// escribe <c>FinancialDbContext.Customers</c> (tabla <c>catalogos.Clientes</c>).
+/// </remarks>
 internal sealed class CustomerCatalogService(
     FinancialDbContext dbContext,
     TimeProvider timeProvider) : ICustomerCatalogService
@@ -59,6 +64,21 @@ internal sealed class CustomerCatalogService(
         return customer is null ? null : Map(customer);
     }
 
+    public async Task<IReadOnlyList<CustomerOption>> GetActiveOptionsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Set<Customer>()
+            .AsNoTracking()
+            .Where(customer => customer.IsActive)
+            .OrderBy(customer => customer.Name)
+            .Select(customer => new CustomerOption(
+                customer.Id,
+                customer.Code,
+                customer.Name,
+                customer.Identification))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<CatalogOperationResult> CreateAsync(
         SaveCustomerCommand command,
         Guid actorId,
@@ -68,9 +88,16 @@ internal sealed class CustomerCatalogService(
 
         try
         {
+            string code = await CatalogPersistence.GenerateSequentialCodeAsync(
+                dbContext,
+                "catalogos.Seq_ClienteCodigo",
+                "CLI",
+                4,
+                cancellationToken);
+
             Customer customer = new(
                 Guid.NewGuid(),
-                command.Code,
+                code,
                 command.Name,
                 command.Identification,
                 command.Email,
@@ -118,7 +145,6 @@ internal sealed class CustomerCatalogService(
         try
         {
             customer.UpdateDetails(
-                command.Code,
                 command.Name,
                 command.Identification,
                 command.Email,

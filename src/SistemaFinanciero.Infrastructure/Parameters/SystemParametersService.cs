@@ -10,6 +10,13 @@ namespace SistemaFinanciero.Infrastructure.Parameters;
 /// <summary>
 /// Ejecuta los casos de uso de los parámetros únicos del sistema y conserva su historial de cambios.
 /// </summary>
+/// <remarks>
+/// Conexiones: implementa <c>ISystemParametersService</c> (Application); se registra en
+/// <c>DependencyInjection.AddInfrastructure</c>; lo inyecta <c>SystemParametersController</c> (Web, ruta
+/// <c>/parametros</c>). Lee y escribe <c>FinancialDbContext.SystemParameters</c> (tabla
+/// <c>finanzas.ParametrosSistema</c>) y agrega una fila a
+/// <c>FinancialDbContext.SystemParameterChanges</c> por cada cambio.
+/// </remarks>
 internal sealed class SystemParametersService(
     FinancialDbContext dbContext,
     TimeProvider timeProvider) : ISystemParametersService
@@ -132,11 +139,60 @@ internal sealed class SystemParametersService(
         }
     }
 
+    public async Task<CatalogOperationResult> ChangeClosingDateAsync(
+        DateOnly newClosingDate,
+        string? reason,
+        string version,
+        Guid actorId,
+        CancellationToken cancellationToken = default)
+    {
+        SystemParameters? parameters = await dbContext.Set<SystemParameters>()
+            .SingleOrDefaultAsync(candidate => candidate.Id == SystemParameters.SingletonId, cancellationToken);
+
+        if (parameters is null)
+        {
+            return CatalogOperationResult.Missing();
+        }
+
+        if (!CatalogPersistence.TrySetOriginalVersion(dbContext, parameters, version))
+        {
+            return CatalogOperationResult.Invalid("El token de concurrencia no es válido.");
+        }
+
+        DateOnly previousClosingDate = parameters.ClosingDate;
+
+        try
+        {
+            DateTimeOffset now = timeProvider.GetUtcNow();
+            DateOnly today = DateOnly.FromDateTime(now.UtcDateTime);
+            parameters.ChangeClosingDate(newClosingDate, today, reason, now, actorId);
+
+            dbContext.Add(new ClosingDateChange(
+                Guid.NewGuid(),
+                previousClosingDate,
+                parameters.ClosingDate,
+                reason,
+                now,
+                actorId));
+
+            return await CatalogPersistence.SaveChangesAsync(
+                dbContext,
+                "Los parámetros del sistema ya están configurados.",
+                cancellationToken);
+        }
+        catch (ArgumentException exception)
+        {
+            dbContext.ChangeTracker.Clear();
+            return CatalogOperationResult.Invalid(exception.Message);
+        }
+    }
+
     private static SystemParametersModel Map(SystemParameters parameters, string updatedByUserName)
     {
         return new SystemParametersModel(
             parameters.AuthorizationLimitCrc,
             parameters.OverdueAlertDays,
+            parameters.ClosingDate,
             parameters.CreatedAtUtc,
             parameters.UpdatedAtUtc,
             updatedByUserName,

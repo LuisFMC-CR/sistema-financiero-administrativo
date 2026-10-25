@@ -11,6 +11,13 @@ namespace SistemaFinanciero.Infrastructure.Identity;
 /// <summary>
 /// Coordina los casos de uso administrativos de ASP.NET Core Identity sin exponer sus secretos.
 /// </summary>
+/// <remarks>
+/// Conexiones: implementa <c>IUserAdministrationService</c> (Application); se registra en
+/// <c>DependencyInjection.AddInfrastructure</c>; lo inyecta <c>UsersController</c> (Web, ruta
+/// <c>/administracion/usuarios</c>, solo rol Administrador). Cada operación pasa por
+/// <see cref="IdentityPersistence.ExecuteAsync"/> y, cuando corresponde, agrega un
+/// <see cref="SecurityAuditEvent"/>.
+/// </remarks>
 internal sealed class UserAdministrationService(
     FinancialDbContext dbContext,
     UserManager<ApplicationUser> userManager,

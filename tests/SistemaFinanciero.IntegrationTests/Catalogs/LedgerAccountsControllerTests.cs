@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Catalogs.LedgerAccounts;
 using SistemaFinanciero.Domain.Catalogs;
-using SistemaFinanciero.Domain.Currencies;
 using SistemaFinanciero.Web.Controllers;
 using SistemaFinanciero.Web.Models.Catalogs;
 
@@ -14,48 +13,44 @@ namespace SistemaFinanciero.IntegrationTests.Catalogs;
 public sealed class LedgerAccountsControllerTests
 {
     [Fact]
-    public async Task Create_ForACashAccount_SendsTheKindAndTheCurrency()
+    public async Task Create_ForACashAccount_SendsTheKind()
     {
         RecordingLedgerAccountService service = new();
         LedgerAccountsController controller = CreateController(service);
+        Guid parentId = Guid.NewGuid();
         LedgerAccountCreateViewModel model = new()
         {
-            Code = "BCO-USD",
-            Name = "Banco dólares",
-            Type = LedgerAccountType.Asset,
+            Name = "Banco",
+            ParentId = parentId,
             IsCash = true,
             CashKind = CashAccountKind.Bank,
-            Currency = CurrencyCode.USD,
         };
 
         IActionResult result = await controller.Create(model, CancellationToken.None);
 
         Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal(CashAccountKind.Bank, service.LastCreate!.CashKind);
-        Assert.Equal(CurrencyCode.USD, service.LastCreate.Currency);
+        Assert.Equal(parentId, service.LastCreate!.ParentId);
+        Assert.Equal(CashAccountKind.Bank, service.LastCreate.CashKind);
     }
 
     [Fact]
-    public async Task Create_ForAnAccountThatIsNotCash_DiscardsThePostedKindAndCurrency()
+    public async Task Create_ForAnAccountThatIsNotCash_DiscardsThePostedKind()
     {
         RecordingLedgerAccountService service = new();
         LedgerAccountsController controller = CreateController(service);
         LedgerAccountCreateViewModel model = new()
         {
-            Code = "ING",
             Name = "Ingresos",
-            Type = LedgerAccountType.Income,
+            ParentId = Guid.NewGuid(),
             IsCash = false,
 
-            // Valores que un formulario manipulado o un campo oculto podrían enviar.
+            // Valor que un formulario manipulado o un campo oculto podría enviar.
             CashKind = CashAccountKind.Cash,
-            Currency = CurrencyCode.CRC,
         };
 
         await controller.Create(model, CancellationToken.None);
 
         Assert.Null(service.LastCreate!.CashKind);
-        Assert.Null(service.LastCreate.Currency);
     }
 
     [Fact]
@@ -65,7 +60,7 @@ public sealed class LedgerAccountsControllerTests
         service.ParentOptionsByType[LedgerAccountType.Asset] = [new LedgerAccountOption(Guid.NewGuid(), "1", "Activos")];
         service.ParentOptionsByType[LedgerAccountType.Income] = [new LedgerAccountOption(Guid.NewGuid(), "4", "Ingresos")];
         LedgerAccountsController controller = CreateController(service);
-        controller.ModelState.AddModelError(nameof(LedgerAccountCreateViewModel.Code), "El código es obligatorio.");
+        controller.ModelState.AddModelError(nameof(LedgerAccountCreateViewModel.Name), "El nombre es obligatorio.");
         LedgerAccountCreateViewModel model = new();
 
         IActionResult result = await controller.Create(model, CancellationToken.None);
@@ -87,7 +82,7 @@ public sealed class LedgerAccountsControllerTests
         LedgerAccountsController controller = CreateController(service);
 
         IActionResult result = await controller.Create(
-            new LedgerAccountCreateViewModel { Code = "A", Name = "A" },
+            new LedgerAccountCreateViewModel { Name = "A", ParentId = Guid.NewGuid() },
             CancellationToken.None);
 
         ViewResult view = Assert.IsType<ViewResult>(result);
@@ -96,70 +91,16 @@ public sealed class LedgerAccountsControllerTests
     }
 
     [Fact]
-    public async Task Edit_NeverTakesTypeKindOrCurrencyFromTheForm()
+    public async Task Edit_Get_PopulatesDisplayFieldsFromTheCurrentAccount()
     {
         Guid id = Guid.NewGuid();
+        Guid parentId = Guid.NewGuid();
         RecordingLedgerAccountService service = new()
         {
-            Current = CreateModel(id, LedgerAccountType.Asset, CashAccountKind.Bank, CurrencyCode.USD),
-        };
-        LedgerAccountsController controller = CreateController(service);
-        LedgerAccountEditViewModel model = new()
-        {
-            Code = "BCO",
-            Name = "Banco",
-            Version = "v1",
-
-            // Un formulario manipulado intenta presentar la cuenta como un gasto en colones.
-            Type = LedgerAccountType.Expense,
-            CashKind = null,
-            Currency = CurrencyCode.CRC,
-        };
-
-        IActionResult result = await controller.Edit(id, model, CancellationToken.None);
-
-        Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal(LedgerAccountType.Asset, model.Type);
-        Assert.Equal(CashAccountKind.Bank, model.CashKind);
-        Assert.Equal(CurrencyCode.USD, model.Currency);
-        Assert.Equal(1, service.UpdateCalls);
-        Assert.Equal("v1", service.LastUpdateVersion);
-    }
-
-    [Fact]
-    public async Task Edit_WhenTheModelIsInvalid_ShowsParentOptionsOfTheFixedTypeOnly()
-    {
-        Guid id = Guid.NewGuid();
-        RecordingLedgerAccountService service = new()
-        {
-            Current = CreateModel(id, LedgerAccountType.Expense, null, null),
-        };
-        service.ParentOptionsByType[LedgerAccountType.Expense] = [new LedgerAccountOption(Guid.NewGuid(), "5", "Gastos")];
-        service.ParentOptionsByType[LedgerAccountType.Asset] = [new LedgerAccountOption(Guid.NewGuid(), "1", "Activos")];
-        LedgerAccountsController controller = CreateController(service);
-        controller.ModelState.AddModelError(nameof(LedgerAccountEditViewModel.Name), "El nombre es obligatorio.");
-        LedgerAccountEditViewModel model = new() { Code = "GAS", Name = string.Empty, Version = "v1" };
-
-        IActionResult result = await controller.Edit(id, model, CancellationToken.None);
-
-        Assert.IsType<ViewResult>(result);
-        Assert.Equal(0, service.UpdateCalls);
-        LedgerAccountParentOptionViewModel option = Assert.Single(model.ParentOptions);
-        Assert.Equal(LedgerAccountType.Expense, option.Type);
-        Assert.Equal(id, service.LastExcludedAccountId);
-    }
-
-    [Fact]
-    public async Task Edit_KeepsTheCurrentParentVisibleEvenWhenItIsNoLongerOffered()
-    {
-        Guid id = Guid.NewGuid();
-        Guid inactiveParentId = Guid.NewGuid();
-        RecordingLedgerAccountService service = new()
-        {
-            Current = CreateModel(id, LedgerAccountType.Asset, null, null) with
+            Current = CreateModel(id, LedgerAccountType.Asset, CashAccountKind.Bank) with
             {
-                ParentId = inactiveParentId,
-                ParentName = "Cuenta agrupadora inactiva",
+                ParentId = parentId,
+                ParentName = "Efectivo",
             },
         };
         LedgerAccountsController controller = CreateController(service);
@@ -168,9 +109,56 @@ public sealed class LedgerAccountsControllerTests
 
         ViewResult view = Assert.IsType<ViewResult>(result);
         LedgerAccountEditViewModel model = Assert.IsType<LedgerAccountEditViewModel>(view.Model);
-        LedgerAccountParentOptionViewModel option = Assert.Single(model.ParentOptions);
-        Assert.Equal(inactiveParentId, option.Id);
-        Assert.Equal("Cuenta agrupadora inactiva", option.Label);
+        Assert.Equal("COD", model.Code);
+        Assert.Equal(LedgerAccountType.Asset, model.Type);
+        Assert.Equal("Efectivo", model.ParentName);
+        Assert.Equal(CashAccountKind.Bank, model.CashKind);
+    }
+
+    [Fact]
+    public async Task Edit_PopulatesDisplayFieldsEvenWhenTheModelIsInvalid()
+    {
+        Guid id = Guid.NewGuid();
+        RecordingLedgerAccountService service = new()
+        {
+            Current = CreateModel(id, LedgerAccountType.Expense, null),
+        };
+        LedgerAccountsController controller = CreateController(service);
+        controller.ModelState.AddModelError(nameof(LedgerAccountEditViewModel.Name), "El nombre es obligatorio.");
+        LedgerAccountEditViewModel model = new() { Name = string.Empty, Version = "v1" };
+
+        IActionResult result = await controller.Edit(id, model, CancellationToken.None);
+
+        Assert.IsType<ViewResult>(result);
+        Assert.Equal(0, service.UpdateCalls);
+        Assert.Equal("COD", model.Code);
+        Assert.Equal(LedgerAccountType.Expense, model.Type);
+    }
+
+    [Fact]
+    public async Task Edit_WithValidData_UpdatesOnlyNameReferenceAndDescription()
+    {
+        Guid id = Guid.NewGuid();
+        RecordingLedgerAccountService service = new()
+        {
+            Current = CreateModel(id, LedgerAccountType.Asset, CashAccountKind.Bank),
+        };
+        LedgerAccountsController controller = CreateController(service);
+        LedgerAccountEditViewModel model = new()
+        {
+            Name = "Banco renombrado",
+            Reference = "Terminada en 1234",
+            Description = "Cuenta principal",
+            Version = "v1",
+        };
+
+        IActionResult result = await controller.Edit(id, model, CancellationToken.None);
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal(1, service.UpdateCalls);
+        Assert.Equal("Banco renombrado", service.LastUpdate!.Name);
+        Assert.Equal("Terminada en 1234", service.LastUpdate.Reference);
+        Assert.Equal("v1", service.LastUpdateVersion);
     }
 
     [Fact]
@@ -179,11 +167,11 @@ public sealed class LedgerAccountsControllerTests
         Guid id = Guid.NewGuid();
         RecordingLedgerAccountService service = new()
         {
-            Current = CreateModel(id, LedgerAccountType.Asset, null, null, version: "version-vigente"),
+            Current = CreateModel(id, LedgerAccountType.Asset, null, version: "version-vigente"),
             OperationResult = CatalogOperationResult.Concurrent(),
         };
         LedgerAccountsController controller = CreateController(service);
-        LedgerAccountEditViewModel model = new() { Code = "A", Name = "A", Version = "version-vieja" };
+        LedgerAccountEditViewModel model = new() { Name = "A", Version = "version-vieja" };
 
         IActionResult result = await controller.Edit(id, model, CancellationToken.None);
 
@@ -200,7 +188,7 @@ public sealed class LedgerAccountsControllerTests
 
         IActionResult result = await controller.Edit(
             Guid.NewGuid(),
-            new LedgerAccountEditViewModel { Code = "X", Name = "X", Version = "v1" },
+            new LedgerAccountEditViewModel { Name = "X", Version = "v1" },
             CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result);
@@ -248,7 +236,6 @@ public sealed class LedgerAccountsControllerTests
         Guid id,
         LedgerAccountType type,
         CashAccountKind? cashKind,
-        CurrencyCode? currency,
         string version = "v1") =>
         new(
             id,
@@ -258,10 +245,10 @@ public sealed class LedgerAccountsControllerTests
             ParentId: null,
             ParentName: null,
             cashKind,
-            currency,
             Reference: null,
             Description: null,
             IsActive: true,
+            IsProtected: false,
             DateTimeOffset.UtcNow,
             DateTimeOffset.UtcNow,
             version);
@@ -298,6 +285,8 @@ public sealed class LedgerAccountsControllerTests
         public int UpdateCalls { get; private set; }
 
         public CreateLedgerAccountCommand? LastCreate { get; private set; }
+
+        public UpdateLedgerAccountCommand? LastUpdate { get; private set; }
 
         public string? LastUpdateVersion { get; private set; }
 
@@ -340,7 +329,6 @@ public sealed class LedgerAccountsControllerTests
             Task.FromResult<IReadOnlyList<LedgerAccountOption>>([]);
 
         public Task<IReadOnlyList<CashAccountOption>> GetActiveCashAccountsAsync(
-            CurrencyCode? currency = null,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<CashAccountOption>>([]);
 
@@ -362,6 +350,7 @@ public sealed class LedgerAccountsControllerTests
             CancellationToken cancellationToken = default)
         {
             UpdateCalls++;
+            LastUpdate = command;
             LastUpdateVersion = version;
             return Task.FromResult(OperationResult);
         }

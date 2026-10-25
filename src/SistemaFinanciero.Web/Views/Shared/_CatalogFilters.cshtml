@@ -1,21 +1,20 @@
 @model CatalogFilterViewModel
 
-<form method="get" class="card card-body mb-4" role="search">
-    <div class="row g-3 align-items-end">
-        <div class="col-md-7">
-            <label for="catalog-search" class="form-label">Buscar</label>
-            <input id="catalog-search"
-                   name="search"
+<tr class="table-filter-row">
+    @* colspan="100" se recorta al número real de columnas de cada tabla, así la fila de filtros
+       no necesita saber cuántos encabezados tiene la pantalla que la incluye. *@
+    <th colspan="100" class="p-2">
+        <form method="get" class="d-flex flex-wrap gap-2 align-items-center" role="search">
+            <input name="search"
                    value="@Model.Search"
                    maxlength="100"
-                   class="form-control"
-                   placeholder="Código, nombre u otro dato principal" />
-        </div>
-        @if (Model.Status is not null)
-        {
-            <div class="col-md-3">
-                <label for="catalog-status" class="form-label">Estado</label>
-                <select id="catalog-status" name="status" class="form-select">
+                   class="form-control form-control-sm flex-grow-1"
+                   style="min-width: 220px;"
+                   placeholder="Buscar por código, nombre u otro dato principal"
+                   aria-label="Buscar" />
+            @if (Model.Status is not null)
+            {
+                <select name="status" class="form-select form-select-sm" style="max-width: 180px;" aria-label="Estado">
                     @foreach (CatalogStatusFilter status in Enum.GetValues<CatalogStatusFilter>())
                     {
                         if (status == Model.Status)
@@ -28,12 +27,10 @@
                         }
                     }
                 </select>
-            </div>
-        }
-        <div class="col-md-auto d-flex gap-2">
-            <button type="submit" class="btn btn-primary">Aplicar</button>
-            <a asp-action="Index" class="btn btn-outline-secondary">Limpiar</a>
-        </div>
-    </div>
-</form>
+            }
+            <button type="submit" class="btn btn-sm btn-primary">Aplicar</button>
+            <a asp-action="Index" class="btn btn-sm btn-outline-secondary">Limpiar</a>
+        </form>
+    </th>
+</tr>
 

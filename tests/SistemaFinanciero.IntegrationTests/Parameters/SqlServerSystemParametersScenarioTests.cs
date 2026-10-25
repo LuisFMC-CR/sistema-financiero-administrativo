@@ -117,6 +117,104 @@ public sealed class SqlServerSystemParametersScenarioTests : IClassFixture<Finan
         });
     }
 
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task ChangeClosingDateAsync_AdvancingClosesThePeriodWithoutARequiredReason()
+    {
+        return RunInRollbackTransactionAsync(async (context, services, actorId) =>
+        {
+            ISystemParametersService parameters = services.GetRequiredService<ISystemParametersService>();
+            await parameters.CreateAsync(new SaveSystemParametersCommand(500_000m, 7), actorId);
+            SystemParametersModel created = (await parameters.GetAsync())!;
+            Assert.Equal(DateOnly.MinValue, created.ClosingDate);
+
+            DateOnly newClosingDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1);
+            CatalogOperationResult result = await parameters.ChangeClosingDateAsync(
+                newClosingDate, reason: null, created.Version, actorId);
+
+            Assert.True(result.IsSuccess);
+            SystemParametersModel current = (await parameters.GetAsync())!;
+            Assert.Equal(newClosingDate, current.ClosingDate);
+
+            ClosingDateChange logEntry = await context.Set<ClosingDateChange>()
+                .SingleAsync(change => change.ChangedByUserId == actorId);
+            Assert.Equal(DateOnly.MinValue, logEntry.PreviousClosingDate);
+            Assert.Equal(newClosingDate, logEntry.NewClosingDate);
+            Assert.Null(logEntry.Reason);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task ChangeClosingDateAsync_RejectsGoingBackwardsWithoutAReason()
+    {
+        return RunInRollbackTransactionAsync(async (context, services, actorId) =>
+        {
+            ISystemParametersService parameters = services.GetRequiredService<ISystemParametersService>();
+            await parameters.CreateAsync(new SaveSystemParametersCommand(500_000m, 7), actorId);
+            SystemParametersModel created = (await parameters.GetAsync())!;
+
+            DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+            await parameters.ChangeClosingDateAsync(today.AddDays(-10), reason: null, created.Version, actorId);
+            SystemParametersModel closed = (await parameters.GetAsync())!;
+
+            CatalogOperationResult result = await parameters.ChangeClosingDateAsync(
+                today.AddDays(-20), reason: null, closed.Version, actorId);
+
+            Assert.Equal(CatalogOperationStatus.Invalid, result.Status);
+            SystemParametersModel unchanged = (await parameters.GetAsync())!;
+            Assert.Equal(today.AddDays(-10), unchanged.ClosingDate);
+
+            _ = context;
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task ChangeClosingDateAsync_GoingBackwardsWithAReasonReopensAndLogsIt()
+    {
+        return RunInRollbackTransactionAsync(async (context, services, actorId) =>
+        {
+            ISystemParametersService parameters = services.GetRequiredService<ISystemParametersService>();
+            await parameters.CreateAsync(new SaveSystemParametersCommand(500_000m, 7), actorId);
+            SystemParametersModel created = (await parameters.GetAsync())!;
+
+            DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+            await parameters.ChangeClosingDateAsync(today.AddDays(-10), reason: null, created.Version, actorId);
+            SystemParametersModel closed = (await parameters.GetAsync())!;
+
+            CatalogOperationResult result = await parameters.ChangeClosingDateAsync(
+                today.AddDays(-20), "Reapertura para corregir un gasto registrado por error", closed.Version, actorId);
+
+            Assert.True(result.IsSuccess);
+            SystemParametersModel reopened = (await parameters.GetAsync())!;
+            Assert.Equal(today.AddDays(-20), reopened.ClosingDate);
+
+            ClosingDateChange reopenEntry = await context.Set<ClosingDateChange>()
+                .SingleAsync(change => change.NewClosingDate == today.AddDays(-20));
+            Assert.Equal(today.AddDays(-10), reopenEntry.PreviousClosingDate);
+            Assert.Equal("Reapertura para corregir un gasto registrado por error", reopenEntry.Reason);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task ChangeClosingDateAsync_RejectsADateLaterThanToday()
+    {
+        return RunInRollbackTransactionAsync(async (context, services, actorId) =>
+        {
+            ISystemParametersService parameters = services.GetRequiredService<ISystemParametersService>();
+            await parameters.CreateAsync(new SaveSystemParametersCommand(500_000m, 7), actorId);
+            SystemParametersModel created = (await parameters.GetAsync())!;
+
+            CatalogOperationResult result = await parameters.ChangeClosingDateAsync(
+                DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1), reason: null, created.Version, actorId);
+
+            Assert.Equal(CatalogOperationStatus.Invalid, result.Status);
+            _ = context;
+        });
+    }
+
     private async Task RunInRollbackTransactionAsync(
         Func<FinancialDbContext, IServiceProvider, Guid, Task> scenario)
     {
@@ -152,6 +250,7 @@ public sealed class SqlServerSystemParametersScenarioTests : IClassFixture<Finan
         // Estos escenarios asumen que los parámetros todavía no están configurados. Se limpia
         // cualquier fila real ya guardada por la aplicación: como todo ocurre dentro de esta
         // transacción sin confirmar, se revierte al final sin afectar los datos reales.
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM finanzas.ParametrosFechaCierreHistorial");
         await context.Database.ExecuteSqlRawAsync("DELETE FROM finanzas.ParametrosSistemaHistorial");
         await context.Database.ExecuteSqlRawAsync("DELETE FROM finanzas.ParametrosSistema");
 

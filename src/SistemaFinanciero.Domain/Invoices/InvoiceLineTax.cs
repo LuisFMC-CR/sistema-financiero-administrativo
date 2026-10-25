@@ -2,7 +2,14 @@ using SistemaFinanciero.Domain.Common;
 
 namespace SistemaFinanciero.Domain.Invoices;
 
-/// <summary>Fotografía de un impuesto aplicado a una línea de factura.</summary>
+/// <summary>Fotografía del IVA aplicado a una línea de factura.</summary>
+/// <remarks>
+/// Conexiones: solo <see cref="InvoiceLine"/> la crea (constructor <c>internal</c>), a partir de una
+/// <c>InvoiceTaxSpecification</c>. Se guarda como columnas de <c>finanzas.FacturaLineas</c> (tipo
+/// propietario de EF Core), vía <c>InvoiceLineConfiguration</c>. <see cref="TaxTypeId"/> apunta
+/// opcionalmente a <c>TaxType</c>, con clave foránea restrictiva: no se puede borrar un tipo de
+/// impuesto que una línea ya usó.
+/// </remarks>
 public sealed class InvoiceLineTax
 {
     /// <summary>Máximo de caracteres para el código de impuesto.</summary>
@@ -16,28 +23,22 @@ public sealed class InvoiceLineTax
     }
 
     /// <summary>
-    /// Crea la fotografía de un impuesto y calcula su importe. Solo la línea de factura lo invoca,
-    /// para que la base gravable siempre sea el neto de esa línea.
+    /// Crea la fotografía del IVA y calcula su importe. Solo la línea de factura lo invoca, para que la
+    /// base gravable siempre sea el neto de esa línea.
     /// </summary>
     internal InvoiceLineTax(
         InvoiceTaxSpecification specification,
-        decimal taxableAmount,
-        decimal quantity)
+        decimal taxableAmount)
     {
         ArgumentNullException.ThrowIfNull(specification);
 
-        Id = DomainRules.RequiredId(specification.Id, nameof(specification.Id));
         TaxTypeId = DomainRules.OptionalId(specification.TaxTypeId, nameof(specification.TaxTypeId));
         Code = DomainRules.NormalizedCode(specification.Code, CodeMaxLength, nameof(specification.Code));
         Name = DomainRules.RequiredText(specification.Name, NameMaxLength, nameof(specification.Name));
-        CalculationType = DomainRules.DefinedEnum(specification.CalculationType, nameof(specification.CalculationType));
         Rate = NormalizeRate(specification.Rate, nameof(specification.Rate));
         TaxableAmount = taxableAmount;
-        Amount = CalculateAmount(CalculationType, Rate, taxableAmount, quantity);
+        Amount = CalculateAmount(Rate, taxableAmount);
     }
-
-    /// <summary>Identificador técnico de la fotografía tributaria.</summary>
-    public Guid Id { get; private set; }
 
     /// <summary>
     /// Tipo de impuesto del catálogo del que se tomó la fotografía; nulo si no se usó un tipo del
@@ -51,10 +52,7 @@ public sealed class InvoiceLineTax
     /// <summary>Nombre visible del impuesto vigente al preparar la factura.</summary>
     public string Name { get; private set; } = string.Empty;
 
-    /// <summary>Método de cálculo aplicado.</summary>
-    public TaxCalculationType CalculationType { get; private set; }
-
-    /// <summary>Porcentaje o monto fijo por unidad utilizado.</summary>
+    /// <summary>Porcentaje de IVA utilizado.</summary>
     public decimal Rate { get; private set; }
 
     /// <summary>Base gravable conservada: el neto de la línea (bruto menos descuento).</summary>
@@ -78,26 +76,15 @@ public sealed class InvoiceLineTax
         return roundedValue;
     }
 
-    private static decimal CalculateAmount(
-        TaxCalculationType calculationType,
-        decimal rate,
-        decimal taxableAmount,
-        decimal quantity)
+    private static decimal CalculateAmount(decimal rate, decimal taxableAmount)
     {
-        if (taxableAmount < 0 || quantity <= 0)
+        if (taxableAmount < 0)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(taxableAmount),
-                "La base gravable y la cantidad deben ser válidas.");
+                "La base gravable debe ser válida.");
         }
 
-        decimal amount = calculationType switch
-        {
-            TaxCalculationType.Percentage => taxableAmount * rate / 100m,
-            TaxCalculationType.FixedAmountPerUnit => quantity * rate,
-            _ => throw new ArgumentOutOfRangeException(nameof(calculationType)),
-        };
-
-        return DomainRules.RoundMoney(amount);
+        return DomainRules.RoundMoney(taxableAmount * rate / 100m);
     }
 }

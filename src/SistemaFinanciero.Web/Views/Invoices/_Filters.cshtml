@@ -1,0 +1,32 @@
+@using SistemaFinanciero.Application.Invoices
+@using SistemaFinanciero.Web.Models.Invoices
+@model InvoiceFilterViewModel
+
+<tr class="table-filter-row">
+    <th colspan="100" class="p-2">
+        <form method="get" class="d-flex flex-wrap gap-2 align-items-center" role="search">
+            <input name="search"
+                   value="@Model.Search"
+                   maxlength="100"
+                   class="form-control form-control-sm flex-grow-1"
+                   style="min-width: 220px;"
+                   placeholder="Número o nombre del cliente"
+                   aria-label="Buscar" />
+            <select name="status" class="form-select form-select-sm" style="max-width: 180px;" aria-label="Estado">
+                @foreach (InvoiceStatusFilter status in Enum.GetValues<InvoiceStatusFilter>())
+                {
+                    if (status == Model.Status)
+                    {
+                        <option value="@status" selected>@status.ToDisplayName()</option>
+                    }
+                    else
+                    {
+                        <option value="@status">@status.ToDisplayName()</option>
+                    }
+                }
+            </select>
+            <button type="submit" class="btn btn-sm btn-primary">Aplicar</button>
+            <a asp-action="Index" class="btn btn-sm btn-outline-secondary">Limpiar</a>
+        </form>
+    </th>
+</tr>

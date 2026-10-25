@@ -1,7 +1,7 @@
 # ADR-0011: Catálogo de tipos de impuesto
 
 - **Fecha:** 2026-09-26
-- **Estado:** Aceptado
+- **Estado:** Actualizado por [ADR-0016](ADR-0016-simplificacion-impuestos-retenciones.md)
 - **Complementa:** [ADR-0009](ADR-0009-facturacion-administrativa.md) y
   [ADR-0010](ADR-0010-condicion-de-pago-redondeo-y-edicion-de-borradores.md)
 

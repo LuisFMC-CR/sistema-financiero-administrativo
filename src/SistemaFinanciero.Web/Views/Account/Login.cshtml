@@ -1,36 +1,59 @@
 @model SistemaFinanciero.Web.Models.Account.LoginViewModel
 @{
     ViewData["Title"] = "Iniciar sesión";
+    ViewData["FullBleed"] = true;
 }
 
-<div class="row justify-content-center py-5">
-    <div class="col-12 col-md-7 col-lg-5">
-        <div class="card border-0 shadow-sm">
-            <div class="card-body p-4 p-lg-5">
-                <h1 class="h3 mb-2">Iniciar sesión</h1>
-                <p class="text-secondary mb-4">Utilice la cuenta interna asignada por la empresa.</p>
-
-                <form asp-action="Login" method="post" novalidate>
-                    <input asp-for="ReturnUrl" type="hidden" />
-                    <div asp-validation-summary="ModelOnly" class="text-danger mb-3" role="alert"></div>
-
-                    <div class="mb-3">
-                        <label asp-for="Email" class="form-label"></label>
-                        <input asp-for="Email" class="form-control" autocomplete="username" autofocus />
-                        <span asp-validation-for="Email" class="text-danger"></span>
-                    </div>
-
-                    <div class="mb-4">
-                        <label asp-for="Password" class="form-label"></label>
-                        <input asp-for="Password" class="form-control" autocomplete="current-password" />
-                        <span asp-validation-for="Password" class="text-danger"></span>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary w-100">Ingresar</button>
-                </form>
-            </div>
+<div class="auth-shell">
+    <section class="auth-hero" aria-hidden="true">
+        <div class="auth-hero-arcs">
+            <svg viewBox="0 0 600 600" preserveAspectRatio="none">
+                <path d="M 40 560 A 520 520 0 0 1 560 40" />
+                <path d="M 40 460 A 420 420 0 0 1 460 40" />
+                <path d="M 40 360 A 320 320 0 0 1 360 40" />
+                <path d="M 40 260 A 220 220 0 0 1 260 40" />
+            </svg>
         </div>
-    </div>
+        <div class="auth-hero-content">
+            <div class="auth-mark">SF</div>
+            <p class="auth-hero-eyebrow">Soporte Experto</p>
+            <h1>Sistema Financiero<br />Administrativo</h1>
+            <p>
+                Centralice la facturación, las cuentas por cobrar y por pagar, el presupuesto y los
+                reportes de la empresa en un solo lugar, con acceso controlado por perfil.
+            </p>
+        </div>
+        <p class="auth-hero-footer">&copy; 2026 Soporte Experto. Uso interno.</p>
+    </section>
+
+    <section class="auth-panel">
+        <div class="auth-panel-content">
+            <p class="auth-wordmark">Soporte Experto</p>
+            <h2>Iniciar sesión</h2>
+            <p class="auth-subtext">Sistema Financiero Administrativo &mdash; utilice la cuenta interna asignada por la empresa.</p>
+
+            <form asp-action="Login" method="post" novalidate class="auth-form">
+                <input asp-for="ReturnUrl" type="hidden" />
+                <div asp-validation-summary="ModelOnly" class="text-danger mb-3" role="alert"></div>
+
+                <div class="auth-field">
+                    <label asp-for="Email" class="form-label"></label>
+                    <input asp-for="Email" class="auth-input" autocomplete="username" autofocus />
+                    <span asp-validation-for="Email" class="text-danger"></span>
+                </div>
+
+                <div class="auth-field">
+                    <label asp-for="Password" class="form-label"></label>
+                    <input asp-for="Password" class="auth-input" autocomplete="current-password" />
+                    <span asp-validation-for="Password" class="text-danger"></span>
+                </div>
+
+                <button type="submit" class="btn auth-submit w-100">Ingresar</button>
+            </form>
+
+            <p class="auth-help">¿Olvidó su contraseña? Solicítela al Administrador del sistema.</p>
+        </div>
+    </section>
 </div>
 
 @section Scripts {

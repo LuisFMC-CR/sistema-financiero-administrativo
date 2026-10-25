@@ -1,0 +1,33 @@
+@{
+    ViewData["Title"] = "Reportes";
+}
+
+<h1 class="h2 mb-1">Reportes</h1>
+<p class="text-body-secondary mb-3">En pantalla, PDF y Excel (regla de negocio 8).</p>
+
+<div class="list-group">
+    <a class="list-group-item list-group-item-action" asp-action="Income">
+        <div class="fw-semibold">Ingresos por período</div>
+        <div class="text-body-secondary small">Ingresos vigentes emitidos entre dos fechas.</div>
+    </a>
+    <a class="list-group-item list-group-item-action" asp-action="ExpenseByCategory">
+        <div class="fw-semibold">Gastos por período y categoría</div>
+        <div class="text-body-secondary small">Gastos confirmados entre dos fechas, agrupados por categoría.</div>
+    </a>
+    <a class="list-group-item list-group-item-action" asp-action="BudgetVsExecuted">
+        <div class="fw-semibold">Presupuesto contra lo ejecutado</div>
+        <div class="text-body-secondary small">Un mes, por categoría de gasto de último nivel.</div>
+    </a>
+    <a class="list-group-item list-group-item-action" asp-action="MonthlyComparison">
+        <div class="fw-semibold">Comparativo mensual de ingresos y gastos</div>
+        <div class="text-body-secondary small">Totales de ingresos y gastos, mes a mes, para un rango.</div>
+    </a>
+    <a class="list-group-item list-group-item-action" asp-action="CustomerStatement">
+        <div class="fw-semibold">Estado de cuenta de cliente</div>
+        <div class="text-body-secondary small">Historial de facturas a crédito y abonos de un cliente, y su saldo actual.</div>
+    </a>
+    <a class="list-group-item list-group-item-action" asp-action="PayableBySupplier">
+        <div class="fw-semibold">Cuentas por pagar por proveedor</div>
+        <div class="text-body-secondary small">Cuentas por pagar vigentes a la fecha, agrupadas por proveedor.</div>
+    </a>
+</div>

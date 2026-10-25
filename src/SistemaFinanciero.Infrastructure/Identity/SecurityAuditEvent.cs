@@ -5,6 +5,13 @@ namespace SistemaFinanciero.Infrastructure.Identity;
 /// <summary>
 /// Evento inmutable de la bitácora de seguridad.
 /// </summary>
+/// <remarks>
+/// Conexiones: lo escriben <c>IdentityBootstrapper</c>, <c>UserAdministrationService</c> y
+/// <c>UserAccountService</c>; se guarda en <c>seguridad.EventosSeguridad</c> vía
+/// <c>SecurityAuditEventConfiguration</c>. <c>FinancialDbContext.EnsureAppendOnlyLogsAreNotMutated</c>
+/// impide modificarlo o borrarlo. Todavía no tiene pantalla de consulta (ver <c>SystemPolicies.ViewAuditTrail</c>,
+/// que no usa ningún controlador hoy).
+/// </remarks>
 public sealed class SecurityAuditEvent
 {
     private SecurityAuditEvent()

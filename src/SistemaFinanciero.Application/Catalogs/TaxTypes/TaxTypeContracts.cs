@@ -1,31 +1,32 @@
 using SistemaFinanciero.Application.Catalogs.Common;
-using SistemaFinanciero.Domain.Invoices;
 
 namespace SistemaFinanciero.Application.Catalogs.TaxTypes;
 
-/// <summary>Datos requeridos para crear un tipo de impuesto.</summary>
+/// <summary>Datos requeridos para crear una tarifa de IVA.</summary>
+/// <remarks>
+/// Conexiones: lo recibe <c>ITaxTypeService.CreateAsync</c>, implementado por <c>TaxTypeService</c>
+/// (Infrastructure/Catalogs/TaxTypes); lo produce también <see cref="ReferenceTaxTypes"/> para la carga
+/// de tarifas de referencia. Lo consume <c>TaxTypesController</c> (Web, ruta
+/// <c>/catalogos/tipos-impuesto</c>).
+/// </remarks>
 public sealed record CreateTaxTypeCommand(
     string Code,
     string Name,
-    TaxCalculationType CalculationType,
     decimal Rate,
     string? Description);
 
-/// <summary>
-/// Datos editables de un tipo de impuesto; el método de cálculo se omite porque es inmutable.
-/// </summary>
+/// <summary>Datos editables de una tarifa de IVA.</summary>
 public sealed record UpdateTaxTypeCommand(
     string Code,
     string Name,
     decimal Rate,
     string? Description);
 
-/// <summary>Proyección administrativa de un tipo de impuesto.</summary>
+/// <summary>Proyección administrativa de una tarifa de IVA.</summary>
 public sealed record TaxTypeModel(
     Guid Id,
     string Code,
     string Name,
-    TaxCalculationType CalculationType,
     decimal Rate,
     string? Description,
     bool IsActive,
@@ -33,12 +34,11 @@ public sealed record TaxTypeModel(
     DateTimeOffset UpdatedAtUtc,
     string Version);
 
-/// <summary>Opción activa para el selector de impuestos de una línea de factura.</summary>
+/// <summary>Opción activa para el selector de IVA de una línea de factura.</summary>
 public sealed record TaxTypeOption(
     Guid Id,
     string Code,
     string Name,
-    TaxCalculationType CalculationType,
     decimal Rate);
 
 /// <summary>Resultado de cargar las tarifas de referencia: cuántas se crearon y cuántas ya existían.</summary>
@@ -62,13 +62,13 @@ public interface ITaxTypeService
     public Task<IReadOnlyList<TaxTypeOption>> GetActiveOptionsAsync(
         CancellationToken cancellationToken = default);
 
-    /// <summary>Crea un tipo de impuesto con método de cálculo fijo.</summary>
+    /// <summary>Crea una tarifa de IVA.</summary>
     public Task<CatalogOperationResult> CreateAsync(
         CreateTaxTypeCommand command,
         Guid actorId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Actualiza los datos que no alteran el método de cálculo.</summary>
+    /// <summary>Actualiza una tarifa de IVA.</summary>
     public Task<CatalogOperationResult> UpdateAsync(
         Guid id,
         UpdateTaxTypeCommand command,

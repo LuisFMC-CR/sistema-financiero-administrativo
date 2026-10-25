@@ -5,6 +5,12 @@ using SistemaFinanciero.Infrastructure.Identity;
 
 namespace SistemaFinanciero.Infrastructure.Persistence.Configurations;
 
+/// <summary>Mapea <see cref="TaxType"/> a la tabla <c>catalogos.TiposImpuesto</c>.</summary>
+/// <remarks>
+/// Conexiones: <c>FinancialDbContext.OnModelCreating</c> la aplica por convención. La usa
+/// <c>TaxTypeService</c>; <c>InvoiceLineTaxConfiguration</c> tiene la clave foránea restrictiva que
+/// impide borrar un tipo que una línea de factura ya usó.
+/// </remarks>
 internal sealed class TaxTypeConfiguration : IEntityTypeConfiguration<TaxType>
 {
     public void Configure(EntityTypeBuilder<TaxType> builder)
@@ -18,11 +24,8 @@ internal sealed class TaxTypeConfiguration : IEntityTypeConfiguration<TaxType>
                     "CK_TiposImpuesto_Codigo_NoVacio",
                     "LEN(LTRIM(RTRIM([Code]))) > 0");
                 table.HasCheckConstraint(
-                    "CK_TiposImpuesto_CalculationType",
-                    "[CalculationType] IN (1, 2)");
-                table.HasCheckConstraint(
                     "CK_TiposImpuesto_Rate",
-                    "[Rate] >= 0 AND ([CalculationType] <> 1 OR [Rate] <= 100)");
+                    "[Rate] >= 0 AND [Rate] <= 100");
             });
 
         builder.HasKey(taxType => taxType.Id);
@@ -32,7 +35,6 @@ internal sealed class TaxTypeConfiguration : IEntityTypeConfiguration<TaxType>
         builder.Property(taxType => taxType.Name)
             .HasMaxLength(TaxType.NameMaxLength)
             .IsRequired();
-        builder.Property(taxType => taxType.CalculationType).IsRequired();
         builder.Property(taxType => taxType.Rate)
             .HasPrecision(18, 4)
             .IsRequired();

@@ -1,4 +1,3 @@
-using SistemaFinanciero.Domain.Currencies;
 using SistemaFinanciero.Domain.Invoices;
 
 namespace SistemaFinanciero.UnitTests.Invoices;
@@ -14,27 +13,23 @@ public sealed class InvoiceDraftEditingTests
     private static readonly Guid EditorId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
     [Fact]
-    public void UpdateHeader_ChangesTheHeaderAndTheAudit()
+    public void UpdateHeader_ChangesTheHeaderAndRecalculatesTheDueDate()
     {
         Invoice invoice = CreateInvoice();
         Guid newCustomerId = Guid.NewGuid();
         DateOnly newIssueDate = IssueDate.AddDays(-2);
-        DateOnly dueDate = newIssueDate.AddDays(30);
 
         invoice.UpdateHeader(
             newCustomerId,
             newIssueDate,
-            CurrencyCode.USD,
-            PaymentTerm.Credit,
-            dueDate,
+            PaymentTerm.Credit30,
             EditedAtUtc,
             EditorId);
 
         Assert.Equal(newCustomerId, invoice.CustomerId);
         Assert.Equal(newIssueDate, invoice.IssueDate);
-        Assert.Equal(CurrencyCode.USD, invoice.Currency);
-        Assert.Equal(PaymentTerm.Credit, invoice.PaymentTerm);
-        Assert.Equal(dueDate, invoice.DueDate);
+        Assert.Equal(PaymentTerm.Credit30, invoice.PaymentTerm);
+        Assert.Equal(newIssueDate.AddDays(30), invoice.DueDate);
         Assert.Equal(EditedAtUtc, invoice.UpdatedAtUtc);
         Assert.Equal(EditorId, invoice.UpdatedByUserId);
         Assert.Equal(CreatorId, invoice.CreatedByUserId);
@@ -43,14 +38,12 @@ public sealed class InvoiceDraftEditingTests
     [Fact]
     public void UpdateHeader_ClearsTheDueDateWhenTheInvoiceBecomesCash()
     {
-        Invoice invoice = CreateInvoice(PaymentTerm.Credit, IssueDate.AddDays(30));
+        Invoice invoice = CreateInvoice(PaymentTerm.Credit30);
 
         invoice.UpdateHeader(
             invoice.CustomerId,
             IssueDate,
-            CurrencyCode.CRC,
             PaymentTerm.Cash,
-            dueDate: null,
             EditedAtUtc,
             EditorId);
 
@@ -59,20 +52,20 @@ public sealed class InvoiceDraftEditingTests
     }
 
     [Fact]
-    public void UpdateHeader_ValidatesTheDueDateAgainstTheNewIssueDate()
+    public void UpdateHeader_RecalculatesTheDueDateAgainstTheNewIssueDate()
     {
-        Invoice invoice = CreateInvoice(PaymentTerm.Credit, IssueDate.AddDays(5));
+        Invoice invoice = CreateInvoice(PaymentTerm.Credit30);
+        DateOnly newIssueDate = IssueDate.AddDays(10);
 
-        // El vencimiento anterior es válido para la emisión original, pero no para la nueva.
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            invoice.UpdateHeader(
-                invoice.CustomerId,
-                IssueDate.AddDays(10),
-                CurrencyCode.CRC,
-                PaymentTerm.Credit,
-                IssueDate.AddDays(5),
-                EditedAtUtc,
-                EditorId));
+        invoice.UpdateHeader(
+            invoice.CustomerId,
+            newIssueDate,
+            PaymentTerm.Credit30,
+            EditedAtUtc,
+            EditorId);
+
+        // El vencimiento se recalcula siempre desde la nueva emisión: nunca queda desactualizado.
+        Assert.Equal(newIssueDate.AddDays(30), invoice.DueDate);
     }
 
     [Fact]
@@ -83,60 +76,21 @@ public sealed class InvoiceDraftEditingTests
 
         Assert.Throws<ArgumentException>(() =>
             invoice.UpdateHeader(
-                Guid.NewGuid(),
+                Guid.Empty,
                 IssueDate.AddDays(1),
-                CurrencyCode.USD,
-                PaymentTerm.Credit,
-                dueDate: null,
+                PaymentTerm.Credit30,
                 EditedAtUtc,
                 EditorId));
 
         Assert.Equal(originalCustomerId, invoice.CustomerId);
         Assert.Equal(IssueDate, invoice.IssueDate);
-        Assert.Equal(CurrencyCode.CRC, invoice.Currency);
         Assert.Equal(PaymentTerm.Cash, invoice.PaymentTerm);
         Assert.Equal(CreatedAtUtc, invoice.UpdatedAtUtc);
         Assert.Equal(CreatorId, invoice.UpdatedByUserId);
     }
 
     [Fact]
-    public void UpdateHeader_AllowsChangingTheCurrencyWhileThereAreNoLines()
-    {
-        Invoice invoice = CreateInvoice();
-
-        invoice.UpdateHeader(
-            invoice.CustomerId,
-            IssueDate,
-            CurrencyCode.USD,
-            PaymentTerm.Cash,
-            dueDate: null,
-            EditedAtUtc,
-            EditorId);
-
-        Assert.Equal(CurrencyCode.USD, invoice.Currency);
-    }
-
-    [Fact]
-    public void UpdateHeader_RejectsChangingTheCurrencyOnceThereAreLines()
-    {
-        Invoice invoice = CreateInvoice();
-        invoice.AddLine(CreateLine(quantity: 1m, unitPrice: 100m), EditedAtUtc, CreatorId);
-
-        Assert.Throws<InvalidOperationException>(() =>
-            invoice.UpdateHeader(
-                invoice.CustomerId,
-                IssueDate,
-                CurrencyCode.USD,
-                PaymentTerm.Cash,
-                dueDate: null,
-                EditedAtUtc.AddMinutes(1),
-                EditorId));
-
-        Assert.Equal(CurrencyCode.CRC, invoice.Currency);
-    }
-
-    [Fact]
-    public void UpdateHeader_AllowsOtherChangesWhenThereAreLinesAndTheCurrencyIsTheSame()
+    public void UpdateHeader_AllowsOtherChangesWhenThereAreLines()
     {
         Invoice invoice = CreateInvoice();
         invoice.AddLine(CreateLine(quantity: 1m, unitPrice: 100m), EditedAtUtc, CreatorId);
@@ -145,9 +99,7 @@ public sealed class InvoiceDraftEditingTests
         invoice.UpdateHeader(
             invoice.CustomerId,
             newIssueDate,
-            CurrencyCode.CRC,
             PaymentTerm.Cash,
-            dueDate: null,
             EditedAtUtc.AddMinutes(1),
             EditorId);
 
@@ -162,7 +114,7 @@ public sealed class InvoiceDraftEditingTests
         InvoiceLine second = CreateLine(quantity: 2m, unitPrice: 50m);
         invoice.AddLine(first, EditedAtUtc, CreatorId);
         invoice.AddLine(second, EditedAtUtc, CreatorId);
-        InvoiceLine replacement = CreateLine(quantity: 1m, unitPrice: 300m, taxes: [Vat(13m)]);
+        InvoiceLine replacement = CreateLine(quantity: 1m, unitPrice: 300m, tax: Vat(13m));
 
         invoice.ReplaceLine(first.Id, replacement, EditedAtUtc.AddMinutes(1), EditorId);
 
@@ -202,7 +154,7 @@ public sealed class InvoiceDraftEditingTests
     public void RemoveLine_DeletesTheLineAndRecalculatesTheTotals()
     {
         Invoice invoice = CreateInvoice();
-        InvoiceLine first = CreateLine(quantity: 1m, unitPrice: 100m, taxes: [Vat(13m)]);
+        InvoiceLine first = CreateLine(quantity: 1m, unitPrice: 100m, tax: Vat(13m));
         InvoiceLine second = CreateLine(quantity: 2m, unitPrice: 50m);
         invoice.AddLine(first, EditedAtUtc, CreatorId);
         invoice.AddLine(second, EditedAtUtc, CreatorId);
@@ -236,7 +188,7 @@ public sealed class InvoiceDraftEditingTests
         Assert.Empty(invoice.Lines);
         Assert.Equal(0m, invoice.TotalAmount);
         Assert.Throws<InvalidOperationException>(() =>
-            invoice.Confirm(null, EditedAtUtc.AddMinutes(2), EditorId));
+            invoice.Confirm(EditedAtUtc.AddMinutes(2), EditorId, 1L));
     }
 
     [Fact]
@@ -268,16 +220,14 @@ public sealed class InvoiceDraftEditingTests
         Invoice invoice = CreateInvoice();
         InvoiceLine line = CreateLine(quantity: 1m, unitPrice: 100m);
         invoice.AddLine(line, EditedAtUtc, CreatorId);
-        invoice.Confirm(null, EditedAtUtc.AddMinutes(1), CreatorId);
+        invoice.Confirm(EditedAtUtc.AddMinutes(1), CreatorId, 1L);
         DateTimeOffset later = EditedAtUtc.AddMinutes(2);
 
         Assert.Throws<InvalidOperationException>(() =>
             invoice.UpdateHeader(
                 invoice.CustomerId,
                 IssueDate,
-                CurrencyCode.CRC,
                 PaymentTerm.Cash,
-                dueDate: null,
                 later,
                 EditorId));
         Assert.Throws<InvalidOperationException>(() =>
@@ -297,28 +247,26 @@ public sealed class InvoiceDraftEditingTests
         Invoice invoice = CreateInvoice();
         InvoiceLine line = CreateLine(quantity: 1m, unitPrice: 100m);
         invoice.AddLine(line, EditedAtUtc, CreatorId);
-        invoice.Confirm(null, EditedAtUtc.AddMinutes(1), CreatorId);
+        invoice.Confirm(EditedAtUtc.AddMinutes(1), CreatorId, 1L);
         invoice.Cancel("Error de digitación", EditedAtUtc.AddMinutes(2), CreatorId);
 
         Assert.Throws<InvalidOperationException>(() =>
             invoice.RemoveLine(line.Id, EditedAtUtc.AddMinutes(3), EditorId));
     }
 
-    private static Invoice CreateInvoice(PaymentTerm paymentTerm = PaymentTerm.Cash, DateOnly? dueDate = null) =>
+    private static Invoice CreateInvoice(PaymentTerm paymentTerm = PaymentTerm.Cash) =>
         new(
             Guid.NewGuid(),
             Guid.NewGuid(),
             IssueDate,
-            CurrencyCode.CRC,
             paymentTerm,
-            dueDate,
             CreatedAtUtc,
             CreatorId);
 
     private static InvoiceLine CreateLine(
         decimal quantity,
         decimal unitPrice,
-        IEnumerable<InvoiceTaxSpecification>? taxes = null) =>
+        InvoiceTaxSpecification? tax = null) =>
         new(
             Guid.NewGuid(),
             catalogItemId: null,
@@ -327,8 +275,11 @@ public sealed class InvoiceDraftEditingTests
             quantity,
             unitPrice,
             discountAmount: 0m,
-            taxes);
+            tax ?? ExemptTax());
 
     private static InvoiceTaxSpecification Vat(decimal rate) =>
-        new(Guid.NewGuid(), "IVA", "Impuesto al valor agregado", TaxCalculationType.Percentage, rate);
+        new("IVA", "Impuesto al valor agregado", rate);
+
+    private static InvoiceTaxSpecification ExemptTax() =>
+        new("IVA-EXENTO", "IVA exento", 0m);
 }

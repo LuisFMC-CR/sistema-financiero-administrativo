@@ -9,6 +9,11 @@ namespace SistemaFinanciero.Domain.Parameters;
 /// <remarks>
 /// Los valores «anteriores» son nulos únicamente en el registro que documenta la primera configuración,
 /// porque en ese momento no existía un valor previo.
+///
+/// Conexiones: la crea <c>SystemParametersService.CreateAsync</c>/<c>UpdateAsync</c> (Infrastructure),
+/// nunca el controlador directamente; se guarda en <c>finanzas.ParametrosSistemaHistorial</c> vía
+/// <c>SystemParameterChangeConfiguration</c>. <c>FinancialDbContext.EnsureAppendOnlyLogsAreNotMutated</c>
+/// impide modificarla o borrarla. No tiene pantalla propia de consulta todavía.
 /// </remarks>
 public sealed class SystemParameterChange
 {

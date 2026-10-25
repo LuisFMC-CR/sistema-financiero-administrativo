@@ -1,0 +1,93 @@
+@using SistemaFinanciero.Application.Payables
+@using SistemaFinanciero.Web.Models.Payables
+@model PayableIndexViewModel
+@{
+    ViewData["Title"] = "Cuentas por pagar";
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+    <div>
+        <h1 class="h2 mb-1">Cuentas por pagar</h1>
+        <p class="text-body-secondary mb-0">Generadas al confirmar gastos a crédito.</p>
+    </div>
+</div>
+
+<form method="get" role="search">
+<div class="table-responsive bg-white border rounded">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th scope="col">Gasto</th>
+                <th scope="col">Proveedor</th>
+                <th scope="col" class="text-end">Monto original</th>
+                <th scope="col" class="text-end">Saldo</th>
+                <th scope="col">Vencimiento</th>
+                <th scope="col">Estado</th>
+            </tr>
+            <tr class="table-filter-row">
+                <th class="p-2">
+                    <input name="expenseCode" value="@Model.Query.ExpenseCode" class="form-control form-control-sm" placeholder="Código" aria-label="Filtrar por código de gasto" />
+                </th>
+                <th class="p-2">
+                    <input name="supplierName" value="@Model.Query.SupplierName" class="form-control form-control-sm" placeholder="Nombre" aria-label="Filtrar por proveedor" />
+                </th>
+                <th class="p-2"></th>
+                <th class="p-2">
+                    <div class="d-flex gap-1">
+                        <input name="balanceMin" type="number" step="0.01" value="@Model.Query.BalanceMin" class="form-control form-control-sm" placeholder="Mín" aria-label="Saldo mínimo" />
+                        <input name="balanceMax" type="number" step="0.01" value="@Model.Query.BalanceMax" class="form-control form-control-sm" placeholder="Máx" aria-label="Saldo máximo" />
+                    </div>
+                </th>
+                <th class="p-2">
+                    <div class="d-flex gap-1">
+                        <input name="dueDateFrom" type="date" value="@Model.Query.DueDateFrom?.ToString("yyyy-MM-dd")" class="form-control form-control-sm" aria-label="Vencimiento desde" />
+                        <input name="dueDateTo" type="date" value="@Model.Query.DueDateTo?.ToString("yyyy-MM-dd")" class="form-control form-control-sm" aria-label="Vencimiento hasta" />
+                    </div>
+                </th>
+                <th class="p-2">
+                    <select name="status" class="form-select form-select-sm" aria-label="Estado" onchange="this.form.submit()">
+                        @foreach (PayableStatusFilter status in Enum.GetValues<PayableStatusFilter>())
+                        {
+                            if (status == Model.Query.Status)
+                            {
+                                <option value="@status" selected>@status.ToDisplayName()</option>
+                            }
+                            else
+                            {
+                                <option value="@status">@status.ToDisplayName()</option>
+                            }
+                        }
+                    </select>
+                </th>
+            </tr>
+            <tr>
+                <th colspan="6" class="p-2 text-end">
+                    <button type="submit" class="btn btn-sm btn-primary">Aplicar</button>
+                    <a asp-action="Index" class="btn btn-sm btn-outline-secondary">Limpiar</a>
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.Results.Items.Count == 0)
+            {
+                <tr><td colspan="6" class="text-center text-body-secondary py-4">No se encontraron cuentas por pagar.</td></tr>
+            }
+            @foreach (PayableModel payable in Model.Results.Items)
+            {
+                <tr>
+                    <td class="fw-semibold">
+                        <a asp-action="Details" asp-route-id="@payable.Id">@payable.ExpenseCode</a>
+                    </td>
+                    <td>@payable.SupplierName</td>
+                    <td class="text-end">₡@payable.OriginalAmount.ToString("N2")</td>
+                    <td class="text-end">₡@payable.Balance.ToString("N2")</td>
+                    <td>@payable.DueDate.ToString("dd/MM/yyyy")</td>
+                    <td>@payable.Status.ToDisplayName()</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+</form>
+
+<partial name="_Pagination" model="Model" />

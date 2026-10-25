@@ -5,6 +5,16 @@ namespace SistemaFinanciero.Domain.Catalogs;
 /// <summary>
 /// Representa una persona u organización que suministra bienes o servicios a la empresa.
 /// </summary>
+/// <remarks>
+/// El código lo asigna el sistema al crear (<c>PRV-0001</c>, regla 12) y no cambia después; tampoco la
+/// identificación, que es obligatoria y única en esta tabla.
+///
+/// Conexiones: lo crea y edita <c>SupplierCatalogService</c> (Infrastructure/Catalogs/Suppliers); se
+/// guarda en <c>catalogos.Proveedores</c> vía <c>SupplierConfiguration</c>; lo presenta
+/// <c>SuppliersController</c> (Web, ruta <c>/catalogos/proveedores</c>). Todavía no lo usa ningún
+/// documento: el módulo de Gastos y cuentas por pagar, que lo referenciaría igual que
+/// <c>Invoice.CustomerId</c> referencia a <see cref="Customer"/>, no se ha construido.
+/// </remarks>
 public sealed class Supplier
 {
     /// <summary>Longitud máxima del código visible del proveedor.</summary>
@@ -25,6 +35,9 @@ public sealed class Supplier
     /// <summary>Longitud máxima de la dirección.</summary>
     public const int AddressMaxLength = 500;
 
+    /// <summary>Longitud máxima de la actividad económica.</summary>
+    public const int EconomicActivityMaxLength = 200;
+
     private Supplier()
     {
     }
@@ -36,23 +49,28 @@ public sealed class Supplier
         Guid id,
         string code,
         string name,
-        string? identification,
+        string identification,
         string? email,
         string? phone,
         string? address,
+        string? economicActivity,
         DateTimeOffset createdAtUtc,
         Guid createdByUserId)
     {
         Id = DomainRules.RequiredId(id, nameof(id));
         Code = DomainRules.NormalizedCode(code, CodeMaxLength, nameof(code));
         Name = DomainRules.RequiredText(name, NameMaxLength, nameof(name));
-        Identification = DomainRules.OptionalText(
+        Identification = DomainRules.RequiredText(
             identification,
             IdentificationMaxLength,
             nameof(identification));
         Email = DomainRules.OptionalText(email, EmailMaxLength, nameof(email));
         Phone = DomainRules.OptionalText(phone, PhoneMaxLength, nameof(phone));
         Address = DomainRules.OptionalText(address, AddressMaxLength, nameof(address));
+        EconomicActivity = DomainRules.OptionalText(
+            economicActivity,
+            EconomicActivityMaxLength,
+            nameof(economicActivity));
         CreatedAtUtc = DomainRules.RequiredUtcTimestamp(createdAtUtc, nameof(createdAtUtc));
         CreatedByUserId = DomainRules.RequiredId(createdByUserId, nameof(createdByUserId));
         UpdatedAtUtc = CreatedAtUtc;
@@ -69,8 +87,8 @@ public sealed class Supplier
     /// <summary>Obtiene el nombre completo o razón social.</summary>
     public string Name { get; private set; } = string.Empty;
 
-    /// <summary>Obtiene la identificación fiscal o personal, cuando se conoce.</summary>
-    public string? Identification { get; private set; }
+    /// <summary>Obtiene la identificación fiscal o personal, obligatoria y única.</summary>
+    public string Identification { get; private set; } = string.Empty;
 
     /// <summary>Obtiene el correo electrónico de contacto.</summary>
     public string? Email { get; private set; }
@@ -80,6 +98,9 @@ public sealed class Supplier
 
     /// <summary>Obtiene la dirección de contacto.</summary>
     public string? Address { get; private set; }
+
+    /// <summary>Obtiene la actividad económica declarada, cuando se conoce.</summary>
+    public string? EconomicActivity { get; private set; }
 
     /// <summary>Indica si puede seleccionarse para nuevas operaciones.</summary>
     public bool IsActive { get; private set; }
@@ -100,35 +121,38 @@ public sealed class Supplier
     public byte[] RowVersion { get; private set; } = [];
 
     /// <summary>
-    /// Actualiza los datos editables del proveedor y conserva su identidad.
+    /// Actualiza los datos editables del proveedor y conserva su identidad. El código no cambia.
     /// </summary>
     public void UpdateDetails(
-        string code,
         string name,
-        string? identification,
+        string identification,
         string? email,
         string? phone,
         string? address,
+        string? economicActivity,
         DateTimeOffset updatedAtUtc,
         Guid updatedByUserId)
     {
-        string normalizedCode = DomainRules.NormalizedCode(code, CodeMaxLength, nameof(code));
         string normalizedName = DomainRules.RequiredText(name, NameMaxLength, nameof(name));
-        string? normalizedIdentification = DomainRules.OptionalText(
+        string normalizedIdentification = DomainRules.RequiredText(
             identification,
             IdentificationMaxLength,
             nameof(identification));
         string? normalizedEmail = DomainRules.OptionalText(email, EmailMaxLength, nameof(email));
         string? normalizedPhone = DomainRules.OptionalText(phone, PhoneMaxLength, nameof(phone));
         string? normalizedAddress = DomainRules.OptionalText(address, AddressMaxLength, nameof(address));
+        string? normalizedEconomicActivity = DomainRules.OptionalText(
+            economicActivity,
+            EconomicActivityMaxLength,
+            nameof(economicActivity));
         DateTimeOffset normalizedUpdatedAtUtc = ValidateUpdateAudit(updatedAtUtc, updatedByUserId);
 
-        Code = normalizedCode;
         Name = normalizedName;
         Identification = normalizedIdentification;
         Email = normalizedEmail;
         Phone = normalizedPhone;
         Address = normalizedAddress;
+        EconomicActivity = normalizedEconomicActivity;
         Touch(normalizedUpdatedAtUtc, updatedByUserId);
     }
 

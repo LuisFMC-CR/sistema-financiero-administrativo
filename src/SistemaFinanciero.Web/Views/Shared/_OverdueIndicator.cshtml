@@ -1,0 +1,35 @@
+@using SistemaFinanciero.Web.Models.Overdue
+@model OverdueIndicatorViewModel
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+                <h2 class="h5">Cuentas por cobrar vencidas</h2>
+                <p class="mb-1">
+                    <span class="fw-semibold">@Model.Receivables.OverdueCount</span> vencidas por
+                    ₡@Model.Receivables.OverdueAmount.ToString("N2")
+                </p>
+                <p class="text-body-secondary mb-0">
+                    <span class="fw-semibold">@Model.Receivables.UpcomingCount</span> vencen en los
+                    próximos @Model.AlertDays días por ₡@Model.Receivables.UpcomingAmount.ToString("N2")
+                </p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body">
+                <h2 class="h5">Cuentas por pagar vencidas</h2>
+                <p class="mb-1">
+                    <span class="fw-semibold">@Model.Payables.OverdueCount</span> vencidas por
+                    ₡@Model.Payables.OverdueAmount.ToString("N2")
+                </p>
+                <p class="text-body-secondary mb-0">
+                    <span class="fw-semibold">@Model.Payables.UpcomingCount</span> vencen en los
+                    próximos @Model.AlertDays días por ₡@Model.Payables.UpcomingAmount.ToString("N2")
+                </p>
+            </div>
+        </div>
+    </div>
+</div>

@@ -3,6 +3,10 @@ namespace SistemaFinanciero.Domain.Catalogs;
 /// <summary>
 /// Tipos de elementos que pueden incluirse en un documento de venta.
 /// </summary>
+/// <remarks>
+/// Conexiones: es el valor de <c>CatalogItem.Type</c>; <c>CatalogDisplayExtensions.ToDisplayName</c>
+/// (Web) lo traduce a «Producto» o «Servicio» en las pantallas.
+/// </remarks>
 public enum CatalogItemType
 {
     /// <summary>

@@ -1,0 +1,101 @@
+@using SistemaFinanciero.Application.Expenses
+@using SistemaFinanciero.Application.Security
+@using SistemaFinanciero.Web.Models.Expenses
+@model ExpenseIndexViewModel
+@{
+    ViewData["Title"] = "Gastos";
+    bool canCreate = (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.CreateFinancialDrafts)).Succeeded;
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+    <div>
+        <h1 class="h2 mb-1">Gastos</h1>
+        <p class="text-body-secondary mb-0">Compras a proveedores respaldadas por comprobante electrónico.</p>
+    </div>
+    @if (canCreate)
+    {
+        <a asp-action="Create" class="btn btn-primary">Nuevo gasto</a>
+    }
+</div>
+
+<form method="get" role="search">
+<div class="table-responsive bg-white border rounded">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th scope="col">Código</th>
+                <th scope="col">Proveedor</th>
+                <th scope="col">Categoría</th>
+                <th scope="col">Fecha</th>
+                <th scope="col" class="text-end">Total</th>
+                <th scope="col">Estado</th>
+            </tr>
+            <tr class="table-filter-row">
+                <th class="p-2">
+                    <input name="code" value="@Model.Query.Code" class="form-control form-control-sm" placeholder="Código" aria-label="Filtrar por código" />
+                </th>
+                <th class="p-2">
+                    <input name="supplierName" value="@Model.Query.SupplierName" class="form-control form-control-sm" placeholder="Proveedor" aria-label="Filtrar por proveedor" />
+                </th>
+                <th class="p-2">
+                    <input name="categoryName" value="@Model.Query.CategoryName" class="form-control form-control-sm" placeholder="Categoría" aria-label="Filtrar por categoría" />
+                </th>
+                <th class="p-2">
+                    <div class="d-flex gap-1">
+                        <input name="issueDateFrom" type="date" value="@Model.Query.IssueDateFrom?.ToString("yyyy-MM-dd")" class="form-control form-control-sm" aria-label="Fecha desde" />
+                        <input name="issueDateTo" type="date" value="@Model.Query.IssueDateTo?.ToString("yyyy-MM-dd")" class="form-control form-control-sm" aria-label="Fecha hasta" />
+                    </div>
+                </th>
+                <th class="p-2">
+                    <div class="d-flex gap-1">
+                        <input name="amountMin" type="number" step="0.01" value="@Model.Query.AmountMin" class="form-control form-control-sm" placeholder="Mín" aria-label="Total mínimo" />
+                        <input name="amountMax" type="number" step="0.01" value="@Model.Query.AmountMax" class="form-control form-control-sm" placeholder="Máx" aria-label="Total máximo" />
+                    </div>
+                </th>
+                <th class="p-2">
+                    <select name="status" class="form-select form-select-sm" aria-label="Estado" onchange="this.form.submit()">
+                        @foreach (ExpenseStatusFilter status in Enum.GetValues<ExpenseStatusFilter>())
+                        {
+                            if (status == Model.Query.Status)
+                            {
+                                <option value="@status" selected>@status.ToDisplayName()</option>
+                            }
+                            else
+                            {
+                                <option value="@status">@status.ToDisplayName()</option>
+                            }
+                        }
+                    </select>
+                </th>
+            </tr>
+            <tr>
+                <th colspan="6" class="p-2 text-end">
+                    <button type="submit" class="btn btn-sm btn-primary">Aplicar</button>
+                    <a asp-action="Index" class="btn btn-sm btn-outline-secondary">Limpiar</a>
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.Results.Items.Count == 0)
+            {
+                <tr><td colspan="6" class="text-center text-body-secondary py-4">No se encontraron gastos.</td></tr>
+            }
+            @foreach (ExpenseModel expense in Model.Results.Items)
+            {
+                <tr>
+                    <td class="fw-semibold">
+                        <a asp-action="Details" asp-route-id="@expense.Id">@expense.Code</a>
+                    </td>
+                    <td>@expense.SupplierName</td>
+                    <td>@expense.CategoryName</td>
+                    <td>@expense.IssueDate.ToString("dd/MM/yyyy")</td>
+                    <td class="text-end">₡@expense.TotalAmount.ToString("N2")</td>
+                    <td>@expense.Status.ToDisplayName()</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+</form>
+
+<partial name="_Pagination" model="Model" />
