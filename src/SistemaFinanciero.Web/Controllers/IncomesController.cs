@@ -114,7 +114,9 @@ public sealed class IncomesController(
 
         if (result.Operation.IsSuccess)
         {
-            SetSuccessMessage("El ingreso fue registrado.");
+            SetSuccessMessage(result.DuplicateReferenceWarning
+                ? "El ingreso fue registrado. Advertencia: la referencia ya se había usado antes en esta cuenta de efectivo."
+                : "El ingreso fue registrado.");
             return RedirectToAction(nameof(Index));
         }
 

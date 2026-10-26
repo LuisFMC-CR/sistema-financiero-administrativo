@@ -9,6 +9,7 @@ using SistemaFinanciero.Domain.Incomes;
 using SistemaFinanciero.Domain.Invoices;
 using SistemaFinanciero.Domain.Receivables;
 using SistemaFinanciero.Infrastructure.Catalogs;
+using SistemaFinanciero.Infrastructure.Common;
 using SistemaFinanciero.Infrastructure.Parameters;
 using SistemaFinanciero.Infrastructure.Persistence;
 
@@ -655,6 +656,12 @@ internal sealed class InvoiceService(
             }
         }
     }
+
+    public Task<bool> HasDuplicateCashReferenceAsync(
+        Guid cashAccountId,
+        string reference,
+        CancellationToken cancellationToken = default) =>
+        DuplicateReferenceGuard.ExistsAsync(dbContext, cashAccountId, reference, cancellationToken);
 
     private async Task<CatalogOperationResult?> ValidateCashConfirmationAsync(
         ConfirmInvoiceCommand command,

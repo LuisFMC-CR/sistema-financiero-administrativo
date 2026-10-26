@@ -6,6 +6,7 @@ using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Incomes;
 using SistemaFinanciero.Domain.Invoices;
 using SistemaFinanciero.Infrastructure.Catalogs;
+using SistemaFinanciero.Infrastructure.Common;
 using SistemaFinanciero.Infrastructure.Parameters;
 using SistemaFinanciero.Infrastructure.Persistence;
 
@@ -136,7 +137,8 @@ internal sealed class IncomeService(
             return new IncomeCreationResult(
                 CatalogOperationResult.Invalid(
                     "La cuenta de efectivo seleccionada no existe, está inactiva o no es de efectivo."),
-                null);
+                null,
+                false);
         }
 
         bool isValidCategory = await dbContext.Set<FinancialCategory>()
@@ -151,7 +153,8 @@ internal sealed class IncomeService(
         {
             return new IncomeCreationResult(
                 CatalogOperationResult.Invalid("La categoría seleccionada no existe, está inactiva o no es de ingreso."),
-                null);
+                null,
+                false);
         }
 
         string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
@@ -159,8 +162,11 @@ internal sealed class IncomeService(
 
         if (closingDateViolation is not null)
         {
-            return new IncomeCreationResult(CatalogOperationResult.Invalid(closingDateViolation), null);
+            return new IncomeCreationResult(CatalogOperationResult.Invalid(closingDateViolation), null, false);
         }
+
+        bool duplicateReferenceWarning = !string.IsNullOrWhiteSpace(command.Reference)
+            && await DuplicateReferenceGuard.ExistsAsync(dbContext, command.CashAccountId, command.Reference, cancellationToken);
 
         try
         {
@@ -199,12 +205,12 @@ internal sealed class IncomeService(
                 "No fue posible registrar el ingreso.",
                 cancellationToken);
 
-            return new IncomeCreationResult(result, result.IsSuccess ? income.Id : null);
+            return new IncomeCreationResult(result, result.IsSuccess ? income.Id : null, duplicateReferenceWarning);
         }
         catch (ArgumentException exception)
         {
             dbContext.ChangeTracker.Clear();
-            return new IncomeCreationResult(CatalogOperationResult.Invalid(exception.Message), null);
+            return new IncomeCreationResult(CatalogOperationResult.Invalid(exception.Message), null, false);
         }
     }
 

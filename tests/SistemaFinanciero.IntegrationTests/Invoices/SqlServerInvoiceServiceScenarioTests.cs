@@ -571,6 +571,33 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
         });
     }
 
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task HasDuplicateCashReferenceAsync_DetectsAReferenceAlreadyUsedByAnIncome()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            Guid customerId = await CreateCustomerAsync(services, actorId);
+            Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
+            Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
+            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+
+            Assert.False(await invoices.HasDuplicateCashReferenceAsync(cashAccountId, "F-REPETIDA"));
+
+            Guid invoiceId = await CreateInvoiceWithLineAsync(invoices, customerId, taxTypeId, actorId);
+            InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
+            await invoices.ConfirmAsync(
+                invoiceId,
+                new ConfirmInvoiceCommand(cashAccountId, PaymentMethod.Cash, "F-REPETIDA", incomeCategoryId),
+                draft.Version,
+                actorId);
+
+            Assert.True(await invoices.HasDuplicateCashReferenceAsync(cashAccountId, "F-REPETIDA"));
+            Assert.False(await invoices.HasDuplicateCashReferenceAsync(cashAccountId, "OTRA-REFERENCIA"));
+        });
+    }
+
     private static async Task<Guid> CreateInvoiceWithLineAsync(
         IInvoiceService invoices,
         Guid customerId,

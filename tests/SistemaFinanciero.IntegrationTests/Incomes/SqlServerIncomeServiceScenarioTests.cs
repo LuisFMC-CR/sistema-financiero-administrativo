@@ -214,6 +214,35 @@ public sealed class SqlServerIncomeServiceScenarioTests : IClassFixture<Financia
         await context.SaveChangesAsync();
     }
 
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task CreateManualAsync_WithAReferenceAlreadyUsedInTheSameCashAccount_WarnsButSucceeds()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IIncomeService incomes = services.GetRequiredService<IIncomeService>();
+            Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
+            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+
+            IncomeCreationResult first = await incomes.CreateManualAsync(
+                new CreateManualIncomeCommand(
+                    incomeCategoryId, cashAccountId, 5_000m, DateOnly.FromDateTime(DateTime.UtcNow),
+                    PaymentMethod.BankTransfer, "DEP-REPETIDO", "Primer reintegro"),
+                actorId);
+            Assert.True(first.Operation.IsSuccess);
+            Assert.False(first.DuplicateReferenceWarning);
+
+            IncomeCreationResult second = await incomes.CreateManualAsync(
+                new CreateManualIncomeCommand(
+                    incomeCategoryId, cashAccountId, 3_000m, DateOnly.FromDateTime(DateTime.UtcNow),
+                    PaymentMethod.BankTransfer, "DEP-REPETIDO", "Segundo reintegro"),
+                actorId);
+
+            Assert.True(second.Operation.IsSuccess);
+            Assert.True(second.DuplicateReferenceWarning);
+        });
+    }
+
     private static async Task<Guid> CreateCustomerAsync(IServiceProvider services, Guid actorId)
     {
         FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();

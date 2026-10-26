@@ -441,12 +441,18 @@ public sealed class InvoicesController(
             return Forbid();
         }
 
+        bool duplicateReferenceWarning = model.IsCash && model.CashAccountId is Guid cashAccountId
+            && !string.IsNullOrWhiteSpace(model.Reference)
+            && await service.HasDuplicateCashReferenceAsync(cashAccountId, model.Reference, cancellationToken);
+
         ConfirmInvoiceCommand command = new(model.CashAccountId, model.PaymentMethod, model.Reference, model.CategoryId);
         CatalogOperationResult result = await service.ConfirmAsync(id, command, model.Version, actorId, cancellationToken);
 
         if (result.IsSuccess)
         {
-            SetSuccessMessage("La factura fue confirmada.");
+            SetSuccessMessage(duplicateReferenceWarning
+                ? "La factura fue confirmada. Advertencia: la referencia ya se había usado antes en esta cuenta de efectivo."
+                : "La factura fue confirmada.");
             return RedirectToAction(nameof(Details), new { id });
         }
 

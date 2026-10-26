@@ -9,6 +9,7 @@ using SistemaFinanciero.Domain.Parameters;
 using SistemaFinanciero.Domain.Payables;
 using SistemaFinanciero.Domain.Receivables;
 using SistemaFinanciero.Infrastructure.Catalogs;
+using SistemaFinanciero.Infrastructure.Common;
 using SistemaFinanciero.Infrastructure.Parameters;
 using SistemaFinanciero.Infrastructure.Persistence;
 
@@ -147,7 +148,8 @@ internal sealed class SupplierPaymentService(
             }
         }
 
-        bool duplicateReferenceWarning = await HasDuplicateReferenceAsync(
+        bool duplicateReferenceWarning = await DuplicateReferenceGuard.ExistsAsync(
+            dbContext,
             command.CashAccountId,
             command.Reference,
             cancellationToken);
@@ -325,39 +327,6 @@ internal sealed class SupplierPaymentService(
         return (prepared, total);
     }
 
-    private async Task<bool> HasDuplicateReferenceAsync(
-        Guid cashAccountId,
-        string reference,
-        CancellationToken cancellationToken)
-    {
-        bool existsInPayments = await dbContext.Set<SupplierPayment>()
-            .AsNoTracking()
-            .AnyAsync(
-                payment => payment.CashAccountId == cashAccountId && payment.Reference == reference,
-                cancellationToken);
-
-        if (existsInPayments)
-        {
-            return true;
-        }
-
-        bool existsInReceivablePayments = await dbContext.Set<ReceivablePayment>()
-            .AsNoTracking()
-            .AnyAsync(
-                payment => payment.CashAccountId == cashAccountId && payment.Reference == reference,
-                cancellationToken);
-
-        if (existsInReceivablePayments)
-        {
-            return true;
-        }
-
-        return await dbContext.Set<Income>()
-            .AsNoTracking()
-            .AnyAsync(
-                income => income.CashAccountId == cashAccountId && income.Reference == reference,
-                cancellationToken);
-    }
 
     private async Task<string> GetCashAccountNameAsync(Guid cashAccountId, CancellationToken cancellationToken)
     {

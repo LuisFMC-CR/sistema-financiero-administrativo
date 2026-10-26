@@ -130,8 +130,15 @@ public sealed record CreateManualIncomeCommand(
     string? Reference,
     string Description);
 
-/// <summary>Resultado de crear un ingreso manual: la operación y el identificador del nuevo registro.</summary>
-public sealed record IncomeCreationResult(CatalogOperationResult Operation, Guid? IncomeId);
+/// <summary>
+/// Resultado de crear un ingreso manual: la operación, el identificador del nuevo registro y si la
+/// referencia ya se había usado antes en la misma cuenta de efectivo (regla 10: advertencia, no
+/// bloquea).
+/// </summary>
+public sealed record IncomeCreationResult(
+    CatalogOperationResult Operation,
+    Guid? IncomeId,
+    bool DuplicateReferenceWarning);
 
 /// <summary>
 /// Casos de uso de consulta y registro manual de ingresos. Los ingresos generados automáticamente

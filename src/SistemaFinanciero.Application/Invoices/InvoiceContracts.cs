@@ -259,4 +259,13 @@ public interface IInvoiceService
         string version,
         Guid actorId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Indica si la referencia ya se había usado antes en esa cuenta de efectivo (regla 10:
+    /// advertencia, no bloquea), para mostrarla al confirmar una factura de contado.
+    /// </summary>
+    public Task<bool> HasDuplicateCashReferenceAsync(
+        Guid cashAccountId,
+        string reference,
+        CancellationToken cancellationToken = default);
 }
