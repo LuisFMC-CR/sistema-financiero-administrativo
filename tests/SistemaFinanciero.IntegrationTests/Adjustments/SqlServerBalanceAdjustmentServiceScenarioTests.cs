@@ -12,6 +12,7 @@ using SistemaFinanciero.Domain.Audit;
 using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Common;
 using SistemaFinanciero.Domain.Invoices;
+using SistemaFinanciero.Domain.Parameters;
 using SistemaFinanciero.Domain.Payables;
 using SistemaFinanciero.Domain.Receivables;
 using SistemaFinanciero.Infrastructure.Identity;
@@ -157,6 +158,46 @@ public sealed class SqlServerBalanceAdjustmentServiceScenarioTests : IClassFixtu
 
             Assert.Equal(CatalogOperationStatus.ConcurrencyConflict, secondAdjustment.Status);
         });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task AdjustReceivableAsync_WhenTodayIsClosed_IsRejected()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IInvoiceService invoiceService = services.GetRequiredService<IInvoiceService>();
+            IReceivableService receivableService = services.GetRequiredService<IReceivableService>();
+            IBalanceAdjustmentService adjustments = services.GetRequiredService<IBalanceAdjustmentService>();
+            Guid customerId = await CreateCustomerAsync(services, actorId);
+
+            Guid receivableId = await CreateConfirmedCreditReceivableAsync(
+                services, invoiceService, customerId, actorId, amount: 1000m);
+            string version = (await receivableService.GetAsync(receivableId))!.Version;
+
+            await SetClosingDateAsync(services, actorId, DateOnly.FromDateTime(DateTime.UtcNow));
+
+            CatalogOperationResult result = await adjustments.AdjustReceivableAsync(
+                receivableId, 100m, BalanceAdjustmentDirection.Decrease, "Ajuste de prueba", version, actorId);
+
+            Assert.Equal(CatalogOperationStatus.Invalid, result.Status);
+            Assert.Equal(1000m, (await receivableService.GetAsync(receivableId))!.Balance);
+        });
+    }
+
+    private static async Task SetClosingDateAsync(IServiceProvider services, Guid actorId, DateOnly closingDate)
+    {
+        FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+        SystemParameters? parameters = await context.SystemParameters.SingleOrDefaultAsync();
+
+        if (parameters is null)
+        {
+            parameters = new SystemParameters(500_000m, 7, DateTimeOffset.UtcNow, actorId);
+            context.SystemParameters.Add(parameters);
+        }
+
+        parameters.ChangeClosingDate(closingDate, closingDate, reason: null, DateTimeOffset.UtcNow, actorId);
+        await context.SaveChangesAsync();
     }
 
     private static async Task<Guid> CreateConfirmedCreditReceivableAsync(

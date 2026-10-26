@@ -1,0 +1,56 @@
+@{
+    ViewData["Title"] = "Perfiles y permisos";
+}
+
+<h1 class="h2 mb-1">Perfiles y permisos</h1>
+<p class="text-body-secondary mb-3">
+    Perfiles fijos del sistema; no hay permisos por usuario individual. Esta pantalla es solo de
+    consulta: la administración de usuarios está en Administración → Usuarios.
+</p>
+
+<div class="table-responsive bg-white border rounded">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th scope="col" style="width: 160px;">Perfil</th>
+                <th scope="col">Permisos</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="fw-semibold">Asistente</td>
+                <td>
+                    Consulta catálogos; mantiene clientes y proveedores; registra borradores de
+                    facturas y gastos y ve solo los suyos. No ve reportes, presupuesto ni saldos.
+                </td>
+            </tr>
+            <tr>
+                <td class="fw-semibold">Finanzas</td>
+                <td>
+                    Catálogos financieros (cuentas, categorías, tarifas, retenciones, productos);
+                    confirma documentos; ingresos manuales; abonos y pagos hasta el límite de
+                    autorización; presupuesto; consultas y reportes.
+                </td>
+            </tr>
+            <tr>
+                <td class="fw-semibold">Gerencia</td>
+                <td>
+                    Todo lo de Finanzas y Asistente (incluidos los borradores de todos los usuarios),
+                    más lo exclusivo: abonos y pagos sobre el límite de autorización, anulaciones,
+                    ajustes de saldo y parámetros del sistema (límite de autorización, días de alerta,
+                    datos de la empresa y fecha de cierre). No administra usuarios.
+                </td>
+            </tr>
+            <tr>
+                <td class="fw-semibold">Administrador</td>
+                <td>Solo usuarios y configuración técnica; sin acceso a información financiera.</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<p class="text-body-secondary small mt-3 mb-0">
+    Gerencia entra en toda política que permita a Finanzas o Asistente; solo las de administración de
+    usuarios la excluyen. Lo exclusivo de Gerencia sigue siendo exclusivo de Gerencia. Los permisos se
+    validan siempre en el servidor, no solo ocultando opciones en pantalla.
+</p>

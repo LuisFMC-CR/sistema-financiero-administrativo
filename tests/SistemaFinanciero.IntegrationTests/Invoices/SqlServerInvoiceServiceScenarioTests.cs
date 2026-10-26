@@ -8,6 +8,7 @@ using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Common;
 using SistemaFinanciero.Domain.Incomes;
 using SistemaFinanciero.Domain.Invoices;
+using SistemaFinanciero.Domain.Parameters;
 using SistemaFinanciero.Domain.Receivables;
 using SistemaFinanciero.Infrastructure.Identity;
 using SistemaFinanciero.Infrastructure.Persistence;
@@ -402,6 +403,114 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
                 new InvoiceQuery(status: InvoiceStatusFilter.Draft, createdByUserId: ownerId));
             Assert.DoesNotContain(onlyDrafts.Items, item => item.Id == ownDraftId);
         });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task CreateAsync_WithAnIssueDateOnOrBeforeTheClosingDate_IsRejected()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+            await SetClosingDateAsync(services, actorId, today);
+
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            Guid customerId = await CreateCustomerAsync(services, actorId);
+
+            InvoiceCreationResult closed = await invoices.CreateAsync(
+                new CreateInvoiceCommand(customerId, today, PaymentTerm.Cash), actorId);
+            Assert.Equal(CatalogOperationStatus.Invalid, closed.Operation.Status);
+
+            InvoiceCreationResult open = await invoices.CreateAsync(
+                new CreateInvoiceCommand(customerId, today.AddDays(1), PaymentTerm.Cash), actorId);
+            Assert.True(open.Operation.IsSuccess);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task ConfirmAsync_WhenTheInvoiceIssueDateIsNowClosed_IsRejected()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            Guid customerId = await CreateCustomerAsync(services, actorId);
+            Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
+            DateOnly issueDate = new(2026, 1, 15);
+
+            InvoiceCreationResult created = await invoices.CreateAsync(
+                new CreateInvoiceCommand(customerId, issueDate, PaymentTerm.Credit30), actorId);
+            Guid invoiceId = created.InvoiceId!.Value;
+            InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
+            await invoices.AddLineAsync(
+                invoiceId,
+                new InvoiceLineInputCommand(null, "Servicio a crédito", "unidad", 1m, 100m, 0m, taxTypeId),
+                draft.Version,
+                actorId);
+            draft = (await invoices.GetAsync(invoiceId))!;
+
+            await SetClosingDateAsync(services, actorId, new DateOnly(2026, 1, 31));
+
+            CatalogOperationResult confirm = await invoices.ConfirmAsync(
+                invoiceId, new ConfirmInvoiceCommand(null, null, null, null), draft.Version, actorId);
+
+            Assert.Equal(CatalogOperationStatus.Invalid, confirm.Status);
+            InvoiceModel stillDraft = (await invoices.GetAsync(invoiceId))!;
+            Assert.Equal(InvoiceStatus.Draft, stillDraft.Status);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task CancelAsync_WhenTheInvoiceIssueDateIsNowClosed_IsRejected()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            Guid customerId = await CreateCustomerAsync(services, actorId);
+            Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
+            DateOnly issueDate = new(2026, 1, 15);
+
+            InvoiceCreationResult created = await invoices.CreateAsync(
+                new CreateInvoiceCommand(customerId, issueDate, PaymentTerm.Credit30), actorId);
+            Guid invoiceId = created.InvoiceId!.Value;
+            InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
+            await invoices.AddLineAsync(
+                invoiceId,
+                new InvoiceLineInputCommand(null, "Servicio a crédito", "unidad", 1m, 100m, 0m, taxTypeId),
+                draft.Version,
+                actorId);
+            draft = (await invoices.GetAsync(invoiceId))!;
+
+            // La factura se confirma antes de cerrar su período (regla 16 solo bloquea desde el cierre).
+            await invoices.ConfirmAsync(
+                invoiceId, new ConfirmInvoiceCommand(null, null, null, null), draft.Version, actorId);
+            InvoiceModel confirmed = (await invoices.GetAsync(invoiceId))!;
+
+            await SetClosingDateAsync(services, actorId, new DateOnly(2026, 1, 31));
+
+            CatalogOperationResult cancel = await invoices.CancelAsync(
+                invoiceId, "Error de digitación", confirmed.Version, actorId);
+
+            Assert.Equal(CatalogOperationStatus.Invalid, cancel.Status);
+            InvoiceModel stillConfirmed = (await invoices.GetAsync(invoiceId))!;
+            Assert.Equal(InvoiceStatus.Confirmed, stillConfirmed.Status);
+        });
+    }
+
+    private static async Task SetClosingDateAsync(IServiceProvider services, Guid actorId, DateOnly closingDate)
+    {
+        FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+        SystemParameters? parameters = await context.SystemParameters.SingleOrDefaultAsync();
+
+        if (parameters is null)
+        {
+            parameters = new SystemParameters(500_000m, 7, DateTimeOffset.UtcNow, actorId);
+            context.SystemParameters.Add(parameters);
+        }
+
+        parameters.ChangeClosingDate(closingDate, closingDate, reason: null, DateTimeOffset.UtcNow, actorId);
+        await context.SaveChangesAsync();
     }
 
     private static async Task<Guid> CreateInvoiceWithLineAsync(

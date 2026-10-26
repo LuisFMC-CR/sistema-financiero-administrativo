@@ -207,6 +207,53 @@ public sealed class SqlServerSupplierPaymentServiceScenarioTests : IClassFixture
         });
     }
 
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task RegisterAsync_WithAPaymentDateOnOrBeforeTheClosingDate_IsRejected()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IExpenseService expenses = services.GetRequiredService<IExpenseService>();
+            ISupplierPaymentService payments = services.GetRequiredService<ISupplierPaymentService>();
+            Guid supplierId = await CreateSupplierAsync(services, actorId);
+            Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
+            await SetAuthorizationLimitAsync(services, actorId, 10_000m);
+
+            Guid payableId = await CreateConfirmedCreditPayableAsync(services, expenses, supplierId, actorId, amount: 100m);
+
+            DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+            await SetClosingDateAsync(services, actorId, today);
+
+            RegisterSupplierPaymentResult result = await payments.RegisterAsync(
+                new RegisterSupplierPaymentCommand(
+                    supplierId, cashAccountId, "PAG-CIERRE-1", today,
+                    [new SupplierPaymentAllocationCommand(payableId, 50m)]),
+                actorId,
+                actorIsManagement: false);
+
+            Assert.Equal(CatalogOperationStatus.Invalid, result.Operation.Status);
+
+            FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+            Payable unchanged = await context.Payables.SingleAsync(p => p.Id == payableId);
+            Assert.Equal(100m, unchanged.Balance);
+        });
+    }
+
+    private static async Task SetClosingDateAsync(IServiceProvider services, Guid actorId, DateOnly closingDate)
+    {
+        FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+        SystemParameters? parameters = await context.SystemParameters.SingleOrDefaultAsync();
+
+        if (parameters is null)
+        {
+            parameters = new SystemParameters(10_000m, 7, DateTimeOffset.UtcNow, actorId);
+            context.SystemParameters.Add(parameters);
+        }
+
+        parameters.ChangeClosingDate(closingDate, closingDate, reason: null, DateTimeOffset.UtcNow, actorId);
+        await context.SaveChangesAsync();
+    }
+
     private static async Task<Guid> CreateConfirmedCreditPayableAsync(
         IServiceProvider services,
         IExpenseService expenses,

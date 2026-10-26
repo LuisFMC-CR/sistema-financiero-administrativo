@@ -9,6 +9,7 @@ using SistemaFinanciero.Domain.Parameters;
 using SistemaFinanciero.Domain.Payables;
 using SistemaFinanciero.Domain.Receivables;
 using SistemaFinanciero.Infrastructure.Catalogs;
+using SistemaFinanciero.Infrastructure.Parameters;
 using SistemaFinanciero.Infrastructure.Persistence;
 
 namespace SistemaFinanciero.Infrastructure.Payables;
@@ -112,6 +113,14 @@ internal sealed class SupplierPaymentService(
         if (payables.Any(payable => payable.SupplierId != command.SupplierId))
         {
             return Rejected("Todas las cuentas por pagar del pago deben pertenecer al proveedor indicado.");
+        }
+
+        string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
+            dbContext, command.PaymentDate, cancellationToken);
+
+        if (closingDateViolation is not null)
+        {
+            return Rejected(closingDateViolation);
         }
 
         DateTimeOffset preparedAtUtc = timeProvider.GetUtcNow();
@@ -220,6 +229,15 @@ internal sealed class SupplierPaymentService(
         if (!CatalogPersistence.TrySetOriginalVersion(dbContext, payment, version))
         {
             return CatalogOperationResult.Invalid("El token de concurrencia no es válido.");
+        }
+
+        string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
+            dbContext, payment.PaymentDate, cancellationToken);
+
+        if (closingDateViolation is not null)
+        {
+            dbContext.ChangeTracker.Clear();
+            return CatalogOperationResult.Invalid(closingDateViolation);
         }
 
         IDbContextTransaction? transaction = await CatalogPersistence.BeginTransactionIfNeededAsync(

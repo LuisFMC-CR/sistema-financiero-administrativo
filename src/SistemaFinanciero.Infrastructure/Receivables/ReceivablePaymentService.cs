@@ -9,6 +9,7 @@ using SistemaFinanciero.Domain.Parameters;
 using SistemaFinanciero.Domain.Payables;
 using SistemaFinanciero.Domain.Receivables;
 using SistemaFinanciero.Infrastructure.Catalogs;
+using SistemaFinanciero.Infrastructure.Parameters;
 using SistemaFinanciero.Infrastructure.Persistence;
 
 namespace SistemaFinanciero.Infrastructure.Receivables;
@@ -134,6 +135,14 @@ internal sealed class ReceivablePaymentService(
         if (receivables.Any(receivable => receivable.CustomerId != command.CustomerId))
         {
             return Rejected("Todas las facturas del abono deben pertenecer al cliente indicado.");
+        }
+
+        string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
+            dbContext, command.PaymentDate, cancellationToken);
+
+        if (closingDateViolation is not null)
+        {
+            return Rejected(closingDateViolation);
         }
 
         (RegisterReceivablePaymentResult? typeError, Dictionary<Guid, WithholdingType> withholdingTypes) =
@@ -280,6 +289,15 @@ internal sealed class ReceivablePaymentService(
         if (!CatalogPersistence.TrySetOriginalVersion(dbContext, payment, version))
         {
             return CatalogOperationResult.Invalid("El token de concurrencia no es válido.");
+        }
+
+        string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
+            dbContext, payment.PaymentDate, cancellationToken);
+
+        if (closingDateViolation is not null)
+        {
+            dbContext.ChangeTracker.Clear();
+            return CatalogOperationResult.Invalid(closingDateViolation);
         }
 
         IDbContextTransaction? transaction = await CatalogPersistence.BeginTransactionIfNeededAsync(

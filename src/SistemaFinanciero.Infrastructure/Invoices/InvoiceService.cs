@@ -8,6 +8,7 @@ using SistemaFinanciero.Domain.Incomes;
 using SistemaFinanciero.Domain.Invoices;
 using SistemaFinanciero.Domain.Receivables;
 using SistemaFinanciero.Infrastructure.Catalogs;
+using SistemaFinanciero.Infrastructure.Parameters;
 using SistemaFinanciero.Infrastructure.Persistence;
 
 namespace SistemaFinanciero.Infrastructure.Invoices;
@@ -147,6 +148,14 @@ internal sealed class InvoiceService(
         if (customerValidation is not null)
         {
             return new InvoiceCreationResult(customerValidation, null);
+        }
+
+        string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
+            dbContext, command.IssueDate, cancellationToken);
+
+        if (closingDateViolation is not null)
+        {
+            return new InvoiceCreationResult(CatalogOperationResult.Invalid(closingDateViolation), null);
         }
 
         try
@@ -439,6 +448,15 @@ internal sealed class InvoiceService(
             return CatalogOperationResult.Invalid("El token de concurrencia no es válido.");
         }
 
+        string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
+            dbContext, invoice.IssueDate, cancellationToken);
+
+        if (closingDateViolation is not null)
+        {
+            dbContext.ChangeTracker.Clear();
+            return CatalogOperationResult.Invalid(closingDateViolation);
+        }
+
         bool isCash = invoice.PaymentTerm == PaymentTerm.Cash;
 
         if (isCash)
@@ -557,6 +575,15 @@ internal sealed class InvoiceService(
         if (!CatalogPersistence.TrySetOriginalVersion(dbContext, invoice, version))
         {
             return CatalogOperationResult.Invalid("El token de concurrencia no es válido.");
+        }
+
+        string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
+            dbContext, invoice.IssueDate, cancellationToken);
+
+        if (closingDateViolation is not null)
+        {
+            dbContext.ChangeTracker.Clear();
+            return CatalogOperationResult.Invalid(closingDateViolation);
         }
 
         IDbContextTransaction? transaction = await CatalogPersistence.BeginTransactionIfNeededAsync(

@@ -284,6 +284,93 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
         });
     }
 
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task RegisterAsync_WithAPaymentDateOnOrBeforeTheClosingDate_IsRejected()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            IReceivablePaymentService payments = services.GetRequiredService<IReceivablePaymentService>();
+            Guid customerId = await CreateCustomerAsync(services, actorId);
+            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
+            await SetAuthorizationLimitAsync(services, actorId, 10_000m);
+
+            Guid receivableId = await CreateConfirmedCreditReceivableAsync(
+                services, invoices, customerId, actorId, amount: 100m);
+
+            DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+            await SetClosingDateAsync(services, actorId, today);
+
+            RegisterReceivablePaymentResult result = await payments.RegisterAsync(
+                new RegisterReceivablePaymentCommand(
+                    customerId, cashAccountId, incomeCategoryId, "AB-CIERRE-1", today,
+                    [new ReceivablePaymentAllocationCommand(receivableId, 50m, null)]),
+                actorId,
+                actorIsManagement: false);
+
+            Assert.Equal(CatalogOperationStatus.Invalid, result.Operation.Status);
+
+            FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+            Receivable unchanged = await context.Receivables.SingleAsync(r => r.Id == receivableId);
+            Assert.Equal(100m, unchanged.Balance);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task CancelAsync_WhenThePaymentDateIsNowClosed_IsRejected()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            IReceivablePaymentService payments = services.GetRequiredService<IReceivablePaymentService>();
+            Guid customerId = await CreateCustomerAsync(services, actorId);
+            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
+            await SetAuthorizationLimitAsync(services, actorId, 10_000m);
+
+            Guid receivableId = await CreateConfirmedCreditReceivableAsync(
+                services, invoices, customerId, actorId, amount: 100m);
+
+            DateOnly paymentDate = new(2026, 1, 15);
+            RegisterReceivablePaymentResult registered = await payments.RegisterAsync(
+                new RegisterReceivablePaymentCommand(
+                    customerId, cashAccountId, incomeCategoryId, "AB-CIERRE-2", paymentDate,
+                    [new ReceivablePaymentAllocationCommand(receivableId, 50m, null)]),
+                actorId,
+                actorIsManagement: false);
+            Assert.True(registered.Operation.IsSuccess);
+            ReceivablePaymentModel? payment = await payments.GetAsync(registered.ReceivablePaymentIds[0]);
+
+            await SetClosingDateAsync(services, actorId, new DateOnly(2026, 1, 31));
+
+            CatalogOperationResult cancel = await payments.CancelAsync(
+                payment!.Id, "Abono registrado por error", payment.Version, actorId);
+
+            Assert.Equal(CatalogOperationStatus.Invalid, cancel.Status);
+            FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+            Receivable unchanged = await context.Receivables.SingleAsync(r => r.Id == receivableId);
+            Assert.Equal(50m, unchanged.Balance);
+        });
+    }
+
+    private static async Task SetClosingDateAsync(IServiceProvider services, Guid actorId, DateOnly closingDate)
+    {
+        FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+        SystemParameters? parameters = await context.SystemParameters.SingleOrDefaultAsync();
+
+        if (parameters is null)
+        {
+            parameters = new SystemParameters(10_000m, 7, DateTimeOffset.UtcNow, actorId);
+            context.SystemParameters.Add(parameters);
+        }
+
+        parameters.ChangeClosingDate(closingDate, closingDate, reason: null, DateTimeOffset.UtcNow, actorId);
+        await context.SaveChangesAsync();
+    }
+
     private static async Task<Guid> CreateConfirmedCreditReceivableAsync(
         IServiceProvider services,
         IInvoiceService invoices,

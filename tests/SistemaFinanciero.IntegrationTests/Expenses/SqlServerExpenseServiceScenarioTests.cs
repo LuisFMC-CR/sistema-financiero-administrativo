@@ -202,6 +202,115 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
         });
     }
 
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task CreateAsync_WithAnIssueDateOnOrBeforeTheClosingDate_IsRejected()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            Guid supplierId = await CreateSupplierAsync(services, actorId);
+            Guid categoryId = await CreateExpenseCategoryAsync(services, actorId);
+            Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
+            DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+            await SetClosingDateAsync(services, actorId, today);
+
+            IExpenseService expenses = services.GetRequiredService<IExpenseService>();
+            ExpenseCreationResult closed = await expenses.CreateAsync(
+                new SaveExpenseCommand(
+                    supplierId, categoryId, "Compra de prueba", today, PaymentTerm.Cash, 1000m, taxTypeId, PaymentMethod.Cash),
+                actorId);
+            Assert.Equal(CatalogOperationStatus.Invalid, closed.Operation.Status);
+
+            ExpenseCreationResult open = await expenses.CreateAsync(
+                new SaveExpenseCommand(
+                    supplierId, categoryId, "Compra de prueba", today.AddDays(1), PaymentTerm.Cash, 1000m, taxTypeId, PaymentMethod.Cash),
+                actorId);
+            Assert.True(open.Operation.IsSuccess);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task ConfirmAsync_WhenTheExpenseIssueDateIsNowClosed_IsRejected()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IExpenseService expenses = services.GetRequiredService<IExpenseService>();
+            Guid supplierId = await CreateSupplierAsync(services, actorId);
+            Guid categoryId = await CreateExpenseCategoryAsync(services, actorId);
+            Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
+            DateOnly issueDate = new(2026, 1, 15);
+
+            ExpenseCreationResult created = await expenses.CreateAsync(
+                new SaveExpenseCommand(
+                    supplierId, categoryId, "Compra de prueba", issueDate, PaymentTerm.Credit30, 1000m, taxTypeId, PaymentMethod.Cash),
+                actorId);
+            Guid expenseId = created.ExpenseId!.Value;
+            ExpenseModel draft = (await expenses.GetAsync(expenseId))!;
+
+            await SetClosingDateAsync(services, actorId, new DateOnly(2026, 1, 31));
+
+            CatalogOperationResult confirm = await expenses.ConfirmAsync(
+                expenseId, new ConfirmExpenseCommand(null, null), draft.Version, actorId, actorIsManagement: false);
+
+            Assert.Equal(CatalogOperationStatus.Invalid, confirm.Status);
+            FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+            Expense stillDraft = await context.Expenses.SingleAsync(e => e.Id == expenseId);
+            Assert.Equal(ExpenseStatus.Draft, stillDraft.Status);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task CancelAsync_WhenTheExpenseIssueDateIsNowClosed_IsRejected()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IExpenseService expenses = services.GetRequiredService<IExpenseService>();
+            Guid supplierId = await CreateSupplierAsync(services, actorId);
+            Guid categoryId = await CreateExpenseCategoryAsync(services, actorId);
+            Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
+            DateOnly issueDate = new(2026, 1, 15);
+
+            ExpenseCreationResult created = await expenses.CreateAsync(
+                new SaveExpenseCommand(
+                    supplierId, categoryId, "Compra de prueba", issueDate, PaymentTerm.Credit30, 1000m, taxTypeId, PaymentMethod.Cash),
+                actorId);
+            Guid expenseId = created.ExpenseId!.Value;
+            ExpenseModel draft = (await expenses.GetAsync(expenseId))!;
+
+            // Se confirma antes de cerrar su período (regla 16 solo bloquea desde el cierre).
+            await expenses.ConfirmAsync(
+                expenseId, new ConfirmExpenseCommand(null, null), draft.Version, actorId, actorIsManagement: false);
+            ExpenseModel confirmed = (await expenses.GetAsync(expenseId))!;
+
+            await SetClosingDateAsync(services, actorId, new DateOnly(2026, 1, 31));
+
+            CatalogOperationResult cancel = await expenses.CancelAsync(
+                expenseId, "Error de digitación", confirmed.Version, actorId);
+
+            Assert.Equal(CatalogOperationStatus.Invalid, cancel.Status);
+            FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+            Expense stillConfirmed = await context.Expenses.SingleAsync(e => e.Id == expenseId);
+            Assert.Equal(ExpenseStatus.Confirmed, stillConfirmed.Status);
+        });
+    }
+
+    private static async Task SetClosingDateAsync(IServiceProvider services, Guid actorId, DateOnly closingDate)
+    {
+        FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+        SystemParameters? parameters = await context.SystemParameters.SingleOrDefaultAsync();
+
+        if (parameters is null)
+        {
+            parameters = new SystemParameters(500_000m, 7, DateTimeOffset.UtcNow, actorId);
+            context.SystemParameters.Add(parameters);
+        }
+
+        parameters.ChangeClosingDate(closingDate, closingDate, reason: null, DateTimeOffset.UtcNow, actorId);
+        await context.SaveChangesAsync();
+    }
+
     private static async Task<Guid> CreateDraftExpenseAsync(
         IExpenseService expenses,
         Guid supplierId,

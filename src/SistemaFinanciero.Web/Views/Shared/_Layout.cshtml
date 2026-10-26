@@ -90,6 +90,8 @@
                     <p class="sidebar-heading sidebar-label">Mantenimiento</p>
                     <a class="sidebar-link" asp-controller="SystemParameters" asp-action="Index" title="Parámetros del sistema"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v3m0 12v3m9-9h-3M6 12H3m14.5-6.5-2.1 2.1M8.6 15.4l-2.1 2.1m11-2.1 2.1 2.1M8.6 8.6 6.5 6.5" /><circle cx="12" cy="12" r="3" /></svg><span class="sidebar-label">Parámetros del sistema</span></a>
                 }
+                <p class="sidebar-heading sidebar-label">Seguridad</p>
+                <a class="sidebar-link" asp-controller="Permissions" asp-action="Index" title="Perfiles y permisos"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z" /></svg><span class="sidebar-label">Perfiles y permisos</span></a>
                 @if (canManageUsers)
                 {
                     <p class="sidebar-heading sidebar-label">Administración</p>

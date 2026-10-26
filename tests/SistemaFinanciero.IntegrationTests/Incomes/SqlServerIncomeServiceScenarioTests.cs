@@ -8,6 +8,7 @@ using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Common;
 using SistemaFinanciero.Domain.Incomes;
 using SistemaFinanciero.Domain.Invoices;
+using SistemaFinanciero.Domain.Parameters;
 using SistemaFinanciero.Infrastructure.Identity;
 using SistemaFinanciero.Infrastructure.Persistence;
 
@@ -144,6 +145,73 @@ public sealed class SqlServerIncomeServiceScenarioTests : IClassFixture<Financia
             IncomeModel? stillActive = await incomes.GetAsync(model.Id);
             Assert.Equal(IncomeStatus.Active, stillActive!.Status);
         });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task CreateManualAsync_WithAnIncomeDateOnOrBeforeTheClosingDate_IsRejected()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IIncomeService incomes = services.GetRequiredService<IIncomeService>();
+            Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
+            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+
+            DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+            await SetClosingDateAsync(services, actorId, today);
+
+            IncomeCreationResult closed = await incomes.CreateManualAsync(
+                new CreateManualIncomeCommand(
+                    incomeCategoryId, cashAccountId, 15_000m, today,
+                    PaymentMethod.BankTransfer, "DEP-CIERRE", "Reintegro"),
+                actorId);
+
+            Assert.Equal(CatalogOperationStatus.Invalid, closed.Operation.Status);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task CancelAsync_WhenTheIncomeDateIsNowClosed_IsRejected()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IIncomeService incomes = services.GetRequiredService<IIncomeService>();
+            Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
+            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            DateOnly incomeDate = new(2026, 1, 15);
+
+            IncomeCreationResult created = await incomes.CreateManualAsync(
+                new CreateManualIncomeCommand(
+                    incomeCategoryId, cashAccountId, 15_000m, incomeDate,
+                    PaymentMethod.BankTransfer, "DEP-0099", "Reintegro"),
+                actorId);
+            IncomeModel income = (await incomes.GetAsync(created.IncomeId!.Value))!;
+
+            await SetClosingDateAsync(services, actorId, new DateOnly(2026, 1, 31));
+
+            CatalogOperationResult cancel = await incomes.CancelAsync(
+                income.Id, "Registrado por error", income.Version, actorId);
+
+            Assert.Equal(CatalogOperationStatus.Invalid, cancel.Status);
+            IncomeModel stillActive = (await incomes.GetAsync(income.Id))!;
+            Assert.Equal(IncomeStatus.Active, stillActive.Status);
+        });
+    }
+
+    private static async Task SetClosingDateAsync(IServiceProvider services, Guid actorId, DateOnly closingDate)
+    {
+        FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+        SystemParameters? parameters = await context.SystemParameters.SingleOrDefaultAsync();
+
+        if (parameters is null)
+        {
+            parameters = new SystemParameters(500_000m, 7, DateTimeOffset.UtcNow, actorId);
+            context.SystemParameters.Add(parameters);
+        }
+
+        parameters.ChangeClosingDate(closingDate, closingDate, reason: null, DateTimeOffset.UtcNow, actorId);
+        await context.SaveChangesAsync();
     }
 
     private static async Task<Guid> CreateCustomerAsync(IServiceProvider services, Guid actorId)

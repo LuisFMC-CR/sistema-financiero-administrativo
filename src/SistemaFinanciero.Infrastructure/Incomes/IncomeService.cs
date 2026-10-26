@@ -6,6 +6,7 @@ using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Incomes;
 using SistemaFinanciero.Domain.Invoices;
 using SistemaFinanciero.Infrastructure.Catalogs;
+using SistemaFinanciero.Infrastructure.Parameters;
 using SistemaFinanciero.Infrastructure.Persistence;
 
 namespace SistemaFinanciero.Infrastructure.Incomes;
@@ -153,6 +154,14 @@ internal sealed class IncomeService(
                 null);
         }
 
+        string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
+            dbContext, command.IncomeDate, cancellationToken);
+
+        if (closingDateViolation is not null)
+        {
+            return new IncomeCreationResult(CatalogOperationResult.Invalid(closingDateViolation), null);
+        }
+
         try
         {
             DateTimeOffset now = timeProvider.GetUtcNow();
@@ -224,6 +233,15 @@ internal sealed class IncomeService(
         if (!CatalogPersistence.TrySetOriginalVersion(dbContext, income, version))
         {
             return CatalogOperationResult.Invalid("El token de concurrencia no es válido.");
+        }
+
+        string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
+            dbContext, income.IncomeDate, cancellationToken);
+
+        if (closingDateViolation is not null)
+        {
+            dbContext.ChangeTracker.Clear();
+            return CatalogOperationResult.Invalid(closingDateViolation);
         }
 
         try

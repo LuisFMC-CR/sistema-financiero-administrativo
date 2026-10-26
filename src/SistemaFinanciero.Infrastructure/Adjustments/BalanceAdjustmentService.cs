@@ -7,6 +7,7 @@ using SistemaFinanciero.Domain.Audit;
 using SistemaFinanciero.Domain.Payables;
 using SistemaFinanciero.Domain.Receivables;
 using SistemaFinanciero.Infrastructure.Catalogs;
+using SistemaFinanciero.Infrastructure.Parameters;
 using SistemaFinanciero.Infrastructure.Persistence;
 
 namespace SistemaFinanciero.Infrastructure.Adjustments;
@@ -70,6 +71,16 @@ internal sealed class BalanceAdjustmentService(
         if (!CatalogPersistence.TrySetOriginalVersion(dbContext, receivable, version))
         {
             return CatalogOperationResult.Invalid("El token de concurrencia no es válido.");
+        }
+
+        DateOnly today = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
+        string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
+            dbContext, today, cancellationToken);
+
+        if (closingDateViolation is not null)
+        {
+            dbContext.ChangeTracker.Clear();
+            return CatalogOperationResult.Invalid(closingDateViolation);
         }
 
         IDbContextTransaction? transaction = await CatalogPersistence.BeginTransactionIfNeededAsync(
@@ -143,6 +154,16 @@ internal sealed class BalanceAdjustmentService(
         if (!CatalogPersistence.TrySetOriginalVersion(dbContext, payable, version))
         {
             return CatalogOperationResult.Invalid("El token de concurrencia no es válido.");
+        }
+
+        DateOnly today = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
+        string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
+            dbContext, today, cancellationToken);
+
+        if (closingDateViolation is not null)
+        {
+            dbContext.ChangeTracker.Clear();
+            return CatalogOperationResult.Invalid(closingDateViolation);
         }
 
         IDbContextTransaction? transaction = await CatalogPersistence.BeginTransactionIfNeededAsync(

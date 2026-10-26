@@ -94,6 +94,24 @@ institucional sin cambiar el comportamiento aquí definido.
 
 - **Requisitos:** RF-SEG-006, RN-SEG-001.
 
+## UC-SEG-005 — Consultar perfiles y permisos
+
+- **Actor:** cualquier usuario autenticado.
+- **Objetivo:** ver qué puede hacer cada perfil (Administrador, Gerencia, Finanzas, Asistente), sin
+  administrar usuarios desde aquí.
+- **Precondiciones:** sesión iniciada.
+
+### Flujo principal
+
+1. El usuario abre "Perfiles y permisos" desde el menú Seguridad.
+2. El sistema muestra la matriz de los cuatro perfiles y sus permisos (regla de perfiles aprobada).
+
+### Alternativas
+
+- No hay alternativas: es una pantalla de solo consulta, igual para todos los perfiles.
+
+- **Requisitos:** RF-SEG-007.
+
 ## UC-CAT-001 — Consultar catálogos
 
 - **Actores:** Gerencia, Finanzas y Asistente.
