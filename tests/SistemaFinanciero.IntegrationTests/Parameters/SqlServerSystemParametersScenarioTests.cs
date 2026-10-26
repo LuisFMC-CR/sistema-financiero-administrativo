@@ -215,6 +215,66 @@ public sealed class SqlServerSystemParametersScenarioTests : IClassFixture<Finan
         });
     }
 
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task UpdateCompanyAsync_SavesTheDataAndKeepsASnapshotHistory()
+    {
+        return RunInRollbackTransactionAsync(async (context, services, actorId) =>
+        {
+            ISystemParametersService parameters = services.GetRequiredService<ISystemParametersService>();
+            await parameters.CreateAsync(new SaveSystemParametersCommand(500_000m, 7), actorId);
+            SystemParametersModel created = (await parameters.GetAsync())!;
+            Assert.Null(created.CompanyName);
+
+            CatalogOperationResult first = await parameters.UpdateCompanyAsync(
+                new SaveCompanyDataCommand("Soporte Experto", "3-101-123456", "San José", "2222-2222", "info@soportexperto.cr"),
+                created.Version,
+                actorId);
+            Assert.True(first.IsSuccess);
+
+            SystemParametersModel current = (await parameters.GetAsync())!;
+            Assert.Equal("Soporte Experto", current.CompanyName);
+            Assert.Equal("3-101-123456", current.CompanyLegalId);
+            Assert.Equal("San José", current.CompanyAddress);
+
+            CatalogOperationResult second = await parameters.UpdateCompanyAsync(
+                new SaveCompanyDataCommand("Soporte Experto S.A.", "3-101-123456", null, null, null),
+                current.Version,
+                actorId);
+            Assert.True(second.IsSuccess);
+
+            List<CompanyDataChange> history = await context.Set<CompanyDataChange>()
+                .Where(change => change.ChangedByUserId == actorId)
+                .OrderBy(change => change.ChangedAtUtc)
+                .ToListAsync();
+
+            Assert.Equal(2, history.Count);
+            Assert.Equal("Soporte Experto", history[0].CompanyName);
+            Assert.Equal("Soporte Experto S.A.", history[1].CompanyName);
+            Assert.Null(history[1].CompanyAddress);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task UpdateCompanyAsync_RejectsAMissingLegalId()
+    {
+        return RunInRollbackTransactionAsync(async (context, services, actorId) =>
+        {
+            ISystemParametersService parameters = services.GetRequiredService<ISystemParametersService>();
+            await parameters.CreateAsync(new SaveSystemParametersCommand(500_000m, 7), actorId);
+            SystemParametersModel created = (await parameters.GetAsync())!;
+
+            CatalogOperationResult result = await parameters.UpdateCompanyAsync(
+                new SaveCompanyDataCommand("Soporte Experto", "", null, null, null),
+                created.Version,
+                actorId);
+
+            Assert.Equal(CatalogOperationStatus.Invalid, result.Status);
+            _ = context;
+        });
+    }
+
     private async Task RunInRollbackTransactionAsync(
         Func<FinancialDbContext, IServiceProvider, Guid, Task> scenario)
     {
@@ -251,6 +311,7 @@ public sealed class SqlServerSystemParametersScenarioTests : IClassFixture<Finan
         // cualquier fila real ya guardada por la aplicación: como todo ocurre dentro de esta
         // transacción sin confirmar, se revierte al final sin afectar los datos reales.
         await context.Database.ExecuteSqlRawAsync("DELETE FROM finanzas.ParametrosFechaCierreHistorial");
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM finanzas.ParametrosEmpresaHistorial");
         await context.Database.ExecuteSqlRawAsync("DELETE FROM finanzas.ParametrosSistemaHistorial");
         await context.Database.ExecuteSqlRawAsync("DELETE FROM finanzas.ParametrosSistema");
 

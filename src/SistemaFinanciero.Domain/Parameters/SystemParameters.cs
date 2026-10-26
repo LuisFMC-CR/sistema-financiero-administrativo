@@ -16,7 +16,8 @@ namespace SistemaFinanciero.Domain.Parameters;
 /// <c>finanzas.ParametrosSistema</c> vía <c>SystemParametersConfiguration</c>; la presenta
 /// <c>SystemParametersController</c> (Web, ruta <c>/parametros</c>). Cada cambio de límite o días genera
 /// además un <see cref="SystemParameterChange"/>; cada cambio de <see cref="ClosingDate"/> genera un
-/// <see cref="ClosingDateChange"/>. Todavía nada lee <see cref="AuthorizationLimitCrc"/> ni
+/// <see cref="ClosingDateChange"/>; cada cambio de los datos de la empresa genera un
+/// <see cref="CompanyDataChange"/> (RF-55). Todavía nada lee <see cref="AuthorizationLimitCrc"/> ni
 /// <see cref="OverdueAlertDays"/> para aplicar la regla: eso lo hará el futuro módulo de abonos/pagos
 /// (el límite) y el de Consultas (la alerta de vencimiento). <see cref="ClosingDate"/> todavía no se
 /// valida en las demás operaciones: eso queda para el siguiente bloque del roadmap.
@@ -25,6 +26,21 @@ public sealed class SystemParameters
 {
     /// <summary>Longitud máxima del motivo de un cambio de fecha de cierre.</summary>
     public const int ClosingDateChangeReasonMaxLength = 300;
+
+    /// <summary>Longitud máxima del nombre de la empresa.</summary>
+    public const int CompanyNameMaxLength = 150;
+
+    /// <summary>Longitud máxima de la cédula jurídica.</summary>
+    public const int CompanyLegalIdMaxLength = 50;
+
+    /// <summary>Longitud máxima de la dirección de la empresa.</summary>
+    public const int CompanyAddressMaxLength = 300;
+
+    /// <summary>Longitud máxima del teléfono de la empresa.</summary>
+    public const int CompanyPhoneMaxLength = 30;
+
+    /// <summary>Longitud máxima del correo de la empresa.</summary>
+    public const int CompanyEmailMaxLength = 150;
 
     /// <summary>Identificador fijo de la única fila permitida.</summary>
     public static readonly Guid SingletonId = Guid.Parse("00000000-0000-0000-0000-000000000001");
@@ -84,6 +100,54 @@ public sealed class SystemParameters
 
     /// <summary>Obtiene el token de concurrencia administrado por la persistencia.</summary>
     public byte[] RowVersion { get; private set; } = [];
+
+    /// <summary>Obtiene el nombre de la empresa, para el encabezado de la factura interna (regla 15).</summary>
+    public string? CompanyName { get; private set; }
+
+    /// <summary>Obtiene la cédula jurídica de la empresa.</summary>
+    public string? CompanyLegalId { get; private set; }
+
+    /// <summary>Obtiene la dirección de la empresa.</summary>
+    public string? CompanyAddress { get; private set; }
+
+    /// <summary>Obtiene el teléfono de la empresa.</summary>
+    public string? CompanyPhone { get; private set; }
+
+    /// <summary>Obtiene el correo de la empresa.</summary>
+    public string? CompanyEmail { get; private set; }
+
+    /// <summary>
+    /// Actualiza los datos de la empresa (RF-55). Nombre y cédula jurídica son obligatorios; dirección,
+    /// teléfono y correo son opcionales. Solo Gerencia los define.
+    /// </summary>
+    public void UpdateCompany(
+        string name,
+        string legalId,
+        string? address,
+        string? phone,
+        string? email,
+        DateTimeOffset updatedAtUtc,
+        Guid updatedByUserId)
+    {
+        string validName = DomainRules.RequiredText(name, CompanyNameMaxLength, nameof(name));
+        string validLegalId = DomainRules.RequiredText(legalId, CompanyLegalIdMaxLength, nameof(legalId));
+        string? validAddress = DomainRules.OptionalText(address, CompanyAddressMaxLength, nameof(address));
+        string? validPhone = DomainRules.OptionalText(phone, CompanyPhoneMaxLength, nameof(phone));
+        string? validEmail = DomainRules.OptionalText(email, CompanyEmailMaxLength, nameof(email));
+        Guid normalizedUserId = DomainRules.RequiredId(updatedByUserId, nameof(updatedByUserId));
+        DateTimeOffset normalizedUpdatedAtUtc = DomainRules.RequiredUtcTimestamp(
+            updatedAtUtc,
+            nameof(updatedAtUtc),
+            UpdatedAtUtc);
+
+        CompanyName = validName;
+        CompanyLegalId = validLegalId;
+        CompanyAddress = validAddress;
+        CompanyPhone = validPhone;
+        CompanyEmail = validEmail;
+        UpdatedAtUtc = normalizedUpdatedAtUtc;
+        UpdatedByUserId = normalizedUserId;
+    }
 
     /// <summary>
     /// Obtiene la fecha de cierre (regla 16): no se registra, confirma, anula ni ajusta nada con

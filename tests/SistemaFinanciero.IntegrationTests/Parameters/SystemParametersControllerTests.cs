@@ -66,7 +66,8 @@ public sealed class SystemParametersControllerTests
         RecordingSystemParametersService service = new()
         {
             Current = new SystemParametersModel(
-                500_000m, 7, new DateOnly(2026, 1, 1), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "version-vigente"),
+                500_000m, 7, new DateOnly(2026, 1, 1), null, null, null, null, null,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "version-vigente"),
             OperationResult = CatalogOperationResult.Concurrent(),
         };
         SystemParametersController controller = CreateController(service);
@@ -120,7 +121,8 @@ public sealed class SystemParametersControllerTests
         RecordingSystemParametersService service = new()
         {
             Current = new SystemParametersModel(
-                500_000m, 7, new DateOnly(2026, 1, 1), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "v1"),
+                500_000m, 7, new DateOnly(2026, 1, 1), null, null, null, null, null,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "v1"),
         };
         SystemParametersController controller = CreateController(service);
 
@@ -142,7 +144,8 @@ public sealed class SystemParametersControllerTests
         RecordingSystemParametersService service = new()
         {
             Current = new SystemParametersModel(
-                500_000m, 7, new DateOnly(2026, 1, 1), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "v1"),
+                500_000m, 7, new DateOnly(2026, 1, 1), null, null, null, null, null,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "v1"),
         };
         SystemParametersController controller = CreateController(service);
         ChangeClosingDateViewModel model = new()
@@ -165,7 +168,8 @@ public sealed class SystemParametersControllerTests
         RecordingSystemParametersService service = new()
         {
             Current = new SystemParametersModel(
-                500_000m, 7, new DateOnly(2026, 2, 1), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "v1"),
+                500_000m, 7, new DateOnly(2026, 2, 1), null, null, null, null, null,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "v1"),
             OperationResult = CatalogOperationResult.Invalid("El motivo de la reapertura es obligatorio."),
         };
         SystemParametersController controller = CreateController(service);
@@ -196,6 +200,56 @@ public sealed class SystemParametersControllerTests
 
         Assert.IsType<ForbidResult>(result);
         Assert.Equal(0, service.ChangeClosingDateCalls);
+    }
+
+    [Fact]
+    public async Task UpdateCompany_CallsServiceAndRedirectsOnSuccess()
+    {
+        RecordingSystemParametersService service = new()
+        {
+            Current = new SystemParametersModel(
+                500_000m, 7, new DateOnly(2026, 1, 1), null, null, null, null, null,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "v1"),
+        };
+        SystemParametersController controller = CreateController(service);
+        CompanyDataViewModel model = new()
+        {
+            Name = "Soporte Experto",
+            LegalId = "3-101-123456",
+            Version = "v1",
+        };
+
+        IActionResult result = await controller.UpdateCompany(model, CancellationToken.None);
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal(1, service.UpdateCompanyCalls);
+    }
+
+    [Fact]
+    public async Task UpdateCompany_WithInvalidData_DoesNotCallTheService()
+    {
+        RecordingSystemParametersService service = new();
+        SystemParametersController controller = CreateController(service);
+        controller.ModelState.AddModelError(nameof(CompanyDataViewModel.Name), "Inválido.");
+
+        IActionResult result = await controller.UpdateCompany(new CompanyDataViewModel(), CancellationToken.None);
+
+        Assert.IsType<ViewResult>(result);
+        Assert.Equal(0, service.UpdateCompanyCalls);
+    }
+
+    [Fact]
+    public async Task UpdateCompany_WithoutAnAuthenticatedUser_IsForbidden()
+    {
+        RecordingSystemParametersService service = new();
+        SystemParametersController controller = CreateController(service, withActor: false);
+
+        IActionResult result = await controller.UpdateCompany(
+            new CompanyDataViewModel { Name = "Soporte Experto", LegalId = "3-101-123456", Version = "v1" },
+            CancellationToken.None);
+
+        Assert.IsType<ForbidResult>(result);
+        Assert.Equal(0, service.UpdateCompanyCalls);
     }
 
     private static SystemParametersController CreateController(
@@ -234,6 +288,8 @@ public sealed class SystemParametersControllerTests
         public int UpdateCalls { get; private set; }
 
         public int ChangeClosingDateCalls { get; private set; }
+
+        public int UpdateCompanyCalls { get; private set; }
 
         public SaveSystemParametersCommand? LastCommand { get; private set; }
 
@@ -282,6 +338,16 @@ public sealed class SystemParametersControllerTests
             ChangeClosingDateCalls++;
             LastNewClosingDate = newClosingDate;
             LastClosingDateVersion = version;
+            return Task.FromResult(OperationResult);
+        }
+
+        public Task<CatalogOperationResult> UpdateCompanyAsync(
+            SaveCompanyDataCommand command,
+            string version,
+            Guid actorId,
+            CancellationToken cancellationToken = default)
+        {
+            UpdateCompanyCalls++;
             return Task.FromResult(OperationResult);
         }
     }

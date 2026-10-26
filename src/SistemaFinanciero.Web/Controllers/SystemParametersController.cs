@@ -9,13 +9,15 @@ namespace SistemaFinanciero.Web.Controllers;
 
 /// <summary>
 /// Presenta los parámetros únicos del sistema: el límite de autorización, los días de alerta de
-/// vencimiento y la fecha de cierre. Consultan Gerencia y Finanzas; solo Gerencia los define.
+/// vencimiento, la fecha de cierre y los datos de la empresa. Consultan Gerencia y Finanzas; solo
+/// Gerencia los define.
 /// </summary>
 /// <remarks>
-/// La fecha de cierre (regla 16) tiene su propio formulario y su propia acción
-/// (<see cref="ChangeClosingDate"/>), separada de <see cref="Save"/> (límite y días): adelantarla no
-/// exige motivo, retrocederla (reapertura) sí, y ese motivo no tiene sentido en el formulario de
-/// límite y días.
+/// La fecha de cierre (regla 16) y los datos de la empresa (RF-55) tienen cada uno su propio
+/// formulario y su propia acción (<see cref="ChangeClosingDate"/>, <see cref="UpdateCompany"/>),
+/// separados de <see cref="Save"/> (límite y días): adelantar la fecha de cierre no exige motivo,
+/// retrocederla (reapertura) sí, y ese motivo no tiene sentido en los otros dos formularios; los
+/// datos de la empresa no comparten nada con el límite, los días ni la fecha de cierre.
 /// </remarks>
 [Authorize(Policy = SystemPolicies.ViewFinancialReports)]
 [Route("parametros")]
@@ -39,6 +41,7 @@ public sealed class SystemParametersController(ISystemParametersService service)
             {
                 Parameters = model,
                 ClosingDateForm = ToClosingDateViewModel(current),
+                CompanyDataForm = ToCompanyDataViewModel(current),
             });
         }
 
@@ -76,6 +79,7 @@ public sealed class SystemParametersController(ISystemParametersService service)
             {
                 Parameters = latestModel,
                 ClosingDateForm = ToClosingDateViewModel(latest),
+                CompanyDataForm = ToCompanyDataViewModel(latest),
             },
             nameof(Index));
     }
@@ -93,6 +97,7 @@ public sealed class SystemParametersController(ISystemParametersService service)
             {
                 Parameters = ToViewModel(current),
                 ClosingDateForm = model,
+                CompanyDataForm = ToCompanyDataViewModel(current),
             });
         }
 
@@ -124,6 +129,60 @@ public sealed class SystemParametersController(ISystemParametersService service)
             {
                 Parameters = ToViewModel(latest),
                 ClosingDateForm = model,
+                CompanyDataForm = ToCompanyDataViewModel(latest),
+            },
+            nameof(Index));
+    }
+
+    [Authorize(Policy = SystemPolicies.ManageSystemParameters)]
+    [HttpPost("datos-empresa")]
+    public async Task<IActionResult> UpdateCompany(
+        CompanyDataViewModel model,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            SystemParametersModel? current = await service.GetAsync(cancellationToken);
+            return View(nameof(Index), new SystemParametersPageViewModel
+            {
+                Parameters = ToViewModel(current),
+                ClosingDateForm = ToClosingDateViewModel(current),
+                CompanyDataForm = model,
+            });
+        }
+
+        if (!TryGetActorId(out Guid actorId))
+        {
+            return Forbid();
+        }
+
+        CatalogOperationResult result = await service.UpdateCompanyAsync(
+            new SaveCompanyDataCommand(model.Name, model.LegalId, model.Address, model.Phone, model.Email),
+            model.Version,
+            actorId,
+            cancellationToken);
+
+        if (result.IsSuccess)
+        {
+            SetSuccessMessage("Los datos de la empresa se actualizaron correctamente.");
+            return RedirectToAction(nameof(Index));
+        }
+
+        SystemParametersModel? latest = await service.GetAsync(cancellationToken);
+
+        if (result.Status == CatalogOperationStatus.ConcurrencyConflict && latest is not null)
+        {
+            model.Version = latest.Version;
+            ModelState.Remove(nameof(model.Version));
+        }
+
+        return FormFailure(
+            result,
+            new SystemParametersPageViewModel
+            {
+                Parameters = ToViewModel(latest),
+                ClosingDateForm = ToClosingDateViewModel(latest),
+                CompanyDataForm = model,
             },
             nameof(Index));
     }
@@ -132,6 +191,7 @@ public sealed class SystemParametersController(ISystemParametersService service)
     {
         Parameters = ToViewModel(current),
         ClosingDateForm = ToClosingDateViewModel(current),
+        CompanyDataForm = ToCompanyDataViewModel(current),
     };
 
     private static SystemParametersViewModel ToViewModel(SystemParametersModel? current)
@@ -156,6 +216,21 @@ public sealed class SystemParametersController(ISystemParametersService service)
             : new ChangeClosingDateViewModel
             {
                 NewClosingDate = current.ClosingDate,
+                Version = current.Version,
+            };
+    }
+
+    private static CompanyDataViewModel ToCompanyDataViewModel(SystemParametersModel? current)
+    {
+        return current is null
+            ? new CompanyDataViewModel()
+            : new CompanyDataViewModel
+            {
+                Name = current.CompanyName ?? string.Empty,
+                LegalId = current.CompanyLegalId ?? string.Empty,
+                Address = current.CompanyAddress,
+                Phone = current.CompanyPhone,
+                Email = current.CompanyEmail,
                 Version = current.Version,
             };
     }

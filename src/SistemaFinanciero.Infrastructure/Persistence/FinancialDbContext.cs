@@ -87,6 +87,9 @@ public sealed class FinancialDbContext(
     /// <summary>Bitácora inmutable de cambios en la fecha de cierre.</summary>
     public DbSet<ClosingDateChange> ClosingDateChanges => Set<ClosingDateChange>();
 
+    /// <summary>Bitácora inmutable de cambios en los datos de la empresa.</summary>
+    public DbSet<CompanyDataChange> CompanyDataChanges => Set<CompanyDataChange>();
+
     /// <summary>Bitácora inmutable de confirmaciones y anulaciones de documentos financieros.</summary>
     public DbSet<OperationLogEntry> OperationLogEntries => Set<OperationLogEntry>();
 
@@ -237,6 +240,15 @@ public sealed class FinancialDbContext(
         {
             throw new InvalidOperationException(
                 "El historial de la fecha de cierre es inmutable y solo admite nuevos registros.");
+        }
+
+        bool companyDataHistoryMutated = ChangeTracker.Entries<CompanyDataChange>()
+            .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted);
+
+        if (companyDataHistoryMutated)
+        {
+            throw new InvalidOperationException(
+                "El historial de los datos de la empresa es inmutable y solo admite nuevos registros.");
         }
     }
 }

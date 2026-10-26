@@ -130,7 +130,7 @@ public sealed record InvoiceLineModel(
     decimal TaxAmount,
     decimal TotalAmount);
 
-/// <summary>Proyección completa de una factura, con sus líneas, para el detalle y la edición.</summary>
+/// <summary>Proyección completa de una factura, con sus líneas, para el detalle, la edición y el PDF.</summary>
 public sealed record InvoiceModel(
     Guid Id,
     long? Number,
@@ -153,7 +153,8 @@ public sealed record InvoiceModel(
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc,
     string Version,
-    IReadOnlyList<InvoiceLineModel> Lines);
+    IReadOnlyList<InvoiceLineModel> Lines,
+    PaymentMethod? PaymentMethod);
 
 /// <summary>Proyección resumida de una factura para el listado.</summary>
 public sealed record InvoiceSummaryModel(

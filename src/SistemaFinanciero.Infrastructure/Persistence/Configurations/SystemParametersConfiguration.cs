@@ -36,6 +36,11 @@ internal sealed class SystemParametersConfiguration : IEntityTypeConfiguration<S
             .IsRequired();
         builder.Property(parameters => parameters.OverdueAlertDays).IsRequired();
         builder.Property(parameters => parameters.ClosingDate).HasColumnType("date").IsRequired();
+        builder.Property(parameters => parameters.CompanyName).HasMaxLength(SystemParameters.CompanyNameMaxLength);
+        builder.Property(parameters => parameters.CompanyLegalId).HasMaxLength(SystemParameters.CompanyLegalIdMaxLength);
+        builder.Property(parameters => parameters.CompanyAddress).HasMaxLength(SystemParameters.CompanyAddressMaxLength);
+        builder.Property(parameters => parameters.CompanyPhone).HasMaxLength(SystemParameters.CompanyPhoneMaxLength);
+        builder.Property(parameters => parameters.CompanyEmail).HasMaxLength(SystemParameters.CompanyEmailMaxLength);
         builder.Property(parameters => parameters.CreatedAtUtc).IsRequired();
         builder.Property(parameters => parameters.UpdatedAtUtc).IsRequired();
         builder.Property(parameters => parameters.RowVersion).IsRowVersion();

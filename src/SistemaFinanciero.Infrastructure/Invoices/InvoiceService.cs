@@ -4,6 +4,7 @@ using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Invoices;
 using SistemaFinanciero.Domain.Audit;
 using SistemaFinanciero.Domain.Catalogs;
+using SistemaFinanciero.Domain.Common;
 using SistemaFinanciero.Domain.Incomes;
 using SistemaFinanciero.Domain.Invoices;
 using SistemaFinanciero.Domain.Receivables;
@@ -127,11 +128,17 @@ internal sealed class InvoiceService(
         IReadOnlyDictionary<Guid, string> userNames = await GetUserNamesAsync(
             [invoice.CreatedByUserId],
             cancellationToken);
+        PaymentMethod? paymentMethod = await dbContext.Set<Income>()
+            .AsNoTracking()
+            .Where(income => income.InvoiceId == invoice.Id)
+            .Select(income => income.PaymentMethod)
+            .SingleOrDefaultAsync(cancellationToken);
 
         return MapInvoice(
             invoice,
             customerNames.GetValueOrDefault(invoice.CustomerId, "—"),
-            userNames.GetValueOrDefault(invoice.CreatedByUserId, "—"));
+            userNames.GetValueOrDefault(invoice.CreatedByUserId, "—"),
+            paymentMethod);
     }
 
     public async Task<InvoiceCreationResult> CreateAsync(
@@ -792,7 +799,8 @@ internal sealed class InvoiceService(
             .ToDictionaryAsync(user => user.Id, user => user.FullName, cancellationToken);
     }
 
-    private static InvoiceModel MapInvoice(Invoice invoice, string customerName, string createdByUserName)
+    private static InvoiceModel MapInvoice(
+        Invoice invoice, string customerName, string createdByUserName, PaymentMethod? paymentMethod = null)
     {
         return new InvoiceModel(
             invoice.Id,
@@ -816,7 +824,8 @@ internal sealed class InvoiceService(
             invoice.CreatedAtUtc,
             invoice.UpdatedAtUtc,
             CatalogPersistence.EncodeVersion(invoice.RowVersion),
-            invoice.Lines.Select(MapLine).ToArray());
+            invoice.Lines.Select(MapLine).ToArray(),
+            paymentMethod);
     }
 
     private static InvoiceLineModel MapLine(InvoiceLine line)

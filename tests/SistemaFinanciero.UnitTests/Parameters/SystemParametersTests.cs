@@ -163,6 +163,61 @@ public sealed class SystemParametersTests
         Assert.Equal(DateOnly.MinValue, parameters.ClosingDate);
     }
 
+    [Fact]
+    public void UpdateCompany_SetsAllFieldsAndTheAudit()
+    {
+        SystemParameters parameters = CreateParameters(500_000m, 7);
+        DateTimeOffset changedAtUtc = CreatedAtUtc.AddMinutes(5);
+
+        parameters.UpdateCompany(
+            "Soporte Experto", "3-101-123456", "San José, Costa Rica", "2222-2222", "info@soportexperto.cr",
+            changedAtUtc, EditorId);
+
+        Assert.Equal("Soporte Experto", parameters.CompanyName);
+        Assert.Equal("3-101-123456", parameters.CompanyLegalId);
+        Assert.Equal("San José, Costa Rica", parameters.CompanyAddress);
+        Assert.Equal("2222-2222", parameters.CompanyPhone);
+        Assert.Equal("info@soportexperto.cr", parameters.CompanyEmail);
+        Assert.Equal(changedAtUtc, parameters.UpdatedAtUtc);
+        Assert.Equal(EditorId, parameters.UpdatedByUserId);
+    }
+
+    [Fact]
+    public void UpdateCompany_AllowsOptionalFieldsToBeNull()
+    {
+        SystemParameters parameters = CreateParameters(500_000m, 7);
+
+        parameters.UpdateCompany(
+            "Soporte Experto", "3-101-123456", null, null, null, CreatedAtUtc.AddMinutes(5), EditorId);
+
+        Assert.Null(parameters.CompanyAddress);
+        Assert.Null(parameters.CompanyPhone);
+        Assert.Null(parameters.CompanyEmail);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void UpdateCompany_RejectsAMissingName(string? name)
+    {
+        SystemParameters parameters = CreateParameters(500_000m, 7);
+
+        Assert.Throws<ArgumentException>(() =>
+            parameters.UpdateCompany(name!, "3-101-123456", null, null, null, CreatedAtUtc.AddMinutes(5), EditorId));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public void UpdateCompany_RejectsAMissingLegalId(string? legalId)
+    {
+        SystemParameters parameters = CreateParameters(500_000m, 7);
+
+        Assert.Throws<ArgumentException>(() =>
+            parameters.UpdateCompany("Soporte Experto", legalId!, null, null, null, CreatedAtUtc.AddMinutes(5), EditorId));
+    }
+
     private static SystemParameters CreateParameters(decimal authorizationLimitCrc, int overdueAlertDays) =>
         new(authorizationLimitCrc, overdueAlertDays, CreatedAtUtc, CreatorId);
 }

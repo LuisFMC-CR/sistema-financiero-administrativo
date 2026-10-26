@@ -32,6 +32,10 @@
         {
             <a asp-action="Cancel" asp-route-id="@invoice.Id" class="btn btn-danger">Anular</a>
         }
+        @if (!isDraft)
+        {
+            <a asp-action="Pdf" asp-route-id="@invoice.Id" class="btn btn-outline-secondary">Exportar PDF</a>
+        }
     </div>
 </div>
 

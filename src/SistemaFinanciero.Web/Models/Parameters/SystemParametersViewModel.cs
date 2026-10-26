@@ -51,10 +51,45 @@ public sealed class ChangeClosingDateViewModel
     public string Version { get; set; } = string.Empty;
 }
 
-/// <summary>Agrupa los dos formularios independientes de la pantalla de parámetros.</summary>
+/// <summary>
+/// Entrada para actualizar los datos de la empresa (RF-55): nombre y cédula jurídica obligatorios;
+/// dirección, teléfono y correo opcionales. Alimentan el encabezado de la factura interna (regla 15).
+/// </summary>
+public sealed class CompanyDataViewModel
+{
+    [Required(ErrorMessage = "El nombre de la empresa es obligatorio.")]
+    [StringLength(150, ErrorMessage = "El nombre no puede superar 150 caracteres.")]
+    [Display(Name = "Nombre de la empresa")]
+    public string Name { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "La cédula jurídica es obligatoria.")]
+    [StringLength(50, ErrorMessage = "La cédula jurídica no puede superar 50 caracteres.")]
+    [Display(Name = "Cédula jurídica")]
+    public string LegalId { get; set; } = string.Empty;
+
+    [StringLength(300, ErrorMessage = "La dirección no puede superar 300 caracteres.")]
+    [Display(Name = "Dirección")]
+    public string? Address { get; set; }
+
+    [StringLength(30, ErrorMessage = "El teléfono no puede superar 30 caracteres.")]
+    [Display(Name = "Teléfono")]
+    public string? Phone { get; set; }
+
+    [StringLength(150, ErrorMessage = "El correo no puede superar 150 caracteres.")]
+    [EmailAddress(ErrorMessage = "El correo no tiene un formato válido.")]
+    [Display(Name = "Correo")]
+    public string? Email { get; set; }
+
+    [Required(ErrorMessage = "No fue posible validar la versión del registro.")]
+    public string Version { get; set; } = string.Empty;
+}
+
+/// <summary>Agrupa los tres formularios independientes de la pantalla de parámetros.</summary>
 public sealed class SystemParametersPageViewModel
 {
     public SystemParametersViewModel Parameters { get; set; } = new();
 
     public ChangeClosingDateViewModel ClosingDateForm { get; set; } = new();
+
+    public CompanyDataViewModel CompanyDataForm { get; set; } = new();
 }

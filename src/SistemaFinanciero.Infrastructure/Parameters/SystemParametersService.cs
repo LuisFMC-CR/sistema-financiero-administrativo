@@ -187,12 +187,66 @@ internal sealed class SystemParametersService(
         }
     }
 
+    public async Task<CatalogOperationResult> UpdateCompanyAsync(
+        SaveCompanyDataCommand command,
+        string version,
+        Guid actorId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        SystemParameters? parameters = await dbContext.Set<SystemParameters>()
+            .SingleOrDefaultAsync(candidate => candidate.Id == SystemParameters.SingletonId, cancellationToken);
+
+        if (parameters is null)
+        {
+            return CatalogOperationResult.Missing();
+        }
+
+        if (!CatalogPersistence.TrySetOriginalVersion(dbContext, parameters, version))
+        {
+            return CatalogOperationResult.Invalid("El token de concurrencia no es válido.");
+        }
+
+        try
+        {
+            DateTimeOffset now = timeProvider.GetUtcNow();
+            parameters.UpdateCompany(
+                command.Name, command.LegalId, command.Address, command.Phone, command.Email, now, actorId);
+
+            dbContext.Add(new CompanyDataChange(
+                Guid.NewGuid(),
+                parameters.CompanyName!,
+                parameters.CompanyLegalId!,
+                parameters.CompanyAddress,
+                parameters.CompanyPhone,
+                parameters.CompanyEmail,
+                now,
+                actorId));
+
+            return await CatalogPersistence.SaveChangesAsync(
+                dbContext,
+                "Los parámetros del sistema ya están configurados.",
+                cancellationToken);
+        }
+        catch (ArgumentException exception)
+        {
+            dbContext.ChangeTracker.Clear();
+            return CatalogOperationResult.Invalid(exception.Message);
+        }
+    }
+
     private static SystemParametersModel Map(SystemParameters parameters, string updatedByUserName)
     {
         return new SystemParametersModel(
             parameters.AuthorizationLimitCrc,
             parameters.OverdueAlertDays,
             parameters.ClosingDate,
+            parameters.CompanyName,
+            parameters.CompanyLegalId,
+            parameters.CompanyAddress,
+            parameters.CompanyPhone,
+            parameters.CompanyEmail,
             parameters.CreatedAtUtc,
             parameters.UpdatedAtUtc,
             updatedByUserName,

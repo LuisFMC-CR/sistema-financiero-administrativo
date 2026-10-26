@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using QuestPDF.Fluent;
 using SistemaFinanciero.Application.Catalogs.Categories;
 using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Catalogs.Customers;
@@ -8,10 +9,12 @@ using SistemaFinanciero.Application.Catalogs.Items;
 using SistemaFinanciero.Application.Catalogs.LedgerAccounts;
 using SistemaFinanciero.Application.Catalogs.TaxTypes;
 using SistemaFinanciero.Application.Invoices;
+using SistemaFinanciero.Application.Parameters;
 using SistemaFinanciero.Application.Security;
 using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Invoices;
 using SistemaFinanciero.Web.Models.Invoices;
+using SistemaFinanciero.Web.Reporting;
 
 namespace SistemaFinanciero.Web.Controllers;
 
@@ -36,7 +39,8 @@ public sealed class InvoicesController(
     ITaxTypeService taxTypeService,
     ILedgerAccountService ledgerAccountService,
     IFinancialCategoryService financialCategoryService,
-    IAuthorizationService authorizationService) : CatalogControllerBase
+    IAuthorizationService authorizationService,
+    ISystemParametersService systemParametersService) : CatalogControllerBase
 {
     [HttpGet("")]
     public async Task<IActionResult> Index(
@@ -126,6 +130,34 @@ public sealed class InvoicesController(
             canEditDraft,
             canConfirm && isDraft,
             canCancel && invoice.Status == InvoiceStatus.Confirmed));
+    }
+
+    /// <summary>
+    /// Exporta la factura interna en PDF (regla 15, RF-37). Solo confirmadas o anuladas: un borrador
+    /// todavía no tiene número ni totales definitivos (regla 10).
+    /// </summary>
+    [HttpGet("{id:guid}/pdf")]
+    public async Task<IActionResult> Pdf(Guid id, CancellationToken cancellationToken)
+    {
+        InvoiceModel? invoice = await service.GetAsync(id, OwnerRestriction(), cancellationToken);
+
+        if (invoice is null)
+        {
+            return NotFound();
+        }
+
+        if (invoice.Status == InvoiceStatus.Draft)
+        {
+            TempData["ErrorMessage"] = "Solo se exportan a PDF facturas confirmadas o anuladas.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        SystemParametersModel? companyData = await systemParametersService.GetAsync(cancellationToken);
+        byte[] pdf = new InvoicePdfDocument(invoice, companyData).GeneratePdf();
+        string fileName = invoice.Number is long number
+            ? $"factura-{number}.pdf"
+            : "factura.pdf";
+        return File(pdf, "application/pdf", fileName);
     }
 
     [Authorize(Policy = SystemPolicies.CreateFinancialDrafts)]

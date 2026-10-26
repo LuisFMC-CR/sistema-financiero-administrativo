@@ -106,6 +106,86 @@ else
                 }
             </form>
         </div>
+
+        <div class="catalog-form mt-4">
+            <h2 class="h5">Datos de la empresa</h2>
+            <p class="text-body-secondary small">
+                Encabezado de la factura interna en PDF (regla de negocio 15). Nombre y cédula jurídica
+                son obligatorios; dirección, teléfono y correo son opcionales.
+            </p>
+            <form asp-action="UpdateCompany" method="post" class="card card-body">
+                <input asp-for="CompanyDataForm.Version" type="hidden" />
+                <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label asp-for="CompanyDataForm.Name" class="form-label"></label>
+                        @if (canManage)
+                        {
+                            <input asp-for="CompanyDataForm.Name" class="form-control" />
+                        }
+                        else
+                        {
+                            <input value="@Model.CompanyDataForm.Name" class="form-control" readonly />
+                        }
+                        <span asp-validation-for="CompanyDataForm.Name" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-6">
+                        <label asp-for="CompanyDataForm.LegalId" class="form-label"></label>
+                        @if (canManage)
+                        {
+                            <input asp-for="CompanyDataForm.LegalId" class="form-control" />
+                        }
+                        else
+                        {
+                            <input value="@Model.CompanyDataForm.LegalId" class="form-control" readonly />
+                        }
+                        <span asp-validation-for="CompanyDataForm.LegalId" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-12">
+                        <label asp-for="CompanyDataForm.Address" class="form-label"></label>
+                        @if (canManage)
+                        {
+                            <input asp-for="CompanyDataForm.Address" class="form-control" />
+                        }
+                        else
+                        {
+                            <input value="@Model.CompanyDataForm.Address" class="form-control" readonly />
+                        }
+                        <span asp-validation-for="CompanyDataForm.Address" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-6">
+                        <label asp-for="CompanyDataForm.Phone" class="form-label"></label>
+                        @if (canManage)
+                        {
+                            <input asp-for="CompanyDataForm.Phone" class="form-control" />
+                        }
+                        else
+                        {
+                            <input value="@Model.CompanyDataForm.Phone" class="form-control" readonly />
+                        }
+                        <span asp-validation-for="CompanyDataForm.Phone" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-6">
+                        <label asp-for="CompanyDataForm.Email" class="form-label"></label>
+                        @if (canManage)
+                        {
+                            <input asp-for="CompanyDataForm.Email" class="form-control" />
+                        }
+                        else
+                        {
+                            <input value="@Model.CompanyDataForm.Email" class="form-control" readonly />
+                        }
+                        <span asp-validation-for="CompanyDataForm.Email" class="text-danger"></span>
+                    </div>
+                </div>
+                @if (canManage)
+                {
+                    <div class="d-flex gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary">Guardar datos de la empresa</button>
+                    </div>
+                }
+            </form>
+        </div>
     }
 }
 

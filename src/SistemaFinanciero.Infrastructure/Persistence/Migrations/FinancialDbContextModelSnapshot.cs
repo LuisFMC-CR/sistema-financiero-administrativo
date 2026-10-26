@@ -1386,6 +1386,50 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                     b.ToTable("ParametrosFechaCierreHistorial", "finanzas");
                 });
 
+            modelBuilder.Entity("SistemaFinanciero.Domain.Parameters.CompanyDataChange", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("ChangedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("ChangedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CompanyAddress")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("CompanyEmail")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("CompanyLegalId")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("CompanyName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("CompanyPhone")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChangedAtUtc")
+                        .HasDatabaseName("IX_ParametrosEmpresaHistorial_ChangedAtUtc");
+
+                    b.HasIndex("ChangedByUserId");
+
+                    b.ToTable("ParametrosEmpresaHistorial", "finanzas");
+                });
+
             modelBuilder.Entity("SistemaFinanciero.Domain.Parameters.SystemParameterChange", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1442,6 +1486,26 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
 
                     b.Property<DateOnly>("ClosingDate")
                         .HasColumnType("date");
+
+                    b.Property<string>("CompanyAddress")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("CompanyEmail")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("CompanyLegalId")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("CompanyName")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("CompanyPhone")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
 
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("datetimeoffset");
@@ -2481,6 +2545,16 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("FK_ParametrosFechaCierreHistorial_Usuarios_ChangedBy");
+                });
+
+            modelBuilder.Entity("SistemaFinanciero.Domain.Parameters.CompanyDataChange", b =>
+                {
+                    b.HasOne("SistemaFinanciero.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ChangedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_ParametrosEmpresaHistorial_Usuarios_ChangedBy");
                 });
 
             modelBuilder.Entity("SistemaFinanciero.Domain.Parameters.SystemParameterChange", b =>

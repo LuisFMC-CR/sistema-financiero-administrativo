@@ -10,11 +10,24 @@ namespace SistemaFinanciero.Application.Parameters;
 /// </remarks>
 public sealed record SaveSystemParametersCommand(decimal AuthorizationLimitCrc, int OverdueAlertDays);
 
+/// <summary>Datos de la empresa (RF-55), para el encabezado de la factura interna (regla 15).</summary>
+public sealed record SaveCompanyDataCommand(
+    string Name,
+    string LegalId,
+    string? Address,
+    string? Phone,
+    string? Email);
+
 /// <summary>Proyección administrativa de los parámetros del sistema.</summary>
 public sealed record SystemParametersModel(
     decimal AuthorizationLimitCrc,
     int OverdueAlertDays,
     DateOnly ClosingDate,
+    string? CompanyName,
+    string? CompanyLegalId,
+    string? CompanyAddress,
+    string? CompanyPhone,
+    string? CompanyEmail,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc,
     string UpdatedByUserName,
@@ -51,6 +64,13 @@ public interface ISystemParametersService
     public Task<CatalogOperationResult> ChangeClosingDateAsync(
         DateOnly newClosingDate,
         string? reason,
+        string version,
+        Guid actorId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Actualiza los datos de la empresa (RF-55). Solo Gerencia.</summary>
+    public Task<CatalogOperationResult> UpdateCompanyAsync(
+        SaveCompanyDataCommand command,
         string version,
         Guid actorId,
         CancellationToken cancellationToken = default);

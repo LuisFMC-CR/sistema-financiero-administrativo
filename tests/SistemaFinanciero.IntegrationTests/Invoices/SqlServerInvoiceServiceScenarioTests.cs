@@ -513,6 +513,64 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
         await context.SaveChangesAsync();
     }
 
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task GetAsync_ForAConfirmedCashInvoice_IncludesThePaymentMethodFromItsIncome()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            Guid customerId = await CreateCustomerAsync(services, actorId);
+            Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
+            Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
+            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+
+            Guid invoiceId = await CreateInvoiceWithLineAsync(invoices, customerId, taxTypeId, actorId);
+            InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
+
+            Assert.Null(draft.PaymentMethod);
+
+            await invoices.ConfirmAsync(
+                invoiceId,
+                new ConfirmInvoiceCommand(cashAccountId, PaymentMethod.SinpeMobile, "SINPE-001", incomeCategoryId),
+                draft.Version,
+                actorId);
+
+            InvoiceModel confirmed = (await invoices.GetAsync(invoiceId))!;
+            Assert.Equal(PaymentMethod.SinpeMobile, confirmed.PaymentMethod);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task GetAsync_ForACreditInvoice_HasNoPaymentMethod()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            Guid customerId = await CreateCustomerAsync(services, actorId);
+            Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
+
+            InvoiceCreationResult created = await invoices.CreateAsync(
+                new CreateInvoiceCommand(customerId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Credit30),
+                actorId);
+            Guid invoiceId = created.InvoiceId!.Value;
+            InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
+            await invoices.AddLineAsync(
+                invoiceId,
+                new InvoiceLineInputCommand(null, "Servicio a crédito", "unidad", 1m, 100m, 0m, taxTypeId),
+                draft.Version,
+                actorId);
+
+            draft = (await invoices.GetAsync(invoiceId))!;
+            await invoices.ConfirmAsync(
+                invoiceId, new ConfirmInvoiceCommand(null, null, null, null), draft.Version, actorId);
+
+            InvoiceModel confirmed = (await invoices.GetAsync(invoiceId))!;
+            Assert.Null(confirmed.PaymentMethod);
+        });
+    }
+
     private static async Task<Guid> CreateInvoiceWithLineAsync(
         IInvoiceService invoices,
         Guid customerId,
