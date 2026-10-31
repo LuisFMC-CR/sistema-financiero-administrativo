@@ -431,6 +431,46 @@ public sealed class SqlServerUserAdministrationScenarioTests
         }
     }
 
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public async Task RecordLoginAttempt_WritesTheRequestedActionAndRejectsOtherActions()
+    {
+        if (!SqlTestsEnabled())
+        {
+            return;
+        }
+
+        await using AsyncServiceScope scope = factory.Services.CreateAsyncScope();
+        FinancialDbContext dbContext = scope.ServiceProvider.GetRequiredService<FinancialDbContext>();
+        await using IDbContextTransaction transaction = await dbContext.Database.BeginTransactionAsync();
+
+        try
+        {
+            TestSecurityContext setup = await CreateSecurityContextAsync(scope.ServiceProvider);
+            IUserAccountService account = scope.ServiceProvider.GetRequiredService<IUserAccountService>();
+
+            await account.RecordLoginAttemptAsync(setup.Actor.Id, SecurityAuditAction.LoginSucceeded);
+            await account.RecordLoginAttemptAsync(setup.Actor.Id, SecurityAuditAction.LoginFailed);
+            await account.RecordLoginAttemptAsync(setup.Actor.Id, SecurityAuditAction.AccountLockedOut);
+
+            SecurityAuditAction[] actions = await dbContext.SecurityAuditEvents
+                .AsNoTracking()
+                .Where(auditEvent => auditEvent.TargetUserId == setup.Actor.Id)
+                .Select(auditEvent => auditEvent.Action)
+                .ToArrayAsync();
+            Assert.Contains(SecurityAuditAction.LoginSucceeded, actions);
+            Assert.Contains(SecurityAuditAction.LoginFailed, actions);
+            Assert.Contains(SecurityAuditAction.AccountLockedOut, actions);
+
+            await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+                () => account.RecordLoginAttemptAsync(setup.Actor.Id, SecurityAuditAction.PasswordChanged));
+        }
+        finally
+        {
+            await transaction.RollbackAsync();
+        }
+    }
+
     private static bool SqlTestsEnabled()
     {
         return string.Equals(

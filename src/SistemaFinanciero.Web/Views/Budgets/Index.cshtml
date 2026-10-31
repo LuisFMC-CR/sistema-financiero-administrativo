@@ -19,6 +19,7 @@
         <a class="btn btn-outline-secondary btn-sm" asp-action="Index" asp-route-year="@previousPeriod.Year" asp-route-month="@previousPeriod.Month">« Anterior</a>
         <span class="fw-semibold text-capitalize">@periodLabel</span>
         <a class="btn btn-outline-secondary btn-sm" asp-action="Index" asp-route-year="@nextPeriod.Year" asp-route-month="@nextPeriod.Month">Siguiente »</a>
+        <a class="btn btn-primary btn-sm" asp-action="Create" asp-route-year="@Model.PeriodYear" asp-route-month="@Model.PeriodMonth">Agregar línea</a>
     </div>
 </div>
 

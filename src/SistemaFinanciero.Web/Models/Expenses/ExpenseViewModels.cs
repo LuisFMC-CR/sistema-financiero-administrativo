@@ -37,6 +37,11 @@ public class ExpenseCreateViewModel
     [Display(Name = "Descripción")]
     public string Description { get; set; } = string.Empty;
 
+    [Required(ErrorMessage = "La referencia del comprobante del proveedor es obligatoria.")]
+    [StringLength(100, ErrorMessage = "La referencia no puede superar 100 caracteres.")]
+    [Display(Name = "Referencia del comprobante del proveedor")]
+    public string VoucherReference { get; set; } = string.Empty;
+
     [Required(ErrorMessage = "La fecha del gasto es obligatoria.")]
     [DataType(DataType.Date)]
     [Display(Name = "Fecha")]

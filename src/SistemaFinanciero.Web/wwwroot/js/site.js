@@ -101,26 +101,85 @@ if (ledgerParent instanceof HTMLSelectElement) {
     refreshLedgerForm();
 }
 
-// Línea de factura: al elegir un producto o servicio del catálogo, se propone su tarifa de IVA
-// predeterminada (RF-52). El usuario sigue pudiendo cambiarla; por eso esto solo actúa cuando el
-// artículo cambia, nunca al cargar la página con una línea ya guardada.
+// Línea de factura: la descripción siempre viene del artículo elegido, así que se muestra como vista
+// previa de solo lectura en vez de capturarse. El precio y la tarifa de IVA se muestran siempre (para
+// que la persona vea qué se va a facturar) y se bloquean cuando el artículo trae su propio precio de
+// referencia o su tarifa predeterminada; solo quedan editables cuando el artículo no los tiene. El
+// total de productos (cantidad × precio − descuento), el monto de IVA y el precio final se recalculan
+// en pantalla con cada cambio; es solo una vista previa, el servidor vuelve a calcular todo al guardar.
 const invoiceLineCatalogItem = document.getElementById("invoice-line-catalog-item");
+const invoiceLineDescriptionPreview = document.getElementById("invoice-line-description-preview");
+const invoiceLineQuantity = document.getElementById("invoice-line-quantity");
+const invoiceLineUnitPrice = document.getElementById("invoice-line-unit-price");
+const invoiceLineUnitPriceHint = document.getElementById("invoice-line-unit-price-hint");
+const invoiceLineDiscount = document.getElementById("invoice-line-discount");
 const invoiceLineTaxType = document.getElementById("invoice-line-tax-type");
+const invoiceLineNetPreview = document.getElementById("invoice-line-net-preview");
+const invoiceLineTaxPreview = document.getElementById("invoice-line-tax-preview");
+const invoiceLineTotalPreview = document.getElementById("invoice-line-total-preview");
 
-if (invoiceLineCatalogItem instanceof HTMLSelectElement && invoiceLineTaxType instanceof HTMLSelectElement) {
-    invoiceLineCatalogItem.addEventListener("change", () => {
+if (invoiceLineCatalogItem instanceof HTMLSelectElement
+    && invoiceLineQuantity instanceof HTMLInputElement
+    && invoiceLineUnitPrice instanceof HTMLInputElement
+    && invoiceLineDiscount instanceof HTMLInputElement
+    && invoiceLineTaxType instanceof HTMLSelectElement) {
+    const formatCrc = (value) =>
+        `₡${value.toLocaleString("es-CR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    const refreshInvoiceLineTotals = () => {
+        const quantity = Number(invoiceLineQuantity.value) || 0;
+        const unitPrice = Number(invoiceLineUnitPrice.value) || 0;
+        const discount = Number(invoiceLineDiscount.value) || 0;
+        const selectedTaxOption = invoiceLineTaxType.options[invoiceLineTaxType.selectedIndex];
+        const rate = Number(selectedTaxOption?.dataset.rate) || 0;
+
+        const productsTotal = Math.max((quantity * unitPrice) - discount, 0);
+        const taxAmount = productsTotal * (rate / 100);
+        const finalPrice = productsTotal + taxAmount;
+
+        if (invoiceLineNetPreview) invoiceLineNetPreview.textContent = formatCrc(productsTotal);
+        if (invoiceLineTaxPreview) invoiceLineTaxPreview.textContent = formatCrc(taxAmount);
+        if (invoiceLineTotalPreview) invoiceLineTotalPreview.textContent = formatCrc(finalPrice);
+    };
+
+    const refreshInvoiceLineForm = () => {
         const selectedOption = invoiceLineCatalogItem.options[invoiceLineCatalogItem.selectedIndex];
+        const referencePrice = selectedOption?.dataset.referencePrice;
         const defaultTaxTypeId = selectedOption?.dataset.defaultTaxType;
+        const hasReferencePrice = !!referencePrice;
+        const hasDefaultTaxType = !!defaultTaxTypeId;
 
-        if (!defaultTaxTypeId) {
-            return;
+        if (invoiceLineDescriptionPreview) invoiceLineDescriptionPreview.value = selectedOption?.dataset.name ?? "";
+
+        if (hasReferencePrice) {
+            invoiceLineUnitPrice.value = referencePrice;
+        }
+        invoiceLineUnitPrice.readOnly = hasReferencePrice;
+        invoiceLineUnitPrice.required = !hasReferencePrice;
+        if (invoiceLineUnitPriceHint) {
+            invoiceLineUnitPriceHint.textContent = hasReferencePrice
+                ? "Precio de referencia del artículo; no se puede editar."
+                : "El artículo no tiene un precio de referencia: indíquelo aquí.";
         }
 
-        const matchingOption = Array.from(invoiceLineTaxType.options)
-            .find((option) => option.value === defaultTaxTypeId);
+        if (hasDefaultTaxType) {
+            const matchingOption = Array.from(invoiceLineTaxType.options)
+                .find((option) => option.value === defaultTaxTypeId);
 
-        if (matchingOption) {
-            invoiceLineTaxType.value = defaultTaxTypeId;
+            if (matchingOption) {
+                invoiceLineTaxType.value = defaultTaxTypeId;
+            }
         }
-    });
+        invoiceLineTaxType.disabled = hasDefaultTaxType;
+        invoiceLineTaxType.required = !hasDefaultTaxType;
+
+        refreshInvoiceLineTotals();
+    };
+
+    invoiceLineCatalogItem.addEventListener("change", refreshInvoiceLineForm);
+    invoiceLineQuantity.addEventListener("input", refreshInvoiceLineTotals);
+    invoiceLineUnitPrice.addEventListener("input", refreshInvoiceLineTotals);
+    invoiceLineDiscount.addEventListener("input", refreshInvoiceLineTotals);
+    invoiceLineTaxType.addEventListener("change", refreshInvoiceLineTotals);
+    refreshInvoiceLineForm();
 }

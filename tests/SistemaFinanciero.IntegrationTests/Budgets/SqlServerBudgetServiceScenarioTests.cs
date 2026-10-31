@@ -200,7 +200,7 @@ public sealed class SqlServerBudgetServiceScenarioTests : IClassFixture<Financia
     {
         ExpenseCreationResult created = await expenses.CreateAsync(
             new SaveExpenseCommand(
-                supplierId, categoryId, "Gasto de prueba", issueDate, PaymentTerm.Cash, netAmount, taxTypeId, PaymentMethod.Cash),
+                supplierId, categoryId, "Gasto de prueba", "VC-0001", issueDate, PaymentTerm.Cash, netAmount, taxTypeId, PaymentMethod.Cash),
             actorId);
         Guid expenseId = created.ExpenseId!.Value;
 
@@ -227,7 +227,7 @@ public sealed class SqlServerBudgetServiceScenarioTests : IClassFixture<Financia
     {
         ExpenseCreationResult created = await expenses.CreateAsync(
             new SaveExpenseCommand(
-                supplierId, categoryId, "Borrador de prueba", issueDate, PaymentTerm.Cash, netAmount, taxTypeId, PaymentMethod.Cash),
+                supplierId, categoryId, "Borrador de prueba", "VC-0001", issueDate, PaymentTerm.Cash, netAmount, taxTypeId, PaymentMethod.Cash),
             actorId);
         return created.ExpenseId!.Value;
     }

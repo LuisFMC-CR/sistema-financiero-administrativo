@@ -22,7 +22,7 @@ internal sealed class SecurityAuditEventConfiguration
             {
                 table.HasCheckConstraint(
                     "CK_EventosSeguridad_Action",
-                    "[Action] BETWEEN 1 AND 9");
+                    "[Action] BETWEEN 1 AND 12");
                 table.HasCheckConstraint(
                     "CK_EventosSeguridad_Role",
                     "[Role] IS NULL OR [Role] IN (N'Administrador', N'Gerencia', N'Finanzas', N'Asistente')");

@@ -154,10 +154,13 @@ internal sealed class PayableService(
         }
 
         Guid[] expenseIds = payables.Select(payable => payable.ExpenseId).Distinct().ToArray();
-        IReadOnlyDictionary<Guid, string> expenseCodes = await dbContext.Set<Expense>()
+        IReadOnlyDictionary<Guid, ExpenseSummary> expenses = await dbContext.Set<Expense>()
             .AsNoTracking()
             .Where(expense => expenseIds.Contains(expense.Id))
-            .ToDictionaryAsync(expense => expense.Id, expense => expense.Code, cancellationToken);
+            .ToDictionaryAsync(
+                expense => expense.Id,
+                expense => new ExpenseSummary(expense.Code, expense.VoucherReference),
+                cancellationToken);
 
         Guid[] supplierIds = payables.Select(payable => payable.SupplierId).Distinct().ToArray();
         IReadOnlyDictionary<Guid, string> supplierNames = await dbContext.Set<Supplier>()
@@ -166,18 +169,25 @@ internal sealed class PayableService(
             .ToDictionaryAsync(supplier => supplier.Id, supplier => supplier.Name, cancellationToken);
 
         return payables
-            .Select(payable => new PayableModel(
-                payable.Id,
-                payable.ExpenseId,
-                expenseCodes.GetValueOrDefault(payable.ExpenseId, "—"),
-                payable.SupplierId,
-                supplierNames.GetValueOrDefault(payable.SupplierId, "—"),
-                payable.OriginalAmount,
-                payable.Balance,
-                payable.DueDate,
-                payable.Status,
-                payable.CreatedAtUtc,
-                CatalogPersistence.EncodeVersion(payable.RowVersion)))
+            .Select(payable =>
+            {
+                expenses.TryGetValue(payable.ExpenseId, out ExpenseSummary expense);
+                return new PayableModel(
+                    payable.Id,
+                    payable.ExpenseId,
+                    expense.Code ?? "—",
+                    expense.VoucherReference ?? "—",
+                    payable.SupplierId,
+                    supplierNames.GetValueOrDefault(payable.SupplierId, "—"),
+                    payable.OriginalAmount,
+                    payable.Balance,
+                    payable.DueDate,
+                    payable.Status,
+                    payable.CreatedAtUtc,
+                    CatalogPersistence.EncodeVersion(payable.RowVersion));
+            })
             .ToArray();
     }
+
+    private readonly record struct ExpenseSummary(string Code, string VoucherReference);
 }

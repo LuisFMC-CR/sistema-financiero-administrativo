@@ -32,6 +32,9 @@ public sealed class Expense
     /// <summary>Longitud máxima de la referencia del pago de contado.</summary>
     public const int ReferenceMaxLength = 100;
 
+    /// <summary>Longitud máxima de la referencia del comprobante electrónico del proveedor.</summary>
+    public const int VoucherReferenceMaxLength = 100;
+
     /// <summary>Longitud máxima del motivo de anulación.</summary>
     public const int ReasonMaxLength = 300;
 
@@ -56,6 +59,7 @@ public sealed class Expense
         Guid supplierId,
         Guid categoryId,
         string description,
+        string voucherReference,
         DateOnly issueDate,
         PaymentTerm paymentTerm,
         decimal netAmount,
@@ -72,6 +76,8 @@ public sealed class Expense
         SupplierId = DomainRules.RequiredId(supplierId, nameof(supplierId));
         CategoryId = DomainRules.RequiredId(categoryId, nameof(categoryId));
         Description = DomainRules.RequiredText(description, DescriptionMaxLength, nameof(description));
+        VoucherReference = DomainRules.RequiredText(
+            voucherReference, VoucherReferenceMaxLength, nameof(voucherReference));
         IssueDate = RequireDate(issueDate, nameof(issueDate));
         PaymentTerm = DomainRules.DefinedEnum(paymentTerm, nameof(paymentTerm));
         DueDate = CalculateDueDate(PaymentTerm, IssueDate);
@@ -104,6 +110,9 @@ public sealed class Expense
 
     /// <summary>Descripción de la compra.</summary>
     public string Description { get; private set; } = string.Empty;
+
+    /// <summary>Referencia del comprobante electrónico del proveedor (RF-25).</summary>
+    public string VoucherReference { get; private set; } = string.Empty;
 
     /// <summary>Fecha de negocio del gasto.</summary>
     public DateOnly IssueDate { get; private set; }
@@ -185,6 +194,7 @@ public sealed class Expense
         Guid supplierId,
         Guid categoryId,
         string description,
+        string voucherReference,
         DateOnly issueDate,
         PaymentTerm paymentTerm,
         decimal netAmount,
@@ -201,6 +211,8 @@ public sealed class Expense
         Guid validSupplierId = DomainRules.RequiredId(supplierId, nameof(supplierId));
         Guid validCategoryId = DomainRules.RequiredId(categoryId, nameof(categoryId));
         string validDescription = DomainRules.RequiredText(description, DescriptionMaxLength, nameof(description));
+        string validVoucherReference = DomainRules.RequiredText(
+            voucherReference, VoucherReferenceMaxLength, nameof(voucherReference));
         DateOnly validIssueDate = RequireDate(issueDate, nameof(issueDate));
         PaymentTerm validPaymentTerm = DomainRules.DefinedEnum(paymentTerm, nameof(paymentTerm));
         decimal validNetAmount = ValidatePositiveAmount(netAmount, nameof(netAmount));
@@ -214,6 +226,7 @@ public sealed class Expense
         SupplierId = validSupplierId;
         CategoryId = validCategoryId;
         Description = validDescription;
+        VoucherReference = validVoucherReference;
         IssueDate = validIssueDate;
         PaymentTerm = validPaymentTerm;
         DueDate = CalculateDueDate(validPaymentTerm, validIssueDate);

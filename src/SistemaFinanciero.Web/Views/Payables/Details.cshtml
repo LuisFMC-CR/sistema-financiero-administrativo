@@ -30,7 +30,8 @@
     <div class="col-md-6">
         <div class="card card-body h-100">
             <h2 class="h5">Proveedor</h2>
-            <p class="mb-0">@payable.SupplierName</p>
+            <p class="mb-1">@payable.SupplierName</p>
+            <p class="mb-0">Referencia del comprobante: @payable.ExpenseVoucherReference</p>
         </div>
     </div>
     <div class="col-md-6">
@@ -48,6 +49,7 @@
     <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
             <tr>
+                <th scope="col">Código</th>
                 <th scope="col">Fecha</th>
                 <th scope="col">Referencia</th>
                 <th scope="col">Cuenta de efectivo</th>
@@ -59,11 +61,12 @@
         <tbody>
             @if (Model.Payments.Count == 0)
             {
-                <tr><td colspan="6" class="text-center text-body-secondary py-4">Esta cuenta por pagar no tiene pagos.</td></tr>
+                <tr><td colspan="7" class="text-center text-body-secondary py-4">Esta cuenta por pagar no tiene pagos.</td></tr>
             }
             @foreach (SupplierPaymentModel payment in Model.Payments)
             {
                 <tr>
+                    <td class="fw-semibold">@payment.Code</td>
                     <td>@payment.PaymentDate.ToString("dd/MM/yyyy")</td>
                     <td>@payment.Reference</td>
                     <td>@payment.CashAccountName</td>

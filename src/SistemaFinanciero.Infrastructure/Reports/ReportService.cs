@@ -274,7 +274,7 @@ internal sealed class ReportService(
         lines.AddRange(payments.Select(payment => new CustomerStatementLine(
             payment.PaymentDate,
             "Abono",
-            $"Abono {payment.Reference}",
+            $"Abono {payment.Code} (ref. {payment.Reference})",
             payment.Amount + withholdingAmountsByPaymentId.GetValueOrDefault(payment.Id),
             payment.Status == ReceivablePaymentStatus.Cancelled)));
 

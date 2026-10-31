@@ -25,6 +25,12 @@
         <input asp-for="Description" class="form-control" />
         <span asp-validation-for="Description" class="text-danger"></span>
     </div>
+    <div class="col-md-6">
+        <label asp-for="VoucherReference" class="form-label"></label>
+        <input asp-for="VoucherReference" class="form-control" />
+        <span asp-validation-for="VoucherReference" class="text-danger"></span>
+        <div class="form-text">Número del comprobante electrónico que emitió el proveedor.</div>
+    </div>
     <div class="col-md-3">
         <label asp-for="IssueDate" class="form-label"></label>
         <input asp-for="IssueDate" type="date" class="form-control" />

@@ -75,12 +75,16 @@ public sealed partial class AccountController(
         if (!result.Succeeded)
         {
             LogLoginRejected(logger, user.Id);
+            await accountService.RecordLoginAttemptAsync(
+                user.Id,
+                result.IsLockedOut ? SecurityAuditAction.AccountLockedOut : SecurityAuditAction.LoginFailed);
             ModelState.AddModelError(string.Empty, InvalidCredentialsMessage);
             ClearLoginPassword(model);
             return View(model);
         }
 
         LogLoginSucceeded(logger, user.Id);
+        await accountService.RecordLoginAttemptAsync(user.Id, SecurityAuditAction.LoginSucceeded);
 
         if (user.MustChangePassword)
         {

@@ -123,11 +123,14 @@ internal sealed class InvoiceService(
             return null;
         }
 
-        IReadOnlyDictionary<Guid, string> customerNames = await GetCustomerNamesAsync(
-            [invoice.CustomerId],
-            cancellationToken);
+        CustomerContact? customer = await GetCustomerContactAsync(invoice.CustomerId, cancellationToken);
         IReadOnlyDictionary<Guid, string> userNames = await GetUserNamesAsync(
             [invoice.CreatedByUserId],
+            cancellationToken);
+        IReadOnlyDictionary<Guid, string> catalogItemCodes = await GetCatalogItemCodesAsync(
+            invoice.Lines
+                .Where(line => line.CatalogItemId.HasValue)
+                .Select(line => line.CatalogItemId!.Value),
             cancellationToken);
         PaymentMethod? paymentMethod = await dbContext.Set<Income>()
             .AsNoTracking()
@@ -137,8 +140,12 @@ internal sealed class InvoiceService(
 
         return MapInvoice(
             invoice,
-            customerNames.GetValueOrDefault(invoice.CustomerId, "—"),
+            customer?.Name ?? "—",
+            customer?.Identification ?? "—",
+            customer?.Email,
+            customer?.Phone,
             userNames.GetValueOrDefault(invoice.CreatedByUserId, "—"),
+            catalogItemCodes,
             paymentMethod);
     }
 
@@ -272,8 +279,17 @@ internal sealed class InvoiceService(
             return CatalogOperationResult.Invalid("El token de concurrencia no es válido.");
         }
 
+        (CatalogOperationResult? lineError, CatalogItem? catalogItem, decimal unitPrice, Guid taxTypeId) =
+            await ResolveLineInputAsync(command, cancellationToken);
+
+        if (lineError is not null)
+        {
+            dbContext.ChangeTracker.Clear();
+            return lineError;
+        }
+
         (CatalogOperationResult? taxError, TaxType? taxType) = await LoadActiveTaxTypeAsync(
-            command.TaxTypeId,
+            taxTypeId,
             cancellationToken);
 
         if (taxError is not null)
@@ -282,26 +298,16 @@ internal sealed class InvoiceService(
             return taxError;
         }
 
-        CatalogOperationResult? itemValidation = await ValidateCatalogItemAsync(
-            command.CatalogItemId,
-            cancellationToken);
-
-        if (itemValidation is not null)
-        {
-            dbContext.ChangeTracker.Clear();
-            return itemValidation;
-        }
-
         try
         {
             InvoiceTaxSpecification tax = new(taxType!.Code, taxType.Name, taxType.Rate, taxType.Id);
             InvoiceLine line = new(
                 Guid.NewGuid(),
-                command.CatalogItemId,
-                command.Description,
-                command.UnitOfMeasure,
+                catalogItem!.Id,
+                catalogItem.Name,
+                catalogItem.UnitOfMeasure,
                 command.Quantity,
-                command.UnitPrice,
+                unitPrice,
                 command.DiscountAmount,
                 tax);
 
@@ -347,8 +353,17 @@ internal sealed class InvoiceService(
             return CatalogOperationResult.Invalid("El token de concurrencia no es válido.");
         }
 
+        (CatalogOperationResult? lineError, CatalogItem? catalogItem, decimal unitPrice, Guid taxTypeId) =
+            await ResolveLineInputAsync(command, cancellationToken);
+
+        if (lineError is not null)
+        {
+            dbContext.ChangeTracker.Clear();
+            return lineError;
+        }
+
         (CatalogOperationResult? taxError, TaxType? taxType) = await LoadActiveTaxTypeAsync(
-            command.TaxTypeId,
+            taxTypeId,
             cancellationToken);
 
         if (taxError is not null)
@@ -357,26 +372,16 @@ internal sealed class InvoiceService(
             return taxError;
         }
 
-        CatalogOperationResult? itemValidation = await ValidateCatalogItemAsync(
-            command.CatalogItemId,
-            cancellationToken);
-
-        if (itemValidation is not null)
-        {
-            dbContext.ChangeTracker.Clear();
-            return itemValidation;
-        }
-
         try
         {
             InvoiceTaxSpecification tax = new(taxType!.Code, taxType.Name, taxType.Rate, taxType.Id);
             InvoiceLine replacement = new(
                 Guid.NewGuid(),
-                command.CatalogItemId,
-                command.Description,
-                command.UnitOfMeasure,
+                catalogItem!.Id,
+                catalogItem.Name,
+                catalogItem.UnitOfMeasure,
                 command.Quantity,
-                command.UnitPrice,
+                unitPrice,
                 command.DiscountAmount,
                 tax);
 
@@ -497,8 +502,8 @@ internal sealed class InvoiceService(
                 string incomeCode = await CatalogPersistence.GenerateSequentialCodeAsync(
                     dbContext,
                     "finanzas.Seq_IngresoCodigo",
-                    "ING",
-                    3,
+                    "REC",
+                    6,
                     cancellationToken);
 
                 dbContext.Add(Income.FromInvoice(
@@ -738,22 +743,52 @@ internal sealed class InvoiceService(
         return isValid ? null : CatalogOperationResult.Invalid("El cliente seleccionado no existe o está inactivo.");
     }
 
-    private async Task<CatalogOperationResult?> ValidateCatalogItemAsync(
-        Guid? catalogItemId,
-        CancellationToken cancellationToken)
+    /// <summary>
+    /// Carga el artículo del catálogo de la línea y resuelve el precio unitario y la tarifa de IVA: si
+    /// el artículo tiene su propio precio de referencia o su tarifa predeterminada, esos valores se
+    /// usan siempre; si no, se exige el valor correspondiente de <paramref name="command"/> (ADR-0043).
+    /// </summary>
+    private async Task<(CatalogOperationResult? Error, CatalogItem? CatalogItem, decimal UnitPrice, Guid TaxTypeId)>
+        ResolveLineInputAsync(InvoiceLineInputCommand command, CancellationToken cancellationToken)
     {
-        if (catalogItemId is null)
+        CatalogItem? catalogItem = await dbContext.Set<CatalogItem>()
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == command.CatalogItemId, cancellationToken);
+
+        if (catalogItem is null || !catalogItem.IsActive)
         {
-            return null;
+            return (
+                CatalogOperationResult.Invalid("El producto o servicio seleccionado no existe o está inactivo."),
+                null,
+                default,
+                default);
         }
 
-        bool isValid = await dbContext.Set<CatalogItem>()
-            .AsNoTracking()
-            .AnyAsync(item => item.Id == catalogItemId.Value && item.IsActive, cancellationToken);
+        decimal? unitPrice = catalogItem.ReferencePriceCrc ?? command.UnitPrice;
 
-        return isValid
-            ? null
-            : CatalogOperationResult.Invalid("El producto o servicio seleccionado no existe o está inactivo.");
+        if (unitPrice is null)
+        {
+            return (
+                CatalogOperationResult.Invalid(
+                    "El artículo no tiene un precio de referencia: indique el precio unitario de la línea."),
+                null,
+                default,
+                default);
+        }
+
+        Guid? taxTypeId = catalogItem.DefaultTaxTypeId ?? command.TaxTypeId;
+
+        if (taxTypeId is null)
+        {
+            return (
+                CatalogOperationResult.Invalid(
+                    "El artículo no tiene una tarifa de IVA predeterminada: indique la tarifa de la línea."),
+                null,
+                default,
+                default);
+        }
+
+        return (null, catalogItem, unitPrice.Value, taxTypeId.Value);
     }
 
     private async Task<(CatalogOperationResult? Error, TaxType? TaxType)> LoadActiveTaxTypeAsync(
@@ -770,6 +805,43 @@ internal sealed class InvoiceService(
         }
 
         return (null, taxType);
+    }
+
+    private readonly record struct CustomerContact(string Name, string Identification, string? Email, string? Phone);
+
+    private async Task<CustomerContact?> GetCustomerContactAsync(
+        Guid customerId,
+        CancellationToken cancellationToken)
+    {
+        CustomerContact[] matches = await dbContext.Set<Customer>()
+            .AsNoTracking()
+            .Where(customer => customer.Id == customerId)
+            .Select(customer => new CustomerContact(
+                customer.Name,
+                customer.Identification,
+                customer.Email,
+                customer.Phone))
+            .Take(1)
+            .ToArrayAsync(cancellationToken);
+
+        return matches.Length > 0 ? matches[0] : null;
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, string>> GetCatalogItemCodesAsync(
+        IEnumerable<Guid> catalogItemIds,
+        CancellationToken cancellationToken)
+    {
+        Guid[] ids = catalogItemIds.Distinct().ToArray();
+
+        if (ids.Length == 0)
+        {
+            return new Dictionary<Guid, string>();
+        }
+
+        return await dbContext.Set<CatalogItem>()
+            .AsNoTracking()
+            .Where(item => ids.Contains(item.Id))
+            .ToDictionaryAsync(item => item.Id, item => item.Code, cancellationToken);
     }
 
     private async Task<IReadOnlyDictionary<Guid, string>> GetCustomerNamesAsync(
@@ -807,13 +879,23 @@ internal sealed class InvoiceService(
     }
 
     private static InvoiceModel MapInvoice(
-        Invoice invoice, string customerName, string createdByUserName, PaymentMethod? paymentMethod = null)
+        Invoice invoice,
+        string customerName,
+        string customerIdentification,
+        string? customerEmail,
+        string? customerPhone,
+        string createdByUserName,
+        IReadOnlyDictionary<Guid, string> catalogItemCodes,
+        PaymentMethod? paymentMethod = null)
     {
         return new InvoiceModel(
             invoice.Id,
             invoice.Number,
             invoice.CustomerId,
             customerName,
+            customerIdentification,
+            customerEmail,
+            customerPhone,
             invoice.IssueDate,
             invoice.PaymentTerm,
             invoice.DueDate,
@@ -831,16 +913,17 @@ internal sealed class InvoiceService(
             invoice.CreatedAtUtc,
             invoice.UpdatedAtUtc,
             CatalogPersistence.EncodeVersion(invoice.RowVersion),
-            invoice.Lines.Select(MapLine).ToArray(),
+            invoice.Lines.Select(line => MapLine(line, catalogItemCodes)).ToArray(),
             paymentMethod);
     }
 
-    private static InvoiceLineModel MapLine(InvoiceLine line)
+    private static InvoiceLineModel MapLine(InvoiceLine line, IReadOnlyDictionary<Guid, string> catalogItemCodes)
     {
         return new InvoiceLineModel(
             line.Id,
             line.Position,
             line.CatalogItemId,
+            line.CatalogItemId is Guid catalogItemId ? catalogItemCodes.GetValueOrDefault(catalogItemId) : null,
             line.Description,
             line.UnitOfMeasure,
             line.Quantity,

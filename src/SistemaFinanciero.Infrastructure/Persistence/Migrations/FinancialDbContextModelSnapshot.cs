@@ -1008,6 +1008,11 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("UpdatedByUserId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("VoucherReference")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CancelledByUserId");
@@ -1641,6 +1646,11 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("CashAccountId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -1679,6 +1689,10 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CancelledByUserId");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Pagos_Code");
 
                     b.HasIndex("CreatedByUserId");
 
@@ -1800,6 +1814,11 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("CashAccountId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -1838,6 +1857,10 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CancelledByUserId");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Abonos_Code");
 
                     b.HasIndex("CreatedByUserId");
 
@@ -2046,7 +2069,7 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
 
                     b.ToTable("EventosSeguridad", "seguridad", t =>
                         {
-                            t.HasCheckConstraint("CK_EventosSeguridad_Action", "[Action] BETWEEN 1 AND 9");
+                            t.HasCheckConstraint("CK_EventosSeguridad_Action", "[Action] BETWEEN 1 AND 12");
 
                             t.HasCheckConstraint("CK_EventosSeguridad_Role", "[Role] IS NULL OR [Role] IN (N'Administrador', N'Gerencia', N'Finanzas', N'Asistente')");
                         });

@@ -66,6 +66,7 @@ public sealed class SqlServerSupplierPaymentServiceScenarioTests : IClassFixture
                 p => p.Id == result.SupplierPaymentIds[0]);
             Assert.Equal(60m, payment.Amount);
             Assert.Equal(SupplierPaymentStatus.Active, payment.Status);
+            Assert.Matches("^PAG-\\d{6}$", payment.Code);
         });
     }
 
@@ -269,6 +270,7 @@ public sealed class SqlServerSupplierPaymentServiceScenarioTests : IClassFixture
                 supplierId,
                 categoryId,
                 "Compra a crédito de pruebas de pago",
+                "VC-0001",
                 DateOnly.FromDateTime(DateTime.UtcNow),
                 PaymentTerm.Credit30,
                 amount,

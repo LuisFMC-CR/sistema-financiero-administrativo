@@ -158,6 +158,7 @@ public sealed record RegisterReceivablePaymentCommand(
 /// <summary>Proyección de un abono para consulta.</summary>
 public sealed record ReceivablePaymentModel(
     Guid Id,
+    string Code,
     Guid ReceivableId,
     Guid GroupId,
     decimal Amount,

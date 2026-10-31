@@ -99,4 +99,28 @@ internal sealed class UserAccountService(
             },
             cancellationToken);
     }
+
+    public async Task RecordLoginAttemptAsync(
+        Guid userId,
+        SecurityAuditAction action,
+        CancellationToken cancellationToken = default)
+    {
+        if (action is not (SecurityAuditAction.LoginSucceeded
+            or SecurityAuditAction.LoginFailed
+            or SecurityAuditAction.AccountLockedOut))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(action),
+                action,
+                "Esta acción no corresponde a un intento de inicio de sesión.");
+        }
+
+        dbContext.SecurityAuditEvents.Add(new SecurityAuditEvent(
+            Guid.NewGuid(),
+            action,
+            userId,
+            userId,
+            timeProvider.GetUtcNow()));
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
 }

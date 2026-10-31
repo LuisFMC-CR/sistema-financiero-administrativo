@@ -17,6 +17,9 @@ namespace SistemaFinanciero.Domain.Receivables;
 /// </remarks>
 public sealed class ReceivablePayment
 {
+    /// <summary>Longitud máxima del código visible.</summary>
+    public const int CodeMaxLength = 30;
+
     /// <summary>Longitud máxima de la referencia.</summary>
     public const int ReferenceMaxLength = 100;
 
@@ -30,6 +33,7 @@ public sealed class ReceivablePayment
     /// <summary>Crea un abono vigente sobre una cuenta por cobrar.</summary>
     public ReceivablePayment(
         Guid id,
+        string code,
         Guid receivableId,
         Guid groupId,
         decimal amount,
@@ -40,6 +44,7 @@ public sealed class ReceivablePayment
         Guid createdByUserId)
     {
         Id = DomainRules.RequiredId(id, nameof(id));
+        Code = DomainRules.NormalizedCode(code, CodeMaxLength, nameof(code));
         ReceivableId = DomainRules.RequiredId(receivableId, nameof(receivableId));
         GroupId = DomainRules.RequiredId(groupId, nameof(groupId));
         Amount = ValidatePositiveAmount(amount, nameof(amount));
@@ -55,6 +60,9 @@ public sealed class ReceivablePayment
 
     /// <summary>Obtiene el identificador técnico estable.</summary>
     public Guid Id { get; private set; }
+
+    /// <summary>Código automático asignado al crear (regla 12, <c>ABO-000001</c>); no es editable.</summary>
+    public string Code { get; private set; } = string.Empty;
 
     /// <summary>Obtiene la cuenta por cobrar sobre la que se aplica.</summary>
     public Guid ReceivableId { get; private set; }

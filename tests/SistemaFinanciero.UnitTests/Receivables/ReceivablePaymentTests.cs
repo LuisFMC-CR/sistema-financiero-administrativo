@@ -19,6 +19,7 @@ public sealed class ReceivablePaymentTests
 
         ReceivablePayment payment = new(
             Guid.NewGuid(),
+            "ABO-000001",
             receivableId,
             groupId,
             400m,
@@ -79,6 +80,7 @@ public sealed class ReceivablePaymentTests
 
     private static ReceivablePayment CreatePayment(decimal amount = 400m, string reference = "AB-0001") => new(
         Guid.NewGuid(),
+        "ABO-000001",
         Guid.NewGuid(),
         Guid.NewGuid(),
         amount,

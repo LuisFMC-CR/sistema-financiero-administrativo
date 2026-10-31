@@ -30,14 +30,18 @@ public sealed record UpdateCatalogItemCommand(
 
 /// <summary>
 /// Opción activa para el selector de artículo al agregar una línea de factura.
-/// <paramref name="DefaultTaxTypeId"/> permite proponer la tarifa de IVA del producto o servicio
-/// (RF-52) sin una segunda consulta; la línea sigue permitiendo cambiarla.
+/// <paramref name="UnitOfMeasure"/>, <paramref name="ReferencePriceCrc"/> y
+/// <paramref name="DefaultTaxTypeId"/> permiten que la pantalla sepa, sin una segunda consulta, qué
+/// datos ya trae el artículo (ADR-0043): la descripción y la unidad siempre vienen de él, y el precio
+/// y la tarifa de IVA solo se piden en la línea cuando el artículo no los tiene.
 /// </summary>
 public sealed record CatalogItemOption(
     Guid Id,
     string Code,
     string Name,
     CatalogItemType Type,
+    string UnitOfMeasure,
+    decimal? ReferencePriceCrc,
     Guid? DefaultTaxTypeId);
 
 /// <summary>Proyección administrativa de un producto o servicio.</summary>

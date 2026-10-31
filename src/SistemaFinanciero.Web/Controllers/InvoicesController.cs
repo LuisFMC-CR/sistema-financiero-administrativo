@@ -298,8 +298,6 @@ public sealed class InvoicesController(
         InvoiceLineInputViewModel model = new()
         {
             CatalogItemId = line.CatalogItemId,
-            Description = line.Description,
-            UnitOfMeasure = line.UnitOfMeasure,
             Quantity = line.Quantity,
             UnitPrice = line.UnitPrice,
             DiscountAmount = line.DiscountAmount,
@@ -536,13 +534,11 @@ public sealed class InvoicesController(
     }
 
     private static InvoiceLineInputCommand ToLineCommand(InvoiceLineInputViewModel model) => new(
-        model.CatalogItemId,
-        model.Description,
-        model.UnitOfMeasure,
+        model.CatalogItemId!.Value,
         model.Quantity,
         model.UnitPrice,
         model.DiscountAmount,
-        model.TaxTypeId!.Value);
+        model.TaxTypeId);
 
     private Guid? OwnerRestriction() => User.IsInRole(SystemRoles.Assistant) && TryGetActorId(out Guid actorId)
         ? actorId
@@ -629,20 +625,28 @@ public sealed class InvoicesController(
         InvoiceLineInputViewModel model,
         CancellationToken cancellationToken)
     {
+        IReadOnlyList<TaxTypeOption> taxOptions = await taxTypeService.GetActiveOptionsAsync(cancellationToken);
+        Dictionary<Guid, decimal> taxRatesById = taxOptions.ToDictionary(option => option.Id, option => option.Rate);
+
         IReadOnlyList<CatalogItemOption> itemOptions = await catalogItemService.GetActiveOptionsAsync(cancellationToken);
         model.CatalogItemOptions = itemOptions
             .Select(option => new InvoiceLineCatalogItemOptionViewModel(
                 option.Id,
-                $"{option.Code} - {option.Name}",
-                option.DefaultTaxTypeId))
+                $"{option.Code} - {option.Name} ({option.UnitOfMeasure})",
+                option.Name,
+                option.UnitOfMeasure,
+                option.ReferencePriceCrc,
+                option.DefaultTaxTypeId,
+                option.DefaultTaxTypeId is Guid defaultTaxTypeId && taxRatesById.TryGetValue(defaultTaxTypeId, out decimal defaultRate)
+                    ? defaultRate
+                    : null))
             .ToList();
 
-        IReadOnlyList<TaxTypeOption> taxOptions = await taxTypeService.GetActiveOptionsAsync(cancellationToken);
         model.TaxTypeOptions = taxOptions
-            .Select(option => new SelectListItem(
+            .Select(option => new InvoiceLineTaxTypeOptionViewModel(
+                option.Id,
                 $"{option.Name} ({option.Rate:0.##}%)",
-                option.Id.ToString(),
-                option.Id == model.TaxTypeId))
+                option.Rate))
             .ToList();
     }
 }

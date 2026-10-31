@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using SistemaFinanciero.Application.Budgets;
 using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Security;
@@ -28,6 +29,44 @@ public sealed class BudgetsController(IBudgetService service) : CatalogControlle
         IReadOnlyList<BudgetModel> results = await service.SearchByPeriodAsync(periodYear, periodMonth, cancellationToken);
 
         return View(new BudgetIndexViewModel(results, periodYear, periodMonth));
+    }
+
+    [HttpGet("agregar")]
+    public async Task<IActionResult> Create(int year, int month, CancellationToken cancellationToken)
+    {
+        BudgetCreateViewModel model = new() { PeriodYear = year, PeriodMonth = month };
+        await PopulateCreateOptionsAsync(model, cancellationToken);
+        return View(model);
+    }
+
+    [HttpPost("agregar")]
+    public async Task<IActionResult> Create(BudgetCreateViewModel model, CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            await PopulateCreateOptionsAsync(model, cancellationToken);
+            return View(model);
+        }
+
+        if (!TryGetActorId(out Guid actorId))
+        {
+            return Forbid();
+        }
+
+        CatalogOperationResult result = await service.SetAmountAsync(
+            new SetBudgetAmountCommand(model.CategoryId!.Value, model.PeriodYear, model.PeriodMonth, model.Amount),
+            version: null,
+            actorId,
+            cancellationToken);
+
+        if (result.IsSuccess)
+        {
+            SetSuccessMessage("La línea de presupuesto fue agregada.");
+            return RedirectToAction(nameof(Index), new { year = model.PeriodYear, month = model.PeriodMonth });
+        }
+
+        await PopulateCreateOptionsAsync(model, cancellationToken);
+        return FormFailure(result, model, nameof(Create));
     }
 
     [HttpGet("{categoryId:guid}/editar")]
@@ -94,5 +133,21 @@ public sealed class BudgetsController(IBudgetService service) : CatalogControlle
         }
 
         return FormFailure(result, model, nameof(Edit));
+    }
+
+    private async Task PopulateCreateOptionsAsync(BudgetCreateViewModel model, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<BudgetModel> results = await service.SearchByPeriodAsync(
+            model.PeriodYear,
+            model.PeriodMonth,
+            cancellationToken);
+
+        model.CategoryOptions = results
+            .Where(budget => budget.BudgetId is null)
+            .Select(budget => new SelectListItem(
+                $"{budget.CategoryCode} - {budget.CategoryName}",
+                budget.CategoryId.ToString(),
+                budget.CategoryId == model.CategoryId))
+            .ToList();
     }
 }

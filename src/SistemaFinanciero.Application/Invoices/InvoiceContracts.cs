@@ -88,14 +88,18 @@ public sealed record UpdateInvoiceHeaderCommand(
 /// Datos de una línea para agregar o para reemplazar una existente; la forma es la misma en ambos
 /// casos, así que un solo tipo sirve para las dos operaciones.
 /// </summary>
+/// <remarks>
+/// El artículo del catálogo es obligatorio (ya no existe la línea de descripción libre, ADR-0043):
+/// la descripción y la unidad de medida de la línea siempre se toman de él. <paramref name="UnitPrice"/>
+/// y <paramref name="TaxTypeId"/> solo se usan cuando el artículo no tiene su propio precio de
+/// referencia o su tarifa de IVA predeterminada; si el artículo los tiene, estos valores se ignoran.
+/// </remarks>
 public sealed record InvoiceLineInputCommand(
-    Guid? CatalogItemId,
-    string Description,
-    string UnitOfMeasure,
+    Guid CatalogItemId,
     decimal Quantity,
-    decimal UnitPrice,
+    decimal? UnitPrice,
     decimal DiscountAmount,
-    Guid TaxTypeId);
+    Guid? TaxTypeId);
 
 /// <summary>Resultado de crear una factura: la operación y el identificador del borrador nuevo.</summary>
 public sealed record InvoiceCreationResult(CatalogOperationResult Operation, Guid? InvoiceId);
@@ -116,6 +120,7 @@ public sealed record InvoiceLineModel(
     Guid Id,
     int Position,
     Guid? CatalogItemId,
+    string? CatalogItemCode,
     string Description,
     string UnitOfMeasure,
     decimal Quantity,
@@ -136,6 +141,9 @@ public sealed record InvoiceModel(
     long? Number,
     Guid CustomerId,
     string CustomerName,
+    string CustomerIdentification,
+    string? CustomerEmail,
+    string? CustomerPhone,
     DateOnly IssueDate,
     PaymentTerm PaymentTerm,
     DateOnly? DueDate,

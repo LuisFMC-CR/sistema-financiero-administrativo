@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -52,7 +53,8 @@ public sealed class AccountControllerSensitiveInputTests
             Email = "usuario@empresa.example",
             IsActive = true,
         };
-        AccountController controller = CreateController(user, IdentitySignInResult.Failed);
+        RecordingAccountService accountService = new();
+        AccountController controller = CreateController(user, IdentitySignInResult.Failed, accountService);
         LoginViewModel model = new()
         {
             Email = user.Email,
@@ -68,6 +70,57 @@ public sealed class AccountControllerSensitiveInputTests
         Assert.Contains(
             controller.ModelState[string.Empty]!.Errors,
             error => error.ErrorMessage == "Usuario o contraseña incorrectos.");
+        Assert.Equal(1, accountService.LoginAttemptCalls);
+        Assert.Equal(user.Id, accountService.LastLoginAttemptUserId);
+        Assert.Equal(SecurityAuditAction.LoginFailed, accountService.LastLoginAttemptAction);
+    }
+
+    [Fact]
+    public async Task Login_WhenAccountIsLockedOut_RecordsAccountLockedOut()
+    {
+        ApplicationUser user = new()
+        {
+            Id = Guid.NewGuid(),
+            Email = "usuario@empresa.example",
+            IsActive = true,
+        };
+        RecordingAccountService accountService = new();
+        AccountController controller = CreateController(user, IdentitySignInResult.LockedOut, accountService);
+        LoginViewModel model = new()
+        {
+            Email = user.Email,
+            Password = "Valor-sensible-2026!",
+        };
+
+        await controller.Login(model);
+
+        Assert.Equal(1, accountService.LoginAttemptCalls);
+        Assert.Equal(SecurityAuditAction.AccountLockedOut, accountService.LastLoginAttemptAction);
+    }
+
+    [Fact]
+    public async Task Login_WhenAuthenticationSucceeds_RecordsLoginSucceeded()
+    {
+        ApplicationUser user = new()
+        {
+            Id = Guid.NewGuid(),
+            Email = "usuario@empresa.example",
+            IsActive = true,
+        };
+        RecordingAccountService accountService = new();
+        AccountController controller = CreateController(user, IdentitySignInResult.Success, accountService);
+        LoginViewModel model = new()
+        {
+            Email = user.Email,
+            Password = "Valor-correcto-2026!",
+        };
+
+        IActionResult action = await controller.Login(model);
+
+        Assert.IsType<RedirectToActionResult>(action);
+        Assert.Equal(1, accountService.LoginAttemptCalls);
+        Assert.Equal(user.Id, accountService.LastLoginAttemptUserId);
+        Assert.Equal(SecurityAuditAction.LoginSucceeded, accountService.LastLoginAttemptAction);
     }
 
     [Fact]
@@ -163,6 +216,7 @@ public sealed class AccountControllerSensitiveInputTests
             {
                 HttpContext = httpContext,
             },
+            Url = new StubUrlHelper(),
         };
         controller.TempData = new TempDataDictionary(httpContext, new StubTempDataProvider());
 
@@ -243,6 +297,12 @@ public sealed class AccountControllerSensitiveInputTests
 
         public UserOperationResult Result { get; init; } = UserOperationResult.Succeeded();
 
+        public int LoginAttemptCalls { get; private set; }
+
+        public Guid? LastLoginAttemptUserId { get; private set; }
+
+        public SecurityAuditAction? LastLoginAttemptAction { get; private set; }
+
         public Task<UserOperationResult> ChangePasswordAsync(
             Guid userId,
             ChangeOwnPasswordCommand command,
@@ -251,6 +311,17 @@ public sealed class AccountControllerSensitiveInputTests
             Calls++;
             LastCommand = command;
             return Task.FromResult(Result);
+        }
+
+        public Task RecordLoginAttemptAsync(
+            Guid userId,
+            SecurityAuditAction action,
+            CancellationToken cancellationToken = default)
+        {
+            LoginAttemptCalls++;
+            LastLoginAttemptUserId = userId;
+            LastLoginAttemptAction = action;
+            return Task.CompletedTask;
         }
     }
 
@@ -304,6 +375,21 @@ public sealed class AccountControllerSensitiveInputTests
         {
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class StubUrlHelper : IUrlHelper
+    {
+        public ActionContext ActionContext => throw new NotImplementedException();
+
+        public string? Action(UrlActionContext actionContext) => throw new NotImplementedException();
+
+        public string? Content(string? contentPath) => throw new NotImplementedException();
+
+        public bool IsLocalUrl(string? url) => false;
+
+        public string? Link(string? routeName, object? values) => throw new NotImplementedException();
+
+        public string? RouteUrl(UrlRouteContext routeContext) => throw new NotImplementedException();
     }
 
     private sealed class StubUserStore : IUserStore<ApplicationUser>

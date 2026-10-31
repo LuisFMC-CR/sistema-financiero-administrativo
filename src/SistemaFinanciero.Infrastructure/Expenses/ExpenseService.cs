@@ -164,8 +164,8 @@ internal sealed class ExpenseService(
             string code = await CatalogPersistence.GenerateSequentialCodeAsync(
                 dbContext,
                 "finanzas.Seq_GastoCodigo",
-                "GAS",
-                3,
+                "GTO",
+                6,
                 cancellationToken);
 
             Expense expense = new(
@@ -174,6 +174,7 @@ internal sealed class ExpenseService(
                 command.SupplierId,
                 command.CategoryId,
                 command.Description,
+                command.VoucherReference,
                 command.IssueDate,
                 command.PaymentTerm,
                 command.NetAmount,
@@ -248,6 +249,7 @@ internal sealed class ExpenseService(
                 command.SupplierId,
                 command.CategoryId,
                 command.Description,
+                command.VoucherReference,
                 command.IssueDate,
                 command.PaymentTerm,
                 command.NetAmount,
@@ -655,6 +657,7 @@ internal sealed class ExpenseService(
                 expense.CategoryId,
                 categoryNames.GetValueOrDefault(expense.CategoryId, "—"),
                 expense.Description,
+                expense.VoucherReference,
                 expense.IssueDate,
                 expense.PaymentTerm,
                 expense.DueDate,

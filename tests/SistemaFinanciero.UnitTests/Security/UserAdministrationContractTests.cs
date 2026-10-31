@@ -69,7 +69,7 @@ public sealed class UserAdministrationContractTests
     {
         SecurityAuditAction[] actions = Enum.GetValues<SecurityAuditAction>();
 
-        Assert.Equal(9, actions.Length);
+        Assert.Equal(12, actions.Length);
         Assert.Equal(actions.Length, actions.Distinct().Count());
         Assert.Equal(Enumerable.Range(1, actions.Length), actions.Select(action => (int)action));
     }

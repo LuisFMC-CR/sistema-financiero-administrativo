@@ -27,6 +27,7 @@ internal sealed class SupplierPaymentConfiguration : IEntityTypeConfiguration<Su
             });
 
         builder.HasKey(payment => payment.Id);
+        builder.Property(payment => payment.Code).HasMaxLength(SupplierPayment.CodeMaxLength).IsRequired();
         builder.Property(payment => payment.Amount).HasPrecision(18, 2).IsRequired();
         builder.Property(payment => payment.Reference).HasMaxLength(SupplierPayment.ReferenceMaxLength).IsRequired();
         builder.Property(payment => payment.PaymentDate).HasColumnType("date").IsRequired();
@@ -36,6 +37,9 @@ internal sealed class SupplierPaymentConfiguration : IEntityTypeConfiguration<Su
         builder.Property(payment => payment.UpdatedAtUtc).IsRequired();
         builder.Property(payment => payment.RowVersion).IsRowVersion();
 
+        builder.HasIndex(payment => payment.Code)
+            .IsUnique()
+            .HasDatabaseName("UX_Pagos_Code");
         builder.HasIndex(payment => payment.GroupId)
             .HasDatabaseName("IX_Pagos_GroupId");
         builder.HasIndex(payment => new { payment.PayableId, payment.Status })

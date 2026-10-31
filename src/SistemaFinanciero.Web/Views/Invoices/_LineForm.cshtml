@@ -1,61 +1,97 @@
+@using System.Globalization
 @using SistemaFinanciero.Web.Models.Invoices
 @model InvoiceLineInputViewModel
 
 <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
 <input asp-for="Version" type="hidden" />
+
+<!-- Fila 1: artículo, descripción y precio unitario -->
 <div class="row g-3">
-    <div class="col-md-6">
+    <div class="col-md-4">
         <label asp-for="CatalogItemId" class="form-label"></label>
         <select asp-for="CatalogItemId" id="invoice-line-catalog-item" class="form-select">
-            <option value="">Sin artículo del catálogo</option>
+            <option value="">Seleccione un producto o servicio</option>
             @foreach (InvoiceLineCatalogItemOptionViewModel option in Model.CatalogItemOptions)
             {
-                <option value="@option.Id" data-default-tax-type="@option.DefaultTaxTypeId">@option.Label</option>
+                @* Los valores decimales se escriben con cultura invariante (punto decimal): el sistema fija
+                   la cultura es-CR (coma decimal) para toda la página, pero estos atributos los lee
+                   JavaScript y <input type="number"> siempre espera un punto, sin importar la cultura. *@
+                <option value="@option.Id"
+                        data-name="@option.Name"
+                        data-unit-of-measure="@option.UnitOfMeasure"
+                        data-reference-price="@option.ReferencePriceCrc?.ToString(CultureInfo.InvariantCulture)"
+                        data-default-tax-type="@option.DefaultTaxTypeId"
+                        data-default-tax-rate="@option.DefaultTaxRate?.ToString(CultureInfo.InvariantCulture)">@option.Label</option>
             }
         </select>
         <span asp-validation-for="CatalogItemId" class="text-danger"></span>
-        <div class="form-text">Es solo referencia; la descripción y el precio se capturan abajo.</div>
     </div>
-    <div class="col-md-6">
-        <label asp-for="Description" class="form-label"></label>
-        <input asp-for="Description" class="form-control" />
-        <span asp-validation-for="Description" class="text-danger"></span>
+    <div class="col-md-4">
+        <label class="form-label">Descripción</label>
+        <input type="text" id="invoice-line-description-preview" class="form-control" readonly />
     </div>
-    <div class="col-md-3">
-        <label asp-for="UnitOfMeasure" class="form-label"></label>
-        <input asp-for="UnitOfMeasure" class="form-control" placeholder="Ej. unidad, hora, mes" />
-        <span asp-validation-for="UnitOfMeasure" class="text-danger"></span>
-    </div>
-    <div class="col-md-3">
-        <label asp-for="Quantity" class="form-label"></label>
-        <input asp-for="Quantity" type="number" min="0.0001" step="0.0001" class="form-control" />
-        <span asp-validation-for="Quantity" class="text-danger"></span>
-    </div>
-    <div class="col-md-3">
+    <div class="col-md-4">
         <label asp-for="UnitPrice" class="form-label"></label>
         <div class="input-group">
             <span class="input-group-text">₡</span>
-            <input asp-for="UnitPrice" type="number" min="0" step="0.0001" class="form-control" />
+            <input asp-for="UnitPrice" id="invoice-line-unit-price" type="number" min="0" step="0.0001"
+                   autocomplete="off" class="form-control" />
         </div>
         <span asp-validation-for="UnitPrice" class="text-danger"></span>
+        <div class="form-text" id="invoice-line-unit-price-hint"></div>
+    </div>
+</div>
+
+<!-- Fila 2: cantidad, descuento, total de productos e IVA -->
+<div class="row g-3 mt-1">
+    <div class="col-md-3">
+        <label asp-for="Quantity" class="form-label"></label>
+        @* step="1" para que las flechas incrementen de uno en uno; min="1" alinea la cuadrícula del paso
+           con números enteros (1, 2, 3...), porque el navegador calcula los pasos a partir de min, y con
+           min="0.0001" los saltos quedaban en 1.0001, 2.0001... Quien necesite una cantidad con decimales
+           (ej. horas de servicio) la escribe directamente: jQuery Validate le agrega novalidate al
+           formulario, así que el min/step del navegador no bloquea el envío de valores con decimales. *@
+        <input asp-for="Quantity" id="invoice-line-quantity" type="number" min="1" step="1"
+               autocomplete="off" class="form-control" />
+        <span asp-validation-for="Quantity" class="text-danger"></span>
     </div>
     <div class="col-md-3">
         <label asp-for="DiscountAmount" class="form-label"></label>
         <div class="input-group">
             <span class="input-group-text">₡</span>
-            <input asp-for="DiscountAmount" type="number" min="0" step="0.01" class="form-control" />
+            <input asp-for="DiscountAmount" id="invoice-line-discount" type="number" min="0" step="0.01"
+                   autocomplete="off" class="form-control" />
         </div>
         <span asp-validation-for="DiscountAmount" class="text-danger"></span>
     </div>
-    <div class="col-md-6">
-        <label asp-for="TaxTypeId" class="form-label"></label>
-        <select asp-for="TaxTypeId" id="invoice-line-tax-type" asp-items="Model.TaxTypeOptions" class="form-select">
+    <div class="col-md-3">
+        <label class="form-label">Total de productos</label>
+        <div class="form-control-plaintext border rounded bg-light px-2 fw-semibold" id="invoice-line-net-preview">₡0.00</div>
+    </div>
+    <div class="col-md-3">
+        <label asp-for="TaxTypeId" class="form-label">IVA</label>
+        <select asp-for="TaxTypeId" id="invoice-line-tax-type" class="form-select mb-2">
             <option value="">Seleccione una tarifa de IVA</option>
+            @foreach (InvoiceLineTaxTypeOptionViewModel option in Model.TaxTypeOptions)
+            {
+                <option value="@option.Id"
+                        data-rate="@option.Rate.ToString(CultureInfo.InvariantCulture)"
+                        selected="@(option.Id == Model.TaxTypeId)">@option.Label</option>
+            }
         </select>
         <span asp-validation-for="TaxTypeId" class="text-danger"></span>
-        <div class="form-text">
-            Se propone sola al elegir el producto o servicio; puede cambiarla. El IVA se calcula sobre
-            el monto neto (cantidad × precio − descuento).
+        <div class="form-control-plaintext border rounded bg-light px-2 fw-semibold" id="invoice-line-tax-preview">₡0.00</div>
+    </div>
+</div>
+
+<!-- Fila 3: precio final -->
+<div class="row g-3 mt-1">
+    <div class="col-md-4">
+        <div class="card border-primary">
+            <div class="card-body p-3">
+                <div class="form-text mb-1">Precio final</div>
+                <div id="invoice-line-total-preview" class="fs-5 fw-bold">₡0.00</div>
+            </div>
         </div>
     </div>
 </div>

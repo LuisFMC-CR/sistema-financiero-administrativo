@@ -389,9 +389,10 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
         Guid invoiceId = created.InvoiceId!.Value;
 
         InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
+        Guid catalogItemId = await CreateCatalogItemAsync(services, actorId, "Servicio a crédito de pruebas de reportes");
         await invoices.AddLineAsync(
             invoiceId,
-            new InvoiceLineInputCommand(null, "Servicio a crédito de pruebas de reportes", "unidad", 1m, amount, 0m, taxTypeId),
+            new InvoiceLineInputCommand(catalogItemId, 1m, amount, 0m, taxTypeId),
             draft.Version,
             actorId);
 
@@ -419,7 +420,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
 
         ExpenseCreationResult created = await expenses.CreateAsync(
             new SaveExpenseCommand(
-                supplierId, categoryId, "Compra a crédito de pruebas de reportes", issueDate, PaymentTerm.Credit30,
+                supplierId, categoryId, "Compra a crédito de pruebas de reportes", "VC-0001", issueDate, PaymentTerm.Credit30,
                 amount, taxTypeId, PaymentMethod.Cash),
             actorId);
         Guid expenseId = created.ExpenseId!.Value;
@@ -474,7 +475,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
     {
         ExpenseCreationResult created = await expenses.CreateAsync(
             new SaveExpenseCommand(
-                supplierId, categoryId, "Gasto de prueba de reportes", issueDate, PaymentTerm.Cash,
+                supplierId, categoryId, "Gasto de prueba de reportes", "VC-0001", issueDate, PaymentTerm.Cash,
                 netAmount, taxTypeId, PaymentMethod.Cash),
             actorId);
         Guid expenseId = created.ExpenseId!.Value;
@@ -501,7 +502,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
     {
         ExpenseCreationResult created = await expenses.CreateAsync(
             new SaveExpenseCommand(
-                supplierId, categoryId, "Borrador de pruebas de reportes", issueDate, PaymentTerm.Cash,
+                supplierId, categoryId, "Borrador de pruebas de reportes", "VC-0001", issueDate, PaymentTerm.Cash,
                 netAmount, taxTypeId, PaymentMethod.Cash),
             actorId);
         return created.ExpenseId!.Value;
@@ -562,6 +563,27 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
         context.TaxTypes.Add(taxType);
         await context.SaveChangesAsync();
         return taxType.Id;
+    }
+
+    private static async Task<Guid> CreateCatalogItemAsync(IServiceProvider services, Guid actorId, string name)
+    {
+        FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+        string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+        CatalogItem item = new(
+            Guid.NewGuid(),
+            $"SRV-{suffix}",
+            name,
+            CatalogItemType.Service,
+            null,
+            "unidad",
+            null,
+            null,
+            null,
+            DateTimeOffset.UtcNow,
+            actorId);
+        context.CatalogItems.Add(item);
+        await context.SaveChangesAsync();
+        return item.Id;
     }
 
     private static async Task<Guid> CreateCategoryAsync(

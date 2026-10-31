@@ -59,6 +59,7 @@ public sealed class SqlServerIncomeServiceScenarioTests : IClassFixture<Financia
             Assert.Equal(IncomeStatus.Active, income.Status);
             Assert.Equal(15_000m, income.Amount);
             Assert.Equal("Reintegro de un proveedor por un pago duplicado", income.Description);
+            Assert.Matches("^REC-\\d{6}$", income.Code);
 
             CatalogOperationResult cancel = await incomes.CancelAsync(
                 income.Id,
@@ -117,9 +118,10 @@ public sealed class SqlServerIncomeServiceScenarioTests : IClassFixture<Financia
             Guid invoiceId = createdInvoice.InvoiceId!.Value;
 
             InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
+            Guid catalogItemId = await CreateCatalogItemAsync(services, actorId, "Servicio de contado");
             await invoices.AddLineAsync(
                 invoiceId,
-                new InvoiceLineInputCommand(null, "Servicio de contado", "unidad", 1m, 100m, 0m, taxTypeId),
+                new InvoiceLineInputCommand(catalogItemId, 1m, 100m, 0m, taxTypeId),
                 draft.Version,
                 actorId);
 
@@ -277,6 +279,27 @@ public sealed class SqlServerIncomeServiceScenarioTests : IClassFixture<Financia
         context.TaxTypes.Add(taxType);
         await context.SaveChangesAsync();
         return taxType.Id;
+    }
+
+    private static async Task<Guid> CreateCatalogItemAsync(IServiceProvider services, Guid actorId, string name)
+    {
+        FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+        string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+        CatalogItem item = new(
+            Guid.NewGuid(),
+            $"SRV-{suffix}",
+            name,
+            CatalogItemType.Service,
+            null,
+            "unidad",
+            null,
+            null,
+            null,
+            DateTimeOffset.UtcNow,
+            actorId);
+        context.CatalogItems.Add(item);
+        await context.SaveChangesAsync();
+        return item.Id;
     }
 
     private static async Task<Guid> CreateCashAccountAsync(IServiceProvider services, Guid actorId)

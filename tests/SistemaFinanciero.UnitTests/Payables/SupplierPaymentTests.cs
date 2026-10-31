@@ -19,6 +19,7 @@ public sealed class SupplierPaymentTests
 
         SupplierPayment payment = new(
             Guid.NewGuid(),
+            "PAG-000001",
             payableId,
             groupId,
             400m,
@@ -79,6 +80,7 @@ public sealed class SupplierPaymentTests
 
     private static SupplierPayment CreatePayment(decimal amount = 400m, string reference = "PAG-0001") => new(
         Guid.NewGuid(),
+        "PAG-000001",
         Guid.NewGuid(),
         Guid.NewGuid(),
         amount,

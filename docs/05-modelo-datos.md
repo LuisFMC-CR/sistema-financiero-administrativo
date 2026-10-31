@@ -339,7 +339,7 @@ eliminan, no existe un campo de baja lógica: su ciclo de vida es el estado.
 | `Id` | `uniqueidentifier` | No | PK | Identificador técnico de la línea. |
 | `InvoiceId` | `uniqueidentifier` | No | FK en cascada a `Facturas` | Factura de origen. |
 | `Position` | `int` | No | Mayor que cero; único por factura (`UX_FacturaLineas_InvoiceId_Position`) | Posición consecutiva desde 1 que conserva el orden de captura. |
-| `CatalogItemId` | `uniqueidentifier` | Sí | FK restrictiva a `catalogos.ProductosServicios` | Artículo de origen; nulo en ventas no catalogadas. |
+| `CatalogItemId` | `uniqueidentifier` | Sí | FK restrictiva a `catalogos.ProductosServicios` | Artículo de origen; obligatorio para líneas nuevas desde ADR-0043 (nulo solo en líneas guardadas antes de ese cambio). |
 | `Description` | `nvarchar(300)` | No | — | Descripción conservada aunque el catálogo cambie. |
 | `UnitOfMeasure` | `nvarchar(30)` | No | — | Unidad conservada. |
 | `Quantity` | `decimal(18,4)` | No | Mayor que cero | Cantidad facturada. |

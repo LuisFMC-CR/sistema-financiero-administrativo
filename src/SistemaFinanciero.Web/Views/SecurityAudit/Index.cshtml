@@ -1,0 +1,59 @@
+@using SistemaFinanciero.Application.Security.Audit
+@using SistemaFinanciero.Web.Models.Audit
+@model SecurityAuditIndexViewModel
+@{
+    ViewData["Title"] = "Bitácora de seguridad";
+}
+
+<div class="mb-3">
+    <h1 class="h2 mb-1">Bitácora de seguridad</h1>
+    <p class="text-body-secondary mb-0">
+        Altas, cambios de rol, activaciones, bloqueos y contraseñas de cuentas internas. Es de solo
+        consulta: ningún registro se modifica ni se elimina.
+    </p>
+</div>
+
+<div class="table-responsive bg-white border rounded">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th scope="col">Fecha y hora</th>
+                <th scope="col">Acción</th>
+                <th scope="col">Cuenta objetivo</th>
+                <th scope="col">Rol</th>
+                <th scope="col">Ejecutado por</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.Results.Items.Count == 0)
+            {
+                <tr><td colspan="5" class="text-center text-body-secondary py-4">No hay registros en la bitácora de seguridad.</td></tr>
+            }
+            @foreach (SecurityAuditEntryModel entry in Model.Results.Items)
+            {
+                <tr>
+                    <td>@entry.OccurredAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                    <td>@entry.Action.ToDisplayName()</td>
+                    <td>@entry.TargetFullName</td>
+                    <td>@entry.Role.ToDisplayRole()</td>
+                    <td>@(entry.ActorFullName ?? "Sistema")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@if (Model.Results.TotalPages > 1)
+{
+    <nav aria-label="Paginación de la bitácora de seguridad" class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+        <span class="text-body-secondary">Página @Model.Results.Page de @Model.Results.TotalPages</span>
+        <ul class="pagination mb-0">
+            <li class="page-item @(!Model.Results.HasPreviousPage ? "disabled" : null)">
+                <a class="page-link" asp-action="Index" asp-route-page="@(Model.Results.Page - 1)" aria-disabled="@(!Model.Results.HasPreviousPage)">Anterior</a>
+            </li>
+            <li class="page-item @(!Model.Results.HasNextPage ? "disabled" : null)">
+                <a class="page-link" asp-action="Index" asp-route-page="@(Model.Results.Page + 1)" aria-disabled="@(!Model.Results.HasNextPage)">Siguiente</a>
+            </li>
+        </ul>
+    </nav>
+}

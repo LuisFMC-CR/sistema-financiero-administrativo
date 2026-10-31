@@ -82,6 +82,7 @@ public sealed record PayableModel(
     Guid Id,
     Guid ExpenseId,
     string ExpenseCode,
+    string ExpenseVoucherReference,
     Guid SupplierId,
     string SupplierName,
     decimal OriginalAmount,
@@ -147,6 +148,7 @@ public sealed record RegisterSupplierPaymentCommand(
 /// <summary>Proyección de un pago para consulta.</summary>
 public sealed record SupplierPaymentModel(
     Guid Id,
+    string Code,
     Guid PayableId,
     Guid GroupId,
     decimal Amount,

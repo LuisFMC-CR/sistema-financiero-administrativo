@@ -61,6 +61,7 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
             Assert.Equal(cashAccountId, confirmed.CashAccountId);
             Assert.Equal("REC-0001", confirmed.Reference);
             Assert.False(await context.Payables.AnyAsync(p => p.ExpenseId == expenseId));
+            Assert.Matches("^GTO-\\d{6}$", confirmed.Code);
         });
     }
 
@@ -217,13 +218,13 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
             ExpenseCreationResult closed = await expenses.CreateAsync(
                 new SaveExpenseCommand(
-                    supplierId, categoryId, "Compra de prueba", today, PaymentTerm.Cash, 1000m, taxTypeId, PaymentMethod.Cash),
+                    supplierId, categoryId, "Compra de prueba", "VC-0001", today, PaymentTerm.Cash, 1000m, taxTypeId, PaymentMethod.Cash),
                 actorId);
             Assert.Equal(CatalogOperationStatus.Invalid, closed.Operation.Status);
 
             ExpenseCreationResult open = await expenses.CreateAsync(
                 new SaveExpenseCommand(
-                    supplierId, categoryId, "Compra de prueba", today.AddDays(1), PaymentTerm.Cash, 1000m, taxTypeId, PaymentMethod.Cash),
+                    supplierId, categoryId, "Compra de prueba", "VC-0001", today.AddDays(1), PaymentTerm.Cash, 1000m, taxTypeId, PaymentMethod.Cash),
                 actorId);
             Assert.True(open.Operation.IsSuccess);
         });
@@ -243,7 +244,7 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
 
             ExpenseCreationResult created = await expenses.CreateAsync(
                 new SaveExpenseCommand(
-                    supplierId, categoryId, "Compra de prueba", issueDate, PaymentTerm.Credit30, 1000m, taxTypeId, PaymentMethod.Cash),
+                    supplierId, categoryId, "Compra de prueba", "VC-0001", issueDate, PaymentTerm.Credit30, 1000m, taxTypeId, PaymentMethod.Cash),
                 actorId);
             Guid expenseId = created.ExpenseId!.Value;
             ExpenseModel draft = (await expenses.GetAsync(expenseId))!;
@@ -274,7 +275,7 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
 
             ExpenseCreationResult created = await expenses.CreateAsync(
                 new SaveExpenseCommand(
-                    supplierId, categoryId, "Compra de prueba", issueDate, PaymentTerm.Credit30, 1000m, taxTypeId, PaymentMethod.Cash),
+                    supplierId, categoryId, "Compra de prueba", "VC-0001", issueDate, PaymentTerm.Credit30, 1000m, taxTypeId, PaymentMethod.Cash),
                 actorId);
             Guid expenseId = created.ExpenseId!.Value;
             ExpenseModel draft = (await expenses.GetAsync(expenseId))!;
@@ -325,6 +326,7 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
                 supplierId,
                 categoryId,
                 "Compra de prueba",
+                "VC-0001",
                 DateOnly.FromDateTime(DateTime.UtcNow),
                 paymentTerm,
                 netAmount,

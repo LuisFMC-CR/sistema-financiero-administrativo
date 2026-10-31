@@ -174,8 +174,8 @@ internal sealed class IncomeService(
             string code = await CatalogPersistence.GenerateSequentialCodeAsync(
                 dbContext,
                 "finanzas.Seq_IngresoCodigo",
-                "ING",
-                3,
+                "REC",
+                6,
                 cancellationToken);
             Income income = Income.CreateManual(
                 Guid.NewGuid(),

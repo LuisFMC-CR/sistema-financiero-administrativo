@@ -125,11 +125,12 @@ internal sealed class SupplierPaymentService(
         }
 
         DateTimeOffset preparedAtUtc = timeProvider.GetUtcNow();
-        (List<PreparedAllocation> prepared, decimal total) = PrepareAllocations(
+        (List<PreparedAllocation> prepared, decimal total) = await PrepareAllocationsAsync(
             command,
             payables,
             actorId,
-            preparedAtUtc);
+            preparedAtUtc,
+            cancellationToken);
 
         if (!actorIsManagement)
         {
@@ -295,11 +296,12 @@ internal sealed class SupplierPaymentService(
         }
     }
 
-    private static (List<PreparedAllocation> Prepared, decimal Total) PrepareAllocations(
+    private async Task<(List<PreparedAllocation> Prepared, decimal Total)> PrepareAllocationsAsync(
         RegisterSupplierPaymentCommand command,
         List<Payable> payables,
         Guid actorId,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
     {
         Guid groupId = Guid.NewGuid();
         List<PreparedAllocation> prepared = [];
@@ -309,8 +311,16 @@ internal sealed class SupplierPaymentService(
         {
             Payable payable = payables.Single(candidate => candidate.Id == allocation.PayableId);
 
+            string code = await CatalogPersistence.GenerateSequentialCodeAsync(
+                dbContext,
+                "finanzas.Seq_PagoCodigo",
+                "PAG",
+                6,
+                cancellationToken);
+
             SupplierPayment payment = new(
                 Guid.NewGuid(),
+                code,
                 payable.Id,
                 groupId,
                 allocation.Amount,
@@ -344,6 +354,7 @@ internal sealed class SupplierPaymentService(
     {
         return new SupplierPaymentModel(
             payment.Id,
+            payment.Code,
             payment.PayableId,
             payment.GroupId,
             payment.Amount,

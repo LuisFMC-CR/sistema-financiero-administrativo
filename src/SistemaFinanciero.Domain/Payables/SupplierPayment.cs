@@ -18,6 +18,9 @@ namespace SistemaFinanciero.Domain.Payables;
 /// </remarks>
 public sealed class SupplierPayment
 {
+    /// <summary>Longitud máxima del código visible.</summary>
+    public const int CodeMaxLength = 30;
+
     /// <summary>Longitud máxima de la referencia.</summary>
     public const int ReferenceMaxLength = 100;
 
@@ -31,6 +34,7 @@ public sealed class SupplierPayment
     /// <summary>Crea un pago vigente sobre una cuenta por pagar.</summary>
     public SupplierPayment(
         Guid id,
+        string code,
         Guid payableId,
         Guid groupId,
         decimal amount,
@@ -41,6 +45,7 @@ public sealed class SupplierPayment
         Guid createdByUserId)
     {
         Id = DomainRules.RequiredId(id, nameof(id));
+        Code = DomainRules.NormalizedCode(code, CodeMaxLength, nameof(code));
         PayableId = DomainRules.RequiredId(payableId, nameof(payableId));
         GroupId = DomainRules.RequiredId(groupId, nameof(groupId));
         Amount = ValidatePositiveAmount(amount, nameof(amount));
@@ -56,6 +61,9 @@ public sealed class SupplierPayment
 
     /// <summary>Obtiene el identificador técnico estable.</summary>
     public Guid Id { get; private set; }
+
+    /// <summary>Código automático asignado al crear (regla 12, <c>PAG-000001</c>); no es editable.</summary>
+    public string Code { get; private set; } = string.Empty;
 
     /// <summary>Obtiene la cuenta por pagar sobre la que se aplica.</summary>
     public Guid PayableId { get; private set; }

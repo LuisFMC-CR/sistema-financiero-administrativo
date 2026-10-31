@@ -74,9 +74,10 @@ public sealed class SqlServerReceivableServiceScenarioTests : IClassFixture<Fina
         Guid invoiceId = created.InvoiceId!.Value;
 
         InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
+        Guid catalogItemId = await CreateCatalogItemAsync(services, actorId, "Servicio a crédito");
         await invoices.AddLineAsync(
             invoiceId,
-            new InvoiceLineInputCommand(null, "Servicio a crédito", "unidad", 1m, amount, 0m, taxTypeId),
+            new InvoiceLineInputCommand(catalogItemId, 1m, amount, 0m, taxTypeId),
             draft.Version,
             actorId);
 
@@ -125,6 +126,27 @@ public sealed class SqlServerReceivableServiceScenarioTests : IClassFixture<Fina
         context.TaxTypes.Add(taxType);
         await context.SaveChangesAsync();
         return taxType.Id;
+    }
+
+    private static async Task<Guid> CreateCatalogItemAsync(IServiceProvider services, Guid actorId, string name)
+    {
+        FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+        string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+        CatalogItem item = new(
+            Guid.NewGuid(),
+            $"SRV-{suffix}",
+            name,
+            CatalogItemType.Service,
+            null,
+            "unidad",
+            null,
+            null,
+            null,
+            DateTimeOffset.UtcNow,
+            actorId);
+        context.CatalogItems.Add(item);
+        await context.SaveChangesAsync();
+        return item.Id;
     }
 
     private static async Task<Guid> CreateUserAsync(IServiceProvider services)

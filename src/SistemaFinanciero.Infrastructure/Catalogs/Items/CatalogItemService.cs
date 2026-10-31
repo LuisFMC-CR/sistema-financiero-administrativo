@@ -102,6 +102,8 @@ internal sealed class CatalogItemService(
                 item.Code,
                 item.Name,
                 item.Type,
+                item.UnitOfMeasure,
+                item.ReferencePriceCrc,
                 item.DefaultTaxTypeId))
             .ToListAsync(cancellationToken);
     }

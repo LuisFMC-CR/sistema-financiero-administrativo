@@ -43,7 +43,7 @@ public sealed class SecurityAuditEventTests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(10)]
+    [InlineData(13)]
     public void Constructor_RejectsUnknownAction(int rawAction)
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new SecurityAuditEvent(

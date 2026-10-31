@@ -47,3 +47,4 @@ reescribe para ocultar el historial: una decisión posterior lo reemplaza median
 | [ADR-0040](ADR-0040-pantalla-de-perfiles-y-permisos.md) | Pantalla de perfiles y permisos | Aceptado |
 | [ADR-0041](ADR-0041-datos-de-la-empresa-y-factura-en-pdf.md) | Datos de la empresa y factura interna en PDF | Aceptado |
 | [ADR-0042](ADR-0042-advertencia-de-referencia-repetida-completa.md) | Advertencia de referencia repetida completa (ingreso manual y factura de contado) | Aceptado |
+| [ADR-0043](ADR-0043-linea-de-factura-exige-articulo-del-catalogo.md) | La línea de factura exige un artículo del catálogo | Aceptado |

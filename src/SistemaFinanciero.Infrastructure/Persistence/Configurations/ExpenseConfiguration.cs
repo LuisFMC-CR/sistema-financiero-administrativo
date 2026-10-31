@@ -47,6 +47,9 @@ internal sealed class ExpenseConfiguration : IEntityTypeConfiguration<Expense>
         builder.HasKey(expense => expense.Id);
         builder.Property(expense => expense.Code).HasMaxLength(Expense.CodeMaxLength).IsRequired();
         builder.Property(expense => expense.Description).HasMaxLength(Expense.DescriptionMaxLength).IsRequired();
+        builder.Property(expense => expense.VoucherReference)
+            .HasMaxLength(Expense.VoucherReferenceMaxLength)
+            .IsRequired();
         builder.Property(expense => expense.IssueDate).HasColumnType("date").IsRequired();
         builder.Property(expense => expense.PaymentTerm).IsRequired();
         builder.Property(expense => expense.DueDate).HasColumnType("date");

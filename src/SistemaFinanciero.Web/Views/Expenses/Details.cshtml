@@ -44,6 +44,7 @@
             <p class="mb-1">@expense.CategoryName</p>
             <h2 class="h5 mt-3">Condiciones</h2>
             <p class="mb-1">Descripción: @expense.Description</p>
+            <p class="mb-1">Referencia del comprobante del proveedor: @expense.VoucherReference</p>
             <p class="mb-1">Fecha: @expense.IssueDate.ToString("dd/MM/yyyy")</p>
             <p class="mb-1">Plazo de pago: @expense.PaymentTerm.ToDisplayName()</p>
             <p class="mb-1">Vencimiento: @(expense.DueDate?.ToString("dd/MM/yyyy") ?? "—")</p>

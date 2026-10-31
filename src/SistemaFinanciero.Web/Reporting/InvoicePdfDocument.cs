@@ -92,7 +92,17 @@ public sealed class InvoicePdfDocument(InvoiceModel invoice, SystemParametersMod
     {
         container.Column(column =>
         {
-            column.Item().PaddingBottom(6).Text($"Cliente: {invoice.CustomerName}").FontSize(10).SemiBold();
+            column.Item().Text($"Cliente: {invoice.CustomerName}").FontSize(10).SemiBold();
+            bool hasContactInfo = !string.IsNullOrWhiteSpace(invoice.CustomerEmail) ||
+                !string.IsNullOrWhiteSpace(invoice.CustomerPhone);
+            column.Item()
+                .PaddingBottom(hasContactInfo ? 0 : 6)
+                .Text($"Identificación: {invoice.CustomerIdentification}").FontSize(9);
+            if (hasContactInfo)
+            {
+                column.Item().PaddingBottom(6).Text(
+                    $"{invoice.CustomerEmail ?? "—"} · {invoice.CustomerPhone ?? "—"}").FontSize(9);
+            }
 
             column.Item().Table(table =>
             {
@@ -128,7 +138,7 @@ public sealed class InvoicePdfDocument(InvoiceModel invoice, SystemParametersMod
 
                 foreach (InvoiceLineModel line in invoice.Lines.OrderBy(line => line.Position))
                 {
-                    table.Cell().Element(ReportDocumentStyles.BodyCellStyle).Text(line.Position.ToString(CultureInfo.InvariantCulture));
+                    table.Cell().Element(ReportDocumentStyles.BodyCellStyle).Text(line.CatalogItemCode ?? "—");
                     table.Cell().Element(ReportDocumentStyles.BodyCellStyle).Text(line.Description);
                     table.Cell().Element(ReportDocumentStyles.BodyCellStyle).Text(line.UnitOfMeasure);
                     table.Cell().Element(ReportDocumentStyles.BodyCellStyle).AlignRight().Text(line.Quantity.ToString("0.####", CultureInfo.InvariantCulture));

@@ -18,6 +18,7 @@
         <thead class="table-light">
             <tr>
                 <th scope="col">Gasto</th>
+                <th scope="col">Referencia del comprobante</th>
                 <th scope="col">Proveedor</th>
                 <th scope="col" class="text-end">Monto original</th>
                 <th scope="col" class="text-end">Saldo</th>
@@ -28,6 +29,7 @@
                 <th class="p-2">
                     <input name="expenseCode" value="@Model.Query.ExpenseCode" class="form-control form-control-sm" placeholder="Código" aria-label="Filtrar por código de gasto" />
                 </th>
+                <th class="p-2"></th>
                 <th class="p-2">
                     <input name="supplierName" value="@Model.Query.SupplierName" class="form-control form-control-sm" placeholder="Nombre" aria-label="Filtrar por proveedor" />
                 </th>
@@ -61,7 +63,7 @@
                 </th>
             </tr>
             <tr>
-                <th colspan="6" class="p-2 text-end">
+                <th colspan="7" class="p-2 text-end">
                     <button type="submit" class="btn btn-sm btn-primary">Aplicar</button>
                     <a asp-action="Index" class="btn btn-sm btn-outline-secondary">Limpiar</a>
                 </th>
@@ -70,7 +72,7 @@
         <tbody>
             @if (Model.Results.Items.Count == 0)
             {
-                <tr><td colspan="6" class="text-center text-body-secondary py-4">No se encontraron cuentas por pagar.</td></tr>
+                <tr><td colspan="7" class="text-center text-body-secondary py-4">No se encontraron cuentas por pagar.</td></tr>
             }
             @foreach (PayableModel payable in Model.Results.Items)
             {
@@ -78,6 +80,7 @@
                     <td class="fw-semibold">
                         <a asp-action="Details" asp-route-id="@payable.Id">@payable.ExpenseCode</a>
                     </td>
+                    <td>@payable.ExpenseVoucherReference</td>
                     <td>@payable.SupplierName</td>
                     <td class="text-end">₡@payable.OriginalAmount.ToString("N2")</td>
                     <td class="text-end">₡@payable.Balance.ToString("N2")</td>

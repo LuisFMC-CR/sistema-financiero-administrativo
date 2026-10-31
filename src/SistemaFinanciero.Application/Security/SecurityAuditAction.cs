@@ -35,4 +35,13 @@ public enum SecurityAuditAction
 
     /// <summary>El propietario cambió su contraseña.</summary>
     PasswordChanged = 9,
+
+    /// <summary>Un usuario inició sesión correctamente (RF-77).</summary>
+    LoginSucceeded = 10,
+
+    /// <summary>Un intento de inicio de sesión fue rechazado por credenciales incorrectas (RF-77).</summary>
+    LoginFailed = 11,
+
+    /// <summary>La cuenta quedó bloqueada temporalmente tras agotar los intentos permitidos (RF-77).</summary>
+    AccountLockedOut = 12,
 }

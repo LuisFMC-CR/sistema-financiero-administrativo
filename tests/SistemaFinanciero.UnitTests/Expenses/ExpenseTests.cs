@@ -40,6 +40,31 @@ public sealed class ExpenseTests
         Assert.Throws<ArgumentOutOfRangeException>(() => CreateExpense(PaymentTerm.Cash, netAmount, 13m));
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Constructor_RequiresAVoucherReference(string? voucherReference)
+    {
+        Assert.Throws<ArgumentException>(() => new Expense(
+            Guid.NewGuid(),
+            "GAS-001",
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "Compra de prueba",
+            voucherReference!,
+            IssueDate,
+            PaymentTerm.Cash,
+            1000m,
+            Guid.NewGuid(),
+            "IVA",
+            "Impuesto al valor agregado",
+            13m,
+            PaymentMethod.Cash,
+            CreatedAtUtc,
+            CreatorId));
+    }
+
     [Fact]
     public void UpdateHeader_RecalculatesTaxAndDueDateWhileDraft()
     {
@@ -50,6 +75,7 @@ public sealed class ExpenseTests
             expense.SupplierId,
             expense.CategoryId,
             "Compra corregida",
+            "VC-0002",
             IssueDate,
             PaymentTerm.Credit60,
             2000m,
@@ -62,6 +88,7 @@ public sealed class ExpenseTests
             CreatorId);
 
         Assert.Equal("Compra corregida", expense.Description);
+        Assert.Equal("VC-0002", expense.VoucherReference);
         Assert.Equal(IssueDate.AddDays(60), expense.DueDate);
         Assert.Equal(2000m, expense.NetAmount);
         Assert.Equal(0m, expense.TaxAmount);
@@ -80,6 +107,7 @@ public sealed class ExpenseTests
             expense.SupplierId,
             expense.CategoryId,
             expense.Description,
+            expense.VoucherReference,
             IssueDate,
             PaymentTerm.Credit30,
             1000m,
@@ -193,6 +221,7 @@ public sealed class ExpenseTests
         Guid.NewGuid(),
         Guid.NewGuid(),
         "Compra de prueba",
+        "VC-0001",
         IssueDate,
         paymentTerm,
         netAmount,

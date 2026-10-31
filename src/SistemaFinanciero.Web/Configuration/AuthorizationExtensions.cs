@@ -69,7 +69,7 @@ public static class AuthorizationExtensions
                 policy => policy.RequireRole(SystemRoles.Management, SystemRoles.Finance))
             .AddPolicy(
                 SystemPolicies.ViewAuditTrail,
-                policy => policy.RequireRole(SystemRoles.Management, SystemRoles.Administrator))
+                policy => policy.RequireRole(SystemRoles.Management))
             .AddPolicy(
                 SystemPolicies.ManageSystemParameters,
                 policy => policy.RequireRole(SystemRoles.Management));

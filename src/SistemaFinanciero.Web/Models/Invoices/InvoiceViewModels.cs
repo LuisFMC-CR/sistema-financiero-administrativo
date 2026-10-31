@@ -59,23 +59,21 @@ public sealed class InvoiceHeaderEditViewModel : InvoiceCreateViewModel
 /// Entrada para agregar o reemplazar una línea de factura. La misma forma sirve para las dos
 /// operaciones porque los datos que se capturan son idénticos (solo cambia a cuál línea se aplican).
 /// </summary>
+/// <remarks>
+/// El artículo del catálogo es obligatorio: la descripción y la unidad de medida siempre se toman de
+/// él, así que ya no se capturan aquí. <see cref="UnitPrice"/> y <see cref="TaxTypeId"/> se muestran
+/// siempre (para que la persona vea qué se va a facturar), pero el script de la vista los bloquea
+/// cuando el artículo elegido ya tiene su propio precio de referencia o su tarifa de IVA
+/// predeterminada; solo quedan editables cuando el artículo no los tiene.
+/// </remarks>
 public sealed class InvoiceLineInputViewModel
 {
+    [Required(ErrorMessage = "El producto o servicio es obligatorio.")]
     [Display(Name = "Producto o servicio")]
     public Guid? CatalogItemId { get; set; }
 
     [ValidateNever]
     public IReadOnlyList<InvoiceLineCatalogItemOptionViewModel> CatalogItemOptions { get; set; } = [];
-
-    [Required(ErrorMessage = "La descripción es obligatoria.")]
-    [StringLength(300, ErrorMessage = "La descripción no puede superar 300 caracteres.")]
-    [Display(Name = "Descripción")]
-    public string Description { get; set; } = string.Empty;
-
-    [Required(ErrorMessage = "La unidad de medida es obligatoria.")]
-    [StringLength(30, ErrorMessage = "La unidad no puede superar 30 caracteres.")]
-    [Display(Name = "Unidad de medida")]
-    public string UnitOfMeasure { get; set; } = string.Empty;
 
     [Range(
         typeof(decimal),
@@ -95,7 +93,7 @@ public sealed class InvoiceLineInputViewModel
         ParseLimitsInInvariantCulture = true,
         ConvertValueInInvariantCulture = true)]
     [Display(Name = "Precio unitario (sin IVA)")]
-    public decimal UnitPrice { get; set; }
+    public decimal? UnitPrice { get; set; }
 
     [Range(
         typeof(decimal),
@@ -107,12 +105,11 @@ public sealed class InvoiceLineInputViewModel
     [Display(Name = "Descuento")]
     public decimal DiscountAmount { get; set; }
 
-    [Required(ErrorMessage = "La tarifa de IVA es obligatoria.")]
     [Display(Name = "Tarifa de IVA")]
     public Guid? TaxTypeId { get; set; }
 
     [ValidateNever]
-    public IReadOnlyList<SelectListItem> TaxTypeOptions { get; set; } = [];
+    public IReadOnlyList<InvoiceLineTaxTypeOptionViewModel> TaxTypeOptions { get; set; } = [];
 
     /// <summary>Token de concurrencia de la factura (no de la línea, que no lo tiene propio).</summary>
     [Required(ErrorMessage = "No fue posible validar la versión del registro.")]
@@ -120,11 +117,27 @@ public sealed class InvoiceLineInputViewModel
 }
 
 /// <summary>
-/// Opción del selector de producto o servicio en una línea de factura. Lleva
-/// <see cref="DefaultTaxTypeId"/> como atributo <c>data-*</c> de la opción para que el script de la
-/// vista proponga esa tarifa de IVA al elegir el artículo, sin otra consulta al servidor.
+/// Opción del selector de producto o servicio en una línea de factura. Lleva <see cref="Name"/>,
+/// <see cref="UnitOfMeasure"/>, <see cref="ReferencePriceCrc"/>, <see cref="DefaultTaxTypeId"/> y
+/// <see cref="DefaultTaxRate"/> como atributos <c>data-*</c> de la opción para que el script de la
+/// vista muestre la descripción, la unidad, el precio y la tarifa sin otra consulta al servidor, y
+/// bloquee el precio y la tarifa cuando el artículo ya los tiene definidos.
 /// </summary>
-public sealed record InvoiceLineCatalogItemOptionViewModel(Guid Id, string Label, Guid? DefaultTaxTypeId);
+public sealed record InvoiceLineCatalogItemOptionViewModel(
+    Guid Id,
+    string Label,
+    string Name,
+    string UnitOfMeasure,
+    decimal? ReferencePriceCrc,
+    Guid? DefaultTaxTypeId,
+    decimal? DefaultTaxRate);
+
+/// <summary>
+/// Opción del selector de tarifa de IVA de una línea de factura. Lleva <see cref="Rate"/> como
+/// atributo <c>data-rate</c> de la opción para que el script de la vista calcule el IVA de la línea
+/// en tiempo real sin otra consulta al servidor.
+/// </summary>
+public sealed record InvoiceLineTaxTypeOptionViewModel(Guid Id, string Label, decimal Rate);
 
 /// <summary>
 /// Entrada para confirmar una factura. De contado exige además la cuenta de efectivo de destino, el

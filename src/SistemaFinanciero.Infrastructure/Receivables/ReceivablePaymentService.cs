@@ -160,7 +160,8 @@ internal sealed class ReceivablePaymentService(
 
         try
         {
-            (prepared, total) = PrepareAllocations(command, receivables, withholdingTypes, actorId, preparedAtUtc);
+            (prepared, total) = await PrepareAllocationsAsync(
+                command, receivables, withholdingTypes, actorId, preparedAtUtc, cancellationToken);
         }
         catch (ArgumentException exception)
         {
@@ -213,8 +214,8 @@ internal sealed class ReceivablePaymentService(
                 string incomeCode = await CatalogPersistence.GenerateSequentialCodeAsync(
                     dbContext,
                     "finanzas.Seq_IngresoCodigo",
-                    "ING",
-                    3,
+                    "REC",
+                    6,
                     cancellationToken);
 
                 dbContext.Add(Income.FromReceivablePayment(
@@ -390,12 +391,13 @@ internal sealed class ReceivablePaymentService(
         return (null, withholdingTypes);
     }
 
-    private static (List<PreparedAllocation> Prepared, decimal Total) PrepareAllocations(
+    private async Task<(List<PreparedAllocation> Prepared, decimal Total)> PrepareAllocationsAsync(
         RegisterReceivablePaymentCommand command,
         List<Receivable> receivables,
         Dictionary<Guid, WithholdingType> withholdingTypes,
         Guid actorId,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
     {
         Guid groupId = Guid.NewGuid();
         List<PreparedAllocation> prepared = [];
@@ -423,8 +425,16 @@ internal sealed class ReceivablePaymentService(
                     actorId);
             }
 
+            string code = await CatalogPersistence.GenerateSequentialCodeAsync(
+                dbContext,
+                "finanzas.Seq_AbonoCodigo",
+                "ABO",
+                6,
+                cancellationToken);
+
             ReceivablePayment payment = new(
                 paymentId,
+                code,
                 receivable.Id,
                 groupId,
                 allocation.Amount,
@@ -467,6 +477,7 @@ internal sealed class ReceivablePaymentService(
     {
         return new ReceivablePaymentModel(
             payment.Id,
+            payment.Code,
             payment.ReceivableId,
             payment.GroupId,
             payment.Amount,

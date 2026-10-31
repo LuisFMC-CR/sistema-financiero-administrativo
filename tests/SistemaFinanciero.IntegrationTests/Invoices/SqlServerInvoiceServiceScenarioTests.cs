@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using SistemaFinanciero.Application.Catalogs.Common;
+using SistemaFinanciero.Application.Catalogs.Items;
 using SistemaFinanciero.Application.Invoices;
 using SistemaFinanciero.Domain.Audit;
 using SistemaFinanciero.Domain.Catalogs;
@@ -54,9 +55,13 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
             Assert.Null(draft!.Number);
             Assert.Equal(InvoiceStatus.Draft, draft.Status);
 
+            Guid firstItemId = await CreateCatalogItemAsync(services, actorId, "Primera línea");
+            Guid secondItemId = await CreateCatalogItemAsync(services, actorId, "Segunda línea");
+            Guid correctedItemId = await CreateCatalogItemAsync(services, actorId, "Primera línea corregida");
+
             CatalogOperationResult addFirst = await invoices.AddLineAsync(
                 invoiceId,
-                new InvoiceLineInputCommand(null, "Primera línea", "unidad", 1m, 100m, 0m, taxTypeId),
+                new InvoiceLineInputCommand(firstItemId, 1m, 100m, 0m, taxTypeId),
                 draft.Version,
                 actorId);
             Assert.True(addFirst.IsSuccess);
@@ -64,7 +69,7 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
             draft = await invoices.GetAsync(invoiceId);
             CatalogOperationResult addSecond = await invoices.AddLineAsync(
                 invoiceId,
-                new InvoiceLineInputCommand(null, "Segunda línea", "unidad", 2m, 50m, 0m, taxTypeId),
+                new InvoiceLineInputCommand(secondItemId, 2m, 50m, 0m, taxTypeId),
                 draft!.Version,
                 actorId);
             Assert.True(addSecond.IsSuccess);
@@ -79,7 +84,7 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
             CatalogOperationResult replace = await invoices.ReplaceLineAsync(
                 invoiceId,
                 firstLineId,
-                new InvoiceLineInputCommand(null, "Primera línea corregida", "unidad", 1m, 150m, 0m, taxTypeId),
+                new InvoiceLineInputCommand(correctedItemId, 1m, 150m, 0m, taxTypeId),
                 draft.Version,
                 actorId);
             Assert.True(replace.IsSuccess);
@@ -160,8 +165,8 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
             Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
             ConfirmInvoiceCommand confirmCommand = new(cashAccountId, PaymentMethod.Cash, "F-0001", incomeCategoryId);
 
-            Guid firstId = await CreateInvoiceWithLineAsync(invoices, customerId, taxTypeId, actorId);
-            Guid secondId = await CreateInvoiceWithLineAsync(invoices, customerId, taxTypeId, actorId);
+            Guid firstId = await CreateInvoiceWithLineAsync(services, invoices, customerId, taxTypeId, actorId);
+            Guid secondId = await CreateInvoiceWithLineAsync(services, invoices, customerId, taxTypeId, actorId);
 
             InvoiceModel first = (await invoices.GetAsync(firstId))!;
             InvoiceModel second = (await invoices.GetAsync(secondId))!;
@@ -192,9 +197,10 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
             Guid invoiceId = created.InvoiceId!.Value;
 
             InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
+            Guid creditItemId = await CreateCatalogItemAsync(services, actorId, "Servicio a crédito");
             await invoices.AddLineAsync(
                 invoiceId,
-                new InvoiceLineInputCommand(null, "Servicio a crédito", "unidad", 1m, 100m, 0m, taxTypeId),
+                new InvoiceLineInputCommand(creditItemId, 1m, 100m, 0m, taxTypeId),
                 draft.Version,
                 actorId);
 
@@ -249,9 +255,10 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
             Guid invoiceId = created.InvoiceId!.Value;
 
             InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
+            Guid creditItemId = await CreateCatalogItemAsync(services, actorId, "Servicio a crédito");
             await invoices.AddLineAsync(
                 invoiceId,
-                new InvoiceLineInputCommand(null, "Servicio a crédito", "unidad", 1m, 100m, 0m, taxTypeId),
+                new InvoiceLineInputCommand(creditItemId, 1m, 100m, 0m, taxTypeId),
                 draft.Version,
                 actorId);
 
@@ -378,7 +385,7 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
             Guid cashAccountId = await CreateCashAccountAsync(services, ownerId);
             Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, ownerId);
 
-            Guid ownDraftId = await CreateInvoiceWithLineAsync(invoices, customerId, taxTypeId, ownerId);
+            Guid ownDraftId = await CreateInvoiceWithLineAsync(services, invoices, customerId, taxTypeId, ownerId);
             Guid otherDraftId = (await invoices.CreateAsync(
                 new CreateInvoiceCommand(customerId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Cash),
                 otherUserId)).InvoiceId!.Value;
@@ -442,9 +449,10 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
                 new CreateInvoiceCommand(customerId, issueDate, PaymentTerm.Credit30), actorId);
             Guid invoiceId = created.InvoiceId!.Value;
             InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
+            Guid creditItemId = await CreateCatalogItemAsync(services, actorId, "Servicio a crédito");
             await invoices.AddLineAsync(
                 invoiceId,
-                new InvoiceLineInputCommand(null, "Servicio a crédito", "unidad", 1m, 100m, 0m, taxTypeId),
+                new InvoiceLineInputCommand(creditItemId, 1m, 100m, 0m, taxTypeId),
                 draft.Version,
                 actorId);
             draft = (await invoices.GetAsync(invoiceId))!;
@@ -475,9 +483,10 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
                 new CreateInvoiceCommand(customerId, issueDate, PaymentTerm.Credit30), actorId);
             Guid invoiceId = created.InvoiceId!.Value;
             InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
+            Guid creditItemId = await CreateCatalogItemAsync(services, actorId, "Servicio a crédito");
             await invoices.AddLineAsync(
                 invoiceId,
-                new InvoiceLineInputCommand(null, "Servicio a crédito", "unidad", 1m, 100m, 0m, taxTypeId),
+                new InvoiceLineInputCommand(creditItemId, 1m, 100m, 0m, taxTypeId),
                 draft.Version,
                 actorId);
             draft = (await invoices.GetAsync(invoiceId))!;
@@ -525,7 +534,7 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
             Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
 
-            Guid invoiceId = await CreateInvoiceWithLineAsync(invoices, customerId, taxTypeId, actorId);
+            Guid invoiceId = await CreateInvoiceWithLineAsync(services, invoices, customerId, taxTypeId, actorId);
             InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
 
             Assert.Null(draft.PaymentMethod);
@@ -556,9 +565,10 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
                 actorId);
             Guid invoiceId = created.InvoiceId!.Value;
             InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
+            Guid creditItemId = await CreateCatalogItemAsync(services, actorId, "Servicio a crédito");
             await invoices.AddLineAsync(
                 invoiceId,
-                new InvoiceLineInputCommand(null, "Servicio a crédito", "unidad", 1m, 100m, 0m, taxTypeId),
+                new InvoiceLineInputCommand(creditItemId, 1m, 100m, 0m, taxTypeId),
                 draft.Version,
                 actorId);
 
@@ -585,7 +595,7 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
 
             Assert.False(await invoices.HasDuplicateCashReferenceAsync(cashAccountId, "F-REPETIDA"));
 
-            Guid invoiceId = await CreateInvoiceWithLineAsync(invoices, customerId, taxTypeId, actorId);
+            Guid invoiceId = await CreateInvoiceWithLineAsync(services, invoices, customerId, taxTypeId, actorId);
             InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
             await invoices.ConfirmAsync(
                 invoiceId,
@@ -598,7 +608,158 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
         });
     }
 
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task AddLineAsync_WithACatalogItemWithItsOwnPriceAndTax_IgnoresManualPriceAndTaxAndCopiesTheItemsData()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            Guid customerId = await CreateCustomerAsync(services, actorId);
+            Guid itemTaxTypeId = await CreateTaxTypeAsync(services, actorId, "13");
+            Guid catalogItemId = await CreateCatalogItemAsync(
+                services, actorId, "Soporte técnico mensual", referencePriceCrc: 75_000m, defaultTaxTypeId: itemTaxTypeId);
+
+            InvoiceCreationResult created = await invoices.CreateAsync(
+                new CreateInvoiceCommand(customerId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Cash),
+                actorId);
+            Guid invoiceId = created.InvoiceId!.Value;
+            InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
+
+            // No se indican precio ni tarifa: el artículo ya los tiene (ADR-0043).
+            CatalogOperationResult add = await invoices.AddLineAsync(
+                invoiceId,
+                new InvoiceLineInputCommand(catalogItemId, 2m, null, 0m, null),
+                draft.Version,
+                actorId);
+            Assert.True(add.IsSuccess);
+
+            InvoiceModel updated = (await invoices.GetAsync(invoiceId))!;
+            InvoiceLineModel line = Assert.Single(updated.Lines);
+            Assert.Equal("Soporte técnico mensual", line.Description);
+            Assert.Equal("unidad", line.UnitOfMeasure);
+            Assert.Equal(75_000m, line.UnitPrice);
+            Assert.Equal(13m, line.TaxRate);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task AddLineAsync_WithACatalogItemWithoutAReferencePrice_UsesTheManualUnitPrice()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            Guid customerId = await CreateCustomerAsync(services, actorId);
+            Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "13");
+            Guid catalogItemId = await CreateCatalogItemAsync(services, actorId, "Servicio a medida");
+
+            InvoiceCreationResult created = await invoices.CreateAsync(
+                new CreateInvoiceCommand(customerId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Cash),
+                actorId);
+            Guid invoiceId = created.InvoiceId!.Value;
+            InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
+
+            CatalogOperationResult add = await invoices.AddLineAsync(
+                invoiceId,
+                new InvoiceLineInputCommand(catalogItemId, 1m, 45_000m, 0m, taxTypeId),
+                draft.Version,
+                actorId);
+            Assert.True(add.IsSuccess);
+
+            InvoiceModel updated = (await invoices.GetAsync(invoiceId))!;
+            Assert.Equal(45_000m, updated.Lines.Single().UnitPrice);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task AddLineAsync_WithACatalogItemWithoutAReferencePriceAndNoManualPrice_IsRejected()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            Guid customerId = await CreateCustomerAsync(services, actorId);
+            Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "13");
+            Guid catalogItemId = await CreateCatalogItemAsync(services, actorId, "Servicio sin precio");
+
+            InvoiceCreationResult created = await invoices.CreateAsync(
+                new CreateInvoiceCommand(customerId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Cash),
+                actorId);
+            Guid invoiceId = created.InvoiceId!.Value;
+            InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
+
+            CatalogOperationResult add = await invoices.AddLineAsync(
+                invoiceId,
+                new InvoiceLineInputCommand(catalogItemId, 1m, null, 0m, taxTypeId),
+                draft.Version,
+                actorId);
+
+            Assert.Equal(CatalogOperationStatus.Invalid, add.Status);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task AddLineAsync_WithACatalogItemWithoutADefaultTaxTypeAndNoManualTaxType_IsRejected()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            Guid customerId = await CreateCustomerAsync(services, actorId);
+            Guid catalogItemId = await CreateCatalogItemAsync(
+                services, actorId, "Servicio sin tarifa", referencePriceCrc: 10_000m);
+
+            InvoiceCreationResult created = await invoices.CreateAsync(
+                new CreateInvoiceCommand(customerId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Cash),
+                actorId);
+            Guid invoiceId = created.InvoiceId!.Value;
+            InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
+
+            CatalogOperationResult add = await invoices.AddLineAsync(
+                invoiceId,
+                new InvoiceLineInputCommand(catalogItemId, 1m, null, 0m, null),
+                draft.Version,
+                actorId);
+
+            Assert.Equal(CatalogOperationStatus.Invalid, add.Status);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task AddLineAsync_WithAnInactiveCatalogItem_IsRejected()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            ICatalogItemService catalogItems = services.GetRequiredService<ICatalogItemService>();
+            Guid customerId = await CreateCustomerAsync(services, actorId);
+            Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "13");
+            Guid catalogItemId = await CreateCatalogItemAsync(
+                services, actorId, "Servicio inactivo", referencePriceCrc: 1_000m, defaultTaxTypeId: taxTypeId);
+
+            CatalogItemModel item = (await catalogItems.GetAsync(catalogItemId))!;
+            await catalogItems.SetActiveAsync(catalogItemId, isActive: false, item.Version, actorId);
+
+            InvoiceCreationResult created = await invoices.CreateAsync(
+                new CreateInvoiceCommand(customerId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Cash),
+                actorId);
+            Guid invoiceId = created.InvoiceId!.Value;
+            InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
+
+            CatalogOperationResult add = await invoices.AddLineAsync(
+                invoiceId,
+                new InvoiceLineInputCommand(catalogItemId, 1m, null, 0m, null),
+                draft.Version,
+                actorId);
+
+            Assert.Equal(CatalogOperationStatus.Invalid, add.Status);
+        });
+    }
+
     private static async Task<Guid> CreateInvoiceWithLineAsync(
+        IServiceProvider services,
         IInvoiceService invoices,
         Guid customerId,
         Guid taxTypeId,
@@ -610,9 +771,10 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
         Guid invoiceId = created.InvoiceId!.Value;
         InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
 
+        Guid catalogItemId = await CreateCatalogItemAsync(services, actorId, "Línea");
         await invoices.AddLineAsync(
             invoiceId,
-            new InvoiceLineInputCommand(null, "Línea", "unidad", 1m, 100m, 0m, taxTypeId),
+            new InvoiceLineInputCommand(catalogItemId, 1m, 100m, 0m, taxTypeId),
             draft.Version,
             actorId);
 
@@ -636,6 +798,32 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
         context.Customers.Add(customer);
         await context.SaveChangesAsync();
         return customer.Id;
+    }
+
+    private static async Task<Guid> CreateCatalogItemAsync(
+        IServiceProvider services,
+        Guid actorId,
+        string name,
+        decimal? referencePriceCrc = null,
+        Guid? defaultTaxTypeId = null)
+    {
+        FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+        string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+        CatalogItem item = new(
+            Guid.NewGuid(),
+            $"SRV-{suffix}",
+            name,
+            CatalogItemType.Service,
+            null,
+            "unidad",
+            referencePriceCrc,
+            null,
+            defaultTaxTypeId,
+            DateTimeOffset.UtcNow,
+            actorId);
+        context.CatalogItems.Add(item);
+        await context.SaveChangesAsync();
+        return item.Id;
     }
 
     private static async Task<Guid> CreateTaxTypeAsync(IServiceProvider services, Guid actorId, string ratePercent)

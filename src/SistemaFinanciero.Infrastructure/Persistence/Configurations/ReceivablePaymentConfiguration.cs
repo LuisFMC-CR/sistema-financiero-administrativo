@@ -26,6 +26,7 @@ internal sealed class ReceivablePaymentConfiguration : IEntityTypeConfiguration<
             });
 
         builder.HasKey(payment => payment.Id);
+        builder.Property(payment => payment.Code).HasMaxLength(ReceivablePayment.CodeMaxLength).IsRequired();
         builder.Property(payment => payment.Amount).HasPrecision(18, 2).IsRequired();
         builder.Property(payment => payment.Reference).HasMaxLength(ReceivablePayment.ReferenceMaxLength).IsRequired();
         builder.Property(payment => payment.PaymentDate).HasColumnType("date").IsRequired();
@@ -35,6 +36,9 @@ internal sealed class ReceivablePaymentConfiguration : IEntityTypeConfiguration<
         builder.Property(payment => payment.UpdatedAtUtc).IsRequired();
         builder.Property(payment => payment.RowVersion).IsRowVersion();
 
+        builder.HasIndex(payment => payment.Code)
+            .IsUnique()
+            .HasDatabaseName("UX_Abonos_Code");
         builder.HasIndex(payment => payment.GroupId)
             .HasDatabaseName("IX_Abonos_GroupId");
         builder.HasIndex(payment => new { payment.ReceivableId, payment.Status })

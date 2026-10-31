@@ -22,4 +22,16 @@ public interface IUserAccountService
         Guid userId,
         ChangeOwnPasswordCommand command,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Registra en la bitácora de seguridad un intento de inicio de sesión (RF-77): correcto, fallido
+    /// o bloqueo de cuenta. <paramref name="action"/> solo admite
+    /// <see cref="SecurityAuditAction.LoginSucceeded"/>, <see cref="SecurityAuditAction.LoginFailed"/>
+    /// o <see cref="SecurityAuditAction.AccountLockedOut"/>; el actor y el objetivo son la misma
+    /// cuenta, igual que <see cref="SecurityAuditAction.PasswordChanged"/>.
+    /// </summary>
+    public Task RecordLoginAttemptAsync(
+        Guid userId,
+        SecurityAuditAction action,
+        CancellationToken cancellationToken = default);
 }
