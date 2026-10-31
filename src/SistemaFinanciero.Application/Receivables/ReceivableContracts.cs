@@ -150,7 +150,6 @@ public sealed record ReceivablePaymentAllocationCommand(
 public sealed record RegisterReceivablePaymentCommand(
     Guid CustomerId,
     Guid CashAccountId,
-    Guid CategoryId,
     string Reference,
     DateOnly PaymentDate,
     IReadOnlyList<ReceivablePaymentAllocationCommand> Allocations);

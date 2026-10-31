@@ -208,9 +208,10 @@ public sealed class SqlServerBalanceAdjustmentServiceScenarioTests : IClassFixtu
         decimal amount)
     {
         Guid taxTypeId = await CreateTaxTypeAsync(services, actorId);
+        Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
 
         InvoiceCreationResult created = await invoices.CreateAsync(
-            new CreateInvoiceCommand(customerId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Credit30),
+            new CreateInvoiceCommand(customerId, incomeCategoryId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Credit30),
             actorId);
         Guid invoiceId = created.InvoiceId!.Value;
 
@@ -225,7 +226,7 @@ public sealed class SqlServerBalanceAdjustmentServiceScenarioTests : IClassFixtu
         draft = (await invoices.GetAsync(invoiceId))!;
         await invoices.ConfirmAsync(
             invoiceId,
-            new ConfirmInvoiceCommand(null, null, null, null),
+            new ConfirmInvoiceCommand(null, null, null),
             draft.Version,
             actorId);
 
@@ -324,6 +325,39 @@ public sealed class SqlServerBalanceAdjustmentServiceScenarioTests : IClassFixtu
             $"CAT-{suffix}",
             "Categoría de pruebas de ajustes",
             FinancialCategoryKind.Expense,
+            null,
+            ledgerAccount.Id,
+            null,
+            DateTimeOffset.UtcNow,
+            actorId);
+        context.FinancialCategories.Add(category);
+        await context.SaveChangesAsync();
+        return category.Id;
+    }
+
+    private static async Task<Guid> CreateIncomeCategoryAsync(IServiceProvider services, Guid actorId)
+    {
+        FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+        string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+        LedgerAccount ledgerAccount = new(
+            Guid.NewGuid(),
+            $"ING-{suffix}",
+            "Cuenta de ingreso de pruebas de ajustes",
+            LedgerAccountType.Income,
+            null,
+            null,
+            null,
+            null,
+            DateTimeOffset.UtcNow,
+            actorId);
+        context.LedgerAccounts.Add(ledgerAccount);
+        await context.SaveChangesAsync();
+
+        FinancialCategory category = new(
+            Guid.NewGuid(),
+            $"CATI-{suffix}",
+            "Categoría de ingreso de pruebas de ajustes",
+            FinancialCategoryKind.Income,
             null,
             ledgerAccount.Id,
             null,

@@ -228,6 +228,7 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
             Invoice reloaded = await LoadAsync(context, invoiceId);
             reloaded.UpdateHeader(
                 reloaded.CustomerId,
+                reloaded.IncomeCategoryId,
                 newIssueDate,
                 PaymentTerm.Cash,
                 now.AddSeconds(10),
@@ -337,11 +338,13 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
             now,
             actorId);
         context.Customers.Add(customer);
+        Guid incomeCategoryId = await CreateIncomeCategoryAsync(context, actorId, now);
 
         DateOnly issueDate = DateOnly.FromDateTime(now.UtcDateTime);
         Invoice invoice = new(
             Guid.NewGuid(),
             customer.Id,
+            incomeCategoryId,
             issueDate,
             PaymentTerm.Credit30,
             now,
@@ -354,6 +357,40 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
         context.Invoices.Add(invoice);
         await context.SaveChangesAsync();
         return invoice;
+    }
+
+    private static async Task<Guid> CreateIncomeCategoryAsync(
+        FinancialDbContext context,
+        Guid actorId,
+        DateTimeOffset now)
+    {
+        string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+        LedgerAccount ledgerAccount = new(
+            Guid.NewGuid(),
+            $"ING-{suffix}",
+            "Cuenta de ingreso de pruebas de facturas",
+            LedgerAccountType.Income,
+            null,
+            null,
+            null,
+            null,
+            now,
+            actorId);
+        context.LedgerAccounts.Add(ledgerAccount);
+
+        FinancialCategory category = new(
+            Guid.NewGuid(),
+            $"CATI-{suffix}",
+            "Categoría de ingreso de pruebas de facturas",
+            FinancialCategoryKind.Income,
+            null,
+            ledgerAccount.Id,
+            null,
+            now,
+            actorId);
+        context.FinancialCategories.Add(category);
+        await context.SaveChangesAsync();
+        return category.Id;
     }
 
     private static async Task<Invoice> LoadAsync(FinancialDbContext context, Guid invoiceId)

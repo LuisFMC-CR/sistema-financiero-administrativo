@@ -71,6 +71,8 @@ internal sealed class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
             .HasConstraintName("FK_FacturaLineas_Facturas");
         builder.HasOne<Customer>().WithMany().HasForeignKey(invoice => invoice.CustomerId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_Facturas_Clientes");
+        builder.HasOne<FinancialCategory>().WithMany().HasForeignKey(invoice => invoice.IncomeCategoryId)
+            .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_Facturas_CategoriasFinancieras");
         builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(invoice => invoice.CreatedByUserId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_Facturas_Usuarios_CreatedBy");
         builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(invoice => invoice.UpdatedByUserId)

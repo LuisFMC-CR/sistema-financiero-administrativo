@@ -83,6 +83,7 @@ public sealed class InvoiceRoundingTests
         new(
             Guid.NewGuid(),
             Guid.NewGuid(),
+            Guid.NewGuid(),
             new DateOnly(2026, 9, 10),
             PaymentTerm.Cash,
             CreatedAtUtc,

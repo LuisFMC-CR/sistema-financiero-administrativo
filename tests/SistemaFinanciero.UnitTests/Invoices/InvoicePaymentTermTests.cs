@@ -44,6 +44,7 @@ public sealed class InvoicePaymentTermTests
         new(
             Guid.NewGuid(),
             Guid.NewGuid(),
+            Guid.NewGuid(),
             IssueDate,
             paymentTerm,
             CreatedAtUtc,

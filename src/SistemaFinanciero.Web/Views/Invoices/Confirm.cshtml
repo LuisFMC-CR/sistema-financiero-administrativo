@@ -43,13 +43,6 @@
                     <input asp-for="Reference" class="form-control" />
                     <span asp-validation-for="Reference" class="text-danger"></span>
                 </div>
-                <div class="col-md-6">
-                    <label asp-for="CategoryId" class="form-label"></label>
-                    <select asp-for="CategoryId" asp-items="Model.CategoryOptions" class="form-select">
-                        <option value="">Seleccione una categoría</option>
-                    </select>
-                    <span asp-validation-for="CategoryId" class="text-danger"></span>
-                </div>
             </div>
         }
         else

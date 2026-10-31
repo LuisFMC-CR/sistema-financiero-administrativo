@@ -8,8 +8,7 @@
     <h1 class="h2">Reparto del abono</h1>
     <p class="text-body-secondary">
         Cliente: <strong>@Model.CustomerName</strong> — Cuenta de efectivo: @Model.CashAccountLabel —
-        Categoría: @Model.CategoryLabel — Referencia: @Model.Reference —
-        Fecha: @Model.PaymentDate.ToString("dd/MM/yyyy")
+        Referencia: @Model.Reference — Fecha: @Model.PaymentDate.ToString("dd/MM/yyyy")
     </p>
     <p class="text-body-secondary">
         Reparto propuesto de la más antigua a la más nueva. Edite el monto o la retención de cada
@@ -19,7 +18,6 @@
     <form asp-action="Register" method="post">
         <input type="hidden" asp-for="CustomerId" />
         <input type="hidden" asp-for="CashAccountId" />
-        <input type="hidden" asp-for="CategoryId" />
         <input type="hidden" asp-for="Reference" />
         <input type="hidden" asp-for="PaymentDate" />
         <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>

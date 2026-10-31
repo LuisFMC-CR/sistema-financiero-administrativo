@@ -72,6 +72,7 @@ public sealed record InvoiceQuery
 /// <summary>Datos para crear el encabezado de un borrador de factura. Las líneas se agregan después.</summary>
 public sealed record CreateInvoiceCommand(
     Guid CustomerId,
+    Guid IncomeCategoryId,
     DateOnly IssueDate,
     PaymentTerm PaymentTerm);
 
@@ -81,6 +82,7 @@ public sealed record CreateInvoiceCommand(
 /// </summary>
 public sealed record UpdateInvoiceHeaderCommand(
     Guid CustomerId,
+    Guid IncomeCategoryId,
     DateOnly IssueDate,
     PaymentTerm PaymentTerm);
 
@@ -112,8 +114,7 @@ public sealed record InvoiceCreationResult(CatalogOperationResult Operation, Gui
 public sealed record ConfirmInvoiceCommand(
     Guid? CashAccountId,
     PaymentMethod? PaymentMethod,
-    string? Reference,
-    Guid? CategoryId);
+    string? Reference);
 
 /// <summary>Proyección de una línea de factura para la pantalla de edición y el detalle.</summary>
 public sealed record InvoiceLineModel(
@@ -144,6 +145,8 @@ public sealed record InvoiceModel(
     string CustomerIdentification,
     string? CustomerEmail,
     string? CustomerPhone,
+    Guid IncomeCategoryId,
+    string IncomeCategoryName,
     DateOnly IssueDate,
     PaymentTerm PaymentTerm,
     DateOnly? DueDate,

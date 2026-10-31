@@ -34,6 +34,7 @@ public sealed class InvoiceConfirmationTests
         Invoice invoice = new(
             Guid.NewGuid(),
             Guid.NewGuid(),
+            Guid.NewGuid(),
             new DateOnly(2026, 9, 10),
             PaymentTerm.Cash,
             CreatedAtUtc,
@@ -174,6 +175,7 @@ public sealed class InvoiceConfirmationTests
     private static Invoice CreateInvoiceWithLine()
     {
         Invoice invoice = new(
+            Guid.NewGuid(),
             Guid.NewGuid(),
             Guid.NewGuid(),
             new DateOnly(2026, 9, 10),

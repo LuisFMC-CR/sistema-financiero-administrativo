@@ -11,6 +11,14 @@
         </select>
         <span asp-validation-for="CustomerId" class="text-danger"></span>
     </div>
+    <div class="col-md-6">
+        <label asp-for="IncomeCategoryId" class="form-label"></label>
+        <select asp-for="IncomeCategoryId" asp-items="Model.IncomeCategoryOptions" class="form-select">
+            <option value="">Seleccione una categoría de ingreso</option>
+        </select>
+        <span asp-validation-for="IncomeCategoryId" class="text-danger"></span>
+        <div class="form-text">Pertenece a la factura: el ingreso de contado y los de cada abono la heredan.</div>
+    </div>
     <div class="col-md-3">
         <label asp-for="IssueDate" class="form-label"></label>
         <input asp-for="IssueDate" type="date" class="form-control" />

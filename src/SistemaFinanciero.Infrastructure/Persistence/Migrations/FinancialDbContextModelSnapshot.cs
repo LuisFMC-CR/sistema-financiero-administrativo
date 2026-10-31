@@ -1217,6 +1217,9 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<Guid>("IncomeCategoryId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateOnly>("IssueDate")
                         .HasColumnType("date");
 
@@ -1260,6 +1263,8 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                     b.HasIndex("ConfirmedByUserId");
 
                     b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("IncomeCategoryId");
 
                     b.HasIndex("Number")
                         .IsUnique()
@@ -2480,6 +2485,13 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("FK_Facturas_Clientes");
+
+                    b.HasOne("SistemaFinanciero.Domain.Catalogs.FinancialCategory", null)
+                        .WithMany()
+                        .HasForeignKey("IncomeCategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_Facturas_CategoriasFinancieras");
 
                     b.HasOne("SistemaFinanciero.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()

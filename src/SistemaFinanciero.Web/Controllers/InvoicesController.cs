@@ -82,7 +82,7 @@ public sealed class InvoicesController(
         }
 
         InvoiceCreationResult result = await service.CreateAsync(
-            new CreateInvoiceCommand(model.CustomerId!.Value, model.IssueDate, model.PaymentTerm),
+            new CreateInvoiceCommand(model.CustomerId!.Value, model.IncomeCategoryId!.Value, model.IssueDate, model.PaymentTerm),
             actorId,
             cancellationToken);
 
@@ -174,6 +174,7 @@ public sealed class InvoicesController(
         InvoiceHeaderEditViewModel model = new()
         {
             CustomerId = invoice.CustomerId,
+            IncomeCategoryId = await ProposeIncomeCategoryIdAsync(invoice, cancellationToken),
             IssueDate = invoice.IssueDate,
             PaymentTerm = invoice.PaymentTerm,
             Version = invoice.Version,
@@ -202,7 +203,7 @@ public sealed class InvoicesController(
 
         CatalogOperationResult result = await service.UpdateHeaderAsync(
             id,
-            new UpdateInvoiceHeaderCommand(model.CustomerId!.Value, model.IssueDate, model.PaymentTerm),
+            new UpdateInvoiceHeaderCommand(model.CustomerId!.Value, model.IncomeCategoryId!.Value, model.IssueDate, model.PaymentTerm),
             model.Version,
             actorId,
             OwnerRestriction(),
@@ -443,7 +444,7 @@ public sealed class InvoicesController(
             && !string.IsNullOrWhiteSpace(model.Reference)
             && await service.HasDuplicateCashReferenceAsync(cashAccountId, model.Reference, cancellationToken);
 
-        ConfirmInvoiceCommand command = new(model.CashAccountId, model.PaymentMethod, model.Reference, model.CategoryId);
+        ConfirmInvoiceCommand command = new(model.CashAccountId, model.PaymentMethod, model.Reference);
         CatalogOperationResult result = await service.ConfirmAsync(id, command, model.Version, actorId, cancellationToken);
 
         if (result.IsSuccess)
@@ -561,6 +562,26 @@ public sealed class InvoicesController(
         }
     }
 
+    /// <summary>
+    /// Propone la categoría de ingreso al editar el encabezado: si la factura tiene una sola línea
+    /// (la primera) tomada de un producto o servicio con <c>DefaultIncomeCategoryId</c>, la propone en
+    /// vez del valor ya guardado (bloque 2 del paquete de mejoras finales); la persona puede
+    /// cambiarla antes de guardar.
+    /// </summary>
+    private async Task<Guid> ProposeIncomeCategoryIdAsync(InvoiceModel invoice, CancellationToken cancellationToken)
+    {
+        if (invoice.Lines.Count == 1 && invoice.Lines[0].CatalogItemId is Guid catalogItemId)
+        {
+            CatalogItemModel? catalogItem = await catalogItemService.GetAsync(catalogItemId, cancellationToken);
+            if (catalogItem?.DefaultIncomeCategoryId is Guid defaultCategoryId)
+            {
+                return defaultCategoryId;
+            }
+        }
+
+        return invoice.IncomeCategoryId;
+    }
+
     private async Task PopulateCustomerOptionsAsync(
         InvoiceCreateViewModel model,
         CancellationToken cancellationToken)
@@ -572,6 +593,16 @@ public sealed class InvoicesController(
                 $"{option.Code} - {option.Name}",
                 option.Id.ToString(),
                 option.Id == model.CustomerId))
+            .ToList();
+
+        IReadOnlyList<FinancialCategoryOption> categories = await financialCategoryService.GetActiveOptionsAsync(
+            FinancialCategoryKind.Income,
+            cancellationToken: cancellationToken);
+        model.IncomeCategoryOptions = categories
+            .Select(option => new SelectListItem(
+                $"{option.Code} - {option.Name}",
+                option.Id.ToString(),
+                option.Id == model.IncomeCategoryId))
             .ToList();
     }
 
@@ -591,11 +622,6 @@ public sealed class InvoicesController(
         {
             ModelState.AddModelError(nameof(model.Reference), "La referencia es obligatoria.");
         }
-
-        if (model.CategoryId is null)
-        {
-            ModelState.AddModelError(nameof(model.CategoryId), "La categoría es obligatoria.");
-        }
     }
 
     private async Task PopulateConfirmOptionsAsync(
@@ -608,16 +634,6 @@ public sealed class InvoicesController(
                 $"{option.Code} - {option.Name}",
                 option.Id.ToString(),
                 option.Id == model.CashAccountId))
-            .ToList();
-
-        IReadOnlyList<FinancialCategoryOption> categories = await financialCategoryService.GetActiveOptionsAsync(
-            FinancialCategoryKind.Income,
-            cancellationToken: cancellationToken);
-        model.CategoryOptions = categories
-            .Select(option => new SelectListItem(
-                $"{option.Code} - {option.Name}",
-                option.Id.ToString(),
-                option.Id == model.CategoryId))
             .ToList();
     }
 

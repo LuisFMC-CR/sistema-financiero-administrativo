@@ -36,6 +36,7 @@ public sealed class InvoicePdfDocumentTests
         InvoiceModel invoice = new(
             Guid.NewGuid(), 42, Guid.NewGuid(), "Cliente de prueba",
             "3-101-999999", "cliente@example.test", "8888-8888",
+            Guid.NewGuid(), "Categoría de prueba",
             new DateOnly(2026, 1, 10), PaymentTerm.Cash, null, InvoiceStatus.Confirmed,
             1000m, 0m, 1000m, 130m, 1130m,
             DateTimeOffset.UtcNow, null, null,
@@ -54,6 +55,7 @@ public sealed class InvoicePdfDocumentTests
         InvoiceModel invoice = new(
             Guid.NewGuid(), 43, Guid.NewGuid(), "Cliente de prueba",
             "3-101-999999", "cliente@example.test", "8888-8888",
+            Guid.NewGuid(), "Categoría de prueba",
             new DateOnly(2026, 1, 10), PaymentTerm.Credit30, new DateOnly(2026, 2, 9), InvoiceStatus.Confirmed,
             1000m, 0m, 1000m, 130m, 1130m,
             DateTimeOffset.UtcNow, null, null,
@@ -72,6 +74,7 @@ public sealed class InvoicePdfDocumentTests
         InvoiceModel invoice = new(
             Guid.NewGuid(), 44, Guid.NewGuid(), "Cliente de prueba",
             "3-101-999999", "cliente@example.test", "8888-8888",
+            Guid.NewGuid(), "Categoría de prueba",
             new DateOnly(2026, 1, 10), PaymentTerm.Credit30, new DateOnly(2026, 2, 9), InvoiceStatus.Cancelled,
             1000m, 0m, 1000m, 130m, 1130m,
             DateTimeOffset.UtcNow, "Factura registrada por error", DateTimeOffset.UtcNow,
@@ -90,6 +93,7 @@ public sealed class InvoicePdfDocumentTests
         InvoiceModel invoice = new(
             Guid.NewGuid(), 45, Guid.NewGuid(), "Cliente de prueba",
             "3-101-999999", "cliente@example.test", "8888-8888",
+            Guid.NewGuid(), "Categoría de prueba",
             new DateOnly(2026, 1, 10), PaymentTerm.Credit30, new DateOnly(2026, 2, 9), InvoiceStatus.Confirmed,
             1000m, 0m, 1000m, 130m, 1130m,
             DateTimeOffset.UtcNow, null, null,
@@ -111,6 +115,7 @@ public sealed class InvoicePdfDocumentTests
         InvoiceModel invoice = new(
             Guid.NewGuid(), 46, Guid.NewGuid(), "Cliente de prueba",
             "3-101-999999", null, null,
+            Guid.NewGuid(), "Categoría de prueba",
             new DateOnly(2026, 1, 10), PaymentTerm.Cash, null, InvoiceStatus.Confirmed,
             1000m, 0m, 1000m, 130m, 1130m,
             DateTimeOffset.UtcNow, null, null,

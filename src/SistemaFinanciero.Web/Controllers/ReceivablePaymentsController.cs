@@ -1,14 +1,12 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using SistemaFinanciero.Application.Catalogs.Categories;
 using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Catalogs.Customers;
 using SistemaFinanciero.Application.Catalogs.LedgerAccounts;
 using SistemaFinanciero.Application.Catalogs.WithholdingTypes;
 using SistemaFinanciero.Application.Receivables;
 using SistemaFinanciero.Application.Security;
-using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Web.Models.Receivables;
 
 namespace SistemaFinanciero.Web.Controllers;
@@ -17,13 +15,15 @@ namespace SistemaFinanciero.Web.Controllers;
 /// <remarks>
 /// Conexiones: usa <c>IReceivableService</c> para proponer el reparto (de la más antigua a la más
 /// nueva, regla 2) e <c>IReceivablePaymentService</c> para registrarlo o anularlo.
-/// <c>ICustomerCatalogService</c>, <c>ILedgerAccountService</c>, <c>IFinancialCategoryService</c> e
-/// <c>IWithholdingTypeService</c> alimentan los selectores. El registro es un asistente de dos
-/// pasos: <see cref="Start(Guid?, CancellationToken)"/> pide cliente, monto, cuenta de efectivo,
-/// categoría, referencia y fecha; <see cref="Start(RegisterReceivablePaymentStartViewModel,
-/// CancellationToken)"/> calcula el reparto propuesto y lo muestra editable;
-/// <see cref="Register"/> lo registra. Si el registro falla, se regresa al paso 1 en vez de
-/// reconstruir el paso 2 con los datos ya editados, para mantener el flujo simple.
+/// <c>ICustomerCatalogService</c>, <c>ILedgerAccountService</c> e <c>IWithholdingTypeService</c>
+/// alimentan los selectores. El registro es un asistente de dos pasos:
+/// <see cref="Start(Guid?, CancellationToken)"/> pide cliente, monto, cuenta de efectivo, referencia y
+/// fecha; <see cref="Start(RegisterReceivablePaymentStartViewModel, CancellationToken)"/> calcula el
+/// reparto propuesto y lo muestra editable; <see cref="Register"/> lo registra. Ya no pide la
+/// categoría del ingreso: cada ingreso hereda la de su propia factura (bloque 2 del paquete de
+/// mejoras finales), y un mismo abono a varias facturas puede heredar categorías distintas. Si el
+/// registro falla, se regresa al paso 1 en vez de reconstruir el paso 2 con los datos ya editados,
+/// para mantener el flujo simple.
 /// </remarks>
 [Route("cuentas-por-cobrar/abonos")]
 public sealed class ReceivablePaymentsController(
@@ -31,7 +31,6 @@ public sealed class ReceivablePaymentsController(
     IReceivablePaymentService paymentService,
     ICustomerCatalogService customerService,
     ILedgerAccountService ledgerAccountService,
-    IFinancialCategoryService financialCategoryService,
     IWithholdingTypeService withholdingTypeService) : CatalogControllerBase
 {
     [Authorize(Policy = SystemPolicies.ConfirmFinancialTransactions)]
@@ -71,7 +70,6 @@ public sealed class ReceivablePaymentsController(
             CustomerId = model.CustomerId.Value,
             CustomerName = pending[0].CustomerName,
             CashAccountId = model.CashAccountId!.Value,
-            CategoryId = model.CategoryId!.Value,
             Reference = model.Reference,
             PaymentDate = model.PaymentDate,
             Allocations = ProposeAllocation(pending, model.Amount),
@@ -113,7 +111,6 @@ public sealed class ReceivablePaymentsController(
             new RegisterReceivablePaymentCommand(
                 model.CustomerId,
                 model.CashAccountId,
-                model.CategoryId,
                 model.Reference,
                 model.PaymentDate,
                 allocations),
@@ -219,16 +216,6 @@ public sealed class ReceivablePaymentsController(
                 option.Id.ToString(),
                 option.Id == model.CashAccountId))
             .ToList();
-
-        IReadOnlyList<FinancialCategoryOption> categories = await financialCategoryService.GetActiveOptionsAsync(
-            FinancialCategoryKind.Income,
-            cancellationToken: cancellationToken);
-        model.CategoryOptions = categories
-            .Select(option => new SelectListItem(
-                $"{option.Code} - {option.Name}",
-                option.Id.ToString(),
-                option.Id == model.CategoryId))
-            .ToList();
     }
 
     private async Task PopulateAllocateLabelsAsync(
@@ -238,14 +225,6 @@ public sealed class ReceivablePaymentsController(
         IReadOnlyList<CashAccountOption> cashAccounts = await ledgerAccountService.GetActiveCashAccountsAsync(cancellationToken);
         model.CashAccountLabel = cashAccounts
             .Where(option => option.Id == model.CashAccountId)
-            .Select(option => $"{option.Code} - {option.Name}")
-            .SingleOrDefault() ?? "—";
-
-        IReadOnlyList<FinancialCategoryOption> categories = await financialCategoryService.GetActiveOptionsAsync(
-            FinancialCategoryKind.Income,
-            cancellationToken: cancellationToken);
-        model.CategoryLabel = categories
-            .Where(option => option.Id == model.CategoryId)
             .Select(option => $"{option.Code} - {option.Name}")
             .SingleOrDefault() ?? "—";
 

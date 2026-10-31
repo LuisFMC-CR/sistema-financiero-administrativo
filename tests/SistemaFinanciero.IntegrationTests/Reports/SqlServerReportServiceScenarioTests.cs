@@ -249,11 +249,11 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
             Guid receivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, actorId, amount: 1000m);
+                services, invoices, customerId, incomeCategoryId, actorId, amount: 1000m);
 
             await payments.RegisterAsync(
                 new RegisterReceivablePaymentCommand(
-                    customerId, cashAccountId, incomeCategoryId, "AB-ESTADO-1",
+                    customerId, cashAccountId, "AB-ESTADO-1",
                     DateOnly.FromDateTime(DateTime.UtcNow),
                     [new ReceivablePaymentAllocationCommand(receivableId, 400m, null)]),
                 actorId,
@@ -283,9 +283,10 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
         {
             IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
             Guid customerId = await CreateCustomerAsync(services, actorId);
+            Guid incomeCategoryId = await CreateCategoryAsync(services, actorId, FinancialCategoryKind.Income);
 
             Guid receivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, actorId, amount: 500m);
+                services, invoices, customerId, incomeCategoryId, actorId, amount: 500m);
 
             FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
             Receivable receivable = await context.Receivables.SingleAsync(r => r.Id == receivableId);
@@ -378,13 +379,14 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
         IServiceProvider services,
         IInvoiceService invoices,
         Guid customerId,
+        Guid incomeCategoryId,
         Guid actorId,
         decimal amount)
     {
         Guid taxTypeId = await CreateTaxTypeAsync(services, actorId);
 
         InvoiceCreationResult created = await invoices.CreateAsync(
-            new CreateInvoiceCommand(customerId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Credit30),
+            new CreateInvoiceCommand(customerId, incomeCategoryId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Credit30),
             actorId);
         Guid invoiceId = created.InvoiceId!.Value;
 
@@ -399,7 +401,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
         draft = (await invoices.GetAsync(invoiceId))!;
         await invoices.ConfirmAsync(
             invoiceId,
-            new ConfirmInvoiceCommand(null, null, null, null),
+            new ConfirmInvoiceCommand(null, null, null),
             draft.Version,
             actorId);
 

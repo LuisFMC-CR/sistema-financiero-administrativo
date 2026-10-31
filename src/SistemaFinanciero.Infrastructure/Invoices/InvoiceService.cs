@@ -124,6 +124,7 @@ internal sealed class InvoiceService(
         }
 
         CustomerContact? customer = await GetCustomerContactAsync(invoice.CustomerId, cancellationToken);
+        string categoryName = await GetCategoryNameAsync(invoice.IncomeCategoryId, cancellationToken);
         IReadOnlyDictionary<Guid, string> userNames = await GetUserNamesAsync(
             [invoice.CreatedByUserId],
             cancellationToken);
@@ -144,9 +145,19 @@ internal sealed class InvoiceService(
             customer?.Identification ?? "—",
             customer?.Email,
             customer?.Phone,
+            categoryName,
             userNames.GetValueOrDefault(invoice.CreatedByUserId, "—"),
             catalogItemCodes,
             paymentMethod);
+    }
+
+    private async Task<string> GetCategoryNameAsync(Guid categoryId, CancellationToken cancellationToken)
+    {
+        return await dbContext.Set<FinancialCategory>()
+            .AsNoTracking()
+            .Where(category => category.Id == categoryId)
+            .Select(category => category.Name)
+            .SingleOrDefaultAsync(cancellationToken) ?? "—";
     }
 
     public async Task<InvoiceCreationResult> CreateAsync(
@@ -165,6 +176,15 @@ internal sealed class InvoiceService(
             return new InvoiceCreationResult(customerValidation, null);
         }
 
+        CatalogOperationResult? categoryValidation = await ValidateIncomeCategoryAsync(
+            command.IncomeCategoryId,
+            cancellationToken);
+
+        if (categoryValidation is not null)
+        {
+            return new InvoiceCreationResult(categoryValidation, null);
+        }
+
         string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
             dbContext, command.IssueDate, cancellationToken);
 
@@ -178,6 +198,7 @@ internal sealed class InvoiceService(
             Invoice invoice = new(
                 Guid.NewGuid(),
                 command.CustomerId,
+                command.IncomeCategoryId,
                 command.IssueDate,
                 command.PaymentTerm,
                 timeProvider.GetUtcNow(),
@@ -231,10 +252,21 @@ internal sealed class InvoiceService(
             return customerValidation;
         }
 
+        CatalogOperationResult? categoryValidation = await ValidateIncomeCategoryAsync(
+            command.IncomeCategoryId,
+            cancellationToken);
+
+        if (categoryValidation is not null)
+        {
+            dbContext.ChangeTracker.Clear();
+            return categoryValidation;
+        }
+
         try
         {
             invoice.UpdateHeader(
                 command.CustomerId,
+                command.IncomeCategoryId,
                 command.IssueDate,
                 command.PaymentTerm,
                 timeProvider.GetUtcNow(),
@@ -510,7 +542,7 @@ internal sealed class InvoiceService(
                     Guid.NewGuid(),
                     incomeCode,
                     invoice.Id,
-                    command.CategoryId!.Value,
+                    invoice.IncomeCategoryId,
                     command.CashAccountId!.Value,
                     invoice.TotalAmount,
                     DateOnly.FromDateTime(confirmedAtUtc.UtcDateTime),
@@ -674,12 +706,11 @@ internal sealed class InvoiceService(
     {
         if (command.CashAccountId is null ||
             command.PaymentMethod is null ||
-            command.CategoryId is null ||
             string.IsNullOrWhiteSpace(command.Reference))
         {
             return CatalogOperationResult.Invalid(
-                "Para confirmar una factura de contado debe indicar cuenta de efectivo, medio de pago, "
-                + "referencia y categoría.");
+                "Para confirmar una factura de contado debe indicar cuenta de efectivo, medio de pago "
+                + "y referencia.");
         }
 
         bool isValidCashAccount = await dbContext.Set<LedgerAccount>()
@@ -692,20 +723,6 @@ internal sealed class InvoiceService(
         {
             return CatalogOperationResult.Invalid(
                 "La cuenta de efectivo seleccionada no existe, está inactiva o no es de efectivo.");
-        }
-
-        bool isValidCategory = await dbContext.Set<FinancialCategory>()
-            .AsNoTracking()
-            .AnyAsync(
-                category => category.Id == command.CategoryId.Value
-                    && category.IsActive
-                    && category.Kind == FinancialCategoryKind.Income,
-                cancellationToken);
-
-        if (!isValidCategory)
-        {
-            return CatalogOperationResult.Invalid(
-                "La categoría seleccionada no existe, está inactiva o no es de ingreso.");
         }
 
         return null;
@@ -741,6 +758,28 @@ internal sealed class InvoiceService(
             .AnyAsync(customer => customer.Id == customerId && customer.IsActive, cancellationToken);
 
         return isValid ? null : CatalogOperationResult.Invalid("El cliente seleccionado no existe o está inactivo.");
+    }
+
+    /// <summary>
+    /// Valida la categoría de ingreso de la venta (bloque 2 del paquete de mejoras finales): pertenece
+    /// al encabezado de la factura, no a cada cobro, así que se valida aquí en vez de al confirmar o
+    /// al registrar cada abono.
+    /// </summary>
+    private async Task<CatalogOperationResult?> ValidateIncomeCategoryAsync(
+        Guid incomeCategoryId,
+        CancellationToken cancellationToken)
+    {
+        bool isValid = await dbContext.Set<FinancialCategory>()
+            .AsNoTracking()
+            .AnyAsync(
+                category => category.Id == incomeCategoryId
+                    && category.IsActive
+                    && category.Kind == FinancialCategoryKind.Income,
+                cancellationToken);
+
+        return isValid
+            ? null
+            : CatalogOperationResult.Invalid("La categoría de ingreso seleccionada no existe, está inactiva o no es de ingreso.");
     }
 
     /// <summary>
@@ -884,6 +923,7 @@ internal sealed class InvoiceService(
         string customerIdentification,
         string? customerEmail,
         string? customerPhone,
+        string categoryName,
         string createdByUserName,
         IReadOnlyDictionary<Guid, string> catalogItemCodes,
         PaymentMethod? paymentMethod = null)
@@ -896,6 +936,8 @@ internal sealed class InvoiceService(
             customerIdentification,
             customerEmail,
             customerPhone,
+            invoice.IncomeCategoryId,
+            categoryName,
             invoice.IssueDate,
             invoice.PaymentTerm,
             invoice.DueDate,

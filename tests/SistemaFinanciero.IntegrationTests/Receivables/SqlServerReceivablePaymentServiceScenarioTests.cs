@@ -43,13 +43,12 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
             Guid receivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, actorId, amount: 100m);
+                services, invoices, customerId, incomeCategoryId, actorId, amount: 100m);
 
             RegisterReceivablePaymentResult result = await payments.RegisterAsync(
                 new RegisterReceivablePaymentCommand(
                     customerId,
                     cashAccountId,
-                    incomeCategoryId,
                     "AB-0001",
                     DateOnly.FromDateTime(DateTime.UtcNow),
                     [new ReceivablePaymentAllocationCommand(receivableId, 60m, null)]),
@@ -94,13 +93,12 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
             Guid receivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, actorId, amount: 1000m);
+                services, invoices, customerId, incomeCategoryId, actorId, amount: 1000m);
 
             RegisterReceivablePaymentResult result = await payments.RegisterAsync(
                 new RegisterReceivablePaymentCommand(
                     customerId,
                     cashAccountId,
-                    incomeCategoryId,
                     "AB-0002",
                     DateOnly.FromDateTime(DateTime.UtcNow),
                     [
@@ -143,15 +141,14 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
             Guid firstReceivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, actorId, amount: 100m);
+                services, invoices, customerId, incomeCategoryId, actorId, amount: 100m);
             Guid secondReceivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, actorId, amount: 100m);
+                services, invoices, customerId, incomeCategoryId, actorId, amount: 100m);
 
             RegisterReceivablePaymentResult result = await payments.RegisterAsync(
                 new RegisterReceivablePaymentCommand(
                     customerId,
                     cashAccountId,
-                    incomeCategoryId,
                     "AB-0003",
                     DateOnly.FromDateTime(DateTime.UtcNow),
                     [
@@ -211,12 +208,11 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
             await SetAuthorizationLimitAsync(services, actorId, 50m);
 
             Guid receivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, actorId, amount: 100m);
+                services, invoices, customerId, incomeCategoryId, actorId, amount: 100m);
 
             RegisterReceivablePaymentCommand command = new(
                 customerId,
                 cashAccountId,
-                incomeCategoryId,
                 "AB-0004",
                 DateOnly.FromDateTime(DateTime.UtcNow),
                 [new ReceivablePaymentAllocationCommand(receivableId, 60m, null)]);
@@ -253,15 +249,14 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
             Guid firstReceivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, actorId, amount: 100m);
+                services, invoices, customerId, incomeCategoryId, actorId, amount: 100m);
             Guid secondReceivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, actorId, amount: 100m);
+                services, invoices, customerId, incomeCategoryId, actorId, amount: 100m);
 
             RegisterReceivablePaymentResult first = await payments.RegisterAsync(
                 new RegisterReceivablePaymentCommand(
                     customerId,
                     cashAccountId,
-                    incomeCategoryId,
                     "AB-REPETIDA",
                     DateOnly.FromDateTime(DateTime.UtcNow),
                     [new ReceivablePaymentAllocationCommand(firstReceivableId, 50m, null)]),
@@ -274,7 +269,6 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
                 new RegisterReceivablePaymentCommand(
                     customerId,
                     cashAccountId,
-                    incomeCategoryId,
                     "AB-REPETIDA",
                     DateOnly.FromDateTime(DateTime.UtcNow),
                     [new ReceivablePaymentAllocationCommand(secondReceivableId, 50m, null)]),
@@ -300,14 +294,14 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
             Guid receivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, actorId, amount: 100m);
+                services, invoices, customerId, incomeCategoryId, actorId, amount: 100m);
 
             DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
             await SetClosingDateAsync(services, actorId, today);
 
             RegisterReceivablePaymentResult result = await payments.RegisterAsync(
                 new RegisterReceivablePaymentCommand(
-                    customerId, cashAccountId, incomeCategoryId, "AB-CIERRE-1", today,
+                    customerId, cashAccountId, "AB-CIERRE-1", today,
                     [new ReceivablePaymentAllocationCommand(receivableId, 50m, null)]),
                 actorId,
                 actorIsManagement: false);
@@ -334,12 +328,12 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
             Guid receivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, actorId, amount: 100m);
+                services, invoices, customerId, incomeCategoryId, actorId, amount: 100m);
 
             DateOnly paymentDate = new(2026, 1, 15);
             RegisterReceivablePaymentResult registered = await payments.RegisterAsync(
                 new RegisterReceivablePaymentCommand(
-                    customerId, cashAccountId, incomeCategoryId, "AB-CIERRE-2", paymentDate,
+                    customerId, cashAccountId, "AB-CIERRE-2", paymentDate,
                     [new ReceivablePaymentAllocationCommand(receivableId, 50m, null)]),
                 actorId,
                 actorIsManagement: false);
@@ -377,13 +371,14 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
         IServiceProvider services,
         IInvoiceService invoices,
         Guid customerId,
+        Guid incomeCategoryId,
         Guid actorId,
         decimal amount)
     {
         Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
 
         InvoiceCreationResult created = await invoices.CreateAsync(
-            new CreateInvoiceCommand(customerId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Credit30),
+            new CreateInvoiceCommand(customerId, incomeCategoryId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Credit30),
             actorId);
         Guid invoiceId = created.InvoiceId!.Value;
 
@@ -398,7 +393,7 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
         draft = (await invoices.GetAsync(invoiceId))!;
         await invoices.ConfirmAsync(
             invoiceId,
-            new ConfirmInvoiceCommand(null, null, null, null),
+            new ConfirmInvoiceCommand(null, null, null),
             draft.Version,
             actorId);
 

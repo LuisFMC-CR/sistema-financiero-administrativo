@@ -113,7 +113,7 @@ public sealed class SqlServerIncomeServiceScenarioTests : IClassFixture<Financia
             Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
 
             InvoiceCreationResult createdInvoice = await invoices.CreateAsync(
-                new CreateInvoiceCommand(customerId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Cash),
+                new CreateInvoiceCommand(customerId, incomeCategoryId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Cash),
                 actorId);
             Guid invoiceId = createdInvoice.InvoiceId!.Value;
 
@@ -128,7 +128,7 @@ public sealed class SqlServerIncomeServiceScenarioTests : IClassFixture<Financia
             draft = (await invoices.GetAsync(invoiceId))!;
             await invoices.ConfirmAsync(
                 invoiceId,
-                new ConfirmInvoiceCommand(cashAccountId, PaymentMethod.Cash, "F-0001", incomeCategoryId),
+                new ConfirmInvoiceCommand(cashAccountId, PaymentMethod.Cash, "F-0001"),
                 draft.Version,
                 actorId);
 

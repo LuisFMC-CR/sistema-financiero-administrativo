@@ -21,6 +21,7 @@ public sealed class InvoiceDraftEditingTests
 
         invoice.UpdateHeader(
             newCustomerId,
+            invoice.IncomeCategoryId,
             newIssueDate,
             PaymentTerm.Credit30,
             EditedAtUtc,
@@ -42,6 +43,7 @@ public sealed class InvoiceDraftEditingTests
 
         invoice.UpdateHeader(
             invoice.CustomerId,
+            invoice.IncomeCategoryId,
             IssueDate,
             PaymentTerm.Cash,
             EditedAtUtc,
@@ -59,6 +61,7 @@ public sealed class InvoiceDraftEditingTests
 
         invoice.UpdateHeader(
             invoice.CustomerId,
+            invoice.IncomeCategoryId,
             newIssueDate,
             PaymentTerm.Credit30,
             EditedAtUtc,
@@ -77,6 +80,7 @@ public sealed class InvoiceDraftEditingTests
         Assert.Throws<ArgumentException>(() =>
             invoice.UpdateHeader(
                 Guid.Empty,
+                invoice.IncomeCategoryId,
                 IssueDate.AddDays(1),
                 PaymentTerm.Credit30,
                 EditedAtUtc,
@@ -98,6 +102,7 @@ public sealed class InvoiceDraftEditingTests
 
         invoice.UpdateHeader(
             invoice.CustomerId,
+            invoice.IncomeCategoryId,
             newIssueDate,
             PaymentTerm.Cash,
             EditedAtUtc.AddMinutes(1),
@@ -226,6 +231,7 @@ public sealed class InvoiceDraftEditingTests
         Assert.Throws<InvalidOperationException>(() =>
             invoice.UpdateHeader(
                 invoice.CustomerId,
+                invoice.IncomeCategoryId,
                 IssueDate,
                 PaymentTerm.Cash,
                 later,
@@ -256,6 +262,7 @@ public sealed class InvoiceDraftEditingTests
 
     private static Invoice CreateInvoice(PaymentTerm paymentTerm = PaymentTerm.Cash) =>
         new(
+            Guid.NewGuid(),
             Guid.NewGuid(),
             Guid.NewGuid(),
             IssueDate,

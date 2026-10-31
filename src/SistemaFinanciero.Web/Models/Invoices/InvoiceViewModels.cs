@@ -35,6 +35,13 @@ public class InvoiceCreateViewModel
     [ValidateNever]
     public IReadOnlyList<SelectListItem> CustomerOptions { get; set; } = [];
 
+    [Required(ErrorMessage = "La categoría de ingreso es obligatoria.")]
+    [Display(Name = "Categoría de ingreso")]
+    public Guid? IncomeCategoryId { get; set; }
+
+    [ValidateNever]
+    public IReadOnlyList<SelectListItem> IncomeCategoryOptions { get; set; } = [];
+
     [Required(ErrorMessage = "La fecha de emisión es obligatoria.")]
     [DataType(DataType.Date)]
     [Display(Name = "Fecha de emisión")]
@@ -141,8 +148,10 @@ public sealed record InvoiceLineTaxTypeOptionViewModel(Guid Id, string Label, de
 
 /// <summary>
 /// Entrada para confirmar una factura. De contado exige además la cuenta de efectivo de destino, el
-/// medio de pago, la referencia y la categoría del ingreso que se generará (regla 10); a crédito solo
-/// necesita la versión, porque confirmar únicamente crea la cuenta por cobrar (regla 2).
+/// medio de pago y la referencia (regla 10); la categoría del ingreso ya no se pide aquí, porque
+/// pertenece al encabezado de la factura (bloque 2 del paquete de mejoras finales) y el ingreso la
+/// hereda. A crédito solo necesita la versión, porque confirmar únicamente crea la cuenta por cobrar
+/// (regla 2).
 /// </summary>
 public sealed class InvoiceConfirmViewModel
 {
@@ -164,12 +173,6 @@ public sealed class InvoiceConfirmViewModel
     [StringLength(100, ErrorMessage = "La referencia no puede superar 100 caracteres.")]
     [Display(Name = "Referencia")]
     public string? Reference { get; set; }
-
-    [Display(Name = "Categoría del ingreso")]
-    public Guid? CategoryId { get; set; }
-
-    [ValidateNever]
-    public IReadOnlyList<SelectListItem> CategoryOptions { get; set; } = [];
 
     [Required(ErrorMessage = "No fue posible validar la versión del registro.")]
     public string Version { get; set; } = string.Empty;

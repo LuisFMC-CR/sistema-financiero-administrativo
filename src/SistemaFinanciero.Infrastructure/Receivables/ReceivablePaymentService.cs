@@ -5,6 +5,7 @@ using SistemaFinanciero.Application.Receivables;
 using SistemaFinanciero.Domain.Audit;
 using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Incomes;
+using SistemaFinanciero.Domain.Invoices;
 using SistemaFinanciero.Domain.Parameters;
 using SistemaFinanciero.Domain.Payables;
 using SistemaFinanciero.Domain.Receivables;
@@ -111,19 +112,6 @@ internal sealed class ReceivablePaymentService(
             return Rejected("La cuenta de efectivo seleccionada no existe, está inactiva o no es de efectivo.");
         }
 
-        bool isValidCategory = await dbContext.Set<FinancialCategory>()
-            .AsNoTracking()
-            .AnyAsync(
-                category => category.Id == command.CategoryId
-                    && category.IsActive
-                    && category.Kind == FinancialCategoryKind.Income,
-                cancellationToken);
-
-        if (!isValidCategory)
-        {
-            return Rejected("La categoría seleccionada no existe, está inactiva o no es de ingreso.");
-        }
-
         List<Receivable> receivables = await dbContext.Set<Receivable>()
             .Where(receivable => receivableIds.Contains(receivable.Id))
             .ToListAsync(cancellationToken);
@@ -222,7 +210,7 @@ internal sealed class ReceivablePaymentService(
                     Guid.NewGuid(),
                     incomeCode,
                     allocation.Payment.Id,
-                    command.CategoryId,
+                    allocation.IncomeCategoryId,
                     command.CashAccountId,
                     allocation.Total,
                     command.PaymentDate,
@@ -403,9 +391,18 @@ internal sealed class ReceivablePaymentService(
         List<PreparedAllocation> prepared = [];
         decimal total = 0m;
 
+        // La categoría de ingreso pertenece a cada factura, no al abono (bloque 2 del paquete de
+        // mejoras finales): un mismo abono a varias facturas puede heredar categorías distintas.
+        Guid[] invoiceIds = receivables.Select(receivable => receivable.InvoiceId).Distinct().ToArray();
+        Dictionary<Guid, Guid> incomeCategoryIdsByInvoiceId = await dbContext.Set<Invoice>()
+            .AsNoTracking()
+            .Where(invoice => invoiceIds.Contains(invoice.Id))
+            .ToDictionaryAsync(invoice => invoice.Id, invoice => invoice.IncomeCategoryId, cancellationToken);
+
         foreach (ReceivablePaymentAllocationCommand allocation in command.Allocations)
         {
             Receivable receivable = receivables.Single(candidate => candidate.Id == allocation.ReceivableId);
+            Guid incomeCategoryId = incomeCategoryIdsByInvoiceId[receivable.InvoiceId];
             Guid paymentId = Guid.NewGuid();
 
             Withholding? withholding = null;
@@ -446,7 +443,7 @@ internal sealed class ReceivablePaymentService(
 
             decimal allocationTotal = payment.Amount + (withholding?.Amount ?? 0m);
             total += allocationTotal;
-            prepared.Add(new PreparedAllocation(receivable, payment, withholding, allocationTotal));
+            prepared.Add(new PreparedAllocation(receivable, payment, withholding, allocationTotal, incomeCategoryId));
         }
 
         return (prepared, total);
@@ -495,5 +492,6 @@ internal sealed class ReceivablePaymentService(
         Receivable Receivable,
         ReceivablePayment Payment,
         Withholding? Withholding,
-        decimal Total);
+        decimal Total,
+        Guid IncomeCategoryId);
 }

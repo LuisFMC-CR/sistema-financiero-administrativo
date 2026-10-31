@@ -27,6 +27,7 @@ public sealed class Invoice
     public Invoice(
         Guid id,
         Guid customerId,
+        Guid incomeCategoryId,
         DateOnly issueDate,
         PaymentTerm paymentTerm,
         DateTimeOffset createdAtUtc,
@@ -34,6 +35,7 @@ public sealed class Invoice
     {
         Id = DomainRules.RequiredId(id, nameof(id));
         CustomerId = DomainRules.RequiredId(customerId, nameof(customerId));
+        IncomeCategoryId = DomainRules.RequiredId(incomeCategoryId, nameof(incomeCategoryId));
         IssueDate = RequireDate(issueDate, nameof(issueDate));
         PaymentTerm = DomainRules.DefinedEnum(paymentTerm, nameof(paymentTerm));
         DueDate = CalculateDueDate(PaymentTerm, IssueDate);
@@ -54,6 +56,12 @@ public sealed class Invoice
 
     /// <summary>Cliente de origen de la factura.</summary>
     public Guid CustomerId { get; private set; }
+
+    /// <summary>
+    /// Categoría de ingreso de la venta (bloque 2 del paquete de mejoras finales): pertenece a la
+    /// factura, no a cada cobro. El ingreso de contado y los de cada abono la heredan.
+    /// </summary>
+    public Guid IncomeCategoryId { get; private set; }
 
     /// <summary>Fecha de negocio de la factura.</summary>
     public DateOnly IssueDate { get; private set; }
@@ -122,6 +130,7 @@ public sealed class Invoice
     /// </summary>
     public void UpdateHeader(
         Guid customerId,
+        Guid incomeCategoryId,
         DateOnly issueDate,
         PaymentTerm paymentTerm,
         DateTimeOffset updatedAtUtc,
@@ -130,11 +139,13 @@ public sealed class Invoice
         EnsureDraft();
 
         Guid validCustomerId = DomainRules.RequiredId(customerId, nameof(customerId));
+        Guid validIncomeCategoryId = DomainRules.RequiredId(incomeCategoryId, nameof(incomeCategoryId));
         DateOnly validIssueDate = RequireDate(issueDate, nameof(issueDate));
         PaymentTerm validPaymentTerm = DomainRules.DefinedEnum(paymentTerm, nameof(paymentTerm));
 
         Touch(updatedAtUtc, updatedByUserId);
         CustomerId = validCustomerId;
+        IncomeCategoryId = validIncomeCategoryId;
         IssueDate = validIssueDate;
         PaymentTerm = validPaymentTerm;
         DueDate = CalculateDueDate(validPaymentTerm, validIssueDate);

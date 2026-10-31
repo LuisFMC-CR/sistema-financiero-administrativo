@@ -5,8 +5,9 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 namespace SistemaFinanciero.Web.Models.Receivables;
 
 /// <summary>
-/// Paso 1 del registro de un abono: cliente, monto total a aplicar, cuenta de efectivo, categoría
-/// del ingreso, referencia y fecha. El sistema propone el reparto a partir de aquí (regla 2).
+/// Paso 1 del registro de un abono: cliente, monto total a aplicar, cuenta de efectivo, referencia y
+/// fecha. El sistema propone el reparto a partir de aquí (regla 2). La categoría del ingreso ya no se
+/// pide: cada ingreso hereda la de su propia factura (bloque 2 del paquete de mejoras finales).
 /// </summary>
 public sealed class RegisterReceivablePaymentStartViewModel
 {
@@ -27,13 +28,6 @@ public sealed class RegisterReceivablePaymentStartViewModel
 
     [ValidateNever]
     public IReadOnlyList<SelectListItem> CashAccountOptions { get; set; } = [];
-
-    [Required(ErrorMessage = "La categoría es obligatoria.")]
-    [Display(Name = "Categoría del ingreso")]
-    public Guid? CategoryId { get; set; }
-
-    [ValidateNever]
-    public IReadOnlyList<SelectListItem> CategoryOptions { get; set; } = [];
 
     [Required(ErrorMessage = "La referencia es obligatoria.")]
     [StringLength(100, ErrorMessage = "La referencia no puede superar 100 caracteres.")]
@@ -91,12 +85,6 @@ public sealed class RegisterReceivablePaymentAllocateViewModel
 
     [ValidateNever]
     public string CashAccountLabel { get; set; } = string.Empty;
-
-    [Required]
-    public Guid CategoryId { get; set; }
-
-    [ValidateNever]
-    public string CategoryLabel { get; set; } = string.Empty;
 
     [Required]
     public string Reference { get; set; } = string.Empty;
