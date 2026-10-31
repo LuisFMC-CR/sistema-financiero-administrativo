@@ -1,4 +1,4 @@
-# CLAUDE.md — Sistema Financiero Administrativo (Soporte Experto)
+# CLAUDE.md — Sistema Financiero Contable (Soporte Experto)
 
 Proyecto final de graduación (UIA). Sistema web interno para el control financiero-administrativo de
 una empresa pequeña: 4 usuarios, una PC como servidor y red local cableada sin dominio. El código y
@@ -66,10 +66,13 @@ Migraciones siempre explícitas (nunca `EnsureCreated` ni al arrancar). Pruebas 
 ## Alcance: fuera del sistema
 
 Si una tarea requiere algo de esta lista, detente y pregúntame. Fuera del sistema:
-- partida doble, libros, estados financieros y cierres contables formales (el único cierre es la
-  fecha de cierre, regla 16);
-- intereses, préstamos, aportes de socios y cuentas de pasivo o patrimonio;
-- Hacienda (emisión de comprobantes, liquidación o declaración);
+- balance general, asientos manuales, saldos iniciales y cierres contables formales (el único cierre
+  sigue siendo la fecha de cierre, regla 16); la partida doble ya no está fuera: ver regla 1 y el
+  bloque de asientos automáticos del paquete de mejoras finales;
+- intereses, préstamos y aportes de socios (el sistema no administra deudas ni capital de los socios);
+- Hacienda: emisión, firma o transmisión de comprobantes electrónicos, liquidación o declaraciones
+  tributarias (la factura solo guarda datos preparados para el traslado manual a la plataforma
+  externa, ver el bloque de factura 4.4 del paquete de mejoras finales);
 - impuestos distintos del IVA y retenciones a terceros;
 - dólares u otras monedas (el sistema opera **solo en colones**) y planilla;
 - saldos, transferencias, integración y conciliación bancarias;
@@ -83,10 +86,17 @@ Facturación · Presupuesto · Impuestos y Retenciones · Mantenimiento · Consu
 
 ## Reglas de negocio aprobadas
 
-1. **Cuentas contables.** Catálogo jerárquico solo de tipo Activo (solo efectivo: caja y bancos),
-   Ingreso y Gasto. Código generado, nombre, tipo, cuenta superior del mismo tipo (sin ciclos) y
-   estado. Las cuentas de efectivo reemplazan a `FinancialAccount`. Cada categoría apunta a una cuenta
-   de su mismo tipo. Es solo clasificación, no partida doble.
+1. **Cuentas contables.** Catálogo jerárquico con cinco tipos: 1 Activo (solo efectivo: caja y
+   bancos), 2 Pasivo, 3 Patrimonio, 4 Ingreso y 5 Gasto. Código generado, nombre, tipo, cuenta
+   superior del mismo tipo (sin ciclos) y estado. Las cuentas de efectivo reemplazan a
+   `FinancialAccount`. Cada categoría financiera apunta a una cuenta de Ingreso o Gasto de su mismo
+   tipo. Las cuentas de Pasivo y Patrimonio son únicamente **cuentas de sistema** (columna
+   `SystemRole`, ver el bloque de catálogo contable ampliado del paquete de mejoras finales): las
+   reglas de contabilización las buscan por su rol, nunca por código o nombre; no tienen categoría
+   financiera ni se eligen en ningún formulario de ingresos o gastos; se pueden renombrar pero no
+   inactivar ni mover. El usuario solo crea cuentas de detalle nuevas dentro de Efectivo, Ingresos y
+   Gastos. El catálogo en sí sigue siendo solo clasificación; la partida doble vive en los asientos
+   automáticos (bloque de asientos contables del paquete de mejoras finales), no en el catálogo.
 2. **Flujo del dinero.**
    - Factura de contado → ingreso. Factura a crédito → cuenta por cobrar; cada abono rebaja el saldo
      y genera su ingreso. Gastos igual, con cuentas por pagar y pagos. Un gasto es solo una compra a
@@ -121,10 +131,17 @@ Facturación · Presupuesto · Impuestos y Retenciones · Mantenimiento · Consu
    - Ajuste de saldo (solo Gerencia), aumento o disminución con motivo; invariante 0 ≤ saldo ≤ monto
      original; no genera ingresos ni pagos ni toca efectivo, documento o presupuesto; un error se
      corrige con otro ajuste en sentido contrario.
+   - Nota de crédito interna (bloque 8 del paquete de mejoras finales): no es una anulación (la
+     factura nunca debió existir) ni un ajuste de saldo; corrige una venta real después de facturar
+     (devolución de un equipo, descuento posterior o exceso facturado), rebajando primero el saldo
+     pendiente de la cuenta por cobrar y devolviendo en dinero lo que no alcance a rebajar. No existen
+     saldos a favor del cliente.
 5. **Moneda.** Solo colones; sin tipo de cambio ni conversiones.
 6. **Presupuesto.** Mensual, por categoría de gasto de último nivel (las superiores solo suman).
-   Ejecutado = total con IVA de los gastos confirmados del mes (sin borradores ni anulados; los pagos
-   no lo cambian). Al confirmar un gasto que supera lo disponible se muestra una alerta antes de
+   Ejecutado = total **sin IVA** de los gastos confirmados del mes (sin borradores ni anulados; los
+   pagos no lo cambian; el IVA de esos gastos va a IVA acreditable, no al presupuesto — ver el bloque
+   de presupuesto del paquete de mejoras finales). Al confirmar un gasto que supera lo disponible se
+   muestra una alerta antes de
    guardar, sin bloquear; si no hay presupuesto, se indica y se permite continuar. Monto 0 válido.
    Cada cambio guarda monto anterior, nuevo, usuario y fecha. Disponible = presupuestado − ejecutado
    (mínimo 0); variación = ejecutado − presupuestado; variación % = variación / presupuestado.
@@ -132,10 +149,13 @@ Facturación · Presupuesto · Impuestos y Retenciones · Mantenimiento · Consu
    los cambios solo afectan operaciones posteriores. Un gasto de contado sobre el límite no se
    confirma de contado: va a crédito y Gerencia registra el pago. Al confirmar un gasto de contado se
    indican cuenta de efectivo y referencia; el medio de pago es el del gasto.
-8. **Reportes** (PDF y Excel): ingresos por período; gastos por período y categoría; presupuesto
-   contra lo ejecutado; estado de cuenta de cliente; cuentas por pagar por proveedor; comparativo
-   mensual de ingresos y gastos. Cada reporte muestra nombre, parámetros, fecha y hora y usuario. En
-   Excel los montos van como números. Sin datos: mensaje y no se genera archivo.
+8. **Reportes** (PDF y Excel): ingresos recibidos por período; gastos por período y categoría;
+   presupuesto contra lo ejecutado; presupuesto anual a la fecha; estado de cuenta de cliente; cuentas
+   por pagar por proveedor; comparativo mensual de ingresos y gastos; flujo de efectivo mensual; y los
+   contables y tributarios del paquete de mejoras finales: libro diario, libro mayor, balanza de
+   comprobación, estado de resultados, IVA del período y retenciones aplicadas por clientes. Cada
+   reporte muestra nombre, parámetros, fecha y hora y usuario. En Excel los montos van como números.
+   Sin datos: mensaje y no se genera archivo.
 9. **Cuentas vencidas.** Indicador en inicio y en Consultas para Finanzas y Gerencia, con cantidad y
    monto. Vencida: vencimiento anterior a hoy y saldo > 0. Próxima: vence en los próximos N días
    (parámetro, 7 por defecto).
@@ -192,7 +212,8 @@ tablas y columnas. Si el código difiere, explícame la diferencia antes de migr
   `catalogos` (Clientes, Proveedores, ProductosServicios, CategoriasFinancieras, TarifasIva,
   TiposRetencion, PlazosPago, Parametros); `finanzas` (CuentasContables, Facturas, FacturaLineas,
   CuentasPorCobrar, Abonos, Retenciones, Ingresos, Gastos, CuentasPorPagar, Pagos, AjustesSaldo,
-  Presupuestos, PresupuestoCambios).
+  Presupuestos, PresupuestoCambios, y del paquete de mejoras finales: Asientos, AsientoLineas,
+  NotasCredito, NotaCreditoLineas).
 - **Tipos:** `CHAR(36)` → `uniqueidentifier`; `VARCHAR(n)` → `nvarchar(n)`; `TEXT` → `nvarchar(max)`;
   `DATETIME` → `datetimeoffset` (UTC); `BIT` → `bit`; `BINARY(8)` → `rowversion`. Importes
   `decimal(18,2)`, cantidades y precios `decimal(18,4)`, porcentajes `decimal(5,2)`, fechas `date`.
@@ -231,6 +252,38 @@ tablas y columnas. Si el código difiere, explícame la diferencia antes de migr
   PaymentTerm.CalculateDueDate; catálogos con Update, Activate y Deactivate (VatRate y
   WithholdingType con ChangeRate; AccountingAccount con Rename). Servicios: InvoiceService.ConfirmAsync,
   ReceivablePaymentService.RegisterAsync, ExpenseService.CheckBudgetAsync y ConfirmAsync.
+- **Paquete de mejoras finales (pendiente; ver `prompt_claude_code_mejoras_finales_v2.md`, trabajo
+  bloque por bloque):**
+  - Columnas nuevas: Gastos.VoucherReference (obligatoria); Facturas.IncomeCategoryId (FK
+    CategoriasFinancieras), ElectronicInvoiceKey y ElectronicInvoiceNumber (opcionales, una sola vez);
+    ProductosServicios.CabysCode (obligatorio) y UnitOfMeasure pasa a lista fija de códigos oficiales;
+    FacturaLineas.CabysCode (copiado del catálogo al agregar la línea); Clientes y
+    Proveedores.IdentificationType; TiposImpuesto.HaciendaRateCode; ParametrosSistema
+    .CompanyActivityCode; CuentasContables.SystemRole (nula salvo en cuentas de sistema, única cuando
+    no es nula); Abonos.Code y Pagos.Code (cada uno único, prefijo propio).
+  - Enumeraciones nuevas: LedgerAccountType gana 2 Pasivo y 3 Patrimonio (los valores de Income=4 y
+    Expense=5 ya estaban reservados para esto); Asientos.SourceType 1 Factura, 2 Abono, 3 Ingreso
+    manual, 4 Gasto, 5 Pago, 6 Ajuste de saldo, 7 Nota de crédito; IdentificationType 1 Física,
+    2 Jurídica, 3 DIMEX, 4 NITE, 5 Extranjero no domiciliado; NotasCredito.Status 1 Vigente,
+    2 Anulada; CuentasContables.SystemRole con un valor por cuenta de sistema (cuentas por cobrar a
+    clientes, IVA acreditable, retenciones a favor, cuentas por pagar a proveedores, IVA por pagar,
+    ajustes a cuentas por cobrar, ajustes a favor en cuentas por pagar, devoluciones y descuentos
+    sobre ventas).
+  - Cuentas contables nuevas del catálogo base: 1.2 Cuentas por cobrar, 1.3 Impuestos a favor,
+    2.1 Cuentas por pagar, 2.2 Impuestos por pagar (todas cuentas de sistema); 4.4 Devoluciones y
+    descuentos sobre ventas (cuenta de sistema, naturaleza deudora dentro de Ingresos); 5.3 Costo de
+    ventas (**no** es cuenta de sistema: lleva categoría de gasto propia con código automático, igual
+    que las demás cuentas de detalle de Gastos).
+  - Códigos nuevos (regla 12 ampliada): ingresos y gastos dejan de compartir prefijo con sus
+    categorías (pasan de `ING-001`/`GAS-001` a `REC-000001`/`GTO-000001`); abonos `ABO-000001`; pagos
+    `PAG-000001`; notas de crédito `NCR-000001`. Secuencias nuevas: `finanzas.Seq_AsientoNumero` y las
+    que falten para abonos, pagos y notas de crédito (ingresos y gastos reutilizan sus secuencias
+    actuales con prefijo y relleno nuevos).
+  - Clases (diagramas UML) nuevas: JournalEntry (Asientos), JournalEntryLine (AsientoLineas),
+    CreditNote (NotasCredito), CreditNoteLine (NotaCreditoLineas).
+  - Las tablas `Asientos` y `AsientoLineas` son inmutables (no se editan ni eliminan): una anulación
+    genera un asiento de reversión nuevo, nunca modifica el original. `NotasCredito` sigue el mismo
+    patrón Vigente/Anulada que los demás documentos financieros (nunca se elimina físicamente).
 
 ## Perfiles (roles fijos; sin permisos por usuario)
 
@@ -280,6 +333,27 @@ Orden de construcción:
 
 Prioriza flujos completos y demostrables (factura → cuenta por cobrar → abono → ingreso → reporte;
 gasto → cuenta por pagar → pago → presupuesto) sobre pantallas secundarias.
+
+Pasos 1 a 7 completos. Sigue el **paquete de mejoras finales** (`prompt_claude_code_mejoras_finales_v2.md`),
+último paquete de cambios de lógica antes de cerrar el documento académico, bloque por bloque y
+esperando confirmación entre cada uno:
+0. Actualizar este archivo (hecho, este cambio).
+1. Pendientes que el documento ya promete (referencia de comprobante en gastos, eventos de inicio de
+   sesión, tarifas de IVA por migración, datos del cliente y código de línea en la factura en PDF,
+   prefijo propio por tipo de documento).
+2. Categoría de ingreso en la factura (pasa del cobro a la factura; se hereda en el ingreso de
+   contado y de cada abono).
+3. Factura preparada para el formato 4.4 de Hacienda (CABYS, tipo de identificación, código de tarifa
+   oficial, clave y consecutivo del comprobante externo, exportación de datos); no se emite, firma ni
+   transmite nada ante Hacienda.
+4. Catálogo contable ampliado (Pasivo, Patrimonio, cuentas de sistema, y las nuevas 4.4 Devoluciones y
+   descuentos sobre ventas y 5.3 Costo de ventas).
+5. Asientos contables automáticos (partida doble) y su reversión al anular.
+6. Reportes contables (libro diario, libro mayor, balanza de comprobación, estado de resultados).
+7. Presupuesto y reportes con criterios coherentes (ejecutado sin IVA, presupuesto anual a la fecha,
+   comparativo desde los asientos, flujo de efectivo mensual, IVA del período, retenciones aplicadas
+   por clientes, semáforo de ejecución e indicador de presupuestos excedidos).
+8. Nota de crédito interna con devolución de dinero al cliente.
 
 ## Lo que el documento necesita del prototipo
 

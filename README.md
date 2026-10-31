@@ -1,9 +1,11 @@
-# Sistema Financiero Administrativo
+# Sistema Financiero Contable
 
 Sistema web interno para centralizar el control financiero-administrativo de **Soporte Experto**.
 
-> Este sistema no implementa contabilidad por partida doble, no genera estados financieros oficiales
-> y no sustituye los comprobantes electrónicos ni los servicios del Ministerio de Hacienda.
+> Este sistema genera asientos contables automáticos (partida doble) a partir de cada operación, con
+> libro diario, libro mayor, balanza de comprobación y estado de resultados; no genera balance general
+> ni otros estados financieros oficiales, y no sustituye los comprobantes electrónicos ni los
+> servicios del Ministerio de Hacienda.
 
 ## Estado actual
 

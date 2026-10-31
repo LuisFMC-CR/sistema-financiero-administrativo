@@ -11,14 +11,16 @@
         (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ManageUsers)).Succeeded;
     bool canViewFinancialReports = isAuthenticated && !mustChangePassword &&
         (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ViewFinancialReports)).Succeeded;
+    bool canViewAuditTrail = isAuthenticated && !mustChangePassword &&
+        (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ViewAuditTrail)).Succeeded;
     string sidebarBrandLabel = (isAuthenticated ? User.FindFirst(SystemClaimTypes.FullName)?.Value : null)
-        ?? "Sistema Financiero";
+        ?? "Sistema Financiero Contable";
 }
 <html lang="es">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - Sistema Financiero</title>
+    <title>@ViewData["Title"] - Sistema Financiero Contable</title>
     <script type="importmap"></script>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
@@ -85,17 +87,20 @@
                     <a class="sidebar-link" asp-controller="Budgets" asp-action="Index" title="Presupuesto"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5a1 1 0 0 1 1-1h11l4 4v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM16 4v4h4M8 13h8M8 17h5" /></svg><span class="sidebar-label">Presupuesto</span></a>
                     <p class="sidebar-heading sidebar-label">Consultas</p>
                     <a class="sidebar-link" asp-controller="Queries" asp-action="Index" title="Consultas"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg><span class="sidebar-label">Consultas</span></a>
+                    @if (canViewAuditTrail)
+                    {
+                        <a class="sidebar-link" asp-controller="OperationAudit" asp-action="Index" title="Bitácora de operaciones"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5a1 1 0 0 1 1-1h11l4 4v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM16 4v4h4M8 11h3m-3 4h8m-8 4h5" /></svg><span class="sidebar-label">Bitácora de operaciones</span></a>
+                    }
                     <p class="sidebar-heading sidebar-label">Reportes</p>
                     <a class="sidebar-link" asp-controller="Reports" asp-action="Index" title="Reportes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5a1 1 0 0 1 1-1h11l4 4v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM16 4v4h4M8 11h8v6H8z" /></svg><span class="sidebar-label">Reportes</span></a>
                     <p class="sidebar-heading sidebar-label">Mantenimiento</p>
                     <a class="sidebar-link" asp-controller="SystemParameters" asp-action="Index" title="Parámetros del sistema"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v3m0 12v3m9-9h-3M6 12H3m14.5-6.5-2.1 2.1M8.6 15.4l-2.1 2.1m11-2.1 2.1 2.1M8.6 8.6 6.5 6.5" /><circle cx="12" cy="12" r="3" /></svg><span class="sidebar-label">Parámetros del sistema</span></a>
                 }
-                <p class="sidebar-heading sidebar-label">Seguridad</p>
-                <a class="sidebar-link" asp-controller="Permissions" asp-action="Index" title="Perfiles y permisos"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z" /></svg><span class="sidebar-label">Perfiles y permisos</span></a>
                 @if (canManageUsers)
                 {
                     <p class="sidebar-heading sidebar-label">Administración</p>
                     <a class="sidebar-link" asp-controller="Users" asp-action="Index" title="Usuarios"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7" r="3" /><path d="M5 21v-2a7 7 0 0 1 14 0v2M4 9H2m20 0h-2" /></svg><span class="sidebar-label">Usuarios</span></a>
+                    <a class="sidebar-link" asp-controller="SecurityAudit" asp-action="Index" title="Bitácora de seguridad"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z" /></svg><span class="sidebar-label">Bitácora de seguridad</span></a>
                 }
             </nav>
         </aside>
