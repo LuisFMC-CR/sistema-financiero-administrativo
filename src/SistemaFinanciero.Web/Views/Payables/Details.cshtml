@@ -78,11 +78,14 @@
                             <br /><small class="text-body-secondary">@payment.CancellationReason</small>
                         }
                     </td>
-                    <td class="text-end">
+                    <td class="text-end text-nowrap">
                         @if (Model.CanCancelPayment && payment.Status == SupplierPaymentStatus.Active)
                         {
                             <a asp-controller="SupplierPayments" asp-action="Cancel" asp-route-id="@payment.Id" class="btn btn-sm btn-outline-danger">Anular</a>
                         }
+                        <a asp-controller="JournalEntries" asp-action="Trace"
+                           asp-route-sourceType="@((int)JournalEntrySourceType.SupplierPayment)" asp-route-sourceId="@payment.Id"
+                           class="btn btn-sm btn-outline-secondary">Ver asiento</a>
                     </td>
                 </tr>
             }
@@ -100,12 +103,13 @@
                 <th scope="col" class="text-end">Monto</th>
                 <th scope="col">Motivo</th>
                 <th scope="col">Usuario</th>
+                <th scope="col" class="text-end">Acciones</th>
             </tr>
         </thead>
         <tbody>
             @if (Model.Adjustments.Count == 0)
             {
-                <tr><td colspan="5" class="text-center text-body-secondary py-4">Esta cuenta por pagar no tiene ajustes de saldo.</td></tr>
+                <tr><td colspan="6" class="text-center text-body-secondary py-4">Esta cuenta por pagar no tiene ajustes de saldo.</td></tr>
             }
             @foreach (BalanceAdjustmentModel adjustment in Model.Adjustments)
             {
@@ -115,6 +119,11 @@
                     <td class="text-end">₡@adjustment.Amount.ToString("N2")</td>
                     <td>@adjustment.Reason</td>
                     <td>@adjustment.CreatedByUserName</td>
+                    <td class="text-end">
+                        <a asp-controller="JournalEntries" asp-action="Trace"
+                           asp-route-sourceType="@((int)JournalEntrySourceType.BalanceAdjustment)" asp-route-sourceId="@adjustment.Id"
+                           class="btn btn-sm btn-outline-secondary">Ver asiento</a>
+                    </td>
                 </tr>
             }
         </tbody>

@@ -8,8 +8,10 @@ using SistemaFinanciero.Domain.Common;
 using SistemaFinanciero.Domain.Incomes;
 using SistemaFinanciero.Domain.Invoices;
 using SistemaFinanciero.Domain.Receivables;
+using SistemaFinanciero.Domain.Ledger;
 using SistemaFinanciero.Infrastructure.Catalogs;
 using SistemaFinanciero.Infrastructure.Common;
+using SistemaFinanciero.Infrastructure.Ledger;
 using SistemaFinanciero.Infrastructure.Parameters;
 using SistemaFinanciero.Infrastructure.Persistence;
 
@@ -567,6 +569,14 @@ internal sealed class InvoiceService(
                     actorId));
             }
 
+            await JournalPostingService.PostInvoiceConfirmationAsync(
+                dbContext,
+                invoice,
+                isCash ? command.CashAccountId : null,
+                confirmedAtUtc,
+                actorId,
+                cancellationToken);
+
             dbContext.Add(new OperationLogEntry(
                 Guid.NewGuid(),
                 OperationLogEntityType.Invoice,
@@ -657,6 +667,9 @@ internal sealed class InvoiceService(
                     .SingleOrDefaultAsync(candidate => candidate.InvoiceId == invoice.Id, cancellationToken);
                 receivable?.Cancel(cancelledAtUtc, actorId);
             }
+
+            await JournalPostingService.ReverseAsync(
+                dbContext, JournalEntrySourceType.Invoice, invoice.Id, cancelledAtUtc, actorId, cancellationToken);
 
             dbContext.Add(new OperationLogEntry(
                 Guid.NewGuid(),

@@ -39,6 +39,9 @@
         @if (!isDraft)
         {
             <a asp-action="Pdf" asp-route-id="@invoice.Id" class="btn btn-outline-secondary">Exportar PDF</a>
+            <a asp-controller="JournalEntries" asp-action="Trace"
+               asp-route-sourceType="@((int)JournalEntrySourceType.Invoice)" asp-route-sourceId="@invoice.Id"
+               class="btn btn-outline-secondary">Ver asiento</a>
         }
         @if (invoice.Status == InvoiceStatus.Confirmed)
         {

@@ -16,6 +16,7 @@ using SistemaFinanciero.Application.Catalogs.WithholdingTypes;
 using SistemaFinanciero.Application.Expenses;
 using SistemaFinanciero.Application.Incomes;
 using SistemaFinanciero.Application.Invoices;
+using SistemaFinanciero.Application.Ledger;
 using SistemaFinanciero.Application.Parameters;
 using SistemaFinanciero.Application.Payables;
 using SistemaFinanciero.Application.Receivables;
@@ -36,6 +37,7 @@ using SistemaFinanciero.Infrastructure.Expenses;
 using SistemaFinanciero.Infrastructure.Identity;
 using SistemaFinanciero.Infrastructure.Incomes;
 using SistemaFinanciero.Infrastructure.Invoices;
+using SistemaFinanciero.Infrastructure.Ledger;
 using SistemaFinanciero.Infrastructure.Parameters;
 using SistemaFinanciero.Infrastructure.Payables;
 using SistemaFinanciero.Infrastructure.Persistence;
@@ -149,6 +151,7 @@ public static class DependencyInjection
         services.AddScoped<IBudgetService, BudgetService>();
         services.AddScoped<IReportService, ReportService>();
         services.AddScoped<IBalanceAdjustmentService, BalanceAdjustmentService>();
+        services.AddScoped<IJournalEntryService, JournalEntryService>();
 
         return services;
     }

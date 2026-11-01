@@ -1,0 +1,53 @@
+@model JournalEntryModel
+
+<div class="card card-body mb-3">
+    <div class="row g-3 mb-2">
+        <div class="col-md-3">
+            <div class="text-body-secondary small">Número</div>
+            <div class="fw-semibold">@Model.Number</div>
+        </div>
+        <div class="col-md-3">
+            <div class="text-body-secondary small">Fecha</div>
+            <div class="fw-semibold">@Model.EntryDate.ToString("dd/MM/yyyy")</div>
+        </div>
+        <div class="col-md-3">
+            <div class="text-body-secondary small">Registrado por</div>
+            <div class="fw-semibold">@Model.CreatedByFullName</div>
+        </div>
+        <div class="col-md-3">
+            <div class="text-body-secondary small">Fecha y hora de registro</div>
+            <div class="fw-semibold">@Model.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</div>
+        </div>
+    </div>
+    <div class="text-body-secondary small">Descripción</div>
+    <div class="fw-semibold mb-3">@Model.Description</div>
+
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th scope="col">Cuenta</th>
+                    <th scope="col" class="text-end">Débito</th>
+                    <th scope="col" class="text-end">Crédito</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (JournalEntryLineModel line in Model.Lines)
+                {
+                    <tr>
+                        <td>@line.AccountCode — @line.AccountName</td>
+                        <td class="text-end">@(line.Debit > 0 ? $"₡{line.Debit:N2}" : "—")</td>
+                        <td class="text-end">@(line.Credit > 0 ? $"₡{line.Credit:N2}" : "—")</td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr class="fw-semibold">
+                    <td>Total</td>
+                    <td class="text-end">₡@Model.Lines.Sum(line => line.Debit).ToString("N2")</td>
+                    <td class="text-end">₡@Model.Lines.Sum(line => line.Credit).ToString("N2")</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>

@@ -13,6 +13,8 @@
         (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ViewFinancialReports)).Succeeded;
     bool canViewAuditTrail = isAuthenticated && !mustChangePassword &&
         (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ViewAuditTrail)).Succeeded;
+    bool canManageSystemParameters = isAuthenticated && !mustChangePassword &&
+        (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ManageSystemParameters)).Succeeded;
     string sidebarBrandLabel = (isAuthenticated ? User.FindFirst(SystemClaimTypes.FullName)?.Value : null)
         ?? "Sistema Financiero Contable";
 }
@@ -95,6 +97,10 @@
                     <a class="sidebar-link" asp-controller="Reports" asp-action="Index" title="Reportes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5a1 1 0 0 1 1-1h11l4 4v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM16 4v4h4M8 11h8v6H8z" /></svg><span class="sidebar-label">Reportes</span></a>
                     <p class="sidebar-heading sidebar-label">Mantenimiento</p>
                     <a class="sidebar-link" asp-controller="SystemParameters" asp-action="Index" title="Parámetros del sistema"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v3m0 12v3m9-9h-3M6 12H3m14.5-6.5-2.1 2.1M8.6 15.4l-2.1 2.1m11-2.1 2.1 2.1M8.6 8.6 6.5 6.5" /><circle cx="12" cy="12" r="3" /></svg><span class="sidebar-label">Parámetros del sistema</span></a>
+                    @if (canManageSystemParameters)
+                    {
+                        <a class="sidebar-link" asp-controller="JournalEntries" asp-action="Index" title="Asientos contables"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5a1 1 0 0 1 1-1h11l4 4v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM16 4v4h4M8 13h3m2 0h3M8 17h3m2 0h3" /></svg><span class="sidebar-label">Asientos contables</span></a>
+                    }
                 }
                 @if (canManageUsers)
                 {

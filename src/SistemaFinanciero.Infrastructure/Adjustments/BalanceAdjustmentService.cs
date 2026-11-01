@@ -7,6 +7,7 @@ using SistemaFinanciero.Domain.Audit;
 using SistemaFinanciero.Domain.Payables;
 using SistemaFinanciero.Domain.Receivables;
 using SistemaFinanciero.Infrastructure.Catalogs;
+using SistemaFinanciero.Infrastructure.Ledger;
 using SistemaFinanciero.Infrastructure.Parameters;
 using SistemaFinanciero.Infrastructure.Persistence;
 
@@ -92,8 +93,13 @@ internal sealed class BalanceAdjustmentService(
             DateTimeOffset now = timeProvider.GetUtcNow();
             receivable.Adjust(amount, direction, now, actorId);
 
-            dbContext.Add(BalanceAdjustment.ForReceivable(
-                Guid.NewGuid(), receivableId, amount, direction, reason, now, actorId));
+            BalanceAdjustment adjustment = BalanceAdjustment.ForReceivable(
+                Guid.NewGuid(), receivableId, amount, direction, reason, now, actorId);
+            dbContext.Add(adjustment);
+
+            await JournalPostingService.PostReceivableAdjustmentAsync(
+                dbContext, adjustment, today, now, actorId, cancellationToken);
+
             dbContext.Add(new OperationLogEntry(
                 Guid.NewGuid(),
                 OperationLogEntityType.Receivable,
@@ -175,8 +181,13 @@ internal sealed class BalanceAdjustmentService(
             DateTimeOffset now = timeProvider.GetUtcNow();
             payable.Adjust(amount, direction, now, actorId);
 
-            dbContext.Add(BalanceAdjustment.ForPayable(
-                Guid.NewGuid(), payableId, amount, direction, reason, now, actorId));
+            BalanceAdjustment adjustment = BalanceAdjustment.ForPayable(
+                Guid.NewGuid(), payableId, amount, direction, reason, now, actorId);
+            dbContext.Add(adjustment);
+
+            await JournalPostingService.PostPayableAdjustmentAsync(
+                dbContext, adjustment, today, now, actorId, cancellationToken);
+
             dbContext.Add(new OperationLogEntry(
                 Guid.NewGuid(),
                 OperationLogEntityType.Payable,

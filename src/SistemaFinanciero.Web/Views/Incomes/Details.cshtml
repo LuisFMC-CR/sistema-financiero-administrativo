@@ -19,10 +19,18 @@
             }
         </p>
     </div>
-    @if (Model.CanCancel)
-    {
-        <a asp-action="Cancel" asp-route-id="@income.Id" class="btn btn-danger">Anular</a>
-    }
+    <div class="d-flex gap-2">
+        @if (Model.CanCancel)
+        {
+            <a asp-action="Cancel" asp-route-id="@income.Id" class="btn btn-danger">Anular</a>
+        }
+        @if (income.Origin == IncomeOrigin.Manual)
+        {
+            <a asp-controller="JournalEntries" asp-action="Trace"
+               asp-route-sourceType="@((int)JournalEntrySourceType.Income)" asp-route-sourceId="@income.Id"
+               class="btn btn-outline-secondary">Ver asiento</a>
+        }
+    </div>
 </div>
 
 <div class="row g-3 mb-4">

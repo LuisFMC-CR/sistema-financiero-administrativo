@@ -32,6 +32,12 @@
         {
             <a asp-action="Cancel" asp-route-id="@expense.Id" class="btn btn-danger">Anular</a>
         }
+        @if (expense.Status != ExpenseStatus.Draft)
+        {
+            <a asp-controller="JournalEntries" asp-action="Trace"
+               asp-route-sourceType="@((int)JournalEntrySourceType.Expense)" asp-route-sourceId="@expense.Id"
+               class="btn btn-outline-secondary">Ver asiento</a>
+        }
     </div>
 </div>
 

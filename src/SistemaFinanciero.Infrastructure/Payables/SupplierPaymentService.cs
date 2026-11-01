@@ -5,11 +5,13 @@ using SistemaFinanciero.Application.Payables;
 using SistemaFinanciero.Domain.Audit;
 using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Incomes;
+using SistemaFinanciero.Domain.Ledger;
 using SistemaFinanciero.Domain.Parameters;
 using SistemaFinanciero.Domain.Payables;
 using SistemaFinanciero.Domain.Receivables;
 using SistemaFinanciero.Infrastructure.Catalogs;
 using SistemaFinanciero.Infrastructure.Common;
+using SistemaFinanciero.Infrastructure.Ledger;
 using SistemaFinanciero.Infrastructure.Parameters;
 using SistemaFinanciero.Infrastructure.Persistence;
 
@@ -170,6 +172,9 @@ internal sealed class SupplierPaymentService(
                 dbContext.Add(allocation.Payment);
                 createdIds.Add(allocation.Payment.Id);
 
+                await JournalPostingService.PostSupplierPaymentAsync(
+                    dbContext, allocation.Payment, preparedAtUtc, actorId, cancellationToken);
+
                 dbContext.Add(new OperationLogEntry(
                     Guid.NewGuid(),
                     OperationLogEntityType.SupplierPayment,
@@ -255,6 +260,9 @@ internal sealed class SupplierPaymentService(
             Payable payable = await dbContext.Set<Payable>()
                 .SingleAsync(candidate => candidate.Id == payment.PayableId, cancellationToken);
             payable.RevertPayment(payment.Amount, now, actorId);
+
+            await JournalPostingService.ReverseAsync(
+                dbContext, JournalEntrySourceType.SupplierPayment, payment.Id, now, actorId, cancellationToken);
 
             dbContext.Add(new OperationLogEntry(
                 Guid.NewGuid(),

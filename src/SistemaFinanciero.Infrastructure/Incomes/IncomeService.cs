@@ -5,8 +5,10 @@ using SistemaFinanciero.Domain.Audit;
 using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Incomes;
 using SistemaFinanciero.Domain.Invoices;
+using SistemaFinanciero.Domain.Ledger;
 using SistemaFinanciero.Infrastructure.Catalogs;
 using SistemaFinanciero.Infrastructure.Common;
+using SistemaFinanciero.Infrastructure.Ledger;
 using SistemaFinanciero.Infrastructure.Parameters;
 using SistemaFinanciero.Infrastructure.Persistence;
 
@@ -191,6 +193,9 @@ internal sealed class IncomeService(
                 actorId);
 
             dbContext.Add(income);
+
+            await JournalPostingService.PostManualIncomeAsync(dbContext, income, now, actorId, cancellationToken);
+
             dbContext.Add(new OperationLogEntry(
                 Guid.NewGuid(),
                 OperationLogEntityType.Income,
@@ -254,6 +259,9 @@ internal sealed class IncomeService(
         {
             DateTimeOffset now = timeProvider.GetUtcNow();
             income.Cancel(reason, now, actorId);
+
+            await JournalPostingService.ReverseAsync(
+                dbContext, JournalEntrySourceType.Income, income.Id, now, actorId, cancellationToken);
 
             dbContext.Add(new OperationLogEntry(
                 Guid.NewGuid(),

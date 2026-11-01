@@ -1,0 +1,26 @@
+@{
+    ViewData["Title"] = "Asientos contables";
+}
+
+<div class="mb-3">
+    <h1 class="h2 mb-1">Asientos contables</h1>
+    <p class="text-body-secondary mb-0">
+        Partida doble automática (RF-78/RF-79). Cada factura, gasto, abono, pago, ingreso manual y
+        ajuste de saldo genera su asiento en la misma transacción en que se confirma, anula o
+        registra; el enlace "Ver asiento" de cada documento muestra el suyo.
+    </p>
+</div>
+
+<div class="card card-body">
+    <h2 class="h5">Generar asientos de documentos existentes</h2>
+    <p class="text-body-secondary">
+        Genera los asientos de los documentos confirmados que todavía no tienen uno y las
+        reversiones de los anulados que todavía no tienen la suya, en orden cronológico. Es un
+        comando explícito: no se ejecuta al iniciar el sistema. Puede ejecutarse varias veces sin
+        riesgo: no duplica asientos ya generados.
+    </p>
+    <form asp-action="Backfill" method="post" class="d-inline js-confirm-form"
+          data-confirm-message="¿Confirma que desea generar los asientos pendientes de los documentos existentes?">
+        <button type="submit" class="btn btn-primary">Generar asientos pendientes</button>
+    </form>
+</div>

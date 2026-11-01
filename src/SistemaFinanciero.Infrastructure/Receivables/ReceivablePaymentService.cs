@@ -6,11 +6,13 @@ using SistemaFinanciero.Domain.Audit;
 using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Incomes;
 using SistemaFinanciero.Domain.Invoices;
+using SistemaFinanciero.Domain.Ledger;
 using SistemaFinanciero.Domain.Parameters;
 using SistemaFinanciero.Domain.Payables;
 using SistemaFinanciero.Domain.Receivables;
 using SistemaFinanciero.Infrastructure.Catalogs;
 using SistemaFinanciero.Infrastructure.Common;
+using SistemaFinanciero.Infrastructure.Ledger;
 using SistemaFinanciero.Infrastructure.Parameters;
 using SistemaFinanciero.Infrastructure.Persistence;
 
@@ -218,6 +220,14 @@ internal sealed class ReceivablePaymentService(
                     preparedAtUtc,
                     actorId));
 
+                await JournalPostingService.PostReceivablePaymentAsync(
+                    dbContext,
+                    allocation.Payment,
+                    allocation.Withholding?.Amount ?? 0m,
+                    preparedAtUtc,
+                    actorId,
+                    cancellationToken);
+
                 dbContext.Add(new OperationLogEntry(
                     Guid.NewGuid(),
                     OperationLogEntityType.ReceivablePayment,
@@ -308,6 +318,9 @@ internal sealed class ReceivablePaymentService(
             Income income = await dbContext.Set<Income>()
                 .SingleAsync(candidate => candidate.ReceivablePaymentId == payment.Id, cancellationToken);
             income.Cancel(reason, now, actorId);
+
+            await JournalPostingService.ReverseAsync(
+                dbContext, JournalEntrySourceType.ReceivablePayment, payment.Id, now, actorId, cancellationToken);
 
             dbContext.Add(new OperationLogEntry(
                 Guid.NewGuid(),

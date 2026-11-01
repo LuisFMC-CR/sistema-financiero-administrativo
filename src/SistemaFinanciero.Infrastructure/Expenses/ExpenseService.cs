@@ -7,9 +7,11 @@ using SistemaFinanciero.Domain.Budgets;
 using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Expenses;
 using SistemaFinanciero.Domain.Invoices;
+using SistemaFinanciero.Domain.Ledger;
 using SistemaFinanciero.Domain.Parameters;
 using SistemaFinanciero.Domain.Payables;
 using SistemaFinanciero.Infrastructure.Catalogs;
+using SistemaFinanciero.Infrastructure.Ledger;
 using SistemaFinanciero.Infrastructure.Parameters;
 using SistemaFinanciero.Infrastructure.Persistence;
 
@@ -354,6 +356,9 @@ internal sealed class ExpenseService(
                     actorId));
             }
 
+            await JournalPostingService.PostExpenseConfirmationAsync(
+                dbContext, expense, confirmedAtUtc, actorId, cancellationToken);
+
             dbContext.Add(new OperationLogEntry(
                 Guid.NewGuid(),
                 OperationLogEntityType.Expense,
@@ -439,6 +444,9 @@ internal sealed class ExpenseService(
                     .SingleOrDefaultAsync(candidate => candidate.ExpenseId == expense.Id, cancellationToken);
                 payable?.Cancel(cancelledAtUtc, actorId);
             }
+
+            await JournalPostingService.ReverseAsync(
+                dbContext, JournalEntrySourceType.Expense, expense.Id, cancelledAtUtc, actorId, cancellationToken);
 
             dbContext.Add(new OperationLogEntry(
                 Guid.NewGuid(),

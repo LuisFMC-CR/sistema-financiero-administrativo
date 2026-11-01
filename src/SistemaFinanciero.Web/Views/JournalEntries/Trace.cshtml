@@ -1,0 +1,19 @@
+@model JournalEntryTraceModel
+@{
+    ViewData["Title"] = "Asiento contable";
+}
+
+<div class="mb-3">
+    <h1 class="h2 mb-1">Asiento contable</h1>
+    <p class="text-body-secondary mb-0">
+        Origen: @Model.Entry.SourceType.ToDisplayName() — @Model.Entry.Description
+    </p>
+</div>
+
+<partial name="_JournalEntry" model="Model.Entry" />
+
+@if (Model.Reversal is not null)
+{
+    <h2 class="h5 mt-4 mb-2">Reversión</h2>
+    <partial name="_JournalEntry" model="Model.Reversal" />
+}

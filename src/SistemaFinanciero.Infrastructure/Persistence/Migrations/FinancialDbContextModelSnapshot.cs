@@ -1421,6 +1421,106 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SistemaFinanciero.Domain.Ledger.JournalEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateOnly>("EntryDate")
+                        .HasColumnType("date");
+
+                    b.Property<long>("Number")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid?>("ReversesEntryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("SourceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SourceType")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("EntryDate")
+                        .HasDatabaseName("IX_Asientos_EntryDate");
+
+                    b.HasIndex("Number")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Asientos_Number");
+
+                    b.HasIndex("ReversesEntryId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Asientos_ReversesEntryId")
+                        .HasFilter("[ReversesEntryId] IS NOT NULL");
+
+                    b.HasIndex("SourceType", "SourceId")
+                        .HasDatabaseName("IX_Asientos_SourceType_SourceId");
+
+                    b.ToTable("Asientos", "finanzas", t =>
+                        {
+                            t.HasCheckConstraint("CK_Asientos_Number", "[Number] > 0");
+
+                            t.HasCheckConstraint("CK_Asientos_SourceType", "[SourceType] BETWEEN 1 AND 6");
+                        });
+                });
+
+            modelBuilder.Entity("SistemaFinanciero.Domain.Ledger.JournalEntryLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Credit")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("Debit")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("JournalEntryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("LineNumber")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId")
+                        .HasDatabaseName("IX_AsientoLineas_AccountId");
+
+                    b.HasIndex("JournalEntryId")
+                        .HasDatabaseName("IX_AsientoLineas_JournalEntryId");
+
+                    b.HasIndex("JournalEntryId", "LineNumber")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AsientoLineas_JournalEntryId_LineNumber");
+
+                    b.ToTable("AsientoLineas", "finanzas", t =>
+                        {
+                            t.HasCheckConstraint("CK_AsientoLineas_DebitCredit", "[Debit] >= 0 AND [Credit] >= 0 AND (([Debit] > 0 AND [Credit] = 0) OR ([Debit] = 0 AND [Credit] > 0))");
+
+                            t.HasCheckConstraint("CK_AsientoLineas_Position", "[LineNumber] > 0");
+                        });
+                });
+
             modelBuilder.Entity("SistemaFinanciero.Domain.Parameters.ClosingDateChange", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2643,6 +2743,39 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("SistemaFinanciero.Domain.Ledger.JournalEntry", b =>
+                {
+                    b.HasOne("SistemaFinanciero.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_Asientos_Usuarios_CreatedBy");
+
+                    b.HasOne("SistemaFinanciero.Domain.Ledger.JournalEntry", null)
+                        .WithMany()
+                        .HasForeignKey("ReversesEntryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_Asientos_Asientos_ReversesEntryId");
+                });
+
+            modelBuilder.Entity("SistemaFinanciero.Domain.Ledger.JournalEntryLine", b =>
+                {
+                    b.HasOne("SistemaFinanciero.Domain.Catalogs.LedgerAccount", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_AsientoLineas_CuentasContables");
+
+                    b.HasOne("SistemaFinanciero.Domain.Ledger.JournalEntry", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("JournalEntryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_AsientoLineas_Asientos");
+                });
+
             modelBuilder.Entity("SistemaFinanciero.Domain.Parameters.ClosingDateChange", b =>
                 {
                     b.HasOne("SistemaFinanciero.Infrastructure.Identity.ApplicationUser", null)
@@ -2879,6 +3012,11 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                 });
 
             modelBuilder.Entity("SistemaFinanciero.Domain.Invoices.Invoice", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("SistemaFinanciero.Domain.Ledger.JournalEntry", b =>
                 {
                     b.Navigation("Lines");
                 });

@@ -8,6 +8,7 @@ using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Expenses;
 using SistemaFinanciero.Domain.Incomes;
 using SistemaFinanciero.Domain.Invoices;
+using SistemaFinanciero.Domain.Ledger;
 using SistemaFinanciero.Domain.Parameters;
 using SistemaFinanciero.Domain.Payables;
 using SistemaFinanciero.Domain.Receivables;
@@ -101,6 +102,9 @@ public sealed class FinancialDbContext(
 
     /// <summary>Bitácora inmutable de ajustes manuales de saldo de cuentas por cobrar y por pagar.</summary>
     public DbSet<BalanceAdjustment> BalanceAdjustments => Set<BalanceAdjustment>();
+
+    /// <summary>Asientos contables automáticos de partida doble (bloque 5 del paquete de mejoras finales).</summary>
+    public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
 
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder builder)
@@ -249,6 +253,24 @@ public sealed class FinancialDbContext(
         {
             throw new InvalidOperationException(
                 "El historial de los datos de la empresa es inmutable y solo admite nuevos registros.");
+        }
+
+        bool journalEntriesMutated = ChangeTracker.Entries<JournalEntry>()
+            .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted);
+
+        if (journalEntriesMutated)
+        {
+            throw new InvalidOperationException(
+                "Los asientos contables son inmutables y solo admiten nuevos registros.");
+        }
+
+        bool journalEntryLinesMutated = ChangeTracker.Entries<JournalEntryLine>()
+            .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted);
+
+        if (journalEntryLinesMutated)
+        {
+            throw new InvalidOperationException(
+                "Las líneas de los asientos contables son inmutables y solo admiten nuevos registros.");
         }
     }
 }
