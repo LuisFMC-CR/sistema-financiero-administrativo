@@ -12,9 +12,10 @@ namespace SistemaFinanciero.IntegrationTests.Catalogs;
 
 /// <summary>
 /// Escenarios reales que se habilitan con SISTEMA_FINANCIERO_RUN_SQL_TESTS=1 y siempre revierten datos.
-/// Las cuentas de grupo (código "2" Ingresos, "3" Gastos, "1.1" Efectivo) son las del catálogo base
-/// sembrado por la migración (regla 13): el servicio ya no crea cuentas raíz, así que estas pruebas
-/// agregan cuentas de detalle bajo esos grupos reales, igual que lo hace la aplicación.
+/// Las cuentas de grupo (código "4" Ingresos, "5" Gastos, "1.1" Efectivo) son las del catálogo base
+/// sembrado por la migración (regla 13, renumerado por el bloque 4 del paquete de mejoras finales): el
+/// servicio ya no crea cuentas raíz, así que estas pruebas agregan cuentas de detalle bajo esos grupos
+/// reales, igual que lo hace la aplicación.
 /// </summary>
 public sealed class SqlServerLedgerAccountScenarioTests : IClassFixture<FinancialWebApplicationFactory>
 {
@@ -36,7 +37,7 @@ public sealed class SqlServerLedgerAccountScenarioTests : IClassFixture<Financia
             string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
 
             LedgerAccountModel cashGroup = await GetByCodeAsync(accounts, "1.1");
-            LedgerAccountModel expenseRoot = await GetByCodeAsync(accounts, "3");
+            LedgerAccountModel expenseRoot = await GetByCodeAsync(accounts, "5");
 
             // Una cuenta de efectivo cuelga del grupo de efectivo del catálogo base.
             Assert.True((await accounts.CreateAsync(
@@ -103,7 +104,7 @@ public sealed class SqlServerLedgerAccountScenarioTests : IClassFixture<Financia
         {
             ILedgerAccountService accounts = services.GetRequiredService<ILedgerAccountService>();
             string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
-            LedgerAccountModel incomeRoot = await GetByCodeAsync(accounts, "2");
+            LedgerAccountModel incomeRoot = await GetByCodeAsync(accounts, "4");
 
             await CreateAsync(accounts, actorId, Command($"Grupo {suffix}", incomeRoot.Id));
             LedgerAccountModel group = await GetByNameAsync(accounts, $"Grupo {suffix}");
@@ -139,8 +140,8 @@ public sealed class SqlServerLedgerAccountScenarioTests : IClassFixture<Financia
             ILedgerAccountService accounts = services.GetRequiredService<ILedgerAccountService>();
             string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
 
-            LedgerAccountModel incomeRoot = await GetByCodeAsync(accounts, "2");
-            LedgerAccountModel expenseRoot = await GetByCodeAsync(accounts, "3");
+            LedgerAccountModel incomeRoot = await GetByCodeAsync(accounts, "4");
+            LedgerAccountModel expenseRoot = await GetByCodeAsync(accounts, "5");
             LedgerAccountModel cashGroup = await GetByCodeAsync(accounts, "1.1");
 
             await CreateAsync(accounts, actorId, Command($"Ingresos por servicios {suffix}", incomeRoot.Id));
@@ -207,8 +208,8 @@ public sealed class SqlServerLedgerAccountScenarioTests : IClassFixture<Financia
             ILedgerAccountService accounts = services.GetRequiredService<ILedgerAccountService>();
             IFinancialCategoryService categories = services.GetRequiredService<IFinancialCategoryService>();
             string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
-            LedgerAccountModel incomeRoot = await GetByCodeAsync(accounts, "2");
-            LedgerAccountModel expenseRoot = await GetByCodeAsync(accounts, "3");
+            LedgerAccountModel incomeRoot = await GetByCodeAsync(accounts, "4");
+            LedgerAccountModel expenseRoot = await GetByCodeAsync(accounts, "5");
 
             await CreateAsync(accounts, actorId, Command($"Ingresos uno {suffix}", incomeRoot.Id));
             await CreateAsync(accounts, actorId, Command($"Ingresos dos {suffix}", incomeRoot.Id));
@@ -308,13 +309,87 @@ public sealed class SqlServerLedgerAccountScenarioTests : IClassFixture<Financia
 
     [Fact]
     [Trait("Category", "SqlServer")]
+    public Task SystemRoleScenario_ProtectsSystemAccountsAndRestrictsWhereTheUserCanCreate()
+    {
+        return RunInRollbackTransactionAsync(async (context, services, actorId) =>
+        {
+            ILedgerAccountService accounts = services.GetRequiredService<ILedgerAccountService>();
+            IFinancialCategoryService categories = services.GetRequiredService<IFinancialCategoryService>();
+            string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+
+            LedgerAccountModel assetRoot = await GetByCodeAsync(accounts, "1");
+            LedgerAccountModel liabilityRoot = await GetByCodeAsync(accounts, "2");
+            LedgerAccountModel equityRoot = await GetByCodeAsync(accounts, "3");
+            LedgerAccountModel receivablesFromCustomers = await GetByCodeAsync(accounts, "1.2.01");
+
+            // El usuario solo crea cuentas de detalle dentro de 1.1 Efectivo, Ingresos y Gastos: ni
+            // siquiera dentro de "1 Activo" directamente, ni de Pasivo o Patrimonio.
+            AssertInvalid(
+                await accounts.CreateAsync(Command($"Bajo activo {suffix}", assetRoot.Id), actorId),
+                "Efectivo, Ingresos o Gastos");
+            AssertInvalid(
+                await accounts.CreateAsync(Command($"Bajo pasivo {suffix}", liabilityRoot.Id), actorId),
+                "Efectivo, Ingresos o Gastos");
+            AssertInvalid(
+                await accounts.CreateAsync(Command($"Bajo patrimonio {suffix}", equityRoot.Id), actorId),
+                "Efectivo, Ingresos o Gastos");
+
+            // Una cuenta de sistema tampoco admite cuentas hijas.
+            AssertInvalid(
+                await accounts.CreateAsync(
+                    Command($"Bajo cuenta de sistema {suffix}", receivablesFromCustomers.Id), actorId),
+                "sistema");
+
+            // Pasivo y Patrimonio nunca ofrecen cuentas superior para el usuario.
+            Assert.Empty(await accounts.GetParentOptionsAsync(LedgerAccountType.Liability));
+            Assert.Empty(await accounts.GetParentOptionsAsync(LedgerAccountType.Equity));
+
+            // Dentro de Activo, solo 1.1 Efectivo aparece como cuenta superior posible.
+            IReadOnlyList<LedgerAccountOption> assetParentOptions =
+                await accounts.GetParentOptionsAsync(LedgerAccountType.Asset);
+            Assert.DoesNotContain(assetParentOptions, option => option.Id == assetRoot.Id);
+            Assert.Contains(assetParentOptions, option => option.Code == "1.1");
+
+            // Una cuenta de sistema se puede renombrar...
+            LedgerAccountModel current = (await accounts.GetAsync(receivablesFromCustomers.Id))!;
+            UpdateLedgerAccountCommand rename = new(
+                $"Cuentas por cobrar a clientes {suffix}", current.Reference, current.Description);
+            Assert.True((await accounts.UpdateAsync(
+                receivablesFromCustomers.Id, rename, current.Version, actorId)).IsSuccess);
+
+            // ...pero no se puede desactivar.
+            current = (await accounts.GetAsync(receivablesFromCustomers.Id))!;
+            AssertInvalid(
+                await accounts.SetActiveAsync(current.Id, false, current.Version, actorId),
+                "sistema");
+
+            // Las cuentas de sistema no aparecen entre las opciones para elegir en una categoría
+            // financiera, y el servicio rechaza asignarlas aunque se envíe el Id directamente.
+            Assert.DoesNotContain(
+                await accounts.GetActiveOptionsAsync(LedgerAccountType.Asset),
+                option => option.Id == receivablesFromCustomers.Id);
+
+            // 4.4.01 es una cuenta de sistema de tipo Ingreso: coincide con la naturaleza de la
+            // categoría, así que esta prueba sí llega a la validación de cuenta de sistema (y no se
+            // queda antes, en la de tipo).
+            LedgerAccountModel salesReturns = await GetByCodeAsync(accounts, "4.4.01");
+            AssertInvalid(
+                await categories.CreateAsync(
+                    CategoryCommand($"Categoría de sistema {suffix}", FinancialCategoryKind.Income, salesReturns.Id),
+                    actorId),
+                "sistema");
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
     public Task Database_RejectsAccountsThatBreakItsConstraints()
     {
         return RunInRollbackTransactionAsync(async (context, services, actorId) =>
         {
             ILedgerAccountService accounts = services.GetRequiredService<ILedgerAccountService>();
             string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
-            LedgerAccountModel expenseRoot = await GetByCodeAsync(accounts, "3");
+            LedgerAccountModel expenseRoot = await GetByCodeAsync(accounts, "5");
             LedgerAccountModel cashGroup = await GetByCodeAsync(accounts, "1.1");
 
             await CreateAsync(accounts, actorId, Command($"Sin efectivo {suffix}", expenseRoot.Id));

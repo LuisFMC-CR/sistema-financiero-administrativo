@@ -110,6 +110,14 @@ public sealed class LedgerAccount
     /// </summary>
     public bool IsProtected { get; private set; }
 
+    /// <summary>
+    /// Obtiene el rol fijo de cuenta de sistema (bloque 4 del paquete de mejoras finales), nulo en
+    /// las demás cuentas. Solo lo asignan las migraciones de siembra, igual que
+    /// <see cref="IsProtected"/>; a diferencia de una cuenta de grupo, una cuenta de sistema admite
+    /// renombrarse pero no desactivarse (<c>LedgerAccountService</c>).
+    /// </summary>
+    public LedgerAccountSystemRole? SystemRole { get; private set; }
+
     /// <summary>Obtiene el instante UTC de creación.</summary>
     public DateTimeOffset CreatedAtUtc { get; private set; }
 

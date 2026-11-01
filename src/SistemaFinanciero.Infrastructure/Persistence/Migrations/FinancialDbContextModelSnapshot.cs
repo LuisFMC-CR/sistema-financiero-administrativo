@@ -656,6 +656,9 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
 
+                    b.Property<int?>("SystemRole")
+                        .HasColumnType("int");
+
                     b.Property<int>("Type")
                         .HasColumnType("int");
 
@@ -675,6 +678,11 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ParentId");
 
+                    b.HasIndex("SystemRole")
+                        .IsUnique()
+                        .HasDatabaseName("UX_CuentasContables_SystemRole")
+                        .HasFilter("[SystemRole] IS NOT NULL");
+
                     b.HasIndex("UpdatedByUserId");
 
                     b.HasIndex("IsActive", "Type", "Name")
@@ -690,7 +698,9 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_CuentasContables_Parent", "[ParentId] IS NULL OR [ParentId] <> [Id]");
 
-                            t.HasCheckConstraint("CK_CuentasContables_Type", "[Type] IN (1, 4, 5)");
+                            t.HasCheckConstraint("CK_CuentasContables_SystemRole", "[SystemRole] IS NULL OR [SystemRole] IN (1, 2, 3, 4, 5, 6, 7, 8)");
+
+                            t.HasCheckConstraint("CK_CuentasContables_Type", "[Type] IN (1, 2, 3, 4, 5)");
                         });
                 });
 

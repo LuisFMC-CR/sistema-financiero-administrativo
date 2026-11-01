@@ -101,6 +101,14 @@ internal sealed class LedgerAccountService(
             throw new ArgumentOutOfRangeException(nameof(type));
         }
 
+        // El usuario solo crea cuentas de detalle dentro de 1.1 Efectivo, Ingresos y Gastos (bloque 4
+        // del catálogo contable ampliado): Pasivo y Patrimonio son siempre cuentas de sistema, sin
+        // ningún punto donde el usuario pueda agregar una cuenta propia.
+        if (type is LedgerAccountType.Liability or LedgerAccountType.Equity)
+        {
+            return [];
+        }
+
         AccountNode[] nodes = await dbContext.Set<LedgerAccount>()
             .AsNoTracking()
             .Where(account => account.Type == type)
@@ -110,7 +118,8 @@ internal sealed class LedgerAccountService(
                 account.Code,
                 account.Name,
                 account.IsActive,
-                account.CashKind != null))
+                account.CashKind != null,
+                account.SystemRole))
             .ToArrayAsync(cancellationToken);
 
         HashSet<Guid> excludedIds = [];
@@ -122,7 +131,10 @@ internal sealed class LedgerAccountService(
         }
 
         return nodes
-            .Where(node => node.IsActive && !node.IsCash && !excludedIds.Contains(node.Id))
+            .Where(node => node.IsActive && !node.IsCash && node.SystemRole is null && !excludedIds.Contains(node.Id))
+            // Dentro de Activo, solo el grupo de Efectivo admite cuentas nuevas: Cuentas por cobrar e
+            // Impuestos a favor son cuentas de sistema sin más detalle que el que ya sembró la migración.
+            .Where(node => type != LedgerAccountType.Asset || string.Equals(node.Code, "1.1", StringComparison.Ordinal))
             .OrderBy(node => node.Code)
             .Select(node => new LedgerAccountOption(node.Id, node.Code, node.Name))
             .ToArray();
@@ -137,9 +149,10 @@ internal sealed class LedgerAccountService(
             throw new ArgumentOutOfRangeException(nameof(type));
         }
 
+        // Las cuentas de sistema no aparecen para elegir en categorías financieras (bloque 4).
         return await dbContext.Set<LedgerAccount>()
             .AsNoTracking()
-            .Where(account => account.Type == type && account.IsActive)
+            .Where(account => account.Type == type && account.IsActive && account.SystemRole == null)
             .OrderBy(account => account.Code)
             .Select(account => new LedgerAccountOption(account.Id, account.Code, account.Name))
             .ToListAsync(cancellationToken);
@@ -182,6 +195,20 @@ internal sealed class LedgerAccountService(
         if (parent.IsCash)
         {
             return CatalogOperationResult.Invalid("Una cuenta de efectivo no puede tener cuentas hijas.");
+        }
+
+        if (parent.SystemRole is not null)
+        {
+            return CatalogOperationResult.Invalid("Una cuenta de sistema no puede tener cuentas hijas.");
+        }
+
+        bool isAllowedParent = parent.Type is LedgerAccountType.Income or LedgerAccountType.Expense
+            || (parent.Type == LedgerAccountType.Asset && string.Equals(parent.Code, "1.1", StringComparison.Ordinal));
+
+        if (!isAllowedParent)
+        {
+            return CatalogOperationResult.Invalid(
+                "Solo se pueden crear cuentas de detalle dentro de Efectivo, Ingresos o Gastos.");
         }
 
         for (int attempt = 1; attempt <= MaxCodeGenerationAttempts; attempt++)
@@ -298,6 +325,12 @@ internal sealed class LedgerAccountService(
             dbContext.ChangeTracker.Clear();
             return CatalogOperationResult.Invalid(
                 "Una cuenta de grupo del catálogo base no se puede desactivar.");
+        }
+
+        if (!isActive && account.SystemRole is not null)
+        {
+            dbContext.ChangeTracker.Clear();
+            return CatalogOperationResult.Invalid("Una cuenta de sistema no se puede desactivar.");
         }
 
         if (!CatalogPersistence.TrySetOriginalVersion(dbContext, account, version))
@@ -465,6 +498,7 @@ internal sealed class LedgerAccountService(
             account.Description,
             account.IsActive,
             account.IsProtected,
+            account.SystemRole,
             account.CreatedAtUtc,
             account.UpdatedAtUtc,
             CatalogPersistence.EncodeVersion(account.RowVersion));
@@ -476,5 +510,6 @@ internal sealed class LedgerAccountService(
         string Code,
         string Name,
         bool IsActive,
-        bool IsCash);
+        bool IsCash,
+        LedgerAccountSystemRole? SystemRole);
 }

@@ -31,6 +31,8 @@ public static class CatalogDisplayExtensions
     public static string ToDisplayName(this LedgerAccountType type) => type switch
     {
         LedgerAccountType.Asset => "Activo",
+        LedgerAccountType.Liability => "Pasivo",
+        LedgerAccountType.Equity => "Patrimonio",
         LedgerAccountType.Income => "Ingreso",
         LedgerAccountType.Expense => "Gasto",
         _ => "Desconocido",
@@ -44,6 +46,19 @@ public static class CatalogDisplayExtensions
     };
 
     public static string ToDisplayName(this UnitOfMeasureCode unitOfMeasure) => unitOfMeasure.ToLabel();
+
+    public static string ToDisplayName(this LedgerAccountSystemRole role) => role switch
+    {
+        LedgerAccountSystemRole.ReceivablesFromCustomers => "Cuentas por cobrar a clientes",
+        LedgerAccountSystemRole.VatCreditable => "IVA acreditable",
+        LedgerAccountSystemRole.WithholdingsReceivable => "Retenciones de renta a favor",
+        LedgerAccountSystemRole.PayablesToSuppliers => "Cuentas por pagar a proveedores",
+        LedgerAccountSystemRole.VatPayable => "IVA por pagar",
+        LedgerAccountSystemRole.ReceivableAdjustments => "Ajustes a cuentas por cobrar",
+        LedgerAccountSystemRole.PayableAdjustmentsInFavor => "Ajustes a favor en cuentas por pagar",
+        LedgerAccountSystemRole.SalesReturnsAndAllowances => "Devoluciones y descuentos sobre ventas",
+        _ => "Desconocido",
+    };
 
     public static string ToDisplayName(this IdentificationType type) => type switch
     {

@@ -135,9 +135,9 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
             // Toda categoría necesita una cuenta contable activa de su mismo tipo. El servicio ya no
             // crea cuentas raíz (regla 13): se agregan como detalle bajo los grupos del catálogo base.
             Guid incomeRootId = Assert.Single((await ledgerAccounts.SearchAsync(
-                new CatalogQuery("2", CatalogStatusFilter.Active))).Items, account => account.Code == "2").Id;
+                new CatalogQuery("4", CatalogStatusFilter.Active))).Items, account => account.Code == "4").Id;
             Guid expenseRootId = Assert.Single((await ledgerAccounts.SearchAsync(
-                new CatalogQuery("3", CatalogStatusFilter.Active))).Items, account => account.Code == "3").Id;
+                new CatalogQuery("5", CatalogStatusFilter.Active))).Items, account => account.Code == "5").Id;
 
             Assert.True((await ledgerAccounts.CreateAsync(
                 new CreateLedgerAccountCommand($"Cuenta de ingresos {suffix}", incomeRootId, null, null, null),

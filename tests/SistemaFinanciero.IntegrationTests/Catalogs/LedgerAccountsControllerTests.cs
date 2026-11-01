@@ -249,6 +249,7 @@ public sealed class LedgerAccountsControllerTests
             Description: null,
             IsActive: true,
             IsProtected: false,
+            SystemRole: null,
             DateTimeOffset.UtcNow,
             DateTimeOffset.UtcNow,
             version);

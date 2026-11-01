@@ -47,6 +47,10 @@
                         {
                             <span class="badge text-bg-secondary ms-1">Grupo</span>
                         }
+                        @if (account.SystemRole is LedgerAccountSystemRole systemRole)
+                        {
+                            <span class="badge text-bg-info ms-1" title="@systemRole.ToDisplayName()">Sistema</span>
+                        }
                         @if (!string.IsNullOrWhiteSpace(account.Reference))
                         {
                             <div class="small text-body-secondary">@account.Reference</div>
@@ -69,7 +73,7 @@
                     {
                         <td class="text-end text-nowrap">
                             <a asp-action="Edit" asp-route-id="@account.Id" class="btn btn-sm btn-outline-primary">Editar</a>
-                            @if (!account.IsProtected)
+                            @if (!account.IsProtected && (account.IsActive == false || account.SystemRole is null))
                             {
                                 <form asp-action="SetActive" asp-route-id="@account.Id" method="post" class="d-inline js-confirm-form"
                                       data-confirm-message="¿Confirma que desea @(account.IsActive ? "desactivar" : "reactivar") esta cuenta contable?">

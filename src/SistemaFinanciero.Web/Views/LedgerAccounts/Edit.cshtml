@@ -9,6 +9,13 @@
     {
         <p class="text-body-secondary">Esta es una cuenta de grupo del catálogo base: no se puede modificar ni desactivar.</p>
     }
+    else if (Model.SystemRole is LedgerAccountSystemRole systemRole)
+    {
+        <p class="text-body-secondary">
+            Esta es una cuenta de sistema (@systemRole.ToDisplayName()): las reglas de contabilización la
+            buscan por su rol, no por nombre ni código. Se puede renombrar, pero no desactivar.
+        </p>
+    }
     else
     {
         <p class="text-body-secondary">El código, el tipo y la cuenta superior no pueden modificarse.</p>

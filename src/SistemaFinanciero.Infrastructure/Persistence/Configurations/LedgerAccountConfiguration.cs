@@ -26,7 +26,7 @@ internal sealed class LedgerAccountConfiguration : IEntityTypeConfiguration<Ledg
                     "LEN(LTRIM(RTRIM([Code]))) > 0");
                 table.HasCheckConstraint(
                     "CK_CuentasContables_Type",
-                    "[Type] IN (1, 4, 5)");
+                    "[Type] IN (1, 2, 3, 4, 5)");
                 table.HasCheckConstraint(
                     "CK_CuentasContables_CashKind",
                     "[CashKind] IS NULL OR [CashKind] IN (1, 2)");
@@ -36,6 +36,9 @@ internal sealed class LedgerAccountConfiguration : IEntityTypeConfiguration<Ledg
                 table.HasCheckConstraint(
                     "CK_CuentasContables_Parent",
                     "[ParentId] IS NULL OR [ParentId] <> [Id]");
+                table.HasCheckConstraint(
+                    "CK_CuentasContables_SystemRole",
+                    "[SystemRole] IS NULL OR [SystemRole] IN (1, 2, 3, 4, 5, 6, 7, 8)");
             });
 
         builder.HasKey(account => account.Id);
@@ -55,6 +58,7 @@ internal sealed class LedgerAccountConfiguration : IEntityTypeConfiguration<Ledg
             .HasDefaultValue(true);
         builder.Property(account => account.IsProtected)
             .HasDefaultValue(false);
+        builder.Property(account => account.SystemRole);
         builder.Property(account => account.CreatedAtUtc).IsRequired();
         builder.Property(account => account.UpdatedAtUtc).IsRequired();
         builder.Property(account => account.RowVersion).IsRowVersion();
@@ -64,6 +68,10 @@ internal sealed class LedgerAccountConfiguration : IEntityTypeConfiguration<Ledg
             .HasDatabaseName("UX_CuentasContables_Code");
         builder.HasIndex(account => new { account.IsActive, account.Type, account.Name })
             .HasDatabaseName("IX_CuentasContables_IsActive_Type_Name");
+        builder.HasIndex(account => account.SystemRole)
+            .IsUnique()
+            .HasFilter("[SystemRole] IS NOT NULL")
+            .HasDatabaseName("UX_CuentasContables_SystemRole");
 
         builder.HasOne<LedgerAccount>()
             .WithMany()

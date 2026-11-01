@@ -92,4 +92,7 @@ public sealed class LedgerAccountEditViewModel
 
     [ValidateNever]
     public bool IsProtected { get; set; }
+
+    [ValidateNever]
+    public LedgerAccountSystemRole? SystemRole { get; set; }
 }

@@ -458,6 +458,12 @@ internal sealed class FinancialCategoryService(
                 : "Una categoría de gasto requiere una cuenta contable de tipo Gasto.");
         }
 
+        if (account.SystemRole is not null)
+        {
+            return CatalogOperationResult.Invalid(
+                "Una cuenta de sistema no puede asignarse a una categoría financiera.");
+        }
+
         return null;
     }
 

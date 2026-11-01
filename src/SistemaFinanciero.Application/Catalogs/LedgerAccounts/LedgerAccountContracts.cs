@@ -44,6 +44,7 @@ public sealed record LedgerAccountModel(
     string? Description,
     bool IsActive,
     bool IsProtected,
+    LedgerAccountSystemRole? SystemRole,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc,
     string Version)

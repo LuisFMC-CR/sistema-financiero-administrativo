@@ -205,6 +205,7 @@ public sealed class LedgerAccountsController(ILedgerAccountService service) : Ca
         model.ParentName = account.ParentName;
         model.CashKind = account.CashKind;
         model.IsProtected = account.IsProtected;
+        model.SystemRole = account.SystemRole;
     }
 
     private async Task PopulateParentOptionsAsync(
