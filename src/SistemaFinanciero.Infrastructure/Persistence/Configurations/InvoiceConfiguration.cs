@@ -36,6 +36,12 @@ internal sealed class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
                     + " OR ([PaymentTerm] = 3 AND [DueDate] = DATEADD(DAY, 60, [IssueDate]))"
                     + " OR ([PaymentTerm] = 4 AND [DueDate] = DATEADD(DAY, 90, [IssueDate]))");
                 table.HasCheckConstraint("CK_Facturas_Totals", "[GrossAmount] >= 0 AND [DiscountAmount] >= 0 AND [NetAmount] >= 0 AND [TaxAmount] >= 0 AND [TotalAmount] >= 0");
+                table.HasCheckConstraint(
+                    "CK_Facturas_ElectronicInvoiceKey",
+                    "[ElectronicInvoiceKey] IS NULL OR LEN([ElectronicInvoiceKey]) = 50");
+                table.HasCheckConstraint(
+                    "CK_Facturas_ElectronicInvoiceNumber",
+                    "[ElectronicInvoiceNumber] IS NULL OR LEN([ElectronicInvoiceNumber]) = 20");
             });
 
         builder.HasKey(invoice => invoice.Id);
@@ -49,6 +55,8 @@ internal sealed class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.Property(invoice => invoice.NetAmount).HasPrecision(18, 2).IsRequired();
         builder.Property(invoice => invoice.TaxAmount).HasPrecision(18, 2).IsRequired();
         builder.Property(invoice => invoice.TotalAmount).HasPrecision(18, 2).IsRequired();
+        builder.Property(invoice => invoice.ElectronicInvoiceKey).HasMaxLength(Invoice.ElectronicInvoiceKeyLength);
+        builder.Property(invoice => invoice.ElectronicInvoiceNumber).HasMaxLength(Invoice.ElectronicInvoiceNumberLength);
         builder.Property(invoice => invoice.CancellationReason).HasMaxLength(300);
         builder.Property(invoice => invoice.CreatedAtUtc).IsRequired();
         builder.Property(invoice => invoice.UpdatedAtUtc).IsRequired();
@@ -62,6 +70,10 @@ internal sealed class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
             .HasDatabaseName("IX_Facturas_Status_IssueDate");
         builder.HasIndex(invoice => new { invoice.CustomerId, invoice.Status })
             .HasDatabaseName("IX_Facturas_CustomerId_Status");
+        builder.HasIndex(invoice => invoice.ElectronicInvoiceKey)
+            .IsUnique()
+            .HasFilter("[ElectronicInvoiceKey] IS NOT NULL")
+            .HasDatabaseName("UX_Facturas_ElectronicInvoiceKey");
 
         builder.HasMany(invoice => invoice.Lines)
             .WithOne()

@@ -153,6 +153,59 @@ public sealed class InvoiceConfirmationTests
         AssertStillConfirmed(invoice);
     }
 
+    [Fact]
+    public void RegisterElectronicInvoiceDetails_SetsTheKeyAndNumberOnAConfirmedInvoice()
+    {
+        Invoice invoice = CreateInvoiceWithLine();
+        invoice.Confirm(ConfirmedAtUtc, ConfirmerId, 42L);
+        string key = new('1', Invoice.ElectronicInvoiceKeyLength);
+        string number = new('2', Invoice.ElectronicInvoiceNumberLength);
+        DateTimeOffset registeredAtUtc = ConfirmedAtUtc.AddMinutes(1);
+
+        invoice.RegisterElectronicInvoiceDetails(key, number, registeredAtUtc, ConfirmerId);
+
+        Assert.Equal(key, invoice.ElectronicInvoiceKey);
+        Assert.Equal(number, invoice.ElectronicInvoiceNumber);
+        Assert.Equal(registeredAtUtc, invoice.UpdatedAtUtc);
+    }
+
+    [Fact]
+    public void RegisterElectronicInvoiceDetails_RejectsADraftInvoice()
+    {
+        Invoice invoice = CreateInvoiceWithLine();
+        string key = new('1', Invoice.ElectronicInvoiceKeyLength);
+        string number = new('2', Invoice.ElectronicInvoiceNumberLength);
+
+        Assert.Throws<InvalidOperationException>(() =>
+            invoice.RegisterElectronicInvoiceDetails(key, number, CreatedAtUtc.AddMinutes(1), CreatorId));
+    }
+
+    [Fact]
+    public void RegisterElectronicInvoiceDetails_RejectsRegisteringASecondTime()
+    {
+        Invoice invoice = CreateInvoiceWithLine();
+        invoice.Confirm(ConfirmedAtUtc, ConfirmerId, 42L);
+        string key = new('1', Invoice.ElectronicInvoiceKeyLength);
+        string number = new('2', Invoice.ElectronicInvoiceNumberLength);
+        invoice.RegisterElectronicInvoiceDetails(key, number, ConfirmedAtUtc.AddMinutes(1), ConfirmerId);
+
+        Assert.Throws<InvalidOperationException>(() =>
+            invoice.RegisterElectronicInvoiceDetails(key, number, ConfirmedAtUtc.AddMinutes(2), ConfirmerId));
+    }
+
+    [Theory]
+    [InlineData("123")]
+    [InlineData("abc")]
+    public void RegisterElectronicInvoiceDetails_RejectsAKeyThatIsNotFiftyDigits(string invalidKey)
+    {
+        Invoice invoice = CreateInvoiceWithLine();
+        invoice.Confirm(ConfirmedAtUtc, ConfirmerId, 42L);
+        string number = new('2', Invoice.ElectronicInvoiceNumberLength);
+
+        Assert.Throws<ArgumentException>(() =>
+            invoice.RegisterElectronicInvoiceDetails(invalidKey, number, ConfirmedAtUtc.AddMinutes(1), ConfirmerId));
+    }
+
     private static void AssertStillDraft(Invoice invoice)
     {
         Assert.Equal(InvoiceStatus.Draft, invoice.Status);
@@ -187,6 +240,7 @@ public sealed class InvoiceConfirmationTests
             new InvoiceLine(
                 Guid.NewGuid(),
                 catalogItemId: null,
+                cabysCode: null,
                 "Servicio de soporte",
                 "hora",
                 quantity: 1m,

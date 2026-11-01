@@ -28,6 +28,7 @@ public sealed class CompanyDataChange
         string? companyAddress,
         string? companyPhone,
         string? companyEmail,
+        string? companyActivityCode,
         DateTimeOffset changedAtUtc,
         Guid changedByUserId)
     {
@@ -41,6 +42,8 @@ public sealed class CompanyDataChange
             companyPhone, SystemParameters.CompanyPhoneMaxLength, nameof(companyPhone));
         CompanyEmail = DomainRules.OptionalText(
             companyEmail, SystemParameters.CompanyEmailMaxLength, nameof(companyEmail));
+        CompanyActivityCode = DomainRules.OptionalText(
+            companyActivityCode, SystemParameters.CompanyActivityCodeMaxLength, nameof(companyActivityCode));
         ChangedAtUtc = DomainRules.RequiredUtcTimestamp(changedAtUtc, nameof(changedAtUtc));
         ChangedByUserId = DomainRules.RequiredId(changedByUserId, nameof(changedByUserId));
     }
@@ -62,6 +65,9 @@ public sealed class CompanyDataChange
 
     /// <summary>Obtiene el correo vigente desde este cambio.</summary>
     public string? CompanyEmail { get; private set; }
+
+    /// <summary>Obtiene el código de actividad económica vigente desde este cambio.</summary>
+    public string? CompanyActivityCode { get; private set; }
 
     /// <summary>Obtiene el instante UTC del cambio.</summary>
     public DateTimeOffset ChangedAtUtc { get; private set; }

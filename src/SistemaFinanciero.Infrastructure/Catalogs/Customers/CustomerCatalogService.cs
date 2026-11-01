@@ -99,6 +99,7 @@ internal sealed class CustomerCatalogService(
                 Guid.NewGuid(),
                 code,
                 command.Name,
+                command.IdentificationType,
                 command.Identification,
                 command.Email,
                 command.Phone,
@@ -146,6 +147,7 @@ internal sealed class CustomerCatalogService(
         {
             customer.UpdateDetails(
                 command.Name,
+                command.IdentificationType,
                 command.Identification,
                 command.Email,
                 command.Phone,
@@ -223,6 +225,7 @@ internal sealed class CustomerCatalogService(
             customer.Id,
             customer.Code,
             customer.Name,
+            customer.IdentificationType,
             customer.Identification,
             customer.Email,
             customer.Phone,

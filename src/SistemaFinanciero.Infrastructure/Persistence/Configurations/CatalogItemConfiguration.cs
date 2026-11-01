@@ -28,6 +28,12 @@ internal sealed class CatalogItemConfiguration : IEntityTypeConfiguration<Catalo
                     "CK_ProductosServicios_Type",
                     "[Type] IN (1, 2)");
                 table.HasCheckConstraint(
+                    "CK_ProductosServicios_UnitOfMeasure",
+                    "[UnitOfMeasure] IN (1, 2, 3, 4)");
+                table.HasCheckConstraint(
+                    "CK_ProductosServicios_CabysCode",
+                    "LEN([CabysCode]) = 13");
+                table.HasCheckConstraint(
                     "CK_ProductosServicios_PriceCrc",
                     "[ReferencePriceCrc] IS NULL OR [ReferencePriceCrc] > 0");
             });
@@ -40,11 +46,12 @@ internal sealed class CatalogItemConfiguration : IEntityTypeConfiguration<Catalo
             .HasMaxLength(CatalogItem.NameMaxLength)
             .IsRequired();
         builder.Property(item => item.Type).IsRequired();
+        builder.Property(item => item.CabysCode)
+            .HasMaxLength(CatalogItem.CabysCodeLength)
+            .IsRequired();
         builder.Property(item => item.Description)
             .HasMaxLength(CatalogItem.DescriptionMaxLength);
-        builder.Property(item => item.UnitOfMeasure)
-            .HasMaxLength(CatalogItem.UnitOfMeasureMaxLength)
-            .IsRequired();
+        builder.Property(item => item.UnitOfMeasure).IsRequired();
         builder.Property(item => item.ReferencePriceCrc).HasPrecision(18, 4);
         builder.Property(item => item.IsActive)
             .HasDefaultValue(true);

@@ -20,6 +20,7 @@ public sealed class ReferenceTaxTypesTests
                 reference.Code,
                 reference.Name,
                 reference.Rate,
+                reference.HaciendaRateCode,
                 reference.Description,
                 CreatedAtUtc,
                 CreatorId);
@@ -27,6 +28,7 @@ public sealed class ReferenceTaxTypesTests
             // El código no cambia al normalizarse: el servicio compara contra el código ya guardado.
             Assert.Equal(reference.Code, taxType.Code);
             Assert.Equal(reference.Rate, taxType.Rate);
+            Assert.Equal(reference.HaciendaRateCode, taxType.HaciendaRateCode);
         }
     }
 

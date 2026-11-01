@@ -72,6 +72,13 @@ public sealed class InvoicePdfDocument(InvoiceModel invoice, SystemParametersMod
                         $"Vencimiento: {(invoice.DueDate is DateOnly due ? due.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) : "—")}").FontSize(9);
                     invoiceColumn.Item().AlignRight().Text(
                         $"Estado: {invoice.Status.ToDisplayName()}").FontSize(9).SemiBold();
+                    if (!string.IsNullOrWhiteSpace(invoice.ElectronicInvoiceKey))
+                    {
+                        invoiceColumn.Item().AlignRight().Text(
+                            $"Clave electrónica: {invoice.ElectronicInvoiceKey}").FontSize(8);
+                        invoiceColumn.Item().AlignRight().Text(
+                            $"Consecutivo: {invoice.ElectronicInvoiceNumber}").FontSize(8);
+                    }
                 });
             });
 

@@ -32,9 +32,17 @@
         {
             <a asp-action="Cancel" asp-route-id="@invoice.Id" class="btn btn-danger">Anular</a>
         }
+        @if (Model.CanRegisterElectronicInvoice)
+        {
+            <a asp-action="RegisterElectronicInvoice" asp-route-id="@invoice.Id" class="btn btn-outline-primary">Registrar clave electrónica</a>
+        }
         @if (!isDraft)
         {
             <a asp-action="Pdf" asp-route-id="@invoice.Id" class="btn btn-outline-secondary">Exportar PDF</a>
+        }
+        @if (invoice.Status == InvoiceStatus.Confirmed)
+        {
+            <a asp-action="ExportData" asp-route-id="@invoice.Id" class="btn btn-outline-secondary">Exportar datos</a>
         }
     </div>
 </div>
@@ -50,6 +58,12 @@
             <p class="mb-1">Emisión: @invoice.IssueDate.ToString("dd/MM/yyyy")</p>
             <p class="mb-1">Plazo de pago: @invoice.PaymentTerm.ToDisplayName()</p>
             <p class="mb-0">Vencimiento: @(invoice.DueDate?.ToString("dd/MM/yyyy") ?? "—")</p>
+            @if (!string.IsNullOrWhiteSpace(invoice.ElectronicInvoiceKey))
+            {
+                <h2 class="h5 mt-3">Comprobante electrónico</h2>
+                <p class="mb-1">Clave: @invoice.ElectronicInvoiceKey</p>
+                <p class="mb-0">Consecutivo: @invoice.ElectronicInvoiceNumber</p>
+            }
         </div>
     </div>
     <div class="col-md-6">

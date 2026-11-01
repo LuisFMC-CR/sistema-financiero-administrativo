@@ -35,6 +35,7 @@ public sealed class SqlServerTaxTypeScenarioTests : IClassFixture<FinancialWebAp
                 code,
                 "Impuesto de integración",
                 8.5m,
+                "08",
                 "Descripción original");
 
             Assert.True((await taxTypes.CreateAsync(original, actorId)).IsSuccess);
@@ -53,7 +54,7 @@ public sealed class SqlServerTaxTypeScenarioTests : IClassFixture<FinancialWebAp
             Assert.Single((await taxTypes.SearchAsync(
                 new CatalogQuery("original", CatalogStatusFilter.Active))).Items, item => item.Id == created.Id);
 
-            UpdateTaxTypeCommand update = new(code, "Impuesto actualizado", 9m, null);
+            UpdateTaxTypeCommand update = new(code, "Impuesto actualizado", 9m, "08", null);
             Assert.True((await taxTypes.UpdateAsync(created.Id, update, created.Version, actorId)).IsSuccess);
 
             CatalogOperationResult stale = await taxTypes.UpdateAsync(
@@ -105,7 +106,7 @@ public sealed class SqlServerTaxTypeScenarioTests : IClassFixture<FinancialWebAp
             if (!storedCodes.Contains(customCode))
             {
                 Assert.True((await taxTypes.CreateAsync(
-                    new CreateTaxTypeCommand(customCode, "IVA personalizado", 12m, null),
+                    new CreateTaxTypeCommand(customCode, "IVA personalizado", 12m, "08", null),
                     actorId)).IsSuccess);
                 TaxTypeModel custom = Assert.Single((await taxTypes.SearchAsync(
                     new CatalogQuery(customCode, CatalogStatusFilter.Active))).Items);
@@ -156,7 +157,7 @@ public sealed class SqlServerTaxTypeScenarioTests : IClassFixture<FinancialWebAp
             ITaxTypeService taxTypes = services.GetRequiredService<ITaxTypeService>();
             string code = $"C-{Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()}";
             Assert.True((await taxTypes.CreateAsync(
-                new CreateTaxTypeCommand(code, "Restricciones", 13m, null),
+                new CreateTaxTypeCommand(code, "Restricciones", 13m, "08", null),
                 actorId)).IsSuccess);
             Guid id = (await context.Set<TaxType>().SingleAsync(taxType => taxType.Code == code)).Id;
             context.ChangeTracker.Clear();

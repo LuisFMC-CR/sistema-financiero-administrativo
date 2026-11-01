@@ -1,4 +1,5 @@
 using SistemaFinanciero.Application.Catalogs.Common;
+using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Common;
 using SistemaFinanciero.Domain.Invoices;
 
@@ -122,6 +123,8 @@ public sealed record InvoiceLineModel(
     int Position,
     Guid? CatalogItemId,
     string? CatalogItemCode,
+    CatalogItemType? CatalogItemType,
+    string? CabysCode,
     string Description,
     string UnitOfMeasure,
     decimal Quantity,
@@ -132,6 +135,7 @@ public sealed record InvoiceLineModel(
     string TaxCode,
     string TaxName,
     decimal TaxRate,
+    string TaxHaciendaRateCode,
     decimal TaxableAmount,
     decimal TaxAmount,
     decimal TotalAmount);
@@ -142,6 +146,7 @@ public sealed record InvoiceModel(
     long? Number,
     Guid CustomerId,
     string CustomerName,
+    IdentificationType CustomerIdentificationType,
     string CustomerIdentification,
     string? CustomerEmail,
     string? CustomerPhone,
@@ -157,6 +162,8 @@ public sealed record InvoiceModel(
     decimal TaxAmount,
     decimal TotalAmount,
     DateTimeOffset? ConfirmedAtUtc,
+    string? ElectronicInvoiceKey,
+    string? ElectronicInvoiceNumber,
     string? CancellationReason,
     DateTimeOffset? CancelledAtUtc,
     Guid CreatedByUserId,
@@ -166,6 +173,12 @@ public sealed record InvoiceModel(
     string Version,
     IReadOnlyList<InvoiceLineModel> Lines,
     PaymentMethod? PaymentMethod);
+
+/// <summary>
+/// Datos para registrar la clave y el consecutivo del comprobante electrónico de una factura
+/// confirmada (bloque 3, RF-89): solo una vez por factura, 50 y 20 dígitos respectivamente.
+/// </summary>
+public sealed record RegisterElectronicInvoiceCommand(string ElectronicInvoiceKey, string ElectronicInvoiceNumber);
 
 /// <summary>Proyección resumida de una factura para el listado.</summary>
 public sealed record InvoiceSummaryModel(
@@ -267,6 +280,17 @@ public interface IInvoiceService
     public Task<CatalogOperationResult> CancelAsync(
         Guid id,
         string reason,
+        string version,
+        Guid actorId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Registra la clave y el consecutivo del comprobante electrónico de una factura ya confirmada
+    /// (bloque 3, RF-89); solo una vez por factura. Finanzas y Gerencia.
+    /// </summary>
+    public Task<CatalogOperationResult> RegisterElectronicInvoiceAsync(
+        Guid id,
+        RegisterElectronicInvoiceCommand command,
         string version,
         Guid actorId,
         CancellationToken cancellationToken = default);

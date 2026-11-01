@@ -99,6 +99,43 @@ internal static class DomainRules
         return roundedValue;
     }
 
+    /// <summary>
+    /// Exige un texto compuesto únicamente por dígitos, con exactamente <paramref name="length"/>
+    /// caracteres (CABYS, clave y consecutivo del comprobante electrónico, regla del bloque 3).
+    /// </summary>
+    public static string RequiredDigits(string? value, int length, string parameterName)
+    {
+        string normalized = RequiredText(value, length, parameterName);
+
+        if (normalized.Length != length || !normalized.All(char.IsAsciiDigit))
+        {
+            throw new ArgumentException(
+                $"El valor debe tener exactamente {length} dígitos.",
+                parameterName);
+        }
+
+        return normalized;
+    }
+
+    /// <summary>
+    /// Exige un texto compuesto únicamente por dígitos, con una longitud entre
+    /// <paramref name="minLength"/> y <paramref name="maxLength"/> (DIMEX: 11 o 12 dígitos, bloque 3
+    /// del paquete de mejoras finales).
+    /// </summary>
+    public static string RequiredDigitsInRange(string? value, int minLength, int maxLength, string parameterName)
+    {
+        string normalized = RequiredText(value, maxLength, parameterName);
+
+        if (normalized.Length < minLength || normalized.Length > maxLength || !normalized.All(char.IsAsciiDigit))
+        {
+            throw new ArgumentException(
+                $"El valor debe tener entre {minLength} y {maxLength} dígitos.",
+                parameterName);
+        }
+
+        return normalized;
+    }
+
     public static T DefinedEnum<T>(T value, string parameterName)
         where T : struct, Enum
     {

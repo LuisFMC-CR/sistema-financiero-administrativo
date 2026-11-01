@@ -17,9 +17,15 @@ internal sealed class SupplierConfiguration : IEntityTypeConfiguration<Supplier>
         builder.ToTable(
             "Proveedores",
             "catalogos",
-            table => table.HasCheckConstraint(
-                "CK_Proveedores_Codigo_NoVacio",
-                "LEN(LTRIM(RTRIM([Code]))) > 0"));
+            table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_Proveedores_Codigo_NoVacio",
+                    "LEN(LTRIM(RTRIM([Code]))) > 0");
+                table.HasCheckConstraint(
+                    "CK_Proveedores_IdentificationType",
+                    "[IdentificationType] IN (1, 2, 3, 4, 5)");
+            });
 
         builder.HasKey(supplier => supplier.Id);
         builder.Property(supplier => supplier.Code)
@@ -28,6 +34,7 @@ internal sealed class SupplierConfiguration : IEntityTypeConfiguration<Supplier>
         builder.Property(supplier => supplier.Name)
             .HasMaxLength(Supplier.NameMaxLength)
             .IsRequired();
+        builder.Property(supplier => supplier.IdentificationType).IsRequired();
         builder.Property(supplier => supplier.Identification)
             .HasMaxLength(Supplier.IdentificationMaxLength)
             .IsRequired();

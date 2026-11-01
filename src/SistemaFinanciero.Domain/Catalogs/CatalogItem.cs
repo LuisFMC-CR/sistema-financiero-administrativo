@@ -32,8 +32,8 @@ public sealed class CatalogItem
     /// <summary>Longitud máxima de la descripción.</summary>
     public const int DescriptionMaxLength = 500;
 
-    /// <summary>Longitud máxima de la unidad de medida.</summary>
-    public const int UnitOfMeasureMaxLength = 30;
+    /// <summary>Longitud exacta del código CABYS (bloque 3 del paquete de mejoras finales).</summary>
+    public const int CabysCodeLength = 13;
 
     /// <summary>Cantidad de decimales conservados en los precios de referencia.</summary>
     public const int ReferencePriceDecimalPlaces = 4;
@@ -50,8 +50,9 @@ public sealed class CatalogItem
         string code,
         string name,
         CatalogItemType type,
+        string cabysCode,
         string? description,
-        string unitOfMeasure,
+        UnitOfMeasureCode unitOfMeasure,
         decimal? referencePriceCrc,
         Guid? defaultIncomeCategoryId,
         Guid? defaultTaxTypeId,
@@ -62,14 +63,12 @@ public sealed class CatalogItem
         Code = DomainRules.NormalizedCode(code, CodeMaxLength, nameof(code));
         Name = DomainRules.RequiredText(name, NameMaxLength, nameof(name));
         Type = DomainRules.DefinedEnum(type, nameof(type));
+        CabysCode = DomainRules.RequiredDigits(cabysCode, CabysCodeLength, nameof(cabysCode));
         Description = DomainRules.OptionalText(
             description,
             DescriptionMaxLength,
             nameof(description));
-        UnitOfMeasure = DomainRules.RequiredText(
-            unitOfMeasure,
-            UnitOfMeasureMaxLength,
-            nameof(unitOfMeasure));
+        UnitOfMeasure = DomainRules.DefinedEnum(unitOfMeasure, nameof(unitOfMeasure));
         ReferencePriceCrc = NormalizeReferencePrice(referencePriceCrc, nameof(referencePriceCrc));
         DefaultIncomeCategoryId = DomainRules.OptionalId(
             defaultIncomeCategoryId,
@@ -94,11 +93,17 @@ public sealed class CatalogItem
     /// <summary>Obtiene si el elemento es un producto o un servicio.</summary>
     public CatalogItemType Type { get; private set; }
 
+    /// <summary>
+    /// Obtiene el código CABYS (bloque 3 del paquete de mejoras finales), obligatorio y de 13 dígitos;
+    /// lo copia <c>InvoiceLine.CabysCode</c> al agregar la línea, igual que el nombre y la unidad.
+    /// </summary>
+    public string CabysCode { get; private set; } = string.Empty;
+
     /// <summary>Obtiene la descripción opcional mostrada al preparar documentos.</summary>
     public string? Description { get; private set; }
 
-    /// <summary>Obtiene la unidad utilizada para expresar cantidades.</summary>
-    public string UnitOfMeasure { get; private set; } = string.Empty;
+    /// <summary>Obtiene la unidad utilizada para expresar cantidades, de una lista fija.</summary>
+    public UnitOfMeasureCode UnitOfMeasure { get; private set; }
 
     /// <summary>Obtiene el precio de referencia en colones, si fue definido.</summary>
     public decimal? ReferencePriceCrc { get; private set; }
@@ -138,8 +143,9 @@ public sealed class CatalogItem
     /// </summary>
     public void UpdateDetails(
         string name,
+        string cabysCode,
         string? description,
-        string unitOfMeasure,
+        UnitOfMeasureCode unitOfMeasure,
         decimal? referencePriceCrc,
         Guid? defaultIncomeCategoryId,
         Guid? defaultTaxTypeId,
@@ -147,14 +153,12 @@ public sealed class CatalogItem
         Guid updatedByUserId)
     {
         string normalizedName = DomainRules.RequiredText(name, NameMaxLength, nameof(name));
+        string normalizedCabysCode = DomainRules.RequiredDigits(cabysCode, CabysCodeLength, nameof(cabysCode));
         string? normalizedDescription = DomainRules.OptionalText(
             description,
             DescriptionMaxLength,
             nameof(description));
-        string normalizedUnitOfMeasure = DomainRules.RequiredText(
-            unitOfMeasure,
-            UnitOfMeasureMaxLength,
-            nameof(unitOfMeasure));
+        UnitOfMeasureCode normalizedUnitOfMeasure = DomainRules.DefinedEnum(unitOfMeasure, nameof(unitOfMeasure));
         decimal? normalizedReferencePriceCrc = NormalizeReferencePrice(
             referencePriceCrc,
             nameof(referencePriceCrc));
@@ -165,6 +169,7 @@ public sealed class CatalogItem
         DateTimeOffset normalizedUpdatedAtUtc = ValidateUpdateAudit(updatedAtUtc, updatedByUserId);
 
         Name = normalizedName;
+        CabysCode = normalizedCabysCode;
         Description = normalizedDescription;
         UnitOfMeasure = normalizedUnitOfMeasure;
         ReferencePriceCrc = normalizedReferencePriceCrc;

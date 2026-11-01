@@ -1,4 +1,5 @@
 using SistemaFinanciero.Application.Catalogs.Common;
+using SistemaFinanciero.Domain.Catalogs;
 
 namespace SistemaFinanciero.Application.Catalogs.Suppliers;
 
@@ -7,6 +8,7 @@ namespace SistemaFinanciero.Application.Catalogs.Suppliers;
 /// </summary>
 public sealed record SaveSupplierCommand(
     string Name,
+    IdentificationType IdentificationType,
     string Identification,
     string? Email,
     string? Phone,
@@ -21,6 +23,7 @@ public sealed record SupplierModel(
     Guid Id,
     string Code,
     string Name,
+    IdentificationType IdentificationType,
     string Identification,
     string? Email,
     string? Phone,

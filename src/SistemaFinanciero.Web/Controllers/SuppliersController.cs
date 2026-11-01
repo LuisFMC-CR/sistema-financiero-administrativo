@@ -158,6 +158,7 @@ public sealed class SuppliersController(ISupplierCatalogService service) : Catal
     {
         return new(
             model.Name,
+            model.IdentificationType,
             model.Identification,
             model.Email,
             model.Phone,
@@ -171,6 +172,7 @@ public sealed class SuppliersController(ISupplierCatalogService service) : Catal
         {
             Code = supplier.Code,
             Name = supplier.Name,
+            IdentificationType = supplier.IdentificationType,
             Identification = supplier.Identification,
             Email = supplier.Email,
             Phone = supplier.Phone,

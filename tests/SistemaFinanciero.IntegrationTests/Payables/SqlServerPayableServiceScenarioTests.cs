@@ -96,6 +96,7 @@ public sealed class SqlServerPayableServiceScenarioTests : IClassFixture<Financi
             Guid.NewGuid(),
             $"PRV-{suffix}",
             "Proveedor de pruebas de vencidas",
+            IdentificationType.ForeignNonResident,
             $"ID-{suffix}",
             null,
             null,
@@ -117,6 +118,7 @@ public sealed class SqlServerPayableServiceScenarioTests : IClassFixture<Financi
             $"IVA-{suffix}",
             "IVA 0%",
             0m,
+            "01",
             null,
             DateTimeOffset.UtcNow,
             actorId);

@@ -25,6 +25,8 @@ internal sealed class CompanyDataChangeConfiguration : IEntityTypeConfiguration<
         builder.Property(change => change.CompanyAddress).HasMaxLength(SystemParameters.CompanyAddressMaxLength);
         builder.Property(change => change.CompanyPhone).HasMaxLength(SystemParameters.CompanyPhoneMaxLength);
         builder.Property(change => change.CompanyEmail).HasMaxLength(SystemParameters.CompanyEmailMaxLength);
+        builder.Property(change => change.CompanyActivityCode)
+            .HasMaxLength(SystemParameters.CompanyActivityCodeMaxLength);
         builder.Property(change => change.ChangedAtUtc).IsRequired();
 
         builder.HasIndex(change => change.ChangedAtUtc)

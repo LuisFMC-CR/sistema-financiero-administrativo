@@ -10,8 +10,9 @@ namespace SistemaFinanciero.Application.Catalogs.Items;
 public sealed record CreateCatalogItemCommand(
     string Name,
     CatalogItemType Type,
+    string CabysCode,
     string? Description,
-    string UnitOfMeasure,
+    UnitOfMeasureCode UnitOfMeasure,
     decimal? ReferencePriceCrc,
     Guid? DefaultIncomeCategoryId,
     Guid? DefaultTaxTypeId);
@@ -22,8 +23,9 @@ public sealed record CreateCatalogItemCommand(
 /// </summary>
 public sealed record UpdateCatalogItemCommand(
     string Name,
+    string CabysCode,
     string? Description,
-    string UnitOfMeasure,
+    UnitOfMeasureCode UnitOfMeasure,
     decimal? ReferencePriceCrc,
     Guid? DefaultIncomeCategoryId,
     Guid? DefaultTaxTypeId);
@@ -40,7 +42,7 @@ public sealed record CatalogItemOption(
     string Code,
     string Name,
     CatalogItemType Type,
-    string UnitOfMeasure,
+    UnitOfMeasureCode UnitOfMeasure,
     decimal? ReferencePriceCrc,
     Guid? DefaultTaxTypeId);
 
@@ -50,8 +52,9 @@ public sealed record CatalogItemModel(
     string Code,
     string Name,
     CatalogItemType Type,
+    string CabysCode,
     string? Description,
-    string UnitOfMeasure,
+    UnitOfMeasureCode UnitOfMeasure,
     decimal? ReferencePriceCrc,
     Guid? DefaultIncomeCategoryId,
     string? DefaultIncomeCategoryName,

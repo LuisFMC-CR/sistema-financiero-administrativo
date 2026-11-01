@@ -212,7 +212,14 @@ internal sealed class SystemParametersService(
         {
             DateTimeOffset now = timeProvider.GetUtcNow();
             parameters.UpdateCompany(
-                command.Name, command.LegalId, command.Address, command.Phone, command.Email, now, actorId);
+                command.Name,
+                command.LegalId,
+                command.Address,
+                command.Phone,
+                command.Email,
+                command.ActivityCode,
+                now,
+                actorId);
 
             dbContext.Add(new CompanyDataChange(
                 Guid.NewGuid(),
@@ -221,6 +228,7 @@ internal sealed class SystemParametersService(
                 parameters.CompanyAddress,
                 parameters.CompanyPhone,
                 parameters.CompanyEmail,
+                parameters.CompanyActivityCode,
                 now,
                 actorId));
 
@@ -247,6 +255,7 @@ internal sealed class SystemParametersService(
             parameters.CompanyAddress,
             parameters.CompanyPhone,
             parameters.CompanyEmail,
+            parameters.CompanyActivityCode,
             parameters.CreatedAtUtc,
             parameters.UpdatedAtUtc,
             updatedByUserName,

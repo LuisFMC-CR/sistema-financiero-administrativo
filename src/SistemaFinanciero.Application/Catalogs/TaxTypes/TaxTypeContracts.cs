@@ -13,6 +13,7 @@ public sealed record CreateTaxTypeCommand(
     string Code,
     string Name,
     decimal Rate,
+    string HaciendaRateCode,
     string? Description);
 
 /// <summary>Datos editables de una tarifa de IVA.</summary>
@@ -20,6 +21,7 @@ public sealed record UpdateTaxTypeCommand(
     string Code,
     string Name,
     decimal Rate,
+    string HaciendaRateCode,
     string? Description);
 
 /// <summary>Proyección administrativa de una tarifa de IVA.</summary>
@@ -28,6 +30,7 @@ public sealed record TaxTypeModel(
     string Code,
     string Name,
     decimal Rate,
+    string HaciendaRateCode,
     string? Description,
     bool IsActive,
     DateTimeOffset CreatedAtUtc,

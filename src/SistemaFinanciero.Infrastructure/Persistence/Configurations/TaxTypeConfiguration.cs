@@ -26,6 +26,9 @@ internal sealed class TaxTypeConfiguration : IEntityTypeConfiguration<TaxType>
                 table.HasCheckConstraint(
                     "CK_TiposImpuesto_Rate",
                     "[Rate] >= 0 AND [Rate] <= 100");
+                table.HasCheckConstraint(
+                    "CK_TiposImpuesto_HaciendaRateCode",
+                    "LEN([HaciendaRateCode]) = 2");
             });
 
         builder.HasKey(taxType => taxType.Id);
@@ -37,6 +40,9 @@ internal sealed class TaxTypeConfiguration : IEntityTypeConfiguration<TaxType>
             .IsRequired();
         builder.Property(taxType => taxType.Rate)
             .HasPrecision(18, 4)
+            .IsRequired();
+        builder.Property(taxType => taxType.HaciendaRateCode)
+            .HasMaxLength(TaxType.HaciendaRateCodeLength)
             .IsRequired();
         builder.Property(taxType => taxType.Description)
             .HasMaxLength(TaxType.DescriptionMaxLength);

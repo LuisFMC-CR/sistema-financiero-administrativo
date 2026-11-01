@@ -66,7 +66,7 @@ public sealed class SystemParametersControllerTests
         RecordingSystemParametersService service = new()
         {
             Current = new SystemParametersModel(
-                500_000m, 7, new DateOnly(2026, 1, 1), null, null, null, null, null,
+                500_000m, 7, new DateOnly(2026, 1, 1), null, null, null, null, null, null,
                 DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "version-vigente"),
             OperationResult = CatalogOperationResult.Concurrent(),
         };
@@ -121,7 +121,7 @@ public sealed class SystemParametersControllerTests
         RecordingSystemParametersService service = new()
         {
             Current = new SystemParametersModel(
-                500_000m, 7, new DateOnly(2026, 1, 1), null, null, null, null, null,
+                500_000m, 7, new DateOnly(2026, 1, 1), null, null, null, null, null, null,
                 DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "v1"),
         };
         SystemParametersController controller = CreateController(service);
@@ -144,7 +144,7 @@ public sealed class SystemParametersControllerTests
         RecordingSystemParametersService service = new()
         {
             Current = new SystemParametersModel(
-                500_000m, 7, new DateOnly(2026, 1, 1), null, null, null, null, null,
+                500_000m, 7, new DateOnly(2026, 1, 1), null, null, null, null, null, null,
                 DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "v1"),
         };
         SystemParametersController controller = CreateController(service);
@@ -168,7 +168,7 @@ public sealed class SystemParametersControllerTests
         RecordingSystemParametersService service = new()
         {
             Current = new SystemParametersModel(
-                500_000m, 7, new DateOnly(2026, 2, 1), null, null, null, null, null,
+                500_000m, 7, new DateOnly(2026, 2, 1), null, null, null, null, null, null,
                 DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "v1"),
             OperationResult = CatalogOperationResult.Invalid("El motivo de la reapertura es obligatorio."),
         };
@@ -208,7 +208,7 @@ public sealed class SystemParametersControllerTests
         RecordingSystemParametersService service = new()
         {
             Current = new SystemParametersModel(
-                500_000m, 7, new DateOnly(2026, 1, 1), null, null, null, null, null,
+                500_000m, 7, new DateOnly(2026, 1, 1), null, null, null, null, null, null,
                 DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "v1"),
         };
         SystemParametersController controller = CreateController(service);

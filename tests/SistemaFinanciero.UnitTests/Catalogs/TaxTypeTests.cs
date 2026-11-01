@@ -18,6 +18,7 @@ public sealed class TaxTypeTests
             " iva-13 ",
             " IVA tarifa general ",
             13.00005m,
+            "08",
             " Tarifa general del IVA ",
             CreatedAtUtc,
             CreatorId);
@@ -25,6 +26,7 @@ public sealed class TaxTypeTests
         Assert.Equal("IVA-13", taxType.Code);
         Assert.Equal("IVA tarifa general", taxType.Name);
         Assert.Equal(13.0001m, taxType.Rate);
+        Assert.Equal("08", taxType.HaciendaRateCode);
         Assert.Equal("Tarifa general del IVA", taxType.Description);
         Assert.True(taxType.IsActive);
         Assert.Equal(CreatedAtUtc, taxType.CreatedAtUtc);
@@ -79,6 +81,7 @@ public sealed class TaxTypeTests
             code,
             name,
             13m,
+            "08",
             null,
             CreatedAtUtc,
             CreatorId));
@@ -92,6 +95,24 @@ public sealed class TaxTypeTests
             new string('A', TaxType.CodeMaxLength + 1),
             "Nombre",
             13m,
+            "08",
+            null,
+            CreatedAtUtc,
+            CreatorId));
+    }
+
+    [Theory]
+    [InlineData("1")]
+    [InlineData("123")]
+    [InlineData("AB")]
+    public void Constructor_RejectsAHaciendaRateCodeThatIsNotTwoDigits(string invalidCode)
+    {
+        Assert.Throws<ArgumentException>(() => new TaxType(
+            Guid.NewGuid(),
+            "IVA",
+            "IVA",
+            13m,
+            invalidCode,
             null,
             CreatedAtUtc,
             CreatorId));
@@ -105,6 +126,7 @@ public sealed class TaxTypeTests
             "IVA",
             "IVA",
             13m,
+            "08",
             "   ",
             CreatedAtUtc,
             CreatorId);
@@ -118,11 +140,12 @@ public sealed class TaxTypeTests
         TaxType taxType = CreateTaxType(rate: 5m);
         DateTimeOffset changedAtUtc = CreatedAtUtc.AddMinutes(5);
 
-        taxType.UpdateDetails(" esp-2 ", " Específico 2 ", 7.5m, " ", changedAtUtc, EditorId);
+        taxType.UpdateDetails(" esp-2 ", " Específico 2 ", 7.5m, "09", " ", changedAtUtc, EditorId);
 
         Assert.Equal("ESP-2", taxType.Code);
         Assert.Equal("Específico 2", taxType.Name);
         Assert.Equal(7.5m, taxType.Rate);
+        Assert.Equal("09", taxType.HaciendaRateCode);
         Assert.Null(taxType.Description);
         Assert.Equal(changedAtUtc, taxType.UpdatedAtUtc);
         Assert.Equal(EditorId, taxType.UpdatedByUserId);
@@ -135,7 +158,7 @@ public sealed class TaxTypeTests
         TaxType taxType = CreateTaxType(rate: 13m);
 
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            taxType.UpdateDetails("IVA", "IVA", 150m, null, CreatedAtUtc.AddMinutes(1), EditorId));
+            taxType.UpdateDetails("IVA", "IVA", 150m, "08", null, CreatedAtUtc.AddMinutes(1), EditorId));
     }
 
     [Fact]
@@ -144,7 +167,7 @@ public sealed class TaxTypeTests
         TaxType taxType = CreateTaxType(rate: 13m);
 
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            taxType.UpdateDetails("NUEVO", "Nuevo nombre", -1m, "Otra", CreatedAtUtc.AddMinutes(1), EditorId));
+            taxType.UpdateDetails("NUEVO", "Nuevo nombre", -1m, "08", "Otra", CreatedAtUtc.AddMinutes(1), EditorId));
 
         Assert.Equal("IVA", taxType.Code);
         Assert.Equal("IVA tarifa general", taxType.Name);
@@ -160,9 +183,9 @@ public sealed class TaxTypeTests
         TaxType taxType = CreateTaxType(rate: 13m);
 
         Assert.Throws<ArgumentException>(() =>
-            taxType.UpdateDetails("IVA", "IVA", 13m, null, CreatedAtUtc.AddMinutes(1), Guid.Empty));
+            taxType.UpdateDetails("IVA", "IVA", 13m, "08", null, CreatedAtUtc.AddMinutes(1), Guid.Empty));
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            taxType.UpdateDetails("IVA", "IVA", 13m, null, CreatedAtUtc.AddMinutes(-1), EditorId));
+            taxType.UpdateDetails("IVA", "IVA", 13m, "08", null, CreatedAtUtc.AddMinutes(-1), EditorId));
     }
 
     [Fact]
@@ -210,6 +233,7 @@ public sealed class TaxTypeTests
             "IVA",
             "IVA tarifa general",
             rate,
+            "08",
             null,
             CreatedAtUtc,
             CreatorId);

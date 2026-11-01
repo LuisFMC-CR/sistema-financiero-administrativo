@@ -80,6 +80,10 @@ public sealed class CompanyDataViewModel
     [Display(Name = "Correo")]
     public string? Email { get; set; }
 
+    [StringLength(10, ErrorMessage = "El código de actividad económica no puede superar 10 caracteres.")]
+    [Display(Name = "Código de actividad económica")]
+    public string? ActivityCode { get; set; }
+
     [Required(ErrorMessage = "No fue posible validar la versión del registro.")]
     public string Version { get; set; } = string.Empty;
 }

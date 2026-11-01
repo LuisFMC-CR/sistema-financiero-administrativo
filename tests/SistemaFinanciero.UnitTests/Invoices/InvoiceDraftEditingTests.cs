@@ -277,6 +277,7 @@ public sealed class InvoiceDraftEditingTests
         new(
             Guid.NewGuid(),
             catalogItemId: null,
+            cabysCode: null,
             "Servicio de soporte",
             "hora",
             quantity,

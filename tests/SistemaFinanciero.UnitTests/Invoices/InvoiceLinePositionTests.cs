@@ -124,6 +124,7 @@ public sealed class InvoiceLinePositionTests
         new(
             Guid.NewGuid(),
             catalogItemId: null,
+            cabysCode: null,
             description,
             "hora",
             quantity: 1m,

@@ -13,7 +13,8 @@ public sealed class CatalogViewModelValidationTests
         {
             Name = "Servicio variable",
             Type = CatalogItemType.Service,
-            UnitOfMeasure = "hora",
+            CabysCode = "8311500000000",
+            UnitOfMeasure = UnitOfMeasureCode.Hour,
             ReferencePriceCrc = null,
         };
 
@@ -27,7 +28,8 @@ public sealed class CatalogViewModelValidationTests
         {
             Name = "Producto",
             Type = CatalogItemType.Product,
-            UnitOfMeasure = "unidad",
+            CabysCode = "8311500000000",
+            UnitOfMeasure = UnitOfMeasureCode.Unit,
             ReferencePriceCrc = 0,
         };
 
@@ -69,7 +71,8 @@ public sealed class CatalogViewModelValidationTests
         SupplierInputViewModel model = new()
         {
             Name = "Proveedor",
-            Identification = "3-101-000001",
+            IdentificationType = IdentificationType.LegalEntity,
+            Identification = "3101000001",
             EconomicActivity = null,
         };
 
@@ -84,6 +87,7 @@ public sealed class CatalogViewModelValidationTests
             Code = "IVA-0",
             Name = "IVA 0 %",
             Rate = 0m,
+            HaciendaRateCode = "01",
         };
 
         Assert.Empty(Validate(model));

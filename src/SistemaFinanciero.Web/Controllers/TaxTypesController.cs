@@ -56,6 +56,7 @@ public sealed class TaxTypesController(ITaxTypeService service) : CatalogControl
                 model.Code,
                 model.Name,
                 model.Rate,
+                model.HaciendaRateCode,
                 model.Description),
             actorId,
             cancellationToken);
@@ -104,7 +105,7 @@ public sealed class TaxTypesController(ITaxTypeService service) : CatalogControl
 
         CatalogOperationResult result = await service.UpdateAsync(
             id,
-            new UpdateTaxTypeCommand(model.Code, model.Name, model.Rate, model.Description),
+            new UpdateTaxTypeCommand(model.Code, model.Name, model.Rate, model.HaciendaRateCode, model.Description),
             model.Version,
             actorId,
             cancellationToken);
@@ -208,6 +209,7 @@ public sealed class TaxTypesController(ITaxTypeService service) : CatalogControl
             Code = taxType.Code,
             Name = taxType.Name,
             Rate = taxType.Rate,
+            HaciendaRateCode = taxType.HaciendaRateCode,
             Description = taxType.Description,
             Version = taxType.Version,
         };

@@ -225,6 +225,7 @@ public sealed class TaxTypesControllerTests
             "IVA-13",
             "IVA",
             rate,
+            "08",
             null,
             IsActive: true,
             DateTimeOffset.UtcNow,

@@ -3,6 +3,7 @@ using QuestPDF.Fluent;
 using QuestPDF.Infrastructure;
 using SistemaFinanciero.Application.Invoices;
 using SistemaFinanciero.Application.Parameters;
+using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Common;
 using SistemaFinanciero.Domain.Invoices;
 using SistemaFinanciero.Web.Reporting;
@@ -23,23 +24,23 @@ public sealed class InvoicePdfDocumentTests
 
     private static readonly SystemParametersModel SampleCompanyData = new(
         500_000m, 7, DateOnly.MinValue,
-        "Soporte Experto", "3-101-123456", "San José, Costa Rica", "2222-2222", "info@soportexperto.cr",
+        "Soporte Experto", "3-101-123456", "San José, Costa Rica", "2222-2222", "info@soportexperto.cr", "620301",
         DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "v1");
 
     private static readonly InvoiceLineModel SampleLine = new(
-        Guid.NewGuid(), 1, null, null, "Servicio de soporte técnico", "unidad", 1m, 1000m, 1000m, 0m, 1000m,
-        "IVA-13", "IVA 13%", 13m, 1000m, 130m, 1130m);
+        Guid.NewGuid(), 1, null, null, null, "8311500000000", "Servicio de soporte técnico", "unidad", 1m, 1000m, 1000m, 0m, 1000m,
+        "IVA-13", "IVA 13%", 13m, "08", 1000m, 130m, 1130m);
 
     [Fact]
     public void InvoicePdfDocument_ForAConfirmedCashInvoice_GeneratesAValidPdfWithCompanyDataAndPaymentMethod()
     {
         InvoiceModel invoice = new(
             Guid.NewGuid(), 42, Guid.NewGuid(), "Cliente de prueba",
-            "3-101-999999", "cliente@example.test", "8888-8888",
+            IdentificationType.LegalEntity, "3-101-999999", "cliente@example.test", "8888-8888",
             Guid.NewGuid(), "Categoría de prueba",
             new DateOnly(2026, 1, 10), PaymentTerm.Cash, null, InvoiceStatus.Confirmed,
             1000m, 0m, 1000m, 130m, 1130m,
-            DateTimeOffset.UtcNow, null, null,
+            DateTimeOffset.UtcNow, null, null, null, null,
             Guid.NewGuid(), "Usuario de prueba", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "v1",
             [SampleLine], PaymentMethod.Cash);
 
@@ -54,11 +55,11 @@ public sealed class InvoicePdfDocumentTests
     {
         InvoiceModel invoice = new(
             Guid.NewGuid(), 43, Guid.NewGuid(), "Cliente de prueba",
-            "3-101-999999", "cliente@example.test", "8888-8888",
+            IdentificationType.LegalEntity, "3-101-999999", "cliente@example.test", "8888-8888",
             Guid.NewGuid(), "Categoría de prueba",
             new DateOnly(2026, 1, 10), PaymentTerm.Credit30, new DateOnly(2026, 2, 9), InvoiceStatus.Confirmed,
             1000m, 0m, 1000m, 130m, 1130m,
-            DateTimeOffset.UtcNow, null, null,
+            DateTimeOffset.UtcNow, null, null, null, null,
             Guid.NewGuid(), "Usuario de prueba", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "v1",
             [SampleLine], null);
 
@@ -73,11 +74,11 @@ public sealed class InvoicePdfDocumentTests
     {
         InvoiceModel invoice = new(
             Guid.NewGuid(), 44, Guid.NewGuid(), "Cliente de prueba",
-            "3-101-999999", "cliente@example.test", "8888-8888",
+            IdentificationType.LegalEntity, "3-101-999999", "cliente@example.test", "8888-8888",
             Guid.NewGuid(), "Categoría de prueba",
             new DateOnly(2026, 1, 10), PaymentTerm.Credit30, new DateOnly(2026, 2, 9), InvoiceStatus.Cancelled,
             1000m, 0m, 1000m, 130m, 1130m,
-            DateTimeOffset.UtcNow, "Factura registrada por error", DateTimeOffset.UtcNow,
+            DateTimeOffset.UtcNow, null, null, "Factura registrada por error", DateTimeOffset.UtcNow,
             Guid.NewGuid(), "Usuario de prueba", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "v1",
             [SampleLine], null);
 
@@ -92,11 +93,11 @@ public sealed class InvoicePdfDocumentTests
     {
         InvoiceModel invoice = new(
             Guid.NewGuid(), 45, Guid.NewGuid(), "Cliente de prueba",
-            "3-101-999999", "cliente@example.test", "8888-8888",
+            IdentificationType.LegalEntity, "3-101-999999", "cliente@example.test", "8888-8888",
             Guid.NewGuid(), "Categoría de prueba",
             new DateOnly(2026, 1, 10), PaymentTerm.Credit30, new DateOnly(2026, 2, 9), InvoiceStatus.Confirmed,
             1000m, 0m, 1000m, 130m, 1130m,
-            DateTimeOffset.UtcNow, null, null,
+            DateTimeOffset.UtcNow, null, null, null, null,
             Guid.NewGuid(), "Usuario de prueba", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "v1",
             [SampleLine], null);
 
@@ -110,15 +111,15 @@ public sealed class InvoicePdfDocumentTests
     public void InvoicePdfDocument_WithACatalogLineAndNoCustomerContact_GeneratesAValidPdf()
     {
         InvoiceLineModel catalogLine = new(
-            Guid.NewGuid(), 1, Guid.NewGuid(), "PRD-0001", "Router inalámbrico", "unidad", 1m, 1000m, 1000m, 0m, 1000m,
-            "IVA-13", "IVA 13%", 13m, 1000m, 130m, 1130m);
+            Guid.NewGuid(), 1, Guid.NewGuid(), "PRD-0001", CatalogItemType.Product, "8311500000000", "Router inalámbrico", "unidad", 1m, 1000m, 1000m, 0m, 1000m,
+            "IVA-13", "IVA 13%", 13m, "08", 1000m, 130m, 1130m);
         InvoiceModel invoice = new(
             Guid.NewGuid(), 46, Guid.NewGuid(), "Cliente de prueba",
-            "3-101-999999", null, null,
+            IdentificationType.LegalEntity, "3-101-999999", null, null,
             Guid.NewGuid(), "Categoría de prueba",
             new DateOnly(2026, 1, 10), PaymentTerm.Cash, null, InvoiceStatus.Confirmed,
             1000m, 0m, 1000m, 130m, 1130m,
-            DateTimeOffset.UtcNow, null, null,
+            DateTimeOffset.UtcNow, null, null, null, null,
             Guid.NewGuid(), "Usuario de prueba", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "v1",
             [catalogLine], PaymentMethod.Cash);
 

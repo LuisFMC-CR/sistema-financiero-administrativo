@@ -16,7 +16,8 @@ public sealed record SaveCompanyDataCommand(
     string LegalId,
     string? Address,
     string? Phone,
-    string? Email);
+    string? Email,
+    string? ActivityCode);
 
 /// <summary>Proyección administrativa de los parámetros del sistema.</summary>
 public sealed record SystemParametersModel(
@@ -28,6 +29,7 @@ public sealed record SystemParametersModel(
     string? CompanyAddress,
     string? CompanyPhone,
     string? CompanyEmail,
+    string? CompanyActivityCode,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc,
     string UpdatedByUserName,

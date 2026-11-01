@@ -260,6 +260,7 @@ public sealed class SqlServerBudgetServiceScenarioTests : IClassFixture<Financia
             Guid.NewGuid(),
             $"PRV-{suffix}",
             "Proveedor de pruebas de presupuesto",
+            IdentificationType.ForeignNonResident,
             $"ID-{suffix}",
             null,
             null,
@@ -281,6 +282,7 @@ public sealed class SqlServerBudgetServiceScenarioTests : IClassFixture<Financia
             $"IVA-{suffix}",
             $"IVA {ratePercent}%",
             decimal.Parse(ratePercent, System.Globalization.CultureInfo.InvariantCulture),
+            "08",
             null,
             DateTimeOffset.UtcNow,
             actorId);

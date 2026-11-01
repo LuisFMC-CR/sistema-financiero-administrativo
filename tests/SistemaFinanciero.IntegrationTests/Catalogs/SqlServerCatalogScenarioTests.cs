@@ -37,6 +37,7 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
             string uniqueName = $"Cliente de integración {suffix}";
             SaveCustomerCommand original = new(
                 uniqueName,
+                IdentificationType.ForeignNonResident,
                 $"ID-{suffix}",
                 "cliente@example.test",
                 null,
@@ -88,6 +89,7 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
                 Assert.True((await customers.CreateAsync(
                     new SaveCustomerCommand(
                         $"{pagedNamePrefix} {index:D2}",
+                        IdentificationType.ForeignNonResident,
                         $"PG-ID-{suffix}-{index:D2}",
                         null,
                         null,
@@ -106,6 +108,7 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
             Assert.True((await suppliers.CreateAsync(
                 new SaveSupplierCommand(
                     supplierName,
+                    IdentificationType.ForeignNonResident,
                     $"PRV-ID-{suffix}",
                     null,
                     null,
@@ -214,8 +217,9 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
                 new CreateCatalogItemCommand(
                     itemName,
                     CatalogItemType.Service,
+                    "8311500000000",
                     null,
-                    "hora",
+                    UnitOfMeasureCode.Hour,
                     25.12345m,
                     child.Id,
                     null),

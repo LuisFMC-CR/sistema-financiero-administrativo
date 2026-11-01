@@ -159,6 +159,7 @@ public sealed class CustomersController(ICustomerCatalogService service) : Catal
     {
         return new(
             model.Name,
+            model.IdentificationType,
             model.Identification,
             model.Email,
             model.Phone,
@@ -171,6 +172,7 @@ public sealed class CustomersController(ICustomerCatalogService service) : Catal
         {
             Code = customer.Code,
             Name = customer.Name,
+            IdentificationType = customer.IdentificationType,
             Identification = customer.Identification,
             Email = customer.Email,
             Phone = customer.Phone,

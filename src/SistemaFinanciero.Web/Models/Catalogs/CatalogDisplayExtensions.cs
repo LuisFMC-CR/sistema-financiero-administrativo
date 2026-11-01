@@ -43,5 +43,16 @@ public static class CatalogDisplayExtensions
         _ => "Desconocido",
     };
 
+    public static string ToDisplayName(this UnitOfMeasureCode unitOfMeasure) => unitOfMeasure.ToLabel();
+
+    public static string ToDisplayName(this IdentificationType type) => type switch
+    {
+        IdentificationType.Individual => "Física",
+        IdentificationType.LegalEntity => "Jurídica",
+        IdentificationType.Dimex => "DIMEX",
+        IdentificationType.Nite => "NITE",
+        IdentificationType.ForeignNonResident => "Extranjero no domiciliado",
+        _ => "Desconocido",
+    };
 }
 

@@ -177,6 +177,18 @@ else
                         }
                         <span asp-validation-for="CompanyDataForm.Email" class="text-danger"></span>
                     </div>
+                    <div class="col-md-6">
+                        <label asp-for="CompanyDataForm.ActivityCode" class="form-label"></label>
+                        @if (canManage)
+                        {
+                            <input asp-for="CompanyDataForm.ActivityCode" class="form-control" maxlength="10" />
+                        }
+                        else
+                        {
+                            <input value="@Model.CompanyDataForm.ActivityCode" class="form-control" readonly />
+                        }
+                        <span asp-validation-for="CompanyDataForm.ActivityCode" class="text-danger"></span>
+                    </div>
                 </div>
                 @if (canManage)
                 {

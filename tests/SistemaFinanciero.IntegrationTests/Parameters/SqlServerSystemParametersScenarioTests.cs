@@ -227,7 +227,7 @@ public sealed class SqlServerSystemParametersScenarioTests : IClassFixture<Finan
             Assert.Null(created.CompanyName);
 
             CatalogOperationResult first = await parameters.UpdateCompanyAsync(
-                new SaveCompanyDataCommand("Soporte Experto", "3-101-123456", "San José", "2222-2222", "info@soportexperto.cr"),
+                new SaveCompanyDataCommand("Soporte Experto", "3-101-123456", "San José", "2222-2222", "info@soportexperto.cr", "620301"),
                 created.Version,
                 actorId);
             Assert.True(first.IsSuccess);
@@ -238,7 +238,7 @@ public sealed class SqlServerSystemParametersScenarioTests : IClassFixture<Finan
             Assert.Equal("San José", current.CompanyAddress);
 
             CatalogOperationResult second = await parameters.UpdateCompanyAsync(
-                new SaveCompanyDataCommand("Soporte Experto S.A.", "3-101-123456", null, null, null),
+                new SaveCompanyDataCommand("Soporte Experto S.A.", "3-101-123456", null, null, null, null),
                 current.Version,
                 actorId);
             Assert.True(second.IsSuccess);
@@ -266,7 +266,7 @@ public sealed class SqlServerSystemParametersScenarioTests : IClassFixture<Finan
             SystemParametersModel created = (await parameters.GetAsync())!;
 
             CatalogOperationResult result = await parameters.UpdateCompanyAsync(
-                new SaveCompanyDataCommand("Soporte Experto", "", null, null, null),
+                new SaveCompanyDataCommand("Soporte Experto", "", null, null, null, null),
                 created.Version,
                 actorId);
 

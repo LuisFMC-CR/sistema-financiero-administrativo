@@ -651,7 +651,7 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
             InvoiceModel updated = (await invoices.GetAsync(invoiceId))!;
             InvoiceLineModel line = Assert.Single(updated.Lines);
             Assert.Equal("Soporte técnico mensual", line.Description);
-            Assert.Equal("unidad", line.UnitOfMeasure);
+            Assert.Equal("Unidad", line.UnitOfMeasure);
             Assert.Equal(75_000m, line.UnitPrice);
             Assert.Equal(13m, line.TaxRate);
         });
@@ -808,6 +808,7 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
             Guid.NewGuid(),
             $"CLI-{suffix}",
             "Cliente de pruebas de servicio",
+            IdentificationType.ForeignNonResident,
             $"ID-{suffix}",
             null,
             null,
@@ -833,8 +834,9 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
             $"SRV-{suffix}",
             name,
             CatalogItemType.Service,
+            "8311500000000",
             null,
-            "unidad",
+            UnitOfMeasureCode.Unit,
             referencePriceCrc,
             null,
             defaultTaxTypeId,
@@ -854,6 +856,7 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
             $"IVA-{suffix}",
             $"IVA {ratePercent}%",
             decimal.Parse(ratePercent, System.Globalization.CultureInfo.InvariantCulture),
+            "08",
             null,
             DateTimeOffset.UtcNow,
             actorId);

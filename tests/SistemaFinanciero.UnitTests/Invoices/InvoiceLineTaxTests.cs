@@ -81,6 +81,7 @@ public sealed class InvoiceLineTaxTests
         new(
             Guid.NewGuid(),
             catalogItemId: null,
+            cabysCode: null,
             "Servicio de soporte",
             "hora",
             quantity,

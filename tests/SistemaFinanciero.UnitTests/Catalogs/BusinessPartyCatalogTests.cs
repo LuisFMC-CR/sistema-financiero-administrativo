@@ -1,6 +1,6 @@
-using SistemaFinanciero.Domain.Catalogs;
-
 namespace SistemaFinanciero.UnitTests.Catalogs;
+
+using SistemaFinanciero.Domain.Catalogs;
 
 public sealed class BusinessPartyCatalogTests
 {
@@ -19,7 +19,8 @@ public sealed class BusinessPartyCatalogTests
             id,
             " cli-001 ",
             " Cliente de prueba ",
-            " 3-101-000001 ",
+            IdentificationType.LegalEntity,
+            " 3101000001 ",
             " cliente@example.test ",
             " 2222-2222 ",
             " San José ",
@@ -29,7 +30,8 @@ public sealed class BusinessPartyCatalogTests
         Assert.Equal(id, customer.Id);
         Assert.Equal("CLI-001", customer.Code);
         Assert.Equal("Cliente de prueba", customer.Name);
-        Assert.Equal("3-101-000001", customer.Identification);
+        Assert.Equal(IdentificationType.LegalEntity, customer.IdentificationType);
+        Assert.Equal("3101000001", customer.Identification);
         Assert.Equal("cliente@example.test", customer.Email);
         Assert.Equal("2222-2222", customer.Phone);
         Assert.Equal("San José", customer.Address);
@@ -39,6 +41,48 @@ public sealed class BusinessPartyCatalogTests
         Assert.Equal(CreatorId, customer.CreatedByUserId);
         Assert.Equal(CreatorId, customer.UpdatedByUserId);
         Assert.Empty(customer.RowVersion);
+    }
+
+    [Theory]
+    [InlineData(IdentificationType.Individual, "12345678")]
+    [InlineData(IdentificationType.Individual, "1234567890")]
+    [InlineData(IdentificationType.LegalEntity, "310100000")]
+    [InlineData(IdentificationType.Dimex, "1234567890")]
+    [InlineData(IdentificationType.Dimex, "12345678901234")]
+    [InlineData(IdentificationType.Nite, "12345")]
+    public void Customer_Constructor_RejectsAnIdentificationWithTheWrongLengthForItsType(
+        IdentificationType type,
+        string identification)
+    {
+        Assert.Throws<ArgumentException>(() => new Customer(
+            Guid.NewGuid(),
+            "CLI-002",
+            "Cliente",
+            type,
+            identification,
+            null,
+            null,
+            null,
+            CreatedAtUtc,
+            CreatorId));
+    }
+
+    [Fact]
+    public void Customer_Constructor_AllowsFreeTextForAForeignNonResident()
+    {
+        Customer customer = new(
+            Guid.NewGuid(),
+            "CLI-003",
+            "Cliente extranjero",
+            IdentificationType.ForeignNonResident,
+            "PASSPORT-AB12345",
+            null,
+            null,
+            null,
+            CreatedAtUtc,
+            CreatorId);
+
+        Assert.Equal("PASSPORT-AB12345", customer.Identification);
     }
 
     [Fact]
@@ -65,7 +109,8 @@ public sealed class BusinessPartyCatalogTests
 
         supplier.UpdateDetails(
             " Proveedor actualizado ",
-            " 3-101-000002 ",
+            IdentificationType.LegalEntity,
+            " 3101000002 ",
             null,
             " 8888-8888 ",
             "   ",
@@ -75,7 +120,8 @@ public sealed class BusinessPartyCatalogTests
 
         Assert.Equal("PROV-001", supplier.Code);
         Assert.Equal("Proveedor actualizado", supplier.Name);
-        Assert.Equal("3-101-000002", supplier.Identification);
+        Assert.Equal(IdentificationType.LegalEntity, supplier.IdentificationType);
+        Assert.Equal("3101000002", supplier.Identification);
         Assert.Null(supplier.Email);
         Assert.Equal("8888-8888", supplier.Phone);
         Assert.Null(supplier.Address);
@@ -92,6 +138,7 @@ public sealed class BusinessPartyCatalogTests
 
         Assert.Throws<ArgumentOutOfRangeException>(() => customer.UpdateDetails(
             "Nombre que no debe aplicarse",
+            customer.IdentificationType,
             customer.Identification,
             null,
             null,
@@ -112,7 +159,8 @@ public sealed class BusinessPartyCatalogTests
             Guid.NewGuid(),
             "PROV-001",
             "Proveedor",
-            "3-101-000001",
+            IdentificationType.LegalEntity,
+            "3101000001",
             null,
             null,
             null,
@@ -127,7 +175,8 @@ public sealed class BusinessPartyCatalogTests
             Guid.NewGuid(),
             "CLI-001",
             "Cliente",
-            "3-101-000001",
+            IdentificationType.LegalEntity,
+            "3101000001",
             null,
             null,
             null,
@@ -141,7 +190,8 @@ public sealed class BusinessPartyCatalogTests
             Guid.NewGuid(),
             "PROV-001",
             "Proveedor",
-            "3-101-000002",
+            IdentificationType.LegalEntity,
+            "3101000002",
             null,
             null,
             null,

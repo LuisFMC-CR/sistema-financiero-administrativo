@@ -13,6 +13,7 @@ using SistemaFinanciero.Application.Parameters;
 using SistemaFinanciero.Application.Security;
 using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Invoices;
+using SistemaFinanciero.Web.Models.Catalogs;
 using SistemaFinanciero.Web.Models.Invoices;
 using SistemaFinanciero.Web.Reporting;
 
@@ -129,7 +130,8 @@ public sealed class InvoicesController(
             invoice,
             canEditDraft,
             canConfirm && isDraft,
-            canCancel && invoice.Status == InvoiceStatus.Confirmed));
+            canCancel && invoice.Status == InvoiceStatus.Confirmed,
+            canConfirm && invoice.Status == InvoiceStatus.Confirmed && invoice.ElectronicInvoiceKey is null));
     }
 
     /// <summary>
@@ -158,6 +160,79 @@ public sealed class InvoicesController(
             ? $"factura-{number}.pdf"
             : "factura.pdf";
         return File(pdf, "application/pdf", fileName);
+    }
+
+    /// <summary>
+    /// Exporta los datos de una factura confirmada en JSON, con los códigos del formato 4.4 de
+    /// Hacienda (bloque 3 del paquete de mejoras finales, RF-88); no emite, firma ni transmite nada.
+    /// </summary>
+    [HttpGet("{id:guid}/exportar-datos")]
+    public async Task<IActionResult> ExportData(Guid id, CancellationToken cancellationToken)
+    {
+        InvoiceModel? invoice = await service.GetAsync(id, OwnerRestriction(), cancellationToken);
+
+        if (invoice is null)
+        {
+            return NotFound();
+        }
+
+        if (invoice.Status != InvoiceStatus.Confirmed)
+        {
+            TempData["ErrorMessage"] = "Solo se exportan datos de facturas confirmadas.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        SystemParametersModel? companyData = await systemParametersService.GetAsync(cancellationToken);
+        string json = InvoiceElectronicDataExport.BuildJson(invoice, companyData, User.Identity?.Name ?? "—");
+        string fileName = invoice.Number is long number
+            ? $"factura-{number}-datos.json"
+            : "factura-datos.json";
+        return File(System.Text.Encoding.UTF8.GetBytes(json), "application/json", fileName);
+    }
+
+    /// <summary>
+    /// Exporta a Excel los datos de las facturas confirmadas de un período, con los mismos datos por
+    /// línea que <see cref="ExportData"/> (bloque 3, RF-88).
+    /// </summary>
+    [HttpGet("exportar-datos")]
+    public async Task<IActionResult> ExportDataRange(
+        DateOnly from,
+        DateOnly to,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActorId(out _))
+        {
+            return Forbid();
+        }
+
+        InvoiceQuery query = new(
+            status: InvoiceStatusFilter.Confirmed,
+            issueDateFrom: from,
+            issueDateTo: to,
+            pageSize: 100);
+        PagedResult<InvoiceSummaryModel> summaries = await service.SearchAsync(query, cancellationToken);
+
+        if (summaries.Items.Count == 0)
+        {
+            TempData["ErrorMessage"] = "No hay facturas confirmadas en el período indicado.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        List<InvoiceModel> invoices = [];
+        foreach (InvoiceSummaryModel summary in summaries.Items)
+        {
+            InvoiceModel? invoice = await service.GetAsync(summary.Id, restrictToOwnerUserId: null, cancellationToken);
+            if (invoice is not null)
+            {
+                invoices.Add(invoice);
+            }
+        }
+
+        byte[] workbook = InvoiceElectronicDataExport.BuildWorkbook(invoices, User.Identity?.Name ?? "—");
+        return File(
+            workbook,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            $"facturas-datos-{from:yyyyMMdd}-{to:yyyyMMdd}.xlsx");
     }
 
     [Authorize(Policy = SystemPolicies.CreateFinancialDrafts)]
@@ -534,6 +609,65 @@ public sealed class InvoicesController(
         return FormFailure(result, model, nameof(Cancel));
     }
 
+    [Authorize(Policy = SystemPolicies.ConfirmFinancialTransactions)]
+    [HttpGet("{id:guid}/clave-electronica")]
+    public async Task<IActionResult> RegisterElectronicInvoice(Guid id, CancellationToken cancellationToken)
+    {
+        InvoiceModel? invoice = await service.GetAsync(id, restrictToOwnerUserId: null, cancellationToken);
+
+        if (invoice is null)
+        {
+            return NotFound();
+        }
+
+        return View(new InvoiceElectronicInvoiceViewModel { Version = invoice.Version });
+    }
+
+    [Authorize(Policy = SystemPolicies.ConfirmFinancialTransactions)]
+    [HttpPost("{id:guid}/clave-electronica")]
+    public async Task<IActionResult> RegisterElectronicInvoice(
+        Guid id,
+        InvoiceElectronicInvoiceViewModel model,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            return View(model);
+        }
+
+        if (!TryGetActorId(out Guid actorId))
+        {
+            return Forbid();
+        }
+
+        CatalogOperationResult result = await service.RegisterElectronicInvoiceAsync(
+            id,
+            new RegisterElectronicInvoiceCommand(model.ElectronicInvoiceKey, model.ElectronicInvoiceNumber),
+            model.Version,
+            actorId,
+            cancellationToken);
+
+        if (result.IsSuccess)
+        {
+            SetSuccessMessage("La clave del comprobante electrónico fue registrada.");
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        if (result.Status == CatalogOperationStatus.ConcurrencyConflict)
+        {
+            InvoiceModel? latest = await service.GetAsync(id, restrictToOwnerUserId: null, cancellationToken);
+            if (latest is null)
+            {
+                return NotFound();
+            }
+
+            model.Version = latest.Version;
+            ModelState.Remove(nameof(model.Version));
+        }
+
+        return FormFailure(result, model, nameof(RegisterElectronicInvoice));
+    }
+
     private static InvoiceLineInputCommand ToLineCommand(InvoiceLineInputViewModel model) => new(
         model.CatalogItemId!.Value,
         model.Quantity,
@@ -648,9 +782,9 @@ public sealed class InvoicesController(
         model.CatalogItemOptions = itemOptions
             .Select(option => new InvoiceLineCatalogItemOptionViewModel(
                 option.Id,
-                $"{option.Code} - {option.Name} ({option.UnitOfMeasure})",
+                $"{option.Code} - {option.Name} ({option.UnitOfMeasure.ToDisplayName()})",
                 option.Name,
-                option.UnitOfMeasure,
+                option.UnitOfMeasure.ToDisplayName(),
                 option.ReferencePriceCrc,
                 option.DefaultTaxTypeId,
                 option.DefaultTaxTypeId is Guid defaultTaxTypeId && taxRatesById.TryGetValue(defaultTaxTypeId, out decimal defaultRate)

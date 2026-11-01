@@ -191,6 +191,29 @@ public sealed class InvoiceCancelViewModel
 }
 
 /// <summary>
+/// Entrada para registrar, una sola vez, la clave y el consecutivo del comprobante electrónico
+/// emitido en la plataforma externa (bloque 3, RF-89). El sistema no los emite ni los valida ante
+/// Hacienda: solo guarda los datos preparados para el traslado manual.
+/// </summary>
+public sealed class InvoiceElectronicInvoiceViewModel
+{
+    [Required(ErrorMessage = "La clave del comprobante electrónico es obligatoria.")]
+    [StringLength(50, MinimumLength = 50, ErrorMessage = "La clave debe tener exactamente 50 dígitos.")]
+    [RegularExpression(@"^\d{50}$", ErrorMessage = "La clave debe tener exactamente 50 dígitos.")]
+    [Display(Name = "Clave del comprobante electrónico")]
+    public string ElectronicInvoiceKey { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "El consecutivo del comprobante electrónico es obligatorio.")]
+    [StringLength(20, MinimumLength = 20, ErrorMessage = "El consecutivo debe tener exactamente 20 dígitos.")]
+    [RegularExpression(@"^\d{20}$", ErrorMessage = "El consecutivo debe tener exactamente 20 dígitos.")]
+    [Display(Name = "Consecutivo del comprobante electrónico")]
+    public string ElectronicInvoiceNumber { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "No fue posible validar la versión del registro.")]
+    public string Version { get; set; } = string.Empty;
+}
+
+/// <summary>
 /// Modelo de la pantalla de detalle: la factura completa, si el usuario puede editarla (borrador propio
 /// o de cualquiera si es Finanzas) y si puede confirmarla o anularla.
 /// </summary>
@@ -198,4 +221,5 @@ public sealed record InvoiceDetailsViewModel(
     InvoiceModel Invoice,
     bool CanEditDraft,
     bool CanConfirm,
-    bool CanCancel);
+    bool CanCancel,
+    bool CanRegisterElectronicInvoice);

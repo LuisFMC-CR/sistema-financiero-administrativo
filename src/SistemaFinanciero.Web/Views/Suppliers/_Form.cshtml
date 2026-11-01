@@ -23,6 +23,16 @@
         </div>
     }
     <div class="col-md-4">
+        <label asp-for="IdentificationType" class="form-label"></label>
+        <select asp-for="IdentificationType" class="form-select">
+            @foreach (IdentificationType type in Enum.GetValues<IdentificationType>())
+            {
+                <option value="@type">@type.ToDisplayName()</option>
+            }
+        </select>
+        <span asp-validation-for="IdentificationType" class="text-danger"></span>
+    </div>
+    <div class="col-md-4">
         <label asp-for="Identification" class="form-label"></label>
         <input asp-for="Identification" class="form-control" autocomplete="off" />
         <span asp-validation-for="Identification" class="text-danger"></span>

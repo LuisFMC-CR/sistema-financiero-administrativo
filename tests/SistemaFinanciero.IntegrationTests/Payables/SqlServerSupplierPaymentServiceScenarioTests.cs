@@ -299,6 +299,7 @@ public sealed class SqlServerSupplierPaymentServiceScenarioTests : IClassFixture
             Guid.NewGuid(),
             $"PRV-{suffix}",
             "Proveedor de pruebas de pagos",
+            IdentificationType.ForeignNonResident,
             $"ID-{suffix}",
             null,
             null,
@@ -320,6 +321,7 @@ public sealed class SqlServerSupplierPaymentServiceScenarioTests : IClassFixture
             $"IVA-{suffix}",
             $"IVA {ratePercent}%",
             decimal.Parse(ratePercent, System.Globalization.CultureInfo.InvariantCulture),
+            "08",
             null,
             DateTimeOffset.UtcNow,
             actorId);

@@ -99,6 +99,7 @@ internal sealed class SupplierCatalogService(
                 Guid.NewGuid(),
                 code,
                 command.Name,
+                command.IdentificationType,
                 command.Identification,
                 command.Email,
                 command.Phone,
@@ -147,6 +148,7 @@ internal sealed class SupplierCatalogService(
         {
             supplier.UpdateDetails(
                 command.Name,
+                command.IdentificationType,
                 command.Identification,
                 command.Email,
                 command.Phone,
@@ -225,6 +227,7 @@ internal sealed class SupplierCatalogService(
             supplier.Id,
             supplier.Code,
             supplier.Name,
+            supplier.IdentificationType,
             supplier.Identification,
             supplier.Email,
             supplier.Phone,

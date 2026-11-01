@@ -157,7 +157,7 @@ public sealed class SystemParametersController(ISystemParametersService service)
         }
 
         CatalogOperationResult result = await service.UpdateCompanyAsync(
-            new SaveCompanyDataCommand(model.Name, model.LegalId, model.Address, model.Phone, model.Email),
+            new SaveCompanyDataCommand(model.Name, model.LegalId, model.Address, model.Phone, model.Email, model.ActivityCode),
             model.Version,
             actorId,
             cancellationToken);
@@ -231,6 +231,7 @@ public sealed class SystemParametersController(ISystemParametersService service)
                 Address = current.CompanyAddress,
                 Phone = current.CompanyPhone,
                 Email = current.CompanyEmail,
+                ActivityCode = current.CompanyActivityCode,
                 Version = current.Version,
             };
     }

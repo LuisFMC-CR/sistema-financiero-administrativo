@@ -11,13 +11,17 @@ namespace SistemaFinanciero.Application.Catalogs.TaxTypes;
 /// Conexiones: <see cref="All"/> la lee <c>TaxTypeService.LoadReferenceTaxTypesAsync</c>, que la llama
 /// <c>TaxTypesController.LoadReference</c> cuando Finanzas pulsa «Cargar tarifas de referencia» en
 /// <c>/catalogos/tipos-impuesto</c>.
+///
+/// Los códigos de Hacienda ("08" tarifa general 13 %, "01" Exento) son del catálogo
+/// "Código de tarifa de IVA" del Anexo 4.4 (TRIBU-CR); "08" se confirmó, "01" queda pendiente de
+/// validar contra el documento oficial (bloque 3 del paquete de mejoras finales).
 /// </remarks>
 public static class ReferenceTaxTypes
 {
     /// <summary>Tarifas de IVA de referencia, identificadas por su código.</summary>
     public static IReadOnlyList<CreateTaxTypeCommand> All { get; } =
     [
-        new("IVA-13", "IVA tarifa general 13 %", 13m, null),
-        new("IVA-EXENTO", "IVA exento", 0m, null),
+        new("IVA-13", "IVA tarifa general 13 %", 13m, "08", null),
+        new("IVA-EXENTO", "IVA exento", 0m, "01", null),
     ];
 }

@@ -18,6 +18,9 @@ public sealed class InvoiceLineTax
     /// <summary>Máximo de caracteres para el nombre descriptivo del impuesto.</summary>
     public const int NameMaxLength = 120;
 
+    /// <summary>Longitud exacta del código oficial de tarifa de Hacienda (bloque 3).</summary>
+    public const int HaciendaRateCodeLength = 2;
+
     private InvoiceLineTax()
     {
     }
@@ -36,6 +39,10 @@ public sealed class InvoiceLineTax
         Code = DomainRules.NormalizedCode(specification.Code, CodeMaxLength, nameof(specification.Code));
         Name = DomainRules.RequiredText(specification.Name, NameMaxLength, nameof(specification.Name));
         Rate = NormalizeRate(specification.Rate, nameof(specification.Rate));
+        HaciendaRateCode = DomainRules.RequiredDigits(
+            specification.HaciendaRateCode,
+            HaciendaRateCodeLength,
+            nameof(specification.HaciendaRateCode));
         TaxableAmount = taxableAmount;
         Amount = CalculateAmount(Rate, taxableAmount);
     }
@@ -54,6 +61,12 @@ public sealed class InvoiceLineTax
 
     /// <summary>Porcentaje de IVA utilizado.</summary>
     public decimal Rate { get; private set; }
+
+    /// <summary>
+    /// Código oficial de tarifa de Hacienda vigente al preparar la factura (bloque 3), para la
+    /// exportación de datos (RF-88).
+    /// </summary>
+    public string HaciendaRateCode { get; private set; } = string.Empty;
 
     /// <summary>Base gravable conservada: el neto de la línea (bruto menos descuento).</summary>
     public decimal TaxableAmount { get; private set; }

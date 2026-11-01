@@ -154,6 +154,7 @@ internal sealed class CatalogItemService(
                 code,
                 command.Name,
                 command.Type,
+                command.CabysCode,
                 command.Description,
                 command.UnitOfMeasure,
                 command.ReferencePriceCrc,
@@ -222,6 +223,7 @@ internal sealed class CatalogItemService(
         {
             item.UpdateDetails(
                 command.Name,
+                command.CabysCode,
                 command.Description,
                 command.UnitOfMeasure,
                 command.ReferencePriceCrc,
@@ -428,6 +430,7 @@ internal sealed class CatalogItemService(
             item.Code,
             item.Name,
             item.Type,
+            item.CabysCode,
             item.Description,
             item.UnitOfMeasure,
             item.ReferencePriceCrc,

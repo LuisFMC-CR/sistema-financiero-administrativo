@@ -39,8 +39,18 @@
         }
     </div>
     <div class="col-md-4">
+        <label class="form-label">Código CABYS</label>
+        <input asp-for="CabysCode" class="form-control" maxlength="13" placeholder="13 dígitos" />
+        <span asp-validation-for="CabysCode" class="text-danger"></span>
+    </div>
+    <div class="col-md-4">
         <label asp-for="UnitOfMeasure" class="form-label"></label>
-        <input asp-for="UnitOfMeasure" class="form-control" placeholder="Ej. unidad, hora, mes" />
+        <select asp-for="UnitOfMeasure" class="form-select">
+            @foreach (UnitOfMeasureCode code in Enum.GetValues<UnitOfMeasureCode>())
+            {
+                <option value="@code">@code.ToDisplayName()</option>
+            }
+        </select>
         <span asp-validation-for="UnitOfMeasure" class="text-danger"></span>
     </div>
     <div class="col-md-4">

@@ -150,6 +150,7 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
                 $"VINC-{suffix}",
                 "Impuesto vinculado",
                 13m,
+                "08",
                 null,
                 now,
                 actorId);
@@ -161,7 +162,7 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
             InvoiceLine linked = CreateLine(
                 quantity: 1m,
                 unitPrice: 100m,
-                new InvoiceTaxSpecification(taxType.Code, taxType.Name, taxType.Rate, taxType.Id),
+                new InvoiceTaxSpecification(taxType.Code, taxType.Name, taxType.Rate, taxType.HaciendaRateCode, taxType.Id),
                 "Línea con impuesto del catálogo");
             reloaded.AddLine(linked, now.AddSeconds(10), actorId);
             await context.SaveChangesAsync();
@@ -173,7 +174,7 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
 
             // Cambiar y desactivar el tipo del catálogo no altera la fotografía ya guardada.
             TaxType current = await context.TaxTypes.SingleAsync(candidate => candidate.Id == taxType.Id);
-            current.UpdateDetails(current.Code, "Nombre nuevo", 1m, null, now.AddMinutes(1), actorId);
+            current.UpdateDetails(current.Code, "Nombre nuevo", 1m, "08", null, now.AddMinutes(1), actorId);
             current.Deactivate(now.AddMinutes(2), actorId);
             await context.SaveChangesAsync();
 
@@ -205,7 +206,7 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
                 CreateLine(
                     1m,
                     100m,
-                    new InvoiceTaxSpecification("FANTASMA", "Tipo inexistente", 13m, Guid.NewGuid())),
+                    new InvoiceTaxSpecification("FANTASMA", "Tipo inexistente", 13m, "08", Guid.NewGuid())),
                 now.AddSeconds(10),
                 actorId);
 
@@ -331,6 +332,7 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
             Guid.NewGuid(),
             $"CLI-{suffix}",
             "Cliente de facturas",
+            IdentificationType.ForeignNonResident,
             $"ID-{suffix}",
             null,
             null,
@@ -441,6 +443,7 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
         new(
             Guid.NewGuid(),
             catalogItemId: null,
+            cabysCode: null,
             description,
             "hora",
             quantity,

@@ -21,8 +21,9 @@ public sealed class CatalogItemTests
             " srv-001 ",
             " Soporte mensual ",
             CatalogItemType.Service,
+            "8311500000000",
             " Atención remota ",
-            " mes ",
+            UnitOfMeasureCode.Hour,
             123.45678m,
             categoryId,
             taxTypeId,
@@ -32,8 +33,9 @@ public sealed class CatalogItemTests
         Assert.Equal("SRV-001", item.Code);
         Assert.Equal("Soporte mensual", item.Name);
         Assert.Equal(CatalogItemType.Service, item.Type);
+        Assert.Equal("8311500000000", item.CabysCode);
         Assert.Equal("Atención remota", item.Description);
-        Assert.Equal("mes", item.UnitOfMeasure);
+        Assert.Equal(UnitOfMeasureCode.Hour, item.UnitOfMeasure);
         Assert.Equal(123.4568m, item.ReferencePriceCrc);
         Assert.Equal(categoryId, item.DefaultIncomeCategoryId);
         Assert.Equal(taxTypeId, item.DefaultTaxTypeId);
@@ -61,6 +63,27 @@ public sealed class CatalogItemTests
             CreateItem(referencePriceCrc: invalidPrice));
     }
 
+    [Theory]
+    [InlineData("123456789012")]
+    [InlineData("12345678901234")]
+    [InlineData("831150000000A")]
+    public void Constructor_RejectsACabysCodeThatIsNotThirteenDigits(string invalidCabysCode)
+    {
+        Assert.Throws<ArgumentException>(() => new CatalogItem(
+            Guid.NewGuid(),
+            "ITEM-001",
+            "Elemento",
+            CatalogItemType.Service,
+            invalidCabysCode,
+            null,
+            UnitOfMeasureCode.Unit,
+            null,
+            null,
+            null,
+            CreatedAtUtc,
+            CreatorId));
+    }
+
     [Fact]
     public void UpdateDetails_ChangesEditableValuesAndAudit()
     {
@@ -71,8 +94,9 @@ public sealed class CatalogItemTests
 
         item.UpdateDetails(
             " Equipo ",
+            "8511900000000",
             " ",
-            " unidad ",
+            UnitOfMeasureCode.Unit,
             20.12345m,
             categoryId,
             taxTypeId,
@@ -82,8 +106,9 @@ public sealed class CatalogItemTests
         Assert.Equal("ITEM-001", item.Code);
         Assert.Equal("Equipo", item.Name);
         Assert.Equal(CatalogItemType.Service, item.Type);
+        Assert.Equal("8511900000000", item.CabysCode);
         Assert.Null(item.Description);
-        Assert.Equal("unidad", item.UnitOfMeasure);
+        Assert.Equal(UnitOfMeasureCode.Unit, item.UnitOfMeasure);
         Assert.Equal(20.1235m, item.ReferencePriceCrc);
         Assert.Equal(categoryId, item.DefaultIncomeCategoryId);
         Assert.Equal(taxTypeId, item.DefaultTaxTypeId);
@@ -99,8 +124,9 @@ public sealed class CatalogItemTests
             "ITEM-001",
             "Elemento",
             (CatalogItemType)99,
+            "8311500000000",
             null,
-            "unidad",
+            UnitOfMeasureCode.Unit,
             null,
             null,
             null,
@@ -115,8 +141,9 @@ public sealed class CatalogItemTests
             "ITEM-001",
             "Elemento",
             CatalogItemType.Service,
+            "8311500000000",
             null,
-            "unidad",
+            UnitOfMeasureCode.Unit,
             referencePriceCrc,
             null,
             null,

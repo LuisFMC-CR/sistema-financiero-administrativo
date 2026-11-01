@@ -14,6 +14,12 @@ namespace SistemaFinanciero.Domain.Invoices;
 /// </remarks>
 public sealed class Invoice
 {
+    /// <summary>Longitud exacta de la clave del comprobante electrónico (bloque 3, RF-89).</summary>
+    public const int ElectronicInvoiceKeyLength = 50;
+
+    /// <summary>Longitud exacta del consecutivo del comprobante electrónico (bloque 3, RF-89).</summary>
+    public const int ElectronicInvoiceNumberLength = 20;
+
     private readonly List<InvoiceLine> lines = [];
 
     private Invoice()
@@ -95,6 +101,15 @@ public sealed class Invoice
 
     /// <summary>Usuario que confirmó el documento, cuando corresponde.</summary>
     public Guid? ConfirmedByUserId { get; private set; }
+
+    /// <summary>
+    /// Clave del comprobante electrónico emitido en la plataforma externa (bloque 3, RF-89); se
+    /// registra una sola vez, después de confirmar. El sistema no la emite, firma ni transmite.
+    /// </summary>
+    public string? ElectronicInvoiceKey { get; private set; }
+
+    /// <summary>Consecutivo del comprobante electrónico emitido en la plataforma externa (RF-89).</summary>
+    public string? ElectronicInvoiceNumber { get; private set; }
 
     /// <summary>Motivo de anulación, cuando corresponde.</summary>
     public string? CancellationReason { get; private set; }
@@ -228,6 +243,44 @@ public sealed class Invoice
         ConfirmedByUserId = confirmedByUserId;
         ConfirmedAtUtc = confirmedAtUtc;
         Status = InvoiceStatus.Confirmed;
+    }
+
+    /// <summary>
+    /// Registra la clave y el consecutivo del comprobante electrónico emitido en la plataforma
+    /// externa (bloque 3, RF-89): solo se permite una vez, sobre una factura ya confirmada. No emite,
+    /// firma ni transmite nada; solo guarda los datos para el traslado manual.
+    /// </summary>
+    public void RegisterElectronicInvoiceDetails(
+        string electronicInvoiceKey,
+        string electronicInvoiceNumber,
+        DateTimeOffset updatedAtUtc,
+        Guid updatedByUserId)
+    {
+        if (Status != InvoiceStatus.Confirmed)
+        {
+            throw new InvalidOperationException(
+                "Solo se puede registrar la clave del comprobante electrónico en una factura confirmada.");
+        }
+
+        if (ElectronicInvoiceKey is not null)
+        {
+            throw new InvalidOperationException(
+                "La factura ya tiene registrada la clave de su comprobante electrónico.");
+        }
+
+        // Todo se valida antes de asignar: si algún dato es inválido, la factura queda sin cambios.
+        string validKey = DomainRules.RequiredDigits(
+            electronicInvoiceKey,
+            ElectronicInvoiceKeyLength,
+            nameof(electronicInvoiceKey));
+        string validNumber = DomainRules.RequiredDigits(
+            electronicInvoiceNumber,
+            ElectronicInvoiceNumberLength,
+            nameof(electronicInvoiceNumber));
+        Touch(updatedAtUtc, updatedByUserId);
+
+        ElectronicInvoiceKey = validKey;
+        ElectronicInvoiceNumber = validNumber;
     }
 
     /// <summary>Anula una factura confirmada sin eliminar su historia.</summary>

@@ -198,6 +198,7 @@ public sealed class CatalogItemsController(
         return new(
             model.Name,
             model.Type,
+            model.CabysCode,
             model.Description,
             model.UnitOfMeasure,
             model.ReferencePriceCrc,
@@ -209,6 +210,7 @@ public sealed class CatalogItemsController(
     {
         return new(
             model.Name,
+            model.CabysCode,
             model.Description,
             model.UnitOfMeasure,
             model.ReferencePriceCrc,
@@ -223,6 +225,7 @@ public sealed class CatalogItemsController(
             Code = item.Code,
             Name = item.Name,
             Type = item.Type,
+            CabysCode = item.CabysCode,
             Description = item.Description,
             UnitOfMeasure = item.UnitOfMeasure,
             ReferencePriceCrc = item.ReferencePriceCrc,

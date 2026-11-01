@@ -65,6 +65,7 @@ internal sealed class InvoiceService(
 
             invoices = invoices.Where(invoice =>
                 (isNumericSearch && invoice.Number == numericSearch) ||
+                (invoice.ElectronicInvoiceKey != null && invoice.ElectronicInvoiceKey.Contains(search)) ||
                 dbContext.Set<Customer>().Any(customer =>
                     customer.Id == invoice.CustomerId && customer.Name.Contains(search)));
         }
@@ -128,7 +129,7 @@ internal sealed class InvoiceService(
         IReadOnlyDictionary<Guid, string> userNames = await GetUserNamesAsync(
             [invoice.CreatedByUserId],
             cancellationToken);
-        IReadOnlyDictionary<Guid, string> catalogItemCodes = await GetCatalogItemCodesAsync(
+        IReadOnlyDictionary<Guid, CatalogItemInfo> catalogItemInfo = await GetCatalogItemInfoAsync(
             invoice.Lines
                 .Where(line => line.CatalogItemId.HasValue)
                 .Select(line => line.CatalogItemId!.Value),
@@ -142,12 +143,13 @@ internal sealed class InvoiceService(
         return MapInvoice(
             invoice,
             customer?.Name ?? "—",
+            customer?.IdentificationType ?? IdentificationType.ForeignNonResident,
             customer?.Identification ?? "—",
             customer?.Email,
             customer?.Phone,
             categoryName,
             userNames.GetValueOrDefault(invoice.CreatedByUserId, "—"),
-            catalogItemCodes,
+            catalogItemInfo,
             paymentMethod);
     }
 
@@ -332,12 +334,13 @@ internal sealed class InvoiceService(
 
         try
         {
-            InvoiceTaxSpecification tax = new(taxType!.Code, taxType.Name, taxType.Rate, taxType.Id);
+            InvoiceTaxSpecification tax = new(taxType!.Code, taxType.Name, taxType.Rate, taxType.HaciendaRateCode, taxType.Id);
             InvoiceLine line = new(
                 Guid.NewGuid(),
                 catalogItem!.Id,
+                catalogItem.CabysCode,
                 catalogItem.Name,
-                catalogItem.UnitOfMeasure,
+                catalogItem.UnitOfMeasure.ToLabel(),
                 command.Quantity,
                 unitPrice,
                 command.DiscountAmount,
@@ -406,12 +409,13 @@ internal sealed class InvoiceService(
 
         try
         {
-            InvoiceTaxSpecification tax = new(taxType!.Code, taxType.Name, taxType.Rate, taxType.Id);
+            InvoiceTaxSpecification tax = new(taxType!.Code, taxType.Name, taxType.Rate, taxType.HaciendaRateCode, taxType.Id);
             InvoiceLine replacement = new(
                 Guid.NewGuid(),
                 catalogItem!.Id,
+                catalogItem.CabysCode,
                 catalogItem.Name,
-                catalogItem.UnitOfMeasure,
+                catalogItem.UnitOfMeasure.ToLabel(),
                 command.Quantity,
                 unitPrice,
                 command.DiscountAmount,
@@ -694,6 +698,52 @@ internal sealed class InvoiceService(
         }
     }
 
+    public async Task<CatalogOperationResult> RegisterElectronicInvoiceAsync(
+        Guid id,
+        RegisterElectronicInvoiceCommand command,
+        string version,
+        Guid actorId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        Invoice? invoice = await LoadTrackedAsync(id, includeLines: false, restrictToOwnerUserId: null, cancellationToken);
+
+        if (invoice is null)
+        {
+            return CatalogOperationResult.Missing();
+        }
+
+        if (!CatalogPersistence.TrySetOriginalVersion(dbContext, invoice, version))
+        {
+            return CatalogOperationResult.Invalid("El token de concurrencia no es válido.");
+        }
+
+        try
+        {
+            invoice.RegisterElectronicInvoiceDetails(
+                command.ElectronicInvoiceKey,
+                command.ElectronicInvoiceNumber,
+                timeProvider.GetUtcNow(),
+                actorId);
+
+            return await CatalogPersistence.SaveChangesAsync(
+                dbContext,
+                "Ya existe una factura con la misma clave de comprobante electrónico.",
+                cancellationToken);
+        }
+        catch (ArgumentException exception)
+        {
+            dbContext.ChangeTracker.Clear();
+            return CatalogOperationResult.Invalid(exception.Message);
+        }
+        catch (InvalidOperationException exception)
+        {
+            dbContext.ChangeTracker.Clear();
+            return CatalogOperationResult.Invalid(exception.Message);
+        }
+    }
+
     public Task<bool> HasDuplicateCashReferenceAsync(
         Guid cashAccountId,
         string reference,
@@ -846,7 +896,12 @@ internal sealed class InvoiceService(
         return (null, taxType);
     }
 
-    private readonly record struct CustomerContact(string Name, string Identification, string? Email, string? Phone);
+    private readonly record struct CustomerContact(
+        string Name,
+        IdentificationType IdentificationType,
+        string Identification,
+        string? Email,
+        string? Phone);
 
     private async Task<CustomerContact?> GetCustomerContactAsync(
         Guid customerId,
@@ -857,6 +912,7 @@ internal sealed class InvoiceService(
             .Where(customer => customer.Id == customerId)
             .Select(customer => new CustomerContact(
                 customer.Name,
+                customer.IdentificationType,
                 customer.Identification,
                 customer.Email,
                 customer.Phone))
@@ -866,7 +922,9 @@ internal sealed class InvoiceService(
         return matches.Length > 0 ? matches[0] : null;
     }
 
-    private async Task<IReadOnlyDictionary<Guid, string>> GetCatalogItemCodesAsync(
+    private readonly record struct CatalogItemInfo(string Code, CatalogItemType Type);
+
+    private async Task<IReadOnlyDictionary<Guid, CatalogItemInfo>> GetCatalogItemInfoAsync(
         IEnumerable<Guid> catalogItemIds,
         CancellationToken cancellationToken)
     {
@@ -874,13 +932,16 @@ internal sealed class InvoiceService(
 
         if (ids.Length == 0)
         {
-            return new Dictionary<Guid, string>();
+            return new Dictionary<Guid, CatalogItemInfo>();
         }
 
         return await dbContext.Set<CatalogItem>()
             .AsNoTracking()
             .Where(item => ids.Contains(item.Id))
-            .ToDictionaryAsync(item => item.Id, item => item.Code, cancellationToken);
+            .ToDictionaryAsync(
+                item => item.Id,
+                item => new CatalogItemInfo(item.Code, item.Type),
+                cancellationToken);
     }
 
     private async Task<IReadOnlyDictionary<Guid, string>> GetCustomerNamesAsync(
@@ -920,12 +981,13 @@ internal sealed class InvoiceService(
     private static InvoiceModel MapInvoice(
         Invoice invoice,
         string customerName,
+        IdentificationType customerIdentificationType,
         string customerIdentification,
         string? customerEmail,
         string? customerPhone,
         string categoryName,
         string createdByUserName,
-        IReadOnlyDictionary<Guid, string> catalogItemCodes,
+        IReadOnlyDictionary<Guid, CatalogItemInfo> catalogItemInfo,
         PaymentMethod? paymentMethod = null)
     {
         return new InvoiceModel(
@@ -933,6 +995,7 @@ internal sealed class InvoiceService(
             invoice.Number,
             invoice.CustomerId,
             customerName,
+            customerIdentificationType,
             customerIdentification,
             customerEmail,
             customerPhone,
@@ -948,6 +1011,8 @@ internal sealed class InvoiceService(
             invoice.TaxAmount,
             invoice.TotalAmount,
             invoice.ConfirmedAtUtc,
+            invoice.ElectronicInvoiceKey,
+            invoice.ElectronicInvoiceNumber,
             invoice.CancellationReason,
             invoice.CancelledAtUtc,
             invoice.CreatedByUserId,
@@ -955,17 +1020,23 @@ internal sealed class InvoiceService(
             invoice.CreatedAtUtc,
             invoice.UpdatedAtUtc,
             CatalogPersistence.EncodeVersion(invoice.RowVersion),
-            invoice.Lines.Select(line => MapLine(line, catalogItemCodes)).ToArray(),
+            invoice.Lines.Select(line => MapLine(line, catalogItemInfo)).ToArray(),
             paymentMethod);
     }
 
-    private static InvoiceLineModel MapLine(InvoiceLine line, IReadOnlyDictionary<Guid, string> catalogItemCodes)
+    private static InvoiceLineModel MapLine(InvoiceLine line, IReadOnlyDictionary<Guid, CatalogItemInfo> catalogItemInfo)
     {
+        CatalogItemInfo? info = line.CatalogItemId is Guid catalogItemId && catalogItemInfo.TryGetValue(catalogItemId, out CatalogItemInfo found)
+            ? found
+            : null;
+
         return new InvoiceLineModel(
             line.Id,
             line.Position,
             line.CatalogItemId,
-            line.CatalogItemId is Guid catalogItemId ? catalogItemCodes.GetValueOrDefault(catalogItemId) : null,
+            info?.Code,
+            info?.Type,
+            line.CabysCode,
             line.Description,
             line.UnitOfMeasure,
             line.Quantity,
@@ -976,6 +1047,7 @@ internal sealed class InvoiceService(
             line.Tax.Code,
             line.Tax.Name,
             line.Tax.Rate,
+            line.Tax.HaciendaRateCode,
             line.Tax.TaxableAmount,
             line.Tax.Amount,
             line.TotalAmount);

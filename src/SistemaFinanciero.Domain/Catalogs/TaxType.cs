@@ -29,6 +29,9 @@ public sealed class TaxType
     /// <summary>Tarifa máxima admitida.</summary>
     public const decimal MaxPercentageRate = 100m;
 
+    /// <summary>Longitud exacta del código oficial de tarifa de Hacienda (bloque 3).</summary>
+    public const int HaciendaRateCodeLength = 2;
+
     private TaxType()
     {
     }
@@ -39,6 +42,7 @@ public sealed class TaxType
         string code,
         string name,
         decimal rate,
+        string haciendaRateCode,
         string? description,
         DateTimeOffset createdAtUtc,
         Guid createdByUserId)
@@ -47,6 +51,10 @@ public sealed class TaxType
         Code = DomainRules.NormalizedCode(code, CodeMaxLength, nameof(code));
         Name = DomainRules.RequiredText(name, NameMaxLength, nameof(name));
         Rate = RequireRate(rate, nameof(rate));
+        HaciendaRateCode = DomainRules.RequiredDigits(
+            haciendaRateCode,
+            HaciendaRateCodeLength,
+            nameof(haciendaRateCode));
         Description = DomainRules.OptionalText(description, DescriptionMaxLength, nameof(description));
         CreatedAtUtc = DomainRules.RequiredUtcTimestamp(createdAtUtc, nameof(createdAtUtc));
         CreatedByUserId = DomainRules.RequiredId(createdByUserId, nameof(createdByUserId));
@@ -66,6 +74,13 @@ public sealed class TaxType
 
     /// <summary>Obtiene el porcentaje de la tarifa, con cuatro decimales.</summary>
     public decimal Rate { get; private set; }
+
+    /// <summary>
+    /// Obtiene el código oficial de tarifa de IVA de Hacienda (bloque 3 del paquete de mejoras
+    /// finales), de 2 dígitos; no se emite, firma ni transmite nada con él, solo prepara los datos
+    /// para el traslado manual a la plataforma externa.
+    /// </summary>
+    public string HaciendaRateCode { get; private set; } = string.Empty;
 
     /// <summary>Obtiene la descripción opcional.</summary>
     public string? Description { get; private set; }
@@ -88,11 +103,12 @@ public sealed class TaxType
     /// <summary>Obtiene el token de concurrencia administrado por la persistencia.</summary>
     public byte[] RowVersion { get; private set; } = [];
 
-    /// <summary>Actualiza código, nombre, tarifa y descripción.</summary>
+    /// <summary>Actualiza código, nombre, tarifa, código de Hacienda y descripción.</summary>
     public void UpdateDetails(
         string code,
         string name,
         decimal rate,
+        string haciendaRateCode,
         string? description,
         DateTimeOffset updatedAtUtc,
         Guid updatedByUserId)
@@ -100,6 +116,10 @@ public sealed class TaxType
         string normalizedCode = DomainRules.NormalizedCode(code, CodeMaxLength, nameof(code));
         string normalizedName = DomainRules.RequiredText(name, NameMaxLength, nameof(name));
         decimal normalizedRate = RequireRate(rate, nameof(rate));
+        string normalizedHaciendaRateCode = DomainRules.RequiredDigits(
+            haciendaRateCode,
+            HaciendaRateCodeLength,
+            nameof(haciendaRateCode));
         string? normalizedDescription = DomainRules.OptionalText(
             description,
             DescriptionMaxLength,
@@ -109,6 +129,7 @@ public sealed class TaxType
         Code = normalizedCode;
         Name = normalizedName;
         Rate = normalizedRate;
+        HaciendaRateCode = normalizedHaciendaRateCode;
         Description = normalizedDescription;
         Touch(normalizedUpdatedAtUtc, updatedByUserId);
     }

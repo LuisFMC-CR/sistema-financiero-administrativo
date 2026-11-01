@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
+using SistemaFinanciero.Domain.Catalogs;
 
 namespace SistemaFinanciero.Web.Models.Catalogs;
 
@@ -10,14 +11,20 @@ namespace SistemaFinanciero.Web.Models.Catalogs;
 /// <remarks>
 /// Conexiones: la heredan <see cref="CustomerInputViewModel"/> y <see cref="SupplierInputViewModel"/>;
 /// <c>CustomersController</c> y <c>SuppliersController</c> la convierten en
-/// <c>SaveCustomerCommand</c>/<c>SaveSupplierCommand</c> (Application).
+/// <c>SaveCustomerCommand</c>/<c>SaveSupplierCommand</c> (Application). La validación de la longitud de
+/// <see cref="Identification"/> según <see cref="IdentificationType"/> (bloque 3 del paquete de mejoras
+/// finales) se repite aquí junto al campo para que el error se muestre antes de llegar al dominio;
+/// <c>IdentificationTypeRules</c> (Domain) es la validación autoritativa.
 /// </remarks>
-public abstract class BusinessContactInputViewModel
+public abstract class BusinessContactInputViewModel : IValidatableObject
 {
     [Required(ErrorMessage = "El nombre es obligatorio.")]
     [StringLength(150, ErrorMessage = "El nombre no puede superar 150 caracteres.")]
     [Display(Name = "Nombre o razón social")]
     public string Name { get; set; } = string.Empty;
+
+    [Display(Name = "Tipo de identificación")]
+    public IdentificationType IdentificationType { get; set; } = IdentificationType.Individual;
 
     [Required(ErrorMessage = "La identificación es obligatoria.")]
     [StringLength(50, ErrorMessage = "La identificación no puede superar 50 caracteres.")]
@@ -37,6 +44,37 @@ public abstract class BusinessContactInputViewModel
     [StringLength(500, ErrorMessage = "La dirección no puede superar 500 caracteres.")]
     [Display(Name = "Dirección")]
     public string? Address { get; set; }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (string.IsNullOrWhiteSpace(Identification))
+        {
+            yield break;
+        }
+
+        bool isValid = IdentificationType switch
+        {
+            IdentificationType.Individual => Identification.Length == 9 && Identification.All(char.IsAsciiDigit),
+            IdentificationType.LegalEntity => Identification.Length == 10 && Identification.All(char.IsAsciiDigit),
+            IdentificationType.Dimex => Identification.Length is 11 or 12 && Identification.All(char.IsAsciiDigit),
+            IdentificationType.Nite => Identification.Length == 10 && Identification.All(char.IsAsciiDigit),
+            IdentificationType.ForeignNonResident => true,
+            _ => false,
+        };
+
+        if (!isValid)
+        {
+            string message = IdentificationType switch
+            {
+                IdentificationType.Individual => "La identificación física debe tener 9 dígitos.",
+                IdentificationType.LegalEntity => "La identificación jurídica debe tener 10 dígitos.",
+                IdentificationType.Dimex => "El DIMEX debe tener 11 o 12 dígitos.",
+                IdentificationType.Nite => "El NITE debe tener 10 dígitos.",
+                _ => "La identificación no corresponde al tipo seleccionado.",
+            };
+            yield return new ValidationResult(message, [nameof(Identification)]);
+        }
+    }
 }
 
 /// <summary>Entrada para crear un cliente.</summary>

@@ -49,6 +49,7 @@ public sealed class Supplier
         Guid id,
         string code,
         string name,
+        IdentificationType identificationType,
         string identification,
         string? email,
         string? phone,
@@ -60,7 +61,9 @@ public sealed class Supplier
         Id = DomainRules.RequiredId(id, nameof(id));
         Code = DomainRules.NormalizedCode(code, CodeMaxLength, nameof(code));
         Name = DomainRules.RequiredText(name, NameMaxLength, nameof(name));
-        Identification = DomainRules.RequiredText(
+        IdentificationType = DomainRules.DefinedEnum(identificationType, nameof(identificationType));
+        Identification = IdentificationTypeRules.Validate(
+            IdentificationType,
             identification,
             IdentificationMaxLength,
             nameof(identification));
@@ -86,6 +89,12 @@ public sealed class Supplier
 
     /// <summary>Obtiene el nombre completo o razón social.</summary>
     public string Name { get; private set; } = string.Empty;
+
+    /// <summary>
+    /// Obtiene el tipo de identificación (bloque 3 del paquete de mejoras finales), que determina
+    /// cuántos dígitos exige <see cref="Identification"/>.
+    /// </summary>
+    public IdentificationType IdentificationType { get; private set; }
 
     /// <summary>Obtiene la identificación fiscal o personal, obligatoria y única.</summary>
     public string Identification { get; private set; } = string.Empty;
@@ -125,6 +134,7 @@ public sealed class Supplier
     /// </summary>
     public void UpdateDetails(
         string name,
+        IdentificationType identificationType,
         string identification,
         string? email,
         string? phone,
@@ -134,7 +144,11 @@ public sealed class Supplier
         Guid updatedByUserId)
     {
         string normalizedName = DomainRules.RequiredText(name, NameMaxLength, nameof(name));
-        string normalizedIdentification = DomainRules.RequiredText(
+        IdentificationType normalizedIdentificationType = DomainRules.DefinedEnum(
+            identificationType,
+            nameof(identificationType));
+        string normalizedIdentification = IdentificationTypeRules.Validate(
+            normalizedIdentificationType,
             identification,
             IdentificationMaxLength,
             nameof(identification));
@@ -148,6 +162,7 @@ public sealed class Supplier
         DateTimeOffset normalizedUpdatedAtUtc = ValidateUpdateAudit(updatedAtUtc, updatedByUserId);
 
         Name = normalizedName;
+        IdentificationType = normalizedIdentificationType;
         Identification = normalizedIdentification;
         Email = normalizedEmail;
         Phone = normalizedPhone;

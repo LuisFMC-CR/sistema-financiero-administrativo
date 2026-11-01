@@ -352,6 +352,11 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("CabysCode")
+                        .IsRequired()
+                        .HasMaxLength(13)
+                        .HasColumnType("nvarchar(13)");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -396,10 +401,8 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                     b.Property<int>("Type")
                         .HasColumnType("int");
 
-                    b.Property<string>("UnitOfMeasure")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)");
+                    b.Property<int>("UnitOfMeasure")
+                        .HasColumnType("int");
 
                     b.Property<DateTimeOffset>("UpdatedAtUtc")
                         .HasColumnType("datetimeoffset");
@@ -426,11 +429,15 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
 
                     b.ToTable("ProductosServicios", "catalogos", t =>
                         {
+                            t.HasCheckConstraint("CK_ProductosServicios_CabysCode", "LEN([CabysCode]) = 13");
+
                             t.HasCheckConstraint("CK_ProductosServicios_Codigo_NoVacio", "LEN(LTRIM(RTRIM([Code]))) > 0");
 
                             t.HasCheckConstraint("CK_ProductosServicios_PriceCrc", "[ReferencePriceCrc] IS NULL OR [ReferencePriceCrc] > 0");
 
                             t.HasCheckConstraint("CK_ProductosServicios_Type", "[Type] IN (1, 2)");
+
+                            t.HasCheckConstraint("CK_ProductosServicios_UnitOfMeasure", "[UnitOfMeasure] IN (1, 2, 3, 4)");
                         });
                 });
 
@@ -463,6 +470,9 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("IdentificationType")
+                        .HasColumnType("int");
 
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
@@ -510,6 +520,8 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                     b.ToTable("Clientes", "catalogos", t =>
                         {
                             t.HasCheckConstraint("CK_Clientes_Codigo_NoVacio", "LEN(LTRIM(RTRIM([Code]))) > 0");
+
+                            t.HasCheckConstraint("CK_Clientes_IdentificationType", "[IdentificationType] IN (1, 2, 3, 4, 5)");
                         });
                 });
 
@@ -716,6 +728,9 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<int>("IdentificationType")
+                        .HasColumnType("int");
+
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -762,6 +777,8 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                     b.ToTable("Proveedores", "catalogos", t =>
                         {
                             t.HasCheckConstraint("CK_Proveedores_Codigo_NoVacio", "LEN(LTRIM(RTRIM([Code]))) > 0");
+
+                            t.HasCheckConstraint("CK_Proveedores_IdentificationType", "[IdentificationType] IN (1, 2, 3, 4, 5)");
                         });
                 });
 
@@ -785,6 +802,11 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                     b.Property<string>("Description")
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("HaciendaRateCode")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
 
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
@@ -828,6 +850,8 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                     b.ToTable("TiposImpuesto", "catalogos", t =>
                         {
                             t.HasCheckConstraint("CK_TiposImpuesto_Codigo_NoVacio", "LEN(LTRIM(RTRIM([Code]))) > 0");
+
+                            t.HasCheckConstraint("CK_TiposImpuesto_HaciendaRateCode", "LEN([HaciendaRateCode]) = 2");
 
                             t.HasCheckConstraint("CK_TiposImpuesto_Rate", "[Rate] >= 0 AND [Rate] <= 100");
                         });
@@ -1213,6 +1237,14 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                     b.Property<DateOnly?>("DueDate")
                         .HasColumnType("date");
 
+                    b.Property<string>("ElectronicInvoiceKey")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("ElectronicInvoiceNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<decimal>("GrossAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -1264,6 +1296,11 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CreatedByUserId");
 
+                    b.HasIndex("ElectronicInvoiceKey")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Facturas_ElectronicInvoiceKey")
+                        .HasFilter("[ElectronicInvoiceKey] IS NOT NULL");
+
                     b.HasIndex("IncomeCategoryId");
 
                     b.HasIndex("Number")
@@ -1283,6 +1320,10 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_Facturas_DueDate", "([PaymentTerm] = 1 AND [DueDate] IS NULL) OR ([PaymentTerm] = 2 AND [DueDate] = DATEADD(DAY, 30, [IssueDate])) OR ([PaymentTerm] = 3 AND [DueDate] = DATEADD(DAY, 60, [IssueDate])) OR ([PaymentTerm] = 4 AND [DueDate] = DATEADD(DAY, 90, [IssueDate]))");
 
+                            t.HasCheckConstraint("CK_Facturas_ElectronicInvoiceKey", "[ElectronicInvoiceKey] IS NULL OR LEN([ElectronicInvoiceKey]) = 50");
+
+                            t.HasCheckConstraint("CK_Facturas_ElectronicInvoiceNumber", "[ElectronicInvoiceNumber] IS NULL OR LEN([ElectronicInvoiceNumber]) = 20");
+
                             t.HasCheckConstraint("CK_Facturas_PaymentTerm", "[PaymentTerm] IN (1, 2, 3, 4)");
 
                             t.HasCheckConstraint("CK_Facturas_Status", "[Status] IN (1, 2, 3)");
@@ -1295,6 +1336,10 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CabysCode")
+                        .HasMaxLength(13)
+                        .HasColumnType("nvarchar(13)");
 
                     b.Property<Guid?>("CatalogItemId")
                         .HasColumnType("uniqueidentifier");
@@ -1360,6 +1405,8 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_FacturaLineas_Position", "[Position] > 0");
 
+                            t.HasCheckConstraint("CK_FacturaLineas_Tax_HaciendaRateCode", "LEN([Tax_HaciendaRateCode]) = 2");
+
                             t.HasCheckConstraint("CK_FacturaLineas_Tax_RateAmount", "[Tax_Rate] >= 0 AND [Tax_TaxableAmount] >= 0 AND [Tax_Amount] >= 0");
                         });
                 });
@@ -1407,6 +1454,10 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("ChangedByUserId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CompanyActivityCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
 
                     b.Property<string>("CompanyAddress")
                         .HasMaxLength(300)
@@ -1496,6 +1547,10 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
 
                     b.Property<DateOnly>("ClosingDate")
                         .HasColumnType("date");
+
+                    b.Property<string>("CompanyActivityCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
 
                     b.Property<string>("CompanyAddress")
                         .HasMaxLength(300)
@@ -2531,6 +2586,12 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                                 .HasMaxLength(30)
                                 .HasColumnType("nvarchar(30)")
                                 .HasColumnName("Tax_Code");
+
+                            b1.Property<string>("HaciendaRateCode")
+                                .IsRequired()
+                                .HasMaxLength(2)
+                                .HasColumnType("nvarchar(2)")
+                                .HasColumnName("Tax_HaciendaRateCode");
 
                             b1.Property<string>("Name")
                                 .IsRequired()

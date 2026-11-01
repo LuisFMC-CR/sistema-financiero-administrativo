@@ -25,6 +25,12 @@ public sealed class TaxTypeCreateViewModel
     [Display(Name = "Tarifa")]
     public decimal Rate { get; set; }
 
+    [Required(ErrorMessage = "El código de tarifa de Hacienda es obligatorio.")]
+    [StringLength(2, MinimumLength = 2, ErrorMessage = "El código de Hacienda debe tener exactamente 2 dígitos.")]
+    [RegularExpression(@"^\d{2}$", ErrorMessage = "El código de Hacienda debe tener exactamente 2 dígitos.")]
+    [Display(Name = "Código de tarifa de Hacienda")]
+    public string HaciendaRateCode { get; set; } = string.Empty;
+
     [StringLength(300, ErrorMessage = "La descripción no puede superar 300 caracteres.")]
     [Display(Name = "Descripción")]
     public string? Description { get; set; }
@@ -52,6 +58,12 @@ public sealed class TaxTypeEditViewModel
         ConvertValueInInvariantCulture = true)]
     [Display(Name = "Tarifa")]
     public decimal Rate { get; set; }
+
+    [Required(ErrorMessage = "El código de tarifa de Hacienda es obligatorio.")]
+    [StringLength(2, MinimumLength = 2, ErrorMessage = "El código de Hacienda debe tener exactamente 2 dígitos.")]
+    [RegularExpression(@"^\d{2}$", ErrorMessage = "El código de Hacienda debe tener exactamente 2 dígitos.")]
+    [Display(Name = "Código de tarifa de Hacienda")]
+    public string HaciendaRateCode { get; set; } = string.Empty;
 
     [StringLength(300, ErrorMessage = "La descripción no puede superar 300 caracteres.")]
     [Display(Name = "Descripción")]

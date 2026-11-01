@@ -42,6 +42,9 @@ public sealed class SystemParameters
     /// <summary>Longitud máxima del correo de la empresa.</summary>
     public const int CompanyEmailMaxLength = 150;
 
+    /// <summary>Longitud máxima del código de actividad económica (bloque 3).</summary>
+    public const int CompanyActivityCodeMaxLength = 10;
+
     /// <summary>Identificador fijo de la única fila permitida.</summary>
     public static readonly Guid SingletonId = Guid.Parse("00000000-0000-0000-0000-000000000001");
 
@@ -117,8 +120,14 @@ public sealed class SystemParameters
     public string? CompanyEmail { get; private set; }
 
     /// <summary>
+    /// Obtiene el código de actividad económica de la empresa (bloque 3 del paquete de mejoras
+    /// finales), usado para preparar la exportación de datos de la factura (RF-88).
+    /// </summary>
+    public string? CompanyActivityCode { get; private set; }
+
+    /// <summary>
     /// Actualiza los datos de la empresa (RF-55). Nombre y cédula jurídica son obligatorios; dirección,
-    /// teléfono y correo son opcionales. Solo Gerencia los define.
+    /// teléfono, correo y actividad económica son opcionales. Solo Gerencia los define.
     /// </summary>
     public void UpdateCompany(
         string name,
@@ -126,6 +135,7 @@ public sealed class SystemParameters
         string? address,
         string? phone,
         string? email,
+        string? activityCode,
         DateTimeOffset updatedAtUtc,
         Guid updatedByUserId)
     {
@@ -134,6 +144,10 @@ public sealed class SystemParameters
         string? validAddress = DomainRules.OptionalText(address, CompanyAddressMaxLength, nameof(address));
         string? validPhone = DomainRules.OptionalText(phone, CompanyPhoneMaxLength, nameof(phone));
         string? validEmail = DomainRules.OptionalText(email, CompanyEmailMaxLength, nameof(email));
+        string? validActivityCode = DomainRules.OptionalText(
+            activityCode,
+            CompanyActivityCodeMaxLength,
+            nameof(activityCode));
         Guid normalizedUserId = DomainRules.RequiredId(updatedByUserId, nameof(updatedByUserId));
         DateTimeOffset normalizedUpdatedAtUtc = DomainRules.RequiredUtcTimestamp(
             updatedAtUtc,
@@ -145,6 +159,7 @@ public sealed class SystemParameters
         CompanyAddress = validAddress;
         CompanyPhone = validPhone;
         CompanyEmail = validEmail;
+        CompanyActivityCode = validActivityCode;
         UpdatedAtUtc = normalizedUpdatedAtUtc;
         UpdatedByUserId = normalizedUserId;
     }

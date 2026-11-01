@@ -22,6 +22,7 @@
                 <th scope="col">Código</th>
                 <th scope="col">Nombre</th>
                 <th scope="col">Tipo</th>
+                <th scope="col">CABYS</th>
                 <th scope="col">Unidad</th>
                 <th scope="col" class="text-end">Precio de referencia</th>
                 <th scope="col">IVA predeterminado</th>
@@ -36,7 +37,7 @@
         <tbody>
             @if (Model.Results.Items.Count == 0)
             {
-                <tr><td colspan="@(canManage ? 8 : 7)" class="text-center text-body-secondary py-4">No se encontraron productos o servicios.</td></tr>
+                <tr><td colspan="@(canManage ? 9 : 8)" class="text-center text-body-secondary py-4">No se encontraron productos o servicios.</td></tr>
             }
             @foreach (CatalogItemModel item in Model.Results.Items)
             {
@@ -50,7 +51,8 @@
                         }
                     </td>
                     <td>@item.Type.ToDisplayName()</td>
-                    <td>@item.UnitOfMeasure</td>
+                    <td>@item.CabysCode</td>
+                    <td>@item.UnitOfMeasure.ToDisplayName()</td>
                     <td class="text-end">@(item.ReferencePriceCrc?.ToString("N4") ?? "—")</td>
                     <td>@(item.DefaultTaxTypeName ?? "—")</td>
                     <td><partial name="_CatalogStatusBadge" model="item.IsActive" /></td>

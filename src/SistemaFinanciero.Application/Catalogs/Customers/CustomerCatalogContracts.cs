@@ -1,4 +1,5 @@
 using SistemaFinanciero.Application.Catalogs.Common;
+using SistemaFinanciero.Domain.Catalogs;
 
 namespace SistemaFinanciero.Application.Catalogs.Customers;
 
@@ -7,6 +8,7 @@ namespace SistemaFinanciero.Application.Catalogs.Customers;
 /// </summary>
 public sealed record SaveCustomerCommand(
     string Name,
+    IdentificationType IdentificationType,
     string Identification,
     string? Email,
     string? Phone,
@@ -20,6 +22,7 @@ public sealed record CustomerModel(
     Guid Id,
     string Code,
     string Name,
+    IdentificationType IdentificationType,
     string Identification,
     string? Email,
     string? Phone,

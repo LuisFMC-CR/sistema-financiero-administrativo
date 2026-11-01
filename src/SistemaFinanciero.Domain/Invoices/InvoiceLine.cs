@@ -17,6 +17,9 @@ public sealed class InvoiceLine
     /// <summary>Máximo de caracteres para la unidad visible.</summary>
     public const int UnitOfMeasureMaxLength = 30;
 
+    /// <summary>Longitud exacta del código CABYS (bloque 3 del paquete de mejoras finales).</summary>
+    public const int CabysCodeLength = 13;
+
     private InvoiceLine()
     {
     }
@@ -28,6 +31,7 @@ public sealed class InvoiceLine
     public InvoiceLine(
         Guid id,
         Guid? catalogItemId,
+        string? cabysCode,
         string description,
         string unitOfMeasure,
         decimal quantity,
@@ -39,6 +43,9 @@ public sealed class InvoiceLine
 
         Id = DomainRules.RequiredId(id, nameof(id));
         CatalogItemId = DomainRules.OptionalId(catalogItemId, nameof(catalogItemId));
+        CabysCode = cabysCode is null
+            ? null
+            : DomainRules.RequiredDigits(cabysCode, CabysCodeLength, nameof(cabysCode));
         Description = DomainRules.RequiredText(description, DescriptionMaxLength, nameof(description));
         UnitOfMeasure = DomainRules.RequiredText(unitOfMeasure, UnitOfMeasureMaxLength, nameof(unitOfMeasure));
         Quantity = RequirePositive(quantity, nameof(quantity));
@@ -71,6 +78,12 @@ public sealed class InvoiceLine
 
     /// <summary>Artículo de catálogo de origen, cuando se utilizó uno.</summary>
     public Guid? CatalogItemId { get; private set; }
+
+    /// <summary>
+    /// Código CABYS copiado del catálogo al agregar la línea (fotografía, bloque 3 del paquete de
+    /// mejoras finales); nulo solo si la línea no viene del catálogo.
+    /// </summary>
+    public string? CabysCode { get; private set; }
 
     /// <summary>Descripción conservada aunque el catálogo cambie.</summary>
     public string Description { get; private set; } = string.Empty;

@@ -104,6 +104,7 @@ internal sealed class TaxTypeService(
                 command.Code,
                 command.Name,
                 command.Rate,
+                command.HaciendaRateCode,
                 command.Description,
                 timeProvider.GetUtcNow(),
                 actorId);
@@ -150,6 +151,7 @@ internal sealed class TaxTypeService(
                 command.Code,
                 command.Name,
                 command.Rate,
+                command.HaciendaRateCode,
                 command.Description,
                 timeProvider.GetUtcNow(),
                 actorId);
@@ -235,6 +237,7 @@ internal sealed class TaxTypeService(
                     reference.Code,
                     reference.Name,
                     reference.Rate,
+                    reference.HaciendaRateCode,
                     reference.Description,
                     now,
                     actorId));
@@ -263,6 +266,7 @@ internal sealed class TaxTypeService(
             taxType.Code,
             taxType.Name,
             taxType.Rate,
+            taxType.HaciendaRateCode,
             taxType.Description,
             taxType.IsActive,
             taxType.CreatedAtUtc,

@@ -171,13 +171,14 @@ public sealed class SystemParametersTests
 
         parameters.UpdateCompany(
             "Soporte Experto", "3-101-123456", "San José, Costa Rica", "2222-2222", "info@soportexperto.cr",
-            changedAtUtc, EditorId);
+            "620301", changedAtUtc, EditorId);
 
         Assert.Equal("Soporte Experto", parameters.CompanyName);
         Assert.Equal("3-101-123456", parameters.CompanyLegalId);
         Assert.Equal("San José, Costa Rica", parameters.CompanyAddress);
         Assert.Equal("2222-2222", parameters.CompanyPhone);
         Assert.Equal("info@soportexperto.cr", parameters.CompanyEmail);
+        Assert.Equal("620301", parameters.CompanyActivityCode);
         Assert.Equal(changedAtUtc, parameters.UpdatedAtUtc);
         Assert.Equal(EditorId, parameters.UpdatedByUserId);
     }
@@ -188,11 +189,12 @@ public sealed class SystemParametersTests
         SystemParameters parameters = CreateParameters(500_000m, 7);
 
         parameters.UpdateCompany(
-            "Soporte Experto", "3-101-123456", null, null, null, CreatedAtUtc.AddMinutes(5), EditorId);
+            "Soporte Experto", "3-101-123456", null, null, null, null, CreatedAtUtc.AddMinutes(5), EditorId);
 
         Assert.Null(parameters.CompanyAddress);
         Assert.Null(parameters.CompanyPhone);
         Assert.Null(parameters.CompanyEmail);
+        Assert.Null(parameters.CompanyActivityCode);
     }
 
     [Theory]
@@ -204,7 +206,7 @@ public sealed class SystemParametersTests
         SystemParameters parameters = CreateParameters(500_000m, 7);
 
         Assert.Throws<ArgumentException>(() =>
-            parameters.UpdateCompany(name!, "3-101-123456", null, null, null, CreatedAtUtc.AddMinutes(5), EditorId));
+            parameters.UpdateCompany(name!, "3-101-123456", null, null, null, null, CreatedAtUtc.AddMinutes(5), EditorId));
     }
 
     [Theory]
@@ -215,7 +217,7 @@ public sealed class SystemParametersTests
         SystemParameters parameters = CreateParameters(500_000m, 7);
 
         Assert.Throws<ArgumentException>(() =>
-            parameters.UpdateCompany("Soporte Experto", legalId!, null, null, null, CreatedAtUtc.AddMinutes(5), EditorId));
+            parameters.UpdateCompany("Soporte Experto", legalId!, null, null, null, null, CreatedAtUtc.AddMinutes(5), EditorId));
     }
 
     private static SystemParameters CreateParameters(decimal authorizationLimitCrc, int overdueAlertDays) =>

@@ -1,0 +1,35 @@
+@using SistemaFinanciero.Web.Models.Invoices
+@model InvoiceElectronicInvoiceViewModel
+@{
+    ViewData["Title"] = "Registrar clave del comprobante electrónico";
+}
+
+<div class="catalog-form">
+    <h1 class="h2">Registrar clave del comprobante electrónico</h1>
+    <p class="text-body-secondary">
+        Solo se registra una vez. El sistema no emite, firma ni transmite nada ante Hacienda: estos
+        datos son los que ya emitió la plataforma externa.
+    </p>
+    <form method="post" class="card card-body">
+        <input asp-for="Version" type="hidden" />
+        <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+        <div class="mb-3">
+            <label asp-for="ElectronicInvoiceKey" class="form-label"></label>
+            <input asp-for="ElectronicInvoiceKey" class="form-control" maxlength="50" placeholder="50 dígitos" />
+            <span asp-validation-for="ElectronicInvoiceKey" class="text-danger"></span>
+        </div>
+        <div class="mb-3">
+            <label asp-for="ElectronicInvoiceNumber" class="form-label"></label>
+            <input asp-for="ElectronicInvoiceNumber" class="form-control" maxlength="20" placeholder="20 dígitos" />
+            <span asp-validation-for="ElectronicInvoiceNumber" class="text-danger"></span>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">Guardar clave</button>
+            <a asp-action="Details" asp-route-id="@ViewContext.RouteData.Values["id"]" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

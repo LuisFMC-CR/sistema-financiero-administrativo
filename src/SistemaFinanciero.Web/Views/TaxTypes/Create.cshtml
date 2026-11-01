@@ -25,6 +25,11 @@
                 <span asp-validation-for="Rate" class="text-danger"></span>
                 <div class="form-text">Porcentaje de 0 a 100.</div>
             </div>
+            <div class="col-md-6">
+                <label asp-for="HaciendaRateCode" class="form-label"></label>
+                <input asp-for="HaciendaRateCode" class="form-control" maxlength="2" placeholder="2 dígitos" />
+                <span asp-validation-for="HaciendaRateCode" class="text-danger"></span>
+            </div>
             <div class="col-12">
                 <label asp-for="Description" class="form-label"></label>
                 <textarea asp-for="Description" class="form-control" rows="3"></textarea>

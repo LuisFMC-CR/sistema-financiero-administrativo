@@ -18,6 +18,23 @@
     }
 </div>
 
+<form asp-action="ExportDataRange" method="get" class="card card-body mb-3">
+    <div class="row g-2 align-items-end">
+        <div class="col-auto">
+            <label class="form-label mb-0">Exportar datos a Excel, del</label>
+            <input type="date" name="from" class="form-control" required />
+        </div>
+        <div class="col-auto">
+            <label class="form-label mb-0">al</label>
+            <input type="date" name="to" class="form-control" required />
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-outline-secondary">Exportar período</button>
+        </div>
+    </div>
+    <div class="form-text">Incluye solo las facturas confirmadas del período, con los códigos de Hacienda del bloque 3.</div>
+</form>
+
 <div class="table-responsive bg-white border rounded">
     <table class="table table-hover align-middle mb-0">
         <thead class="table-light">

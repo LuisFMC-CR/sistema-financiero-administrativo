@@ -31,6 +31,9 @@ internal sealed class InvoiceLineConfiguration : IEntityTypeConfiguration<Invoic
                 table.HasCheckConstraint(
                     "CK_FacturaLineas_Tax_RateAmount",
                     "[Tax_Rate] >= 0 AND [Tax_TaxableAmount] >= 0 AND [Tax_Amount] >= 0");
+                table.HasCheckConstraint(
+                    "CK_FacturaLineas_Tax_HaciendaRateCode",
+                    "LEN([Tax_HaciendaRateCode]) = 2");
             });
         builder.HasKey(line => line.Id);
 
@@ -38,6 +41,7 @@ internal sealed class InvoiceLineConfiguration : IEntityTypeConfiguration<Invoic
         // interpretaría como existente y EF intentaría actualizarla en lugar de insertarla.
         builder.Property(line => line.Id).ValueGeneratedNever();
         builder.Property(line => line.Position).IsRequired();
+        builder.Property(line => line.CabysCode).HasMaxLength(InvoiceLine.CabysCodeLength);
         builder.Property(line => line.Description).HasMaxLength(InvoiceLine.DescriptionMaxLength).IsRequired();
         builder.Property(line => line.UnitOfMeasure).HasMaxLength(InvoiceLine.UnitOfMeasureMaxLength).IsRequired();
         builder.Property(line => line.Quantity).HasPrecision(18, 4).IsRequired();
@@ -61,6 +65,8 @@ internal sealed class InvoiceLineConfiguration : IEntityTypeConfiguration<Invoic
             tax.Property(t => t.Name).HasColumnName("Tax_Name")
                 .HasMaxLength(InvoiceLineTax.NameMaxLength).IsRequired();
             tax.Property(t => t.Rate).HasColumnName("Tax_Rate").HasPrecision(18, 4).IsRequired();
+            tax.Property(t => t.HaciendaRateCode).HasColumnName("Tax_HaciendaRateCode")
+                .HasMaxLength(InvoiceLineTax.HaciendaRateCodeLength).IsRequired();
             tax.Property(t => t.TaxableAmount).HasColumnName("Tax_TaxableAmount").HasPrecision(18, 2).IsRequired();
             tax.Property(t => t.Amount).HasColumnName("Tax_Amount").HasPrecision(18, 2).IsRequired();
             tax.Property(t => t.TaxTypeId).HasColumnName("TaxTypeId");

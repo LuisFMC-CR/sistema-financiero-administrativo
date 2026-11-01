@@ -29,14 +29,19 @@ public class CatalogItemInputViewModel
     [Display(Name = "Tipo")]
     public CatalogItemType Type { get; set; } = CatalogItemType.Service;
 
+    [Required(ErrorMessage = "El código CABYS es obligatorio.")]
+    [StringLength(13, MinimumLength = 13, ErrorMessage = "El código CABYS debe tener exactamente 13 dígitos.")]
+    [RegularExpression(@"^\d{13}$", ErrorMessage = "El código CABYS debe tener exactamente 13 dígitos.")]
+    [Display(Name = "Código CABYS")]
+    public string CabysCode { get; set; } = string.Empty;
+
     [StringLength(500, ErrorMessage = "La descripción no puede superar 500 caracteres.")]
     [Display(Name = "Descripción")]
     public string? Description { get; set; }
 
-    [Required(ErrorMessage = "La unidad de medida es obligatoria.")]
-    [StringLength(30, ErrorMessage = "La unidad no puede superar 30 caracteres.")]
+    [EnumDataType(typeof(UnitOfMeasureCode), ErrorMessage = "Seleccione una unidad de medida válida.")]
     [Display(Name = "Unidad de medida")]
-    public string UnitOfMeasure { get; set; } = string.Empty;
+    public UnitOfMeasureCode UnitOfMeasure { get; set; } = UnitOfMeasureCode.Unit;
 
     [Range(
         typeof(decimal),

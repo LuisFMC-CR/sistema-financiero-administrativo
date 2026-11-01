@@ -18,9 +18,15 @@ internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.ToTable(
             "Clientes",
             "catalogos",
-            table => table.HasCheckConstraint(
-                "CK_Clientes_Codigo_NoVacio",
-                "LEN(LTRIM(RTRIM([Code]))) > 0"));
+            table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_Clientes_Codigo_NoVacio",
+                    "LEN(LTRIM(RTRIM([Code]))) > 0");
+                table.HasCheckConstraint(
+                    "CK_Clientes_IdentificationType",
+                    "[IdentificationType] IN (1, 2, 3, 4, 5)");
+            });
 
         builder.HasKey(customer => customer.Id);
         builder.Property(customer => customer.Code)
@@ -29,6 +35,7 @@ internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.Property(customer => customer.Name)
             .HasMaxLength(Customer.NameMaxLength)
             .IsRequired();
+        builder.Property(customer => customer.IdentificationType).IsRequired();
         builder.Property(customer => customer.Identification)
             .HasMaxLength(Customer.IdentificationMaxLength)
             .IsRequired();
