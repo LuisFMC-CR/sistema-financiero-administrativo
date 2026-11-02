@@ -13,6 +13,22 @@ namespace SistemaFinanciero.Web.Reporting;
 /// </summary>
 internal static class ReportDocumentStyles
 {
+    /// <summary>
+    /// Pie de los reportes contables (bloque 5/6 del paquete de mejoras finales, punto 5): los saldos
+    /// salen de los asientos registrados, nunca de un saldo inicial que el sistema no administra.
+    /// </summary>
+    public const string AccountingNote =
+        "Saldos calculados a partir de las operaciones registradas en el sistema; no incluye saldos iniciales.";
+
+    public static void ComposeAccountingNote(IContainer container)
+    {
+        container.PaddingTop(10).Column(column =>
+        {
+            column.Item().LineHorizontal(1).LineColor(Colors.Grey.Lighten1);
+            column.Item().PaddingTop(4).Text(AccountingNote).FontSize(8).Italic().FontColor(Colors.Grey.Darken1);
+        });
+    }
+
     public static void ComposeHeader(IContainer container, ReportHeader header)
     {
         container.Column(column =>

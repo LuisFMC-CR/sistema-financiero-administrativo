@@ -176,6 +176,17 @@ internal sealed class LedgerAccountService(
             .ToArray();
     }
 
+    public async Task<IReadOnlyList<LedgerAccountOption>> GetDetailAccountOptionsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.Set<LedgerAccount>()
+            .AsNoTracking()
+            .Where(account => !account.IsProtected)
+            .OrderBy(account => account.Code)
+            .Select(account => new LedgerAccountOption(account.Id, account.Code, account.Name))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<CatalogOperationResult> CreateAsync(
         CreateLedgerAccountCommand command,
         Guid actorId,

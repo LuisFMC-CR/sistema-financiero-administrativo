@@ -30,4 +30,20 @@
         <div class="fw-semibold">Cuentas por pagar por proveedor</div>
         <div class="text-body-secondary small">Cuentas por pagar vigentes a la fecha, agrupadas por proveedor.</div>
     </a>
+    <a class="list-group-item list-group-item-action" asp-action="JournalBook">
+        <div class="fw-semibold">Libro diario</div>
+        <div class="text-body-secondary small">Todos los asientos contables de un rango de fechas, con sus líneas.</div>
+    </a>
+    <a class="list-group-item list-group-item-action" asp-action="LedgerBook">
+        <div class="fw-semibold">Libro mayor</div>
+        <div class="text-body-secondary small">Movimientos y saldo acumulado de una cuenta contable, en un rango de fechas.</div>
+    </a>
+    <a class="list-group-item list-group-item-action" asp-action="TrialBalance">
+        <div class="fw-semibold">Balanza de comprobación</div>
+        <div class="text-body-secondary small">Débitos, créditos y saldo de cada cuenta de detalle con movimiento, a una fecha de corte.</div>
+    </a>
+    <a class="list-group-item list-group-item-action" asp-action="IncomeStatement">
+        <div class="fw-semibold">Estado de resultados</div>
+        <div class="text-body-secondary small">Ingresos y gastos por cuenta en un rango de fechas, y la utilidad o pérdida del período.</div>
+    </a>
 </div>

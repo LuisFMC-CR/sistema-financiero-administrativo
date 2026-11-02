@@ -326,6 +326,10 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<CashAccountOption>>([]);
 
+        public Task<IReadOnlyList<LedgerAccountOption>> GetDetailAccountOptionsAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<LedgerAccountOption>>([]);
+
         public Task<CatalogOperationResult> CreateAsync(
             CreateLedgerAccountCommand command,
             Guid actorId,

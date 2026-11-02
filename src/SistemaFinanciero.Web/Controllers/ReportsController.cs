@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using QuestPDF.Fluent;
 using SistemaFinanciero.Application.Catalogs.Categories;
 using SistemaFinanciero.Application.Catalogs.Customers;
+using SistemaFinanciero.Application.Catalogs.LedgerAccounts;
 using SistemaFinanciero.Application.Reports;
 using SistemaFinanciero.Application.Security;
 using SistemaFinanciero.Domain.Catalogs;
@@ -27,7 +28,8 @@ namespace SistemaFinanciero.Web.Controllers;
 public sealed class ReportsController(
     IReportService reportService,
     IFinancialCategoryService categoryService,
-    ICustomerCatalogService customerService) : Controller
+    ICustomerCatalogService customerService,
+    ILedgerAccountService ledgerAccountService) : Controller
 {
     [HttpGet("")]
     public IActionResult Index() => View();
@@ -406,6 +408,215 @@ public sealed class ReportsController(
             "cuentas-por-pagar-proveedor.xlsx");
     }
 
+    [HttpGet("libro-diario")]
+    public async Task<IActionResult> JournalBook(
+        DateOnly? periodFrom,
+        DateOnly? periodTo,
+        CancellationToken cancellationToken)
+    {
+        (DateOnly from, DateOnly to) = NormalizePeriod(periodFrom, periodTo);
+        JournalBookReportResult result = await reportService.GetJournalBookReportAsync(
+            from, to, CurrentUserName(), cancellationToken);
+
+        return View(new JournalBookReportViewModel(from, to, result));
+    }
+
+    [HttpGet("libro-diario/pdf")]
+    public async Task<IActionResult> JournalBookPdf(
+        DateOnly periodFrom,
+        DateOnly periodTo,
+        CancellationToken cancellationToken)
+    {
+        JournalBookReportResult result = await reportService.GetJournalBookReportAsync(
+            periodFrom, periodTo, CurrentUserName(), cancellationToken);
+
+        if (result.Entries.Count == 0)
+        {
+            return NoDataResult(nameof(JournalBook), periodFrom, periodTo);
+        }
+
+        byte[] pdf = new JournalBookReportPdfDocument(result).GeneratePdf();
+        return File(pdf, "application/pdf", "libro-diario.pdf");
+    }
+
+    [HttpGet("libro-diario/excel")]
+    public async Task<IActionResult> JournalBookExcel(
+        DateOnly periodFrom,
+        DateOnly periodTo,
+        CancellationToken cancellationToken)
+    {
+        JournalBookReportResult result = await reportService.GetJournalBookReportAsync(
+            periodFrom, periodTo, CurrentUserName(), cancellationToken);
+
+        if (result.Entries.Count == 0)
+        {
+            return NoDataResult(nameof(JournalBook), periodFrom, periodTo);
+        }
+
+        byte[] excel = ReportExcelExporter.BuildJournalBookWorkbook(result);
+        return File(
+            excel,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "libro-diario.xlsx");
+    }
+
+    [HttpGet("libro-mayor")]
+    public async Task<IActionResult> LedgerBook(
+        Guid? accountId,
+        DateOnly? periodFrom,
+        DateOnly? periodTo,
+        CancellationToken cancellationToken)
+    {
+        (DateOnly from, DateOnly to) = NormalizePeriod(periodFrom, periodTo);
+
+        LedgerBookReportResult? result = accountId is Guid id
+            ? await reportService.GetLedgerBookReportAsync(id, from, to, CurrentUserName(), cancellationToken)
+            : null;
+
+        return View(new LedgerBookReportViewModel(
+            accountId, from, to, await GetLedgerAccountOptionsAsync(cancellationToken), result));
+    }
+
+    [HttpGet("libro-mayor/pdf")]
+    public async Task<IActionResult> LedgerBookPdf(
+        Guid accountId,
+        DateOnly periodFrom,
+        DateOnly periodTo,
+        CancellationToken cancellationToken)
+    {
+        LedgerBookReportResult result = await reportService.GetLedgerBookReportAsync(
+            accountId, periodFrom, periodTo, CurrentUserName(), cancellationToken);
+
+        if (result.Movements.Count == 0 && result.OpeningBalance == 0)
+        {
+            TempData["ErrorMessage"] = "No hay datos para los parámetros indicados; no se generó ningún archivo.";
+            return RedirectToAction(nameof(LedgerBook), new { accountId, periodFrom, periodTo });
+        }
+
+        byte[] pdf = new LedgerBookReportPdfDocument(result).GeneratePdf();
+        return File(pdf, "application/pdf", "libro-mayor.pdf");
+    }
+
+    [HttpGet("libro-mayor/excel")]
+    public async Task<IActionResult> LedgerBookExcel(
+        Guid accountId,
+        DateOnly periodFrom,
+        DateOnly periodTo,
+        CancellationToken cancellationToken)
+    {
+        LedgerBookReportResult result = await reportService.GetLedgerBookReportAsync(
+            accountId, periodFrom, periodTo, CurrentUserName(), cancellationToken);
+
+        if (result.Movements.Count == 0 && result.OpeningBalance == 0)
+        {
+            TempData["ErrorMessage"] = "No hay datos para los parámetros indicados; no se generó ningún archivo.";
+            return RedirectToAction(nameof(LedgerBook), new { accountId, periodFrom, periodTo });
+        }
+
+        byte[] excel = ReportExcelExporter.BuildLedgerBookWorkbook(result);
+        return File(
+            excel,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "libro-mayor.xlsx");
+    }
+
+    [HttpGet("balanza-comprobacion")]
+    public async Task<IActionResult> TrialBalance(DateOnly? cutoffDate, CancellationToken cancellationToken)
+    {
+        DateOnly date = cutoffDate ?? DateOnly.FromDateTime(DateTime.Now);
+        TrialBalanceReportResult result = await reportService.GetTrialBalanceReportAsync(
+            date, CurrentUserName(), cancellationToken);
+
+        return View(new TrialBalanceReportViewModel(date, result));
+    }
+
+    [HttpGet("balanza-comprobacion/pdf")]
+    public async Task<IActionResult> TrialBalancePdf(DateOnly cutoffDate, CancellationToken cancellationToken)
+    {
+        TrialBalanceReportResult result = await reportService.GetTrialBalanceReportAsync(
+            cutoffDate, CurrentUserName(), cancellationToken);
+
+        if (result.Groups.Count == 0)
+        {
+            TempData["ErrorMessage"] = "No hay datos para los parámetros indicados; no se generó ningún archivo.";
+            return RedirectToAction(nameof(TrialBalance), new { cutoffDate });
+        }
+
+        byte[] pdf = new TrialBalanceReportPdfDocument(result).GeneratePdf();
+        return File(pdf, "application/pdf", "balanza-de-comprobacion.pdf");
+    }
+
+    [HttpGet("balanza-comprobacion/excel")]
+    public async Task<IActionResult> TrialBalanceExcel(DateOnly cutoffDate, CancellationToken cancellationToken)
+    {
+        TrialBalanceReportResult result = await reportService.GetTrialBalanceReportAsync(
+            cutoffDate, CurrentUserName(), cancellationToken);
+
+        if (result.Groups.Count == 0)
+        {
+            TempData["ErrorMessage"] = "No hay datos para los parámetros indicados; no se generó ningún archivo.";
+            return RedirectToAction(nameof(TrialBalance), new { cutoffDate });
+        }
+
+        byte[] excel = ReportExcelExporter.BuildTrialBalanceWorkbook(result);
+        return File(
+            excel,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "balanza-de-comprobacion.xlsx");
+    }
+
+    [HttpGet("estado-resultados")]
+    public async Task<IActionResult> IncomeStatement(
+        DateOnly? periodFrom,
+        DateOnly? periodTo,
+        CancellationToken cancellationToken)
+    {
+        (DateOnly from, DateOnly to) = NormalizePeriod(periodFrom, periodTo);
+        IncomeStatementReportResult result = await reportService.GetIncomeStatementReportAsync(
+            from, to, CurrentUserName(), cancellationToken);
+
+        return View(new IncomeStatementReportViewModel(from, to, result));
+    }
+
+    [HttpGet("estado-resultados/pdf")]
+    public async Task<IActionResult> IncomeStatementPdf(
+        DateOnly periodFrom,
+        DateOnly periodTo,
+        CancellationToken cancellationToken)
+    {
+        IncomeStatementReportResult result = await reportService.GetIncomeStatementReportAsync(
+            periodFrom, periodTo, CurrentUserName(), cancellationToken);
+
+        if (result.IncomeGroups.Count == 0 && result.ExpenseGroups.Count == 0)
+        {
+            return NoDataResult(nameof(IncomeStatement), periodFrom, periodTo);
+        }
+
+        byte[] pdf = new IncomeStatementReportPdfDocument(result).GeneratePdf();
+        return File(pdf, "application/pdf", "estado-de-resultados.pdf");
+    }
+
+    [HttpGet("estado-resultados/excel")]
+    public async Task<IActionResult> IncomeStatementExcel(
+        DateOnly periodFrom,
+        DateOnly periodTo,
+        CancellationToken cancellationToken)
+    {
+        IncomeStatementReportResult result = await reportService.GetIncomeStatementReportAsync(
+            periodFrom, periodTo, CurrentUserName(), cancellationToken);
+
+        if (result.IncomeGroups.Count == 0 && result.ExpenseGroups.Count == 0)
+        {
+            return NoDataResult(nameof(IncomeStatement), periodFrom, periodTo);
+        }
+
+        byte[] excel = ReportExcelExporter.BuildIncomeStatementWorkbook(result);
+        return File(
+            excel,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "estado-de-resultados.xlsx");
+    }
+
     private static (int Year, int Month) NormalizeMonth(int? periodYear, int? periodMonth)
     {
         DateOnly today = DateOnly.FromDateTime(DateTime.Now);
@@ -451,6 +662,15 @@ public sealed class ReportsController(
         IReadOnlyList<CustomerOption> customers = await customerService.GetActiveOptionsAsync(cancellationToken);
 
         return customers
+            .Select(option => new SelectListItem($"{option.Code} — {option.Name}", option.Id.ToString()))
+            .ToArray();
+    }
+
+    private async Task<IReadOnlyList<SelectListItem>> GetLedgerAccountOptionsAsync(CancellationToken cancellationToken)
+    {
+        IReadOnlyList<LedgerAccountOption> accounts = await ledgerAccountService.GetDetailAccountOptionsAsync(cancellationToken);
+
+        return accounts
             .Select(option => new SelectListItem($"{option.Code} — {option.Name}", option.Id.ToString()))
             .ToArray();
     }

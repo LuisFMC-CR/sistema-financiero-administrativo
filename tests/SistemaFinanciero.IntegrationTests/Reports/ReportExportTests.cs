@@ -4,6 +4,7 @@ using QuestPDF.Infrastructure;
 using SistemaFinanciero.Application.Budgets;
 using SistemaFinanciero.Application.Reports;
 using SistemaFinanciero.Domain.Incomes;
+using SistemaFinanciero.Domain.Ledger;
 using SistemaFinanciero.Web.Reporting;
 
 namespace SistemaFinanciero.IntegrationTests.Reports;
@@ -222,6 +223,152 @@ public sealed class ReportExportTests
     public void BuildPayableBySupplierWorkbook_WithLines_GeneratesAValidXlsx()
     {
         byte[] excel = ReportExcelExporter.BuildPayableBySupplierWorkbook(SamplePayableBySupplier);
+
+        Assert.True(excel.Length > 0);
+        Assert.Equal((byte)'P', excel[0]);
+        Assert.Equal((byte)'K', excel[1]);
+    }
+
+    private static readonly JournalBookReportResult SampleJournalBook = new(
+        SampleHeader with { ReportName = "Libro diario" },
+        new DateOnly(2010, 1, 1),
+        new DateOnly(2010, 1, 31),
+        [
+            new JournalBookEntry(
+                1,
+                new DateOnly(2010, 1, 10),
+                "Factura 1",
+                JournalEntrySourceType.Invoice,
+                [
+                    new JournalBookLine("1.1.01", "Caja chica", 113m, 0m),
+                    new JournalBookLine("4.1.01", "Soporte técnico", 0m, 100m),
+                    new JournalBookLine("2.2.01", "IVA por pagar", 0m, 13m),
+                ]),
+        ],
+        113m,
+        113m);
+
+    private static readonly LedgerBookReportResult SampleLedgerBook = new(
+        SampleHeader with { ReportName = "Libro mayor" },
+        Guid.NewGuid(),
+        "1.1.01",
+        "Caja chica",
+        new DateOnly(2010, 1, 1),
+        new DateOnly(2010, 1, 31),
+        200m,
+        [new LedgerBookMovement(new DateOnly(2010, 1, 10), 1, "Factura 1", 113m, 0m, 313m)],
+        313m);
+
+    private static readonly TrialBalanceReportResult SampleTrialBalance = new(
+        SampleHeader with { ReportName = "Balanza de comprobación" },
+        new DateOnly(2010, 1, 31),
+        [
+            new TrialBalanceGroupLine(
+                "1.1",
+                "Efectivo",
+                [new TrialBalanceAccountLine("1.1.01", "Caja chica", 313m, 0m, 313m, 0m)],
+                313m,
+                0m,
+                313m,
+                0m),
+        ],
+        313m,
+        313m,
+        313m,
+        313m);
+
+    private static readonly IncomeStatementReportResult SampleIncomeStatement = new(
+        SampleHeader with { ReportName = "Estado de resultados" },
+        new DateOnly(2010, 1, 1),
+        new DateOnly(2010, 1, 31),
+        [
+            new IncomeStatementGroupLine(
+                "4.1",
+                "Ingresos por servicios",
+                [new IncomeStatementAccountLine("4.1.01", "Soporte técnico", 100m)],
+                100m),
+        ],
+        100m,
+        [
+            new IncomeStatementGroupLine(
+                "5.1",
+                "Gastos de operación",
+                [new IncomeStatementAccountLine("5.1.01", "Alquiler", 40m)],
+                40m),
+        ],
+        40m,
+        60m);
+
+    [Fact]
+    public void JournalBookReportPdfDocument_WithLines_GeneratesAValidPdf()
+    {
+        byte[] pdf = new JournalBookReportPdfDocument(SampleJournalBook).GeneratePdf();
+
+        Assert.True(pdf.Length > 0);
+        Assert.Equal("%PDF", Encoding.ASCII.GetString(pdf, 0, 4));
+    }
+
+    [Fact]
+    public void BuildJournalBookWorkbook_WithLines_GeneratesAValidXlsx()
+    {
+        byte[] excel = ReportExcelExporter.BuildJournalBookWorkbook(SampleJournalBook);
+
+        Assert.True(excel.Length > 0);
+        Assert.Equal((byte)'P', excel[0]);
+        Assert.Equal((byte)'K', excel[1]);
+    }
+
+    [Fact]
+    public void LedgerBookReportPdfDocument_WithLines_GeneratesAValidPdf()
+    {
+        byte[] pdf = new LedgerBookReportPdfDocument(SampleLedgerBook).GeneratePdf();
+
+        Assert.True(pdf.Length > 0);
+        Assert.Equal("%PDF", Encoding.ASCII.GetString(pdf, 0, 4));
+    }
+
+    [Fact]
+    public void BuildLedgerBookWorkbook_WithLines_GeneratesAValidXlsx()
+    {
+        byte[] excel = ReportExcelExporter.BuildLedgerBookWorkbook(SampleLedgerBook);
+
+        Assert.True(excel.Length > 0);
+        Assert.Equal((byte)'P', excel[0]);
+        Assert.Equal((byte)'K', excel[1]);
+    }
+
+    [Fact]
+    public void TrialBalanceReportPdfDocument_WithLines_GeneratesAValidPdf()
+    {
+        byte[] pdf = new TrialBalanceReportPdfDocument(SampleTrialBalance).GeneratePdf();
+
+        Assert.True(pdf.Length > 0);
+        Assert.Equal("%PDF", Encoding.ASCII.GetString(pdf, 0, 4));
+    }
+
+    [Fact]
+    public void BuildTrialBalanceWorkbook_WithLines_GeneratesAValidXlsx()
+    {
+        byte[] excel = ReportExcelExporter.BuildTrialBalanceWorkbook(SampleTrialBalance);
+
+        Assert.True(excel.Length > 0);
+        Assert.Equal((byte)'P', excel[0]);
+        Assert.Equal((byte)'K', excel[1]);
+    }
+
+    [Fact]
+    public void IncomeStatementReportPdfDocument_WithLines_GeneratesAValidPdf()
+    {
+        byte[] pdf = new IncomeStatementReportPdfDocument(SampleIncomeStatement).GeneratePdf();
+
+        Assert.True(pdf.Length > 0);
+        Assert.Equal("%PDF", Encoding.ASCII.GetString(pdf, 0, 4));
+    }
+
+    [Fact]
+    public void BuildIncomeStatementWorkbook_WithLines_GeneratesAValidXlsx()
+    {
+        byte[] excel = ReportExcelExporter.BuildIncomeStatementWorkbook(SampleIncomeStatement);
 
         Assert.True(excel.Length > 0);
         Assert.Equal((byte)'P', excel[0]);

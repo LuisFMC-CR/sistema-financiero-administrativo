@@ -39,3 +39,28 @@ public sealed record CustomerStatementReportViewModel(
 
 /// <summary>Resultado del reporte de cuentas por pagar por proveedor; sin parámetros.</summary>
 public sealed record PayableBySupplierReportViewModel(PayableBySupplierReportResult Result);
+
+/// <summary>Parámetros y resultado, si ya se consultó, del libro diario.</summary>
+public sealed record JournalBookReportViewModel(
+    DateOnly PeriodFrom,
+    DateOnly PeriodTo,
+    JournalBookReportResult? Result);
+
+/// <summary>Cuenta y parámetros elegidos, y resultado, si ya se consultó, del libro mayor.</summary>
+public sealed record LedgerBookReportViewModel(
+    Guid? AccountId,
+    DateOnly PeriodFrom,
+    DateOnly PeriodTo,
+    IReadOnlyList<SelectListItem> AccountOptions,
+    LedgerBookReportResult? Result);
+
+/// <summary>Parámetros y resultado, si ya se consultó, de la balanza de comprobación.</summary>
+public sealed record TrialBalanceReportViewModel(
+    DateOnly CutoffDate,
+    TrialBalanceReportResult? Result);
+
+/// <summary>Parámetros y resultado, si ya se consultó, del estado de resultados.</summary>
+public sealed record IncomeStatementReportViewModel(
+    DateOnly PeriodFrom,
+    DateOnly PeriodTo,
+    IncomeStatementReportResult? Result);

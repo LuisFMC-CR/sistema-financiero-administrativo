@@ -5,6 +5,7 @@ using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Expenses;
 using SistemaFinanciero.Domain.Incomes;
 using SistemaFinanciero.Domain.Invoices;
+using SistemaFinanciero.Domain.Ledger;
 using SistemaFinanciero.Domain.Payables;
 using SistemaFinanciero.Domain.Receivables;
 using SistemaFinanciero.Infrastructure.Persistence;
@@ -325,6 +326,309 @@ internal sealed class ReportService(
             generatedByUserName);
 
         return new PayableBySupplierReportResult(header, lines, lines.Sum(line => line.TotalBalance));
+    }
+
+    public async Task<JournalBookReportResult> GetJournalBookReportAsync(
+        DateOnly periodFrom,
+        DateOnly periodTo,
+        string generatedByUserName,
+        CancellationToken cancellationToken = default)
+    {
+        ValidatePeriod(periodFrom, periodTo);
+
+        List<JournalEntry> entries = await dbContext.Set<JournalEntry>()
+            .AsNoTracking()
+            .Include(entry => entry.Lines)
+            .Where(entry => entry.EntryDate >= periodFrom && entry.EntryDate <= periodTo)
+            .OrderBy(entry => entry.EntryDate)
+            .ThenBy(entry => entry.Number)
+            .ToListAsync(cancellationToken);
+
+        Dictionary<Guid, LedgerAccount> accounts = await GetLedgerAccountsAsync(
+            entries.SelectMany(entry => entry.Lines).Select(line => line.AccountId),
+            cancellationToken);
+
+        JournalBookEntry[] bookEntries = entries
+            .Select(entry => new JournalBookEntry(
+                entry.Number,
+                entry.EntryDate,
+                entry.Description,
+                entry.SourceType,
+                entry.Lines
+                    .OrderBy(line => line.LineNumber)
+                    .Select(line =>
+                    {
+                        LedgerAccount? account = accounts.GetValueOrDefault(line.AccountId);
+                        return new JournalBookLine(account?.Code ?? "—", account?.Name ?? "—", line.Debit, line.Credit);
+                    })
+                    .ToArray()))
+            .ToArray();
+
+        ReportHeader header = new(
+            "Libro diario",
+            FormatPeriod(periodFrom, periodTo),
+            timeProvider.GetUtcNow(),
+            generatedByUserName);
+
+        return new JournalBookReportResult(
+            header,
+            periodFrom,
+            periodTo,
+            bookEntries,
+            bookEntries.Sum(entry => entry.Lines.Sum(line => line.Debit)),
+            bookEntries.Sum(entry => entry.Lines.Sum(line => line.Credit)));
+    }
+
+    public async Task<LedgerBookReportResult> GetLedgerBookReportAsync(
+        Guid accountId,
+        DateOnly periodFrom,
+        DateOnly periodTo,
+        string generatedByUserName,
+        CancellationToken cancellationToken = default)
+    {
+        ValidatePeriod(periodFrom, periodTo);
+
+        LedgerAccount account = await dbContext.Set<LedgerAccount>()
+            .AsNoTracking()
+            .FirstAsync(candidate => candidate.Id == accountId, cancellationToken);
+
+        bool isDebitNature = account.Type is LedgerAccountType.Asset or LedgerAccountType.Expense;
+
+        List<JournalEntry> priorEntries = await dbContext.Set<JournalEntry>()
+            .AsNoTracking()
+            .Include(entry => entry.Lines)
+            .Where(entry => entry.EntryDate < periodFrom && entry.Lines.Any(line => line.AccountId == accountId))
+            .ToListAsync(cancellationToken);
+
+        decimal openingBalance = SignedTotal(
+            priorEntries.SelectMany(entry => entry.Lines).Where(line => line.AccountId == accountId),
+            isDebitNature);
+
+        List<JournalEntry> periodEntries = await dbContext.Set<JournalEntry>()
+            .AsNoTracking()
+            .Include(entry => entry.Lines)
+            .Where(entry => entry.EntryDate >= periodFrom
+                && entry.EntryDate <= periodTo
+                && entry.Lines.Any(line => line.AccountId == accountId))
+            .OrderBy(entry => entry.EntryDate)
+            .ThenBy(entry => entry.Number)
+            .ToListAsync(cancellationToken);
+
+        List<LedgerBookMovement> movements = [];
+        decimal runningBalance = openingBalance;
+
+        foreach (JournalEntry entry in periodEntries)
+        {
+            foreach (JournalEntryLine line in entry.Lines
+                .Where(line => line.AccountId == accountId)
+                .OrderBy(line => line.LineNumber))
+            {
+                runningBalance += isDebitNature ? line.Debit - line.Credit : line.Credit - line.Debit;
+                movements.Add(new LedgerBookMovement(
+                    entry.EntryDate, entry.Number, entry.Description, line.Debit, line.Credit, runningBalance));
+            }
+        }
+
+        ReportHeader header = new(
+            "Libro mayor",
+            $"Cuenta {account.Code} — {account.Name}; {FormatPeriod(periodFrom, periodTo)}",
+            timeProvider.GetUtcNow(),
+            generatedByUserName);
+
+        return new LedgerBookReportResult(
+            header, accountId, account.Code, account.Name, periodFrom, periodTo, openingBalance, movements, runningBalance);
+    }
+
+    public async Task<TrialBalanceReportResult> GetTrialBalanceReportAsync(
+        DateOnly cutoffDate,
+        string generatedByUserName,
+        CancellationToken cancellationToken = default)
+    {
+        List<JournalEntry> entries = await dbContext.Set<JournalEntry>()
+            .AsNoTracking()
+            .Include(entry => entry.Lines)
+            .Where(entry => entry.EntryDate <= cutoffDate)
+            .ToListAsync(cancellationToken);
+
+        var accountTotals = entries
+            .SelectMany(entry => entry.Lines)
+            .GroupBy(line => line.AccountId)
+            .Select(group => new
+            {
+                AccountId = group.Key,
+                TotalDebit = group.Sum(line => line.Debit),
+                TotalCredit = group.Sum(line => line.Credit),
+            })
+            .Where(totals => totals.TotalDebit != 0 || totals.TotalCredit != 0)
+            .ToArray();
+
+        ReportHeader header = new(
+            "Balanza de comprobación",
+            $"Fecha de corte: {cutoffDate:dd/MM/yyyy}",
+            timeProvider.GetUtcNow(),
+            generatedByUserName);
+
+        if (accountTotals.Length == 0)
+        {
+            return new TrialBalanceReportResult(header, cutoffDate, [], 0m, 0m, 0m, 0m);
+        }
+
+        Dictionary<Guid, LedgerAccount> accounts = await GetLedgerAccountsAsync(
+            accountTotals.Select(totals => totals.AccountId),
+            cancellationToken);
+        Dictionary<Guid, LedgerAccount> groupAccounts = await GetLedgerAccountsAsync(
+            accounts.Values.Select(account => account.ParentId ?? Guid.Empty).Where(id => id != Guid.Empty),
+            cancellationToken);
+
+        TrialBalanceGroupLine[] groups = accountTotals
+            .Select(totals => new
+            {
+                Account = accounts[totals.AccountId],
+                totals.TotalDebit,
+                totals.TotalCredit,
+            })
+            .GroupBy(x => x.Account.ParentId ?? Guid.Empty)
+            .Select(group =>
+            {
+                LedgerAccount? groupAccount = group.Key == Guid.Empty ? null : groupAccounts.GetValueOrDefault(group.Key);
+                TrialBalanceAccountLine[] accountLines = group
+                    .OrderBy(x => x.Account.Code, StringComparer.Ordinal)
+                    .Select(x =>
+                    {
+                        decimal net = x.TotalDebit - x.TotalCredit;
+                        return new TrialBalanceAccountLine(
+                            x.Account.Code,
+                            x.Account.Name,
+                            x.TotalDebit,
+                            x.TotalCredit,
+                            net >= 0 ? net : 0m,
+                            net < 0 ? -net : 0m);
+                    })
+                    .ToArray();
+
+                return new TrialBalanceGroupLine(
+                    groupAccount?.Code ?? "—",
+                    groupAccount?.Name ?? "—",
+                    accountLines,
+                    accountLines.Sum(line => line.TotalDebit),
+                    accountLines.Sum(line => line.TotalCredit),
+                    accountLines.Sum(line => line.DebitBalance),
+                    accountLines.Sum(line => line.CreditBalance));
+            })
+            .OrderBy(group => group.GroupCode, StringComparer.Ordinal)
+            .ToArray();
+
+        return new TrialBalanceReportResult(
+            header,
+            cutoffDate,
+            groups,
+            groups.Sum(group => group.TotalDebit),
+            groups.Sum(group => group.TotalCredit),
+            groups.Sum(group => group.DebitBalance),
+            groups.Sum(group => group.CreditBalance));
+    }
+
+    public async Task<IncomeStatementReportResult> GetIncomeStatementReportAsync(
+        DateOnly periodFrom,
+        DateOnly periodTo,
+        string generatedByUserName,
+        CancellationToken cancellationToken = default)
+    {
+        ValidatePeriod(periodFrom, periodTo);
+
+        List<JournalEntry> entries = await dbContext.Set<JournalEntry>()
+            .AsNoTracking()
+            .Include(entry => entry.Lines)
+            .Where(entry => entry.EntryDate >= periodFrom && entry.EntryDate <= periodTo)
+            .ToListAsync(cancellationToken);
+
+        List<JournalEntryLine> allLines = entries.SelectMany(entry => entry.Lines).ToList();
+        Dictionary<Guid, LedgerAccount> accounts = await GetLedgerAccountsAsync(
+            allLines.Select(line => line.AccountId),
+            cancellationToken);
+
+        (IncomeStatementGroupLine[] incomeGroups, decimal totalIncome) = await BuildIncomeStatementSideAsync(
+            allLines, accounts, LedgerAccountType.Income, isCreditNature: true, cancellationToken);
+        (IncomeStatementGroupLine[] expenseGroups, decimal totalExpense) = await BuildIncomeStatementSideAsync(
+            allLines, accounts, LedgerAccountType.Expense, isCreditNature: false, cancellationToken);
+
+        ReportHeader header = new(
+            "Estado de resultados",
+            FormatPeriod(periodFrom, periodTo),
+            timeProvider.GetUtcNow(),
+            generatedByUserName);
+
+        return new IncomeStatementReportResult(
+            header, periodFrom, periodTo, incomeGroups, totalIncome, expenseGroups, totalExpense, totalIncome - totalExpense);
+    }
+
+    private async Task<(IncomeStatementGroupLine[] Groups, decimal Total)> BuildIncomeStatementSideAsync(
+        IReadOnlyList<JournalEntryLine> allLines,
+        Dictionary<Guid, LedgerAccount> accounts,
+        LedgerAccountType type,
+        bool isCreditNature,
+        CancellationToken cancellationToken)
+    {
+        var accountTotals = allLines
+            .Where(line => accounts.TryGetValue(line.AccountId, out LedgerAccount? account) && account.Type == type)
+            .GroupBy(line => line.AccountId)
+            .Select(group =>
+            {
+                LedgerAccount account = accounts[group.Key];
+                decimal amount = isCreditNature
+                    ? group.Sum(line => line.Credit - line.Debit)
+                    : group.Sum(line => line.Debit - line.Credit);
+                return (Account: account, Amount: amount);
+            })
+            .Where(totals => totals.Amount != 0)
+            .ToArray();
+
+        if (accountTotals.Length == 0)
+        {
+            return ([], 0m);
+        }
+
+        Dictionary<Guid, LedgerAccount> groupAccounts = await GetLedgerAccountsAsync(
+            accountTotals.Select(totals => totals.Account.ParentId ?? Guid.Empty).Where(id => id != Guid.Empty),
+            cancellationToken);
+
+        IncomeStatementGroupLine[] groups = accountTotals
+            .GroupBy(totals => totals.Account.ParentId ?? Guid.Empty)
+            .Select(group =>
+            {
+                LedgerAccount? groupAccount = group.Key == Guid.Empty ? null : groupAccounts.GetValueOrDefault(group.Key);
+                IncomeStatementAccountLine[] accountLines = group
+                    .OrderBy(totals => totals.Account.Code, StringComparer.Ordinal)
+                    .Select(totals => new IncomeStatementAccountLine(totals.Account.Code, totals.Account.Name, totals.Amount))
+                    .ToArray();
+
+                return new IncomeStatementGroupLine(
+                    groupAccount?.Code ?? "—",
+                    groupAccount?.Name ?? "—",
+                    accountLines,
+                    accountLines.Sum(line => line.Amount));
+            })
+            .OrderBy(group => group.GroupCode, StringComparer.Ordinal)
+            .ToArray();
+
+        return (groups, groups.Sum(group => group.Subtotal));
+    }
+
+    private static decimal SignedTotal(IEnumerable<JournalEntryLine> lines, bool isDebitNature) =>
+        isDebitNature
+            ? lines.Sum(line => line.Debit - line.Credit)
+            : lines.Sum(line => line.Credit - line.Debit);
+
+    private async Task<Dictionary<Guid, LedgerAccount>> GetLedgerAccountsAsync(
+        IEnumerable<Guid> accountIds,
+        CancellationToken cancellationToken)
+    {
+        Guid[] ids = accountIds.Distinct().ToArray();
+
+        return await dbContext.Set<LedgerAccount>()
+            .AsNoTracking()
+            .Where(account => ids.Contains(account.Id))
+            .ToDictionaryAsync(account => account.Id, cancellationToken);
     }
 
     private static void ValidatePeriod(DateOnly periodFrom, DateOnly periodTo)

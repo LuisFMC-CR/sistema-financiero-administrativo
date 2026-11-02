@@ -3,6 +3,7 @@ using ClosedXML.Excel;
 using SistemaFinanciero.Application.Budgets;
 using SistemaFinanciero.Application.Reports;
 using SistemaFinanciero.Web.Models.Incomes;
+using SistemaFinanciero.Web.Models.Ledger;
 
 namespace SistemaFinanciero.Web.Reporting;
 
@@ -237,6 +238,222 @@ public static class ReportExcelExporter
 
         sheet.Columns().AdjustToContents();
         return ToBytes(workbook);
+    }
+
+    public static byte[] BuildJournalBookWorkbook(JournalBookReportResult result)
+    {
+        using XLWorkbook workbook = new();
+        IXLWorksheet sheet = workbook.Worksheets.Add("Libro diario");
+
+        int row = WriteHeader(sheet, result.Header);
+
+        string[] columns = ["Asiento", "Fecha", "Tipo", "Descripción", "Cuenta", "Débito", "Crédito"];
+        WriteColumnHeaders(sheet, row, columns);
+        row++;
+
+        foreach (JournalBookEntry entry in result.Entries)
+        {
+            foreach (JournalBookLine line in entry.Lines)
+            {
+                sheet.Cell(row, 1).Value = entry.Number;
+                sheet.Cell(row, 2).Value = entry.EntryDate.ToDateTime(TimeOnly.MinValue);
+                sheet.Cell(row, 2).Style.DateFormat.Format = "dd/mm/yyyy";
+                sheet.Cell(row, 3).Value = entry.SourceType.ToDisplayName();
+                sheet.Cell(row, 4).Value = entry.Description;
+                sheet.Cell(row, 5).Value = $"{line.AccountCode} — {line.AccountName}";
+                sheet.Cell(row, 6).Value = line.Debit;
+                sheet.Cell(row, 6).Style.NumberFormat.Format = "#,##0.00";
+                sheet.Cell(row, 7).Value = line.Credit;
+                sheet.Cell(row, 7).Style.NumberFormat.Format = "#,##0.00";
+                row++;
+            }
+        }
+
+        sheet.Cell(row, 5).Value = "Total";
+        sheet.Cell(row, 6).Value = result.TotalDebit;
+        sheet.Cell(row, 6).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Cell(row, 7).Value = result.TotalCredit;
+        sheet.Cell(row, 7).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Row(row).Style.Font.SetBold();
+        row++;
+
+        WriteAccountingNote(sheet, row);
+        sheet.Columns().AdjustToContents();
+        return ToBytes(workbook);
+    }
+
+    public static byte[] BuildLedgerBookWorkbook(LedgerBookReportResult result)
+    {
+        using XLWorkbook workbook = new();
+        IXLWorksheet sheet = workbook.Worksheets.Add("Libro mayor");
+
+        int row = WriteHeader(sheet, result.Header);
+
+        sheet.Cell(row, 1).Value = "Saldo anterior";
+        sheet.Cell(row, 2).Value = result.OpeningBalance;
+        sheet.Cell(row, 2).Style.NumberFormat.Format = "#,##0.00";
+        row += 2;
+
+        string[] columns = ["Fecha", "Asiento", "Descripción", "Débito", "Crédito", "Saldo"];
+        WriteColumnHeaders(sheet, row, columns);
+        row++;
+
+        foreach (LedgerBookMovement movement in result.Movements)
+        {
+            sheet.Cell(row, 1).Value = movement.EntryDate.ToDateTime(TimeOnly.MinValue);
+            sheet.Cell(row, 1).Style.DateFormat.Format = "dd/mm/yyyy";
+            sheet.Cell(row, 2).Value = movement.JournalEntryNumber;
+            sheet.Cell(row, 3).Value = movement.Description;
+            sheet.Cell(row, 4).Value = movement.Debit;
+            sheet.Cell(row, 4).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Cell(row, 5).Value = movement.Credit;
+            sheet.Cell(row, 5).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Cell(row, 6).Value = movement.RunningBalance;
+            sheet.Cell(row, 6).Style.NumberFormat.Format = "#,##0.00";
+            row++;
+        }
+
+        sheet.Cell(row, 5).Value = "Saldo final";
+        sheet.Cell(row, 6).Value = result.ClosingBalance;
+        sheet.Cell(row, 6).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Row(row).Style.Font.SetBold();
+        row++;
+
+        WriteAccountingNote(sheet, row);
+        sheet.Columns().AdjustToContents();
+        return ToBytes(workbook);
+    }
+
+    public static byte[] BuildTrialBalanceWorkbook(TrialBalanceReportResult result)
+    {
+        using XLWorkbook workbook = new();
+        IXLWorksheet sheet = workbook.Worksheets.Add("Balanza de comprobación");
+
+        int row = WriteHeader(sheet, result.Header);
+
+        string[] columns = ["Código", "Cuenta", "Débitos", "Créditos", "Saldo deudor", "Saldo acreedor"];
+        WriteColumnHeaders(sheet, row, columns);
+        row++;
+
+        foreach (TrialBalanceGroupLine group in result.Groups)
+        {
+            foreach (TrialBalanceAccountLine account in group.Accounts)
+            {
+                sheet.Cell(row, 1).Value = account.AccountCode;
+                sheet.Cell(row, 2).Value = account.AccountName;
+                sheet.Cell(row, 3).Value = account.TotalDebit;
+                sheet.Cell(row, 3).Style.NumberFormat.Format = "#,##0.00";
+                sheet.Cell(row, 4).Value = account.TotalCredit;
+                sheet.Cell(row, 4).Style.NumberFormat.Format = "#,##0.00";
+                sheet.Cell(row, 5).Value = account.DebitBalance;
+                sheet.Cell(row, 5).Style.NumberFormat.Format = "#,##0.00";
+                sheet.Cell(row, 6).Value = account.CreditBalance;
+                sheet.Cell(row, 6).Style.NumberFormat.Format = "#,##0.00";
+                row++;
+            }
+
+            sheet.Cell(row, 1).Value = $"Subtotal {group.GroupCode}";
+            sheet.Cell(row, 2).Value = group.GroupName;
+            sheet.Cell(row, 3).Value = group.TotalDebit;
+            sheet.Cell(row, 3).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Cell(row, 4).Value = group.TotalCredit;
+            sheet.Cell(row, 4).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Cell(row, 5).Value = group.DebitBalance;
+            sheet.Cell(row, 5).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Cell(row, 6).Value = group.CreditBalance;
+            sheet.Cell(row, 6).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Row(row).Style.Font.SetBold();
+            row++;
+        }
+
+        sheet.Cell(row, 2).Value = "Total";
+        sheet.Cell(row, 3).Value = result.GrandTotalDebit;
+        sheet.Cell(row, 3).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Cell(row, 4).Value = result.GrandTotalCredit;
+        sheet.Cell(row, 4).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Cell(row, 5).Value = result.GrandTotalDebitBalance;
+        sheet.Cell(row, 5).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Cell(row, 6).Value = result.GrandTotalCreditBalance;
+        sheet.Cell(row, 6).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Row(row).Style.Font.SetBold();
+        row++;
+
+        WriteAccountingNote(sheet, row);
+        sheet.Columns().AdjustToContents();
+        return ToBytes(workbook);
+    }
+
+    public static byte[] BuildIncomeStatementWorkbook(IncomeStatementReportResult result)
+    {
+        using XLWorkbook workbook = new();
+        IXLWorksheet sheet = workbook.Worksheets.Add("Estado de resultados");
+
+        int row = WriteHeader(sheet, result.Header);
+
+        sheet.Cell(row, 1).Value = "Ingresos";
+        sheet.Row(row).Style.Font.SetBold();
+        row++;
+        row = WriteIncomeStatementSide(sheet, row, result.IncomeGroups, "Total ingresos", result.TotalIncome);
+
+        row++;
+        sheet.Cell(row, 1).Value = "Gastos";
+        sheet.Row(row).Style.Font.SetBold();
+        row++;
+        row = WriteIncomeStatementSide(sheet, row, result.ExpenseGroups, "Total gastos", result.TotalExpense);
+
+        row++;
+        sheet.Cell(row, 1).Value = result.NetResult >= 0 ? "Utilidad del período" : "Pérdida del período";
+        sheet.Cell(row, 2).Value = Math.Abs(result.NetResult);
+        sheet.Cell(row, 2).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Row(row).Style.Font.SetBold();
+        row += 2;
+
+        WriteAccountingNote(sheet, row);
+        sheet.Columns().AdjustToContents();
+        return ToBytes(workbook);
+    }
+
+    private static int WriteIncomeStatementSide(
+        IXLWorksheet sheet,
+        int row,
+        IReadOnlyList<IncomeStatementGroupLine> groups,
+        string totalLabel,
+        decimal total)
+    {
+        string[] columns = ["Código", "Cuenta", "Monto"];
+        WriteColumnHeaders(sheet, row, columns);
+        row++;
+
+        foreach (IncomeStatementGroupLine group in groups)
+        {
+            foreach (IncomeStatementAccountLine account in group.Accounts)
+            {
+                sheet.Cell(row, 1).Value = account.AccountCode;
+                sheet.Cell(row, 2).Value = account.AccountName;
+                sheet.Cell(row, 3).Value = account.Amount;
+                sheet.Cell(row, 3).Style.NumberFormat.Format = "#,##0.00";
+                row++;
+            }
+
+            sheet.Cell(row, 1).Value = $"Subtotal {group.GroupCode}";
+            sheet.Cell(row, 2).Value = group.GroupName;
+            sheet.Cell(row, 3).Value = group.Subtotal;
+            sheet.Cell(row, 3).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Row(row).Style.Font.SetBold();
+            row++;
+        }
+
+        sheet.Cell(row, 2).Value = totalLabel;
+        sheet.Cell(row, 3).Value = total;
+        sheet.Cell(row, 3).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Row(row).Style.Font.SetBold();
+        return row + 1;
+    }
+
+    private static void WriteAccountingNote(IXLWorksheet sheet, int row)
+    {
+        sheet.Cell(row, 1).Value = ReportDocumentStyles.AccountingNote;
+        sheet.Cell(row, 1).Style.Font.SetItalic();
     }
 
     private static int WriteHeader(IXLWorksheet sheet, ReportHeader header)

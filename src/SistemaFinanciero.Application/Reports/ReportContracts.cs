@@ -1,5 +1,6 @@
 using SistemaFinanciero.Application.Budgets;
 using SistemaFinanciero.Domain.Incomes;
+using SistemaFinanciero.Domain.Ledger;
 
 namespace SistemaFinanciero.Application.Reports;
 
@@ -135,6 +136,115 @@ public sealed record PayableBySupplierReportResult(
     IReadOnlyList<PayableBySupplierReportLine> Lines,
     decimal GrandTotalBalance);
 
+/// <summary>Una línea (débito o crédito) de un asiento, dentro del libro diario.</summary>
+public sealed record JournalBookLine(string AccountCode, string AccountName, decimal Debit, decimal Credit);
+
+/// <summary>Un asiento completo, con sus líneas, dentro del libro diario.</summary>
+public sealed record JournalBookEntry(
+    long Number,
+    DateOnly EntryDate,
+    string Description,
+    JournalEntrySourceType SourceType,
+    IReadOnlyList<JournalBookLine> Lines);
+
+/// <summary>
+/// Resultado del libro diario (RF-80, bloque 5/6 del paquete de mejoras finales): todos los asientos
+/// de un rango de fechas, con sus líneas; los totales de débito y crédito del reporte coinciden porque
+/// cada asiento ya balancea por separado (regla 1).
+/// </summary>
+public sealed record JournalBookReportResult(
+    ReportHeader Header,
+    DateOnly PeriodFrom,
+    DateOnly PeriodTo,
+    IReadOnlyList<JournalBookEntry> Entries,
+    decimal TotalDebit,
+    decimal TotalCredit);
+
+/// <summary>Un movimiento del libro mayor de una cuenta, con su saldo acumulado después de aplicarse.</summary>
+public sealed record LedgerBookMovement(
+    DateOnly EntryDate,
+    long JournalEntryNumber,
+    string Description,
+    decimal Debit,
+    decimal Credit,
+    decimal RunningBalance);
+
+/// <summary>
+/// Resultado del libro mayor de una cuenta (RF-81): el saldo anterior al período (movimientos previos
+/// a <see cref="PeriodFrom"/>), los movimientos del período con su asiento y el saldo acumulado, según
+/// la naturaleza de la cuenta (deudora para Activo y Gasto, acreedora para Pasivo, Patrimonio e
+/// Ingreso).
+/// </summary>
+public sealed record LedgerBookReportResult(
+    ReportHeader Header,
+    Guid AccountId,
+    string AccountCode,
+    string AccountName,
+    DateOnly PeriodFrom,
+    DateOnly PeriodTo,
+    decimal OpeningBalance,
+    IReadOnlyList<LedgerBookMovement> Movements,
+    decimal ClosingBalance);
+
+/// <summary>Una cuenta de detalle con movimiento, dentro de la balanza de comprobación.</summary>
+public sealed record TrialBalanceAccountLine(
+    string AccountCode,
+    string AccountName,
+    decimal TotalDebit,
+    decimal TotalCredit,
+    decimal DebitBalance,
+    decimal CreditBalance);
+
+/// <summary>El subtotal de un grupo de cuentas (la cuenta superior inmediata) en la balanza de comprobación.</summary>
+public sealed record TrialBalanceGroupLine(
+    string GroupCode,
+    string GroupName,
+    IReadOnlyList<TrialBalanceAccountLine> Accounts,
+    decimal TotalDebit,
+    decimal TotalCredit,
+    decimal DebitBalance,
+    decimal CreditBalance);
+
+/// <summary>
+/// Resultado de la balanza de comprobación a una fecha de corte (RF-82): solo cuentas de detalle con
+/// movimiento hasta esa fecha, con subtotales por grupo; los totales de débito y crédito, y los de
+/// saldo deudor y acreedor, coinciden siempre (propiedad de la partida doble).
+/// </summary>
+public sealed record TrialBalanceReportResult(
+    ReportHeader Header,
+    DateOnly CutoffDate,
+    IReadOnlyList<TrialBalanceGroupLine> Groups,
+    decimal GrandTotalDebit,
+    decimal GrandTotalCredit,
+    decimal GrandTotalDebitBalance,
+    decimal GrandTotalCreditBalance);
+
+/// <summary>Una cuenta de ingreso o de gasto con movimiento, dentro del estado de resultados.</summary>
+public sealed record IncomeStatementAccountLine(string AccountCode, string AccountName, decimal Amount);
+
+/// <summary>El subtotal de un grupo de cuentas de ingreso o de gasto, dentro del estado de resultados.</summary>
+public sealed record IncomeStatementGroupLine(
+    string GroupCode,
+    string GroupName,
+    IReadOnlyList<IncomeStatementAccountLine> Accounts,
+    decimal Subtotal);
+
+/// <summary>
+/// Resultado del estado de resultados de un rango de fechas (RF-83): ingresos y gastos por cuenta,
+/// agrupados por su cuenta superior inmediata, y la utilidad o pérdida del período. Sale de los
+/// asientos (cuentas tipo Ingreso y Gasto), por lo que no incluye IVA: el IVA de las ventas y de las
+/// compras se contabiliza en cuentas de Pasivo y de Activo, nunca de Ingreso ni de Gasto.
+/// </summary>
+public sealed record IncomeStatementReportResult(
+    ReportHeader Header,
+    DateOnly PeriodFrom,
+    DateOnly PeriodTo,
+    IReadOnlyList<IncomeStatementGroupLine> IncomeGroups,
+    decimal TotalIncome,
+    IReadOnlyList<IncomeStatementGroupLine> ExpenseGroups,
+    decimal TotalExpense,
+    decimal NetResult);
+
 /// <summary>
 /// Casos de uso de los reportes financieros (regla de negocio 8), en pantalla, PDF y Excel. Cada
 /// reporte agrega sus propios datos consultando las tablas directamente, igual criterio que
@@ -195,6 +305,34 @@ public interface IReportService
 
     /// <summary>Cuentas por pagar vigentes de todos los proveedores, agrupadas por proveedor.</summary>
     public Task<PayableBySupplierReportResult> GetPayableBySupplierReportAsync(
+        string generatedByUserName,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Libro diario: todos los asientos entre <paramref name="periodFrom"/> y <paramref name="periodTo"/>.</summary>
+    public Task<JournalBookReportResult> GetJournalBookReportAsync(
+        DateOnly periodFrom,
+        DateOnly periodTo,
+        string generatedByUserName,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Libro mayor de <paramref name="accountId"/> entre <paramref name="periodFrom"/> y <paramref name="periodTo"/>.</summary>
+    public Task<LedgerBookReportResult> GetLedgerBookReportAsync(
+        Guid accountId,
+        DateOnly periodFrom,
+        DateOnly periodTo,
+        string generatedByUserName,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Balanza de comprobación a la fecha de corte <paramref name="cutoffDate"/>.</summary>
+    public Task<TrialBalanceReportResult> GetTrialBalanceReportAsync(
+        DateOnly cutoffDate,
+        string generatedByUserName,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Estado de resultados entre <paramref name="periodFrom"/> y <paramref name="periodTo"/>.</summary>
+    public Task<IncomeStatementReportResult> GetIncomeStatementReportAsync(
+        DateOnly periodFrom,
+        DateOnly periodTo,
         string generatedByUserName,
         CancellationToken cancellationToken = default);
 }

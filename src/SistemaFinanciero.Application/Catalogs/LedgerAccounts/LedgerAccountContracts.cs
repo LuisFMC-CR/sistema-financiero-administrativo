@@ -92,6 +92,16 @@ public interface ILedgerAccountService
     public Task<IReadOnlyList<CashAccountOption>> GetActiveCashAccountsAsync(
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Lista todas las cuentas de detalle (de cualquier tipo y estado, incluidas las de sistema),
+    /// para elegir la cuenta del reporte de libro mayor: a diferencia de
+    /// <see cref="GetActiveOptionsAsync"/>, no filtra por tipo ni excluye cuentas inactivas o de
+    /// sistema, porque un reporte histórico puede necesitar cualquier cuenta que haya tenido
+    /// movimiento.
+    /// </summary>
+    public Task<IReadOnlyList<LedgerAccountOption>> GetDetailAccountOptionsAsync(
+        CancellationToken cancellationToken = default);
+
     /// <summary>Crea una cuenta contable.</summary>
     public Task<CatalogOperationResult> CreateAsync(
         CreateLedgerAccountCommand command,
