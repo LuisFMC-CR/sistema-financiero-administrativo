@@ -1,0 +1,15 @@
+@using SistemaFinanciero.Web.Models.Overdue
+@model HomeIndicatorsViewModel
+
+<div class="card h-100 border-0 shadow-sm">
+    <div class="card-body">
+        <h2 class="h5">Presupuestos excedidos del mes</h2>
+        <p class="mb-1">
+            <span class="fw-semibold">@Model.ExceededBudgets.ExceededCount</span> categoría(s) en rojo por
+            ₡@Model.ExceededBudgets.ExceededAmount.ToString("N2") de más sobre lo presupuestado
+        </p>
+        <a class="small" asp-controller="Budgets" asp-action="Index" asp-route-year="@Model.PeriodYear" asp-route-month="@Model.PeriodMonth">
+            Ver presupuesto del mes
+        </a>
+    </div>
+</div>

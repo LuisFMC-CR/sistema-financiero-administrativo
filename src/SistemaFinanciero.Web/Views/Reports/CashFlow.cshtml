@@ -1,0 +1,86 @@
+@using System.Globalization
+@using SistemaFinanciero.Application.Reports
+@using SistemaFinanciero.Web.Models.Reports
+@model CashFlowReportViewModel
+@{
+    ViewData["Title"] = "Flujo de efectivo mensual";
+    CultureInfo culture = CultureInfo.GetCultureInfo("es-CR");
+}
+
+<h1 class="h2 mb-1">Flujo de efectivo mensual</h1>
+<p class="text-body-secondary mb-3">
+    Entradas (ingresos vigentes de facturas de contado, abonos e ingresos manuales) contra salidas
+    (pagos vigentes y gastos de contado confirmados), con IVA, por mes (RF-86).
+</p>
+
+<form method="get" asp-action="CashFlow" class="row gy-2 gx-3 align-items-end mb-3">
+    <div class="col-auto">
+        <label class="form-label small mb-0" for="periodFrom">Desde</label>
+        <input class="form-control form-control-sm" type="date" id="periodFrom" name="periodFrom" value="@Model.PeriodFrom.ToString("yyyy-MM-dd")" required />
+    </div>
+    <div class="col-auto">
+        <label class="form-label small mb-0" for="periodTo">Hasta</label>
+        <input class="form-control form-control-sm" type="date" id="periodTo" name="periodTo" value="@Model.PeriodTo.ToString("yyyy-MM-dd")" required />
+    </div>
+    <div class="col-auto">
+        <label class="form-label small mb-0" for="cashAccountId">Cuenta de efectivo</label>
+        <select class="form-select form-select-sm" id="cashAccountId" name="cashAccountId" asp-items="Model.CashAccountOptions">
+            <option value="">Todas las cuentas</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary btn-sm">Consultar</button>
+    </div>
+    @if (Model.Result is { } nonEmptyResult && (nonEmptyResult.GrandTotalInflow != 0 || nonEmptyResult.GrandTotalOutflow != 0))
+    {
+        <div class="col-auto">
+            <a class="btn btn-outline-secondary btn-sm" asp-action="CashFlowPdf" asp-route-periodFrom="@Model.PeriodFrom.ToString("yyyy-MM-dd")" asp-route-periodTo="@Model.PeriodTo.ToString("yyyy-MM-dd")" asp-route-cashAccountId="@Model.CashAccountId">Exportar PDF</a>
+            <a class="btn btn-outline-secondary btn-sm" asp-action="CashFlowExcel" asp-route-periodFrom="@Model.PeriodFrom.ToString("yyyy-MM-dd")" asp-route-periodTo="@Model.PeriodTo.ToString("yyyy-MM-dd")" asp-route-cashAccountId="@Model.CashAccountId">Exportar Excel</a>
+        </div>
+    }
+</form>
+
+@if (Model.Result is CashFlowReportResult result)
+{
+    <div class="table-responsive bg-white border rounded">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th scope="col">Mes</th>
+                    <th scope="col" class="text-end">Entradas</th>
+                    <th scope="col" class="text-end">Salidas</th>
+                    <th scope="col" class="text-end">Neto</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (result.GrandTotalInflow == 0 && result.GrandTotalOutflow == 0)
+                {
+                    <tr><td colspan="4" class="text-center text-body-secondary py-4">No hay movimientos de efectivo en el período indicado.</td></tr>
+                }
+                else
+                {
+                    @foreach (CashFlowReportLine line in result.Lines)
+                    {
+                        <tr>
+                            <td class="text-capitalize">@(new DateOnly(line.PeriodYear, line.PeriodMonth, 1).ToString("MMMM yyyy", culture))</td>
+                            <td class="text-end">₡@line.TotalInflow.ToString("N2")</td>
+                            <td class="text-end">₡@line.TotalOutflow.ToString("N2")</td>
+                            <td class="text-end @(line.Net < 0 ? "text-danger" : null)">₡@line.Net.ToString("N2")</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+            @if (result.GrandTotalInflow != 0 || result.GrandTotalOutflow != 0)
+            {
+                <tfoot>
+                    <tr class="fw-semibold">
+                        <td class="text-end">Total</td>
+                        <td class="text-end">₡@result.GrandTotalInflow.ToString("N2")</td>
+                        <td class="text-end">₡@result.GrandTotalOutflow.ToString("N2")</td>
+                        <td class="text-end">₡@result.GrandTotalNet.ToString("N2")</td>
+                    </tr>
+                </tfoot>
+            }
+        </table>
+    </div>
+}

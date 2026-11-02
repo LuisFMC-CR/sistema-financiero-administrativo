@@ -20,12 +20,15 @@ internal static class ReportDocumentStyles
     public const string AccountingNote =
         "Saldos calculados a partir de las operaciones registradas en el sistema; no incluye saldos iniciales.";
 
-    public static void ComposeAccountingNote(IContainer container)
+    public static void ComposeAccountingNote(IContainer container) => ComposeNote(container, AccountingNote);
+
+    /// <summary>Pie de un reporte con una nota propia (por ejemplo, el aviso de apoyo para la declaración de IVA).</summary>
+    public static void ComposeNote(IContainer container, string text)
     {
         container.PaddingTop(10).Column(column =>
         {
             column.Item().LineHorizontal(1).LineColor(Colors.Grey.Lighten1);
-            column.Item().PaddingTop(4).Text(AccountingNote).FontSize(8).Italic().FontColor(Colors.Grey.Darken1);
+            column.Item().PaddingTop(4).Text(text).FontSize(8).Italic().FontColor(Colors.Grey.Darken1);
         });
     }
 

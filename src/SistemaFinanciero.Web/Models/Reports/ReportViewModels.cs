@@ -64,3 +64,29 @@ public sealed record IncomeStatementReportViewModel(
     DateOnly PeriodFrom,
     DateOnly PeriodTo,
     IncomeStatementReportResult? Result);
+
+/// <summary>Parámetros y resultado del presupuesto anual a la fecha.</summary>
+public sealed record AnnualBudgetReportViewModel(
+    int PeriodYear,
+    int UpToMonth,
+    AnnualBudgetReportResult? Result);
+
+/// <summary>Parámetros, cuentas de efectivo disponibles y resultado del flujo de efectivo mensual.</summary>
+public sealed record CashFlowReportViewModel(
+    DateOnly PeriodFrom,
+    DateOnly PeriodTo,
+    Guid? CashAccountId,
+    IReadOnlyList<SelectListItem> CashAccountOptions,
+    CashFlowReportResult? Result);
+
+/// <summary>Parámetros y resultado del IVA del período.</summary>
+public sealed record VatPeriodReportViewModel(
+    DateOnly PeriodFrom,
+    DateOnly PeriodTo,
+    VatPeriodReportResult? Result);
+
+/// <summary>Parámetros y resultado de las retenciones aplicadas por clientes.</summary>
+public sealed record WithholdingByCustomerReportViewModel(
+    DateOnly PeriodFrom,
+    DateOnly PeriodTo,
+    WithholdingByCustomerReportResult? Result);

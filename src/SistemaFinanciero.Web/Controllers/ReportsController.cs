@@ -617,6 +617,226 @@ public sealed class ReportsController(
             "estado-de-resultados.xlsx");
     }
 
+    [HttpGet("presupuesto-anual")]
+    public async Task<IActionResult> AnnualBudget(
+        int? periodYear,
+        int? upToMonth,
+        CancellationToken cancellationToken)
+    {
+        (int year, int month) = NormalizeMonth(periodYear, upToMonth);
+
+        AnnualBudgetReportResult result = await reportService.GetAnnualBudgetReportAsync(
+            year, month, CurrentUserName(), cancellationToken);
+
+        return View(new AnnualBudgetReportViewModel(year, month, result));
+    }
+
+    [HttpGet("presupuesto-anual/pdf")]
+    public async Task<IActionResult> AnnualBudgetPdf(
+        int periodYear,
+        int upToMonth,
+        CancellationToken cancellationToken)
+    {
+        AnnualBudgetReportResult result = await reportService.GetAnnualBudgetReportAsync(
+            periodYear, upToMonth, CurrentUserName(), cancellationToken);
+
+        if (result.Lines.Count == 0)
+        {
+            TempData["ErrorMessage"] = "No hay datos para los parámetros indicados; no se generó ningún archivo.";
+            return RedirectToAction(nameof(AnnualBudget), new { periodYear, upToMonth });
+        }
+
+        byte[] pdf = new AnnualBudgetReportPdfDocument(result).GeneratePdf();
+        return File(pdf, "application/pdf", "presupuesto-anual.pdf");
+    }
+
+    [HttpGet("presupuesto-anual/excel")]
+    public async Task<IActionResult> AnnualBudgetExcel(
+        int periodYear,
+        int upToMonth,
+        CancellationToken cancellationToken)
+    {
+        AnnualBudgetReportResult result = await reportService.GetAnnualBudgetReportAsync(
+            periodYear, upToMonth, CurrentUserName(), cancellationToken);
+
+        if (result.Lines.Count == 0)
+        {
+            TempData["ErrorMessage"] = "No hay datos para los parámetros indicados; no se generó ningún archivo.";
+            return RedirectToAction(nameof(AnnualBudget), new { periodYear, upToMonth });
+        }
+
+        byte[] excel = ReportExcelExporter.BuildAnnualBudgetWorkbook(result);
+        return File(
+            excel,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "presupuesto-anual.xlsx");
+    }
+
+    [HttpGet("flujo-efectivo")]
+    public async Task<IActionResult> CashFlow(
+        DateOnly? periodFrom,
+        DateOnly? periodTo,
+        Guid? cashAccountId,
+        CancellationToken cancellationToken)
+    {
+        (DateOnly from, DateOnly to) = NormalizePeriod(periodFrom, periodTo);
+
+        CashFlowReportResult result = await reportService.GetCashFlowReportAsync(
+            from, to, cashAccountId, CurrentUserName(), cancellationToken);
+
+        return View(new CashFlowReportViewModel(
+            from, to, cashAccountId, await GetCashAccountOptionsAsync(cancellationToken), result));
+    }
+
+    [HttpGet("flujo-efectivo/pdf")]
+    public async Task<IActionResult> CashFlowPdf(
+        DateOnly periodFrom,
+        DateOnly periodTo,
+        Guid? cashAccountId,
+        CancellationToken cancellationToken)
+    {
+        CashFlowReportResult result = await reportService.GetCashFlowReportAsync(
+            periodFrom, periodTo, cashAccountId, CurrentUserName(), cancellationToken);
+
+        if (result.GrandTotalInflow == 0 && result.GrandTotalOutflow == 0)
+        {
+            TempData["ErrorMessage"] = "No hay datos para los parámetros indicados; no se generó ningún archivo.";
+            return RedirectToAction(nameof(CashFlow), new { periodFrom, periodTo, cashAccountId });
+        }
+
+        byte[] pdf = new CashFlowReportPdfDocument(result).GeneratePdf();
+        return File(pdf, "application/pdf", "flujo-efectivo-mensual.pdf");
+    }
+
+    [HttpGet("flujo-efectivo/excel")]
+    public async Task<IActionResult> CashFlowExcel(
+        DateOnly periodFrom,
+        DateOnly periodTo,
+        Guid? cashAccountId,
+        CancellationToken cancellationToken)
+    {
+        CashFlowReportResult result = await reportService.GetCashFlowReportAsync(
+            periodFrom, periodTo, cashAccountId, CurrentUserName(), cancellationToken);
+
+        if (result.GrandTotalInflow == 0 && result.GrandTotalOutflow == 0)
+        {
+            TempData["ErrorMessage"] = "No hay datos para los parámetros indicados; no se generó ningún archivo.";
+            return RedirectToAction(nameof(CashFlow), new { periodFrom, periodTo, cashAccountId });
+        }
+
+        byte[] excel = ReportExcelExporter.BuildCashFlowWorkbook(result);
+        return File(
+            excel,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "flujo-efectivo-mensual.xlsx");
+    }
+
+    [HttpGet("iva-periodo")]
+    public async Task<IActionResult> VatPeriod(
+        DateOnly? periodFrom,
+        DateOnly? periodTo,
+        CancellationToken cancellationToken)
+    {
+        (DateOnly from, DateOnly to) = NormalizePeriod(periodFrom, periodTo);
+
+        VatPeriodReportResult result = await reportService.GetVatPeriodReportAsync(
+            from, to, CurrentUserName(), cancellationToken);
+
+        return View(new VatPeriodReportViewModel(from, to, result));
+    }
+
+    [HttpGet("iva-periodo/pdf")]
+    public async Task<IActionResult> VatPeriodPdf(
+        DateOnly periodFrom,
+        DateOnly periodTo,
+        CancellationToken cancellationToken)
+    {
+        VatPeriodReportResult result = await reportService.GetVatPeriodReportAsync(
+            periodFrom, periodTo, CurrentUserName(), cancellationToken);
+
+        if (result.Lines.Count == 0)
+        {
+            return NoDataResult(nameof(VatPeriod), periodFrom, periodTo);
+        }
+
+        byte[] pdf = new VatPeriodReportPdfDocument(result).GeneratePdf();
+        return File(pdf, "application/pdf", "iva-del-periodo.pdf");
+    }
+
+    [HttpGet("iva-periodo/excel")]
+    public async Task<IActionResult> VatPeriodExcel(
+        DateOnly periodFrom,
+        DateOnly periodTo,
+        CancellationToken cancellationToken)
+    {
+        VatPeriodReportResult result = await reportService.GetVatPeriodReportAsync(
+            periodFrom, periodTo, CurrentUserName(), cancellationToken);
+
+        if (result.Lines.Count == 0)
+        {
+            return NoDataResult(nameof(VatPeriod), periodFrom, periodTo);
+        }
+
+        byte[] excel = ReportExcelExporter.BuildVatPeriodWorkbook(result);
+        return File(
+            excel,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "iva-del-periodo.xlsx");
+    }
+
+    [HttpGet("retenciones-por-clientes")]
+    public async Task<IActionResult> WithholdingByCustomer(
+        DateOnly? periodFrom,
+        DateOnly? periodTo,
+        CancellationToken cancellationToken)
+    {
+        (DateOnly from, DateOnly to) = NormalizePeriod(periodFrom, periodTo);
+
+        WithholdingByCustomerReportResult result = await reportService.GetWithholdingByCustomerReportAsync(
+            from, to, CurrentUserName(), cancellationToken);
+
+        return View(new WithholdingByCustomerReportViewModel(from, to, result));
+    }
+
+    [HttpGet("retenciones-por-clientes/pdf")]
+    public async Task<IActionResult> WithholdingByCustomerPdf(
+        DateOnly periodFrom,
+        DateOnly periodTo,
+        CancellationToken cancellationToken)
+    {
+        WithholdingByCustomerReportResult result = await reportService.GetWithholdingByCustomerReportAsync(
+            periodFrom, periodTo, CurrentUserName(), cancellationToken);
+
+        if (result.Lines.Count == 0)
+        {
+            return NoDataResult(nameof(WithholdingByCustomer), periodFrom, periodTo);
+        }
+
+        byte[] pdf = new WithholdingByCustomerReportPdfDocument(result).GeneratePdf();
+        return File(pdf, "application/pdf", "retenciones-por-clientes.pdf");
+    }
+
+    [HttpGet("retenciones-por-clientes/excel")]
+    public async Task<IActionResult> WithholdingByCustomerExcel(
+        DateOnly periodFrom,
+        DateOnly periodTo,
+        CancellationToken cancellationToken)
+    {
+        WithholdingByCustomerReportResult result = await reportService.GetWithholdingByCustomerReportAsync(
+            periodFrom, periodTo, CurrentUserName(), cancellationToken);
+
+        if (result.Lines.Count == 0)
+        {
+            return NoDataResult(nameof(WithholdingByCustomer), periodFrom, periodTo);
+        }
+
+        byte[] excel = ReportExcelExporter.BuildWithholdingByCustomerWorkbook(result);
+        return File(
+            excel,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "retenciones-por-clientes.xlsx");
+    }
+
     private static (int Year, int Month) NormalizeMonth(int? periodYear, int? periodMonth)
     {
         DateOnly today = DateOnly.FromDateTime(DateTime.Now);
@@ -669,6 +889,15 @@ public sealed class ReportsController(
     private async Task<IReadOnlyList<SelectListItem>> GetLedgerAccountOptionsAsync(CancellationToken cancellationToken)
     {
         IReadOnlyList<LedgerAccountOption> accounts = await ledgerAccountService.GetDetailAccountOptionsAsync(cancellationToken);
+
+        return accounts
+            .Select(option => new SelectListItem($"{option.Code} — {option.Name}", option.Id.ToString()))
+            .ToArray();
+    }
+
+    private async Task<IReadOnlyList<SelectListItem>> GetCashAccountOptionsAsync(CancellationToken cancellationToken)
+    {
+        IReadOnlyList<CashAccountOption> accounts = await ledgerAccountService.GetActiveCashAccountsAsync(cancellationToken);
 
         return accounts
             .Select(option => new SelectListItem($"{option.Code} — {option.Name}", option.Id.ToString()))

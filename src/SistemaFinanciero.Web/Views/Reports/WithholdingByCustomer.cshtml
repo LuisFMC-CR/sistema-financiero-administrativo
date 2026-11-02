@@ -1,0 +1,76 @@
+@using SistemaFinanciero.Application.Reports
+@using SistemaFinanciero.Web.Models.Reports
+@model WithholdingByCustomerReportViewModel
+@{
+    ViewData["Title"] = "Retenciones aplicadas por clientes";
+}
+
+<h1 class="h2 mb-1">Retenciones aplicadas por clientes</h1>
+<p class="text-body-secondary mb-3">Retenciones de abonos vigentes, por cliente, entre dos fechas (RF-85).</p>
+
+<form method="get" asp-action="WithholdingByCustomer" class="row gy-2 gx-3 align-items-end mb-3">
+    <div class="col-auto">
+        <label class="form-label small mb-0" for="periodFrom">Desde</label>
+        <input class="form-control form-control-sm" type="date" id="periodFrom" name="periodFrom" value="@Model.PeriodFrom.ToString("yyyy-MM-dd")" required />
+    </div>
+    <div class="col-auto">
+        <label class="form-label small mb-0" for="periodTo">Hasta</label>
+        <input class="form-control form-control-sm" type="date" id="periodTo" name="periodTo" value="@Model.PeriodTo.ToString("yyyy-MM-dd")" required />
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary btn-sm">Consultar</button>
+    </div>
+    @if (Model.Result is { Lines.Count: > 0 })
+    {
+        <div class="col-auto">
+            <a class="btn btn-outline-secondary btn-sm" asp-action="WithholdingByCustomerPdf" asp-route-periodFrom="@Model.PeriodFrom.ToString("yyyy-MM-dd")" asp-route-periodTo="@Model.PeriodTo.ToString("yyyy-MM-dd")">Exportar PDF</a>
+            <a class="btn btn-outline-secondary btn-sm" asp-action="WithholdingByCustomerExcel" asp-route-periodFrom="@Model.PeriodFrom.ToString("yyyy-MM-dd")" asp-route-periodTo="@Model.PeriodTo.ToString("yyyy-MM-dd")">Exportar Excel</a>
+        </div>
+    }
+</form>
+
+@if (Model.Result is WithholdingByCustomerReportResult result)
+{
+    <div class="table-responsive bg-white border rounded">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th scope="col">Cliente</th>
+                    <th scope="col">Abono</th>
+                    <th scope="col">Factura</th>
+                    <th scope="col">Fecha</th>
+                    <th scope="col">Tipo de retención</th>
+                    <th scope="col" class="text-end">Base</th>
+                    <th scope="col" class="text-end">Monto</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (result.Lines.Count == 0)
+                {
+                    <tr><td colspan="7" class="text-center text-body-secondary py-4">No hay retenciones de abonos vigentes en el período indicado.</td></tr>
+                }
+                @foreach (WithholdingByCustomerLine line in result.Lines)
+                {
+                    <tr>
+                        <td>@line.CustomerName</td>
+                        <td>@line.ReceivablePaymentCode</td>
+                        <td>@(line.InvoiceNumber?.ToString() ?? "—")</td>
+                        <td>@line.PaymentDate.ToString("dd/MM/yyyy")</td>
+                        <td>@line.WithholdingTypeName</td>
+                        <td class="text-end">₡@line.Base.ToString("N2")</td>
+                        <td class="text-end">₡@line.Amount.ToString("N2")</td>
+                    </tr>
+                }
+            </tbody>
+            @if (result.Lines.Count > 0)
+            {
+                <tfoot>
+                    <tr class="fw-semibold">
+                        <td colspan="6" class="text-end">Total</td>
+                        <td class="text-end">₡@result.TotalAmount.ToString("N2")</td>
+                    </tr>
+                </tfoot>
+            }
+        </table>
+    </div>
+}

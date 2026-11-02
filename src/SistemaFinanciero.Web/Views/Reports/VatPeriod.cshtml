@@ -1,0 +1,82 @@
+@using SistemaFinanciero.Application.Reports
+@using SistemaFinanciero.Web.Models.Reports
+@model VatPeriodReportViewModel
+@{
+    ViewData["Title"] = "IVA del período";
+}
+
+<h1 class="h2 mb-1">IVA del período</h1>
+<p class="text-body-secondary mb-3">
+    Por tarifa, la base y el IVA de facturas confirmadas (cobrado) y de gastos confirmados (pagado),
+    entre dos fechas (RF-84).
+</p>
+
+<form method="get" asp-action="VatPeriod" class="row gy-2 gx-3 align-items-end mb-3">
+    <div class="col-auto">
+        <label class="form-label small mb-0" for="periodFrom">Desde</label>
+        <input class="form-control form-control-sm" type="date" id="periodFrom" name="periodFrom" value="@Model.PeriodFrom.ToString("yyyy-MM-dd")" required />
+    </div>
+    <div class="col-auto">
+        <label class="form-label small mb-0" for="periodTo">Hasta</label>
+        <input class="form-control form-control-sm" type="date" id="periodTo" name="periodTo" value="@Model.PeriodTo.ToString("yyyy-MM-dd")" required />
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary btn-sm">Consultar</button>
+    </div>
+    @if (Model.Result is { Lines.Count: > 0 })
+    {
+        <div class="col-auto">
+            <a class="btn btn-outline-secondary btn-sm" asp-action="VatPeriodPdf" asp-route-periodFrom="@Model.PeriodFrom.ToString("yyyy-MM-dd")" asp-route-periodTo="@Model.PeriodTo.ToString("yyyy-MM-dd")">Exportar PDF</a>
+            <a class="btn btn-outline-secondary btn-sm" asp-action="VatPeriodExcel" asp-route-periodFrom="@Model.PeriodFrom.ToString("yyyy-MM-dd")" asp-route-periodTo="@Model.PeriodTo.ToString("yyyy-MM-dd")">Exportar Excel</a>
+        </div>
+    }
+</form>
+
+@if (Model.Result is VatPeriodReportResult result)
+{
+    <div class="table-responsive bg-white border rounded">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th scope="col">Tarifa</th>
+                    <th scope="col" class="text-end">Base ventas</th>
+                    <th scope="col" class="text-end">IVA cobrado</th>
+                    <th scope="col" class="text-end">Base compras</th>
+                    <th scope="col" class="text-end">IVA pagado</th>
+                    <th scope="col" class="text-end">Diferencia</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (result.Lines.Count == 0)
+                {
+                    <tr><td colspan="6" class="text-center text-body-secondary py-4">No hay facturas ni gastos confirmados en el período indicado.</td></tr>
+                }
+                @foreach (VatPeriodReportLine line in result.Lines)
+                {
+                    <tr>
+                        <td>@line.TaxCode - @line.TaxName</td>
+                        <td class="text-end">₡@line.SalesBase.ToString("N2")</td>
+                        <td class="text-end">₡@line.VatCollected.ToString("N2")</td>
+                        <td class="text-end">₡@line.PurchasesBase.ToString("N2")</td>
+                        <td class="text-end">₡@line.VatPaid.ToString("N2")</td>
+                        <td class="text-end">₡@line.Difference.ToString("N2")</td>
+                    </tr>
+                }
+            </tbody>
+            @if (result.Lines.Count > 0)
+            {
+                <tfoot>
+                    <tr class="fw-semibold">
+                        <td colspan="2" class="text-end">Total</td>
+                        <td class="text-end">₡@result.TotalVatCollected.ToString("N2")</td>
+                        <td></td>
+                        <td class="text-end">₡@result.TotalVatPaid.ToString("N2")</td>
+                        <td class="text-end">₡@((result.TotalVatCollected - result.TotalVatPaid).ToString("N2"))</td>
+                    </tr>
+                </tfoot>
+            }
+        </table>
+    </div>
+
+    <p class="text-body-secondary mt-2"><small>Apoyo para la declaración; no sustituye la declaración ante Hacienda.</small></p>
+}

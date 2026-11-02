@@ -65,7 +65,7 @@ internal sealed class ReportService(
             .ToArray();
 
         ReportHeader header = new(
-            "Ingresos por período",
+            "Ingresos recibidos por período",
             FormatPeriod(periodFrom, periodTo),
             timeProvider.GetUtcNow(),
             generatedByUserName);
@@ -172,21 +172,33 @@ internal sealed class ReportService(
         DateOnly periodTo = new DateOnly(periodYearTo, periodMonthTo, 1).AddMonths(1).AddDays(-1);
         ValidatePeriod(periodFrom, periodTo);
 
-        List<(DateOnly Date, decimal Amount)> incomes = await dbContext.Set<Income>()
+        // Bloque 7 del paquete de mejoras finales, punto 4: se calcula desde los asientos (cuentas
+        // tipo Ingreso contra tipo Gasto, sin IVA), para que coincida con el estado de resultados en
+        // vez de con el efectivo cobrado o pagado.
+        List<JournalEntry> entries = await dbContext.Set<JournalEntry>()
             .AsNoTracking()
-            .Where(income => income.Status == IncomeStatus.Active
-                && income.IncomeDate >= periodFrom
-                && income.IncomeDate <= periodTo)
-            .Select(income => new ValueTuple<DateOnly, decimal>(income.IncomeDate, income.Amount))
+            .Include(entry => entry.Lines)
+            .Where(entry => entry.EntryDate >= periodFrom && entry.EntryDate <= periodTo)
             .ToListAsync(cancellationToken);
 
-        List<(DateOnly Date, decimal Amount)> expenses = await dbContext.Set<Expense>()
+        List<JournalEntryLine> allLines = entries.SelectMany(entry => entry.Lines).ToList();
+        Guid[] accountIds = allLines.Select(line => line.AccountId).Distinct().ToArray();
+        Dictionary<Guid, LedgerAccountType> accountTypes = await dbContext.Set<LedgerAccount>()
             .AsNoTracking()
-            .Where(expense => expense.Status == ExpenseStatus.Confirmed
-                && expense.IssueDate >= periodFrom
-                && expense.IssueDate <= periodTo)
-            .Select(expense => new ValueTuple<DateOnly, decimal>(expense.IssueDate, expense.TotalAmount))
-            .ToListAsync(cancellationToken);
+            .Where(account => accountIds.Contains(account.Id))
+            .ToDictionaryAsync(account => account.Id, account => account.Type, cancellationToken);
+
+        List<(DateOnly Date, decimal Amount)> incomes = entries
+            .SelectMany(entry => entry.Lines.Select(line => (entry.EntryDate, line)))
+            .Where(pair => accountTypes.GetValueOrDefault(pair.line.AccountId) == LedgerAccountType.Income)
+            .Select(pair => (pair.EntryDate, Amount: pair.line.Credit - pair.line.Debit))
+            .ToList();
+
+        List<(DateOnly Date, decimal Amount)> expenses = entries
+            .SelectMany(entry => entry.Lines.Select(line => (entry.EntryDate, line)))
+            .Where(pair => accountTypes.GetValueOrDefault(pair.line.AccountId) == LedgerAccountType.Expense)
+            .Select(pair => (pair.EntryDate, Amount: pair.line.Debit - pair.line.Credit))
+            .ToList();
 
         List<MonthlyComparisonLine> lines = [];
         DateOnly month = periodFrom;
@@ -562,6 +574,293 @@ internal sealed class ReportService(
             header, periodFrom, periodTo, incomeGroups, totalIncome, expenseGroups, totalExpense, totalIncome - totalExpense);
     }
 
+    public async Task<AnnualBudgetReportResult> GetAnnualBudgetReportAsync(
+        int periodYear,
+        int upToMonth,
+        string generatedByUserName,
+        CancellationToken cancellationToken = default)
+    {
+        if (upToMonth < 1 || upToMonth > 12)
+        {
+            throw new ArgumentOutOfRangeException(nameof(upToMonth), upToMonth, "El mes debe estar entre 1 y 12.");
+        }
+
+        // Un llamado por mes de enero a diciembre, reutilizando IBudgetService: así el acumulado usa
+        // exactamente las mismas cifras (presupuesto y ejecutado sin IVA) que la pantalla de
+        // presupuesto, mes por mes. Los meses posteriores a upToMonth solo completan el presupuesto
+        // anual de referencia.
+        Dictionary<Guid, (string Code, string Name, decimal AccBudgeted, decimal AccExecuted, decimal AnnualBudgeted)> accumulator = [];
+
+        for (int month = 1; month <= 12; month++)
+        {
+            IReadOnlyList<BudgetModel> monthResults = await budgetService.SearchByPeriodAsync(periodYear, month, cancellationToken);
+
+            foreach (BudgetModel budget in monthResults)
+            {
+                (string Code, string Name, decimal AccBudgeted, decimal AccExecuted, decimal AnnualBudgeted) entry =
+                    accumulator.TryGetValue(budget.CategoryId, out var existing)
+                        ? existing
+                        : (budget.CategoryCode, budget.CategoryName, 0m, 0m, 0m);
+
+                decimal budgeted = budget.BudgetedAmount ?? 0m;
+
+                if (month <= upToMonth)
+                {
+                    entry.AccBudgeted += budgeted;
+                    entry.AccExecuted += budget.ExecutedAmount;
+                }
+
+                entry.AnnualBudgeted += budgeted;
+                accumulator[budget.CategoryId] = entry;
+            }
+        }
+
+        AnnualBudgetReportLine[] lines = accumulator.Values
+            .OrderBy(entry => entry.Code, StringComparer.Ordinal)
+            .Select(entry =>
+            {
+                decimal available = Math.Max(0m, entry.AccBudgeted - entry.AccExecuted);
+                decimal variance = entry.AccExecuted - entry.AccBudgeted;
+                decimal? variancePercent = entry.AccBudgeted != 0 ? variance / entry.AccBudgeted : null;
+
+                return new AnnualBudgetReportLine(
+                    entry.Code, entry.Name, entry.AccBudgeted, entry.AccExecuted, entry.AnnualBudgeted,
+                    available, variance, variancePercent);
+            })
+            .ToArray();
+
+        ReportHeader header = new(
+            "Presupuesto anual a la fecha",
+            $"Año {periodYear}, hasta {upToMonth:D2}",
+            timeProvider.GetUtcNow(),
+            generatedByUserName);
+
+        return new AnnualBudgetReportResult(
+            header,
+            periodYear,
+            upToMonth,
+            lines,
+            lines.Sum(line => line.AccumulatedBudgeted),
+            lines.Sum(line => line.AccumulatedExecuted),
+            lines.Sum(line => line.AnnualBudgeted));
+    }
+
+    public async Task<CashFlowReportResult> GetCashFlowReportAsync(
+        DateOnly periodFrom,
+        DateOnly periodTo,
+        Guid? cashAccountId,
+        string generatedByUserName,
+        CancellationToken cancellationToken = default)
+    {
+        ValidatePeriod(periodFrom, periodTo);
+
+        List<(DateOnly Date, decimal Amount)> inflows = await dbContext.Set<Income>()
+            .AsNoTracking()
+            .Where(income => income.Status == IncomeStatus.Active
+                && income.IncomeDate >= periodFrom
+                && income.IncomeDate <= periodTo
+                && (!cashAccountId.HasValue || income.CashAccountId == cashAccountId.Value))
+            .Select(income => new ValueTuple<DateOnly, decimal>(income.IncomeDate, income.Amount))
+            .ToListAsync(cancellationToken);
+
+        List<(DateOnly Date, decimal Amount)> outflowPayments = await dbContext.Set<SupplierPayment>()
+            .AsNoTracking()
+            .Where(payment => payment.Status == SupplierPaymentStatus.Active
+                && payment.PaymentDate >= periodFrom
+                && payment.PaymentDate <= periodTo
+                && (!cashAccountId.HasValue || payment.CashAccountId == cashAccountId.Value))
+            .Select(payment => new ValueTuple<DateOnly, decimal>(payment.PaymentDate, payment.Amount))
+            .ToListAsync(cancellationToken);
+
+        List<(DateOnly Date, decimal Amount)> outflowExpenses = await dbContext.Set<Expense>()
+            .AsNoTracking()
+            .Where(expense => expense.Status == ExpenseStatus.Confirmed
+                && expense.PaymentTerm == PaymentTerm.Cash
+                && expense.IssueDate >= periodFrom
+                && expense.IssueDate <= periodTo
+                && (!cashAccountId.HasValue || expense.CashAccountId == cashAccountId.Value))
+            .Select(expense => new ValueTuple<DateOnly, decimal>(expense.IssueDate, expense.TotalAmount))
+            .ToListAsync(cancellationToken);
+
+        List<(DateOnly Date, decimal Amount)> outflows = [.. outflowPayments, .. outflowExpenses];
+
+        List<CashFlowReportLine> lines = [];
+        DateOnly month = new(periodFrom.Year, periodFrom.Month, 1);
+        DateOnly lastMonth = new(periodTo.Year, periodTo.Month, 1);
+
+        while (month <= lastMonth)
+        {
+            int year = month.Year;
+            int monthNumber = month.Month;
+            decimal totalInflow = inflows
+                .Where(inflow => inflow.Date.Year == year && inflow.Date.Month == monthNumber)
+                .Sum(inflow => inflow.Amount);
+            decimal totalOutflow = outflows
+                .Where(outflow => outflow.Date.Year == year && outflow.Date.Month == monthNumber)
+                .Sum(outflow => outflow.Amount);
+
+            lines.Add(new CashFlowReportLine(year, monthNumber, totalInflow, totalOutflow, totalInflow - totalOutflow));
+            month = month.AddMonths(1);
+        }
+
+        string cashAccountDescription = cashAccountId is null
+            ? "todas las cuentas de efectivo"
+            : await GetLedgerAccountNameAsync(cashAccountId.Value, cancellationToken);
+
+        ReportHeader header = new(
+            "Flujo de efectivo mensual",
+            $"{FormatPeriod(periodFrom, periodTo)}; {cashAccountDescription}",
+            timeProvider.GetUtcNow(),
+            generatedByUserName);
+
+        return new CashFlowReportResult(
+            header,
+            periodFrom,
+            periodTo,
+            cashAccountId,
+            lines,
+            lines.Sum(line => line.TotalInflow),
+            lines.Sum(line => line.TotalOutflow),
+            lines.Sum(line => line.Net));
+    }
+
+    public async Task<VatPeriodReportResult> GetVatPeriodReportAsync(
+        DateOnly periodFrom,
+        DateOnly periodTo,
+        string generatedByUserName,
+        CancellationToken cancellationToken = default)
+    {
+        ValidatePeriod(periodFrom, periodTo);
+
+        var salesByTax = await dbContext.Set<Invoice>()
+            .AsNoTracking()
+            .Where(invoice => invoice.Status == InvoiceStatus.Confirmed
+                && invoice.IssueDate >= periodFrom
+                && invoice.IssueDate <= periodTo)
+            .SelectMany(invoice => invoice.Lines)
+            .GroupBy(line => new { line.Tax.Code, line.Tax.Name })
+            .Select(group => new
+            {
+                group.Key.Code,
+                group.Key.Name,
+                Base = group.Sum(line => line.Tax.TaxableAmount),
+                Vat = group.Sum(line => line.Tax.Amount),
+            })
+            .ToListAsync(cancellationToken);
+
+        var purchasesByTax = await dbContext.Set<Expense>()
+            .AsNoTracking()
+            .Where(expense => expense.Status == ExpenseStatus.Confirmed
+                && expense.IssueDate >= periodFrom
+                && expense.IssueDate <= periodTo)
+            .GroupBy(expense => new { expense.TaxCode, expense.TaxName })
+            .Select(group => new
+            {
+                Code = group.Key.TaxCode,
+                Name = group.Key.TaxName,
+                Base = group.Sum(expense => expense.NetAmount),
+                Vat = group.Sum(expense => expense.TaxAmount),
+            })
+            .ToListAsync(cancellationToken);
+
+        string[] codes = salesByTax.Select(entry => entry.Code)
+            .Concat(purchasesByTax.Select(entry => entry.Code))
+            .Distinct()
+            .OrderBy(code => code, StringComparer.Ordinal)
+            .ToArray();
+
+        VatPeriodReportLine[] lines = codes
+            .Select(code =>
+            {
+                var sale = salesByTax.SingleOrDefault(entry => entry.Code == code);
+                var purchase = purchasesByTax.SingleOrDefault(entry => entry.Code == code);
+
+                return new VatPeriodReportLine(
+                    code,
+                    sale?.Name ?? purchase?.Name ?? "—",
+                    sale?.Base ?? 0m,
+                    sale?.Vat ?? 0m,
+                    purchase?.Base ?? 0m,
+                    purchase?.Vat ?? 0m);
+            })
+            .ToArray();
+
+        ReportHeader header = new(
+            "IVA del período",
+            FormatPeriod(periodFrom, periodTo),
+            timeProvider.GetUtcNow(),
+            generatedByUserName);
+
+        return new VatPeriodReportResult(
+            header,
+            periodFrom,
+            periodTo,
+            lines,
+            lines.Sum(line => line.VatCollected),
+            lines.Sum(line => line.VatPaid));
+    }
+
+    public async Task<WithholdingByCustomerReportResult> GetWithholdingByCustomerReportAsync(
+        DateOnly periodFrom,
+        DateOnly periodTo,
+        string generatedByUserName,
+        CancellationToken cancellationToken = default)
+    {
+        ValidatePeriod(periodFrom, periodTo);
+
+        var rows = await dbContext.Set<Withholding>()
+            .AsNoTracking()
+            .Join(
+                dbContext.Set<ReceivablePayment>().AsNoTracking(),
+                withholding => withholding.ReceivablePaymentId,
+                payment => payment.Id,
+                (withholding, payment) => new { withholding, payment })
+            .Where(pair => pair.payment.Status == ReceivablePaymentStatus.Active
+                && pair.payment.PaymentDate >= periodFrom
+                && pair.payment.PaymentDate <= periodTo)
+            .Join(
+                dbContext.Set<Receivable>().AsNoTracking(),
+                pair => pair.payment.ReceivableId,
+                receivable => receivable.Id,
+                (pair, receivable) => new { pair.withholding, pair.payment, receivable })
+            .Join(
+                dbContext.Set<Invoice>().AsNoTracking(),
+                pair => pair.receivable.InvoiceId,
+                invoice => invoice.Id,
+                (pair, invoice) => new { pair.withholding, pair.payment, pair.receivable, invoice })
+            .Join(
+                dbContext.Set<Customer>().AsNoTracking(),
+                pair => pair.receivable.CustomerId,
+                customer => customer.Id,
+                (pair, customer) => new
+                {
+                    CustomerName = customer.Name,
+                    PaymentCode = pair.payment.Code,
+                    pair.payment.PaymentDate,
+                    InvoiceNumber = pair.invoice.Number,
+                    WithholdingTypeName = pair.withholding.Name,
+                    pair.withholding.Base,
+                    pair.withholding.Amount,
+                })
+            .ToListAsync(cancellationToken);
+
+        WithholdingByCustomerLine[] lines = rows
+            .OrderBy(row => row.CustomerName, StringComparer.Ordinal)
+            .ThenBy(row => row.PaymentDate)
+            .Select(row => new WithholdingByCustomerLine(
+                row.CustomerName, row.PaymentCode, row.InvoiceNumber, row.PaymentDate, row.WithholdingTypeName, row.Base, row.Amount))
+            .ToArray();
+
+        ReportHeader header = new(
+            "Retenciones aplicadas por clientes",
+            FormatPeriod(periodFrom, periodTo),
+            timeProvider.GetUtcNow(),
+            generatedByUserName);
+
+        return new WithholdingByCustomerReportResult(
+            header, periodFrom, periodTo, lines, lines.Sum(line => line.Amount));
+    }
+
     private async Task<(IncomeStatementGroupLine[] Groups, decimal Total)> BuildIncomeStatementSideAsync(
         IReadOnlyList<JournalEntryLine> allLines,
         Dictionary<Guid, LedgerAccount> accounts,
@@ -666,5 +965,14 @@ internal sealed class ReportService(
             .AsNoTracking()
             .Where(account => ids.Contains(account.Id))
             .ToDictionaryAsync(account => account.Id, account => account.Name, cancellationToken);
+    }
+
+    private async Task<string> GetLedgerAccountNameAsync(Guid ledgerAccountId, CancellationToken cancellationToken)
+    {
+        return await dbContext.Set<LedgerAccount>()
+            .AsNoTracking()
+            .Where(account => account.Id == ledgerAccountId)
+            .Select(account => account.Name)
+            .SingleOrDefaultAsync(cancellationToken) ?? "—";
     }
 }

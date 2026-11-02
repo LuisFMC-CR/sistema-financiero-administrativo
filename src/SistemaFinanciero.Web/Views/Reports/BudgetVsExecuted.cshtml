@@ -41,12 +41,13 @@
                     <th scope="col" class="text-end">Disponible</th>
                     <th scope="col" class="text-end">Variación</th>
                     <th scope="col" class="text-end">Variación %</th>
+                    <th scope="col">Ejecución</th>
                 </tr>
             </thead>
             <tbody>
                 @if (result.Lines.Count == 0)
                 {
-                    <tr><td colspan="6" class="text-center text-body-secondary py-4">No hay categorías de gasto de último nivel activas.</td></tr>
+                    <tr><td colspan="7" class="text-center text-body-secondary py-4">No hay categorías de gasto de último nivel activas.</td></tr>
                 }
                 @foreach (BudgetModel line in result.Lines)
                 {
@@ -57,6 +58,7 @@
                         <td class="text-end">@(line.AvailableAmount is decimal available ? $"₡{available:N2}" : "—")</td>
                         <td class="text-end @(line.VarianceAmount is > 0 ? "text-danger" : null)">@(line.VarianceAmount is decimal variance ? $"₡{variance:N2}" : "—")</td>
                         <td class="text-end">@(line.VariancePercent is decimal percent ? percent.ToString("P1") : "—")</td>
+                        <td><partial name="_BudgetExecutionBadge" model="line.ExecutionStatus" /></td>
                     </tr>
                 }
             </tbody>
@@ -67,7 +69,7 @@
                         <td class="text-end">Total</td>
                         <td class="text-end">₡@result.TotalBudgeted.ToString("N2")</td>
                         <td class="text-end">₡@result.TotalExecuted.ToString("N2")</td>
-                        <td colspan="3"></td>
+                        <td colspan="4"></td>
                     </tr>
                 </tfoot>
             }

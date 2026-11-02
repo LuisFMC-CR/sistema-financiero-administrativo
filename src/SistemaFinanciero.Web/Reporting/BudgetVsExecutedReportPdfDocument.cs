@@ -4,6 +4,7 @@ using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using SistemaFinanciero.Application.Budgets;
 using SistemaFinanciero.Application.Reports;
+using SistemaFinanciero.Web.Models.Budgets;
 
 namespace SistemaFinanciero.Web.Reporting;
 
@@ -37,6 +38,7 @@ public sealed class BudgetVsExecutedReportPdfDocument(BudgetVsExecutedReportResu
                         columns.RelativeColumn(2);
                         columns.RelativeColumn(2);
                         columns.RelativeColumn(2);
+                        columns.RelativeColumn(2);
                     });
 
                     table.Header(header =>
@@ -47,6 +49,7 @@ public sealed class BudgetVsExecutedReportPdfDocument(BudgetVsExecutedReportResu
                         header.Cell().Element(ReportDocumentStyles.HeaderCellStyle).AlignRight().Text("Disponible");
                         header.Cell().Element(ReportDocumentStyles.HeaderCellStyle).AlignRight().Text("Variación");
                         header.Cell().Element(ReportDocumentStyles.HeaderCellStyle).AlignRight().Text("Variación %");
+                        header.Cell().Element(ReportDocumentStyles.HeaderCellStyle).Text("Ejecución");
                     });
 
                     foreach (BudgetModel line in result.Lines)
@@ -64,6 +67,8 @@ public sealed class BudgetVsExecutedReportPdfDocument(BudgetVsExecutedReportResu
                             .Text(line.VariancePercent is decimal percent
                                 ? percent.ToString("P1", CultureInfo.InvariantCulture)
                                 : "—");
+                        table.Cell().Element(ReportDocumentStyles.BodyCellStyle)
+                            .Text(line.ExecutionStatus?.ToDisplayName() ?? "—");
                     }
                 });
 

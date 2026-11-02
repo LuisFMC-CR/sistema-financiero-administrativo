@@ -26,7 +26,7 @@ public sealed class ReportExportTests
     }
 
     private static readonly ReportHeader SampleHeader = new(
-        "Ingresos por período",
+        "Ingresos recibidos por período",
         "Del 01/01/2010 al 31/01/2010",
         DateTimeOffset.UtcNow,
         "Usuario de prueba");
@@ -369,6 +369,119 @@ public sealed class ReportExportTests
     public void BuildIncomeStatementWorkbook_WithLines_GeneratesAValidXlsx()
     {
         byte[] excel = ReportExcelExporter.BuildIncomeStatementWorkbook(SampleIncomeStatement);
+
+        Assert.True(excel.Length > 0);
+        Assert.Equal((byte)'P', excel[0]);
+        Assert.Equal((byte)'K', excel[1]);
+    }
+
+    private static readonly AnnualBudgetReportResult SampleAnnualBudget = new(
+        SampleHeader with { ReportName = "Presupuesto anual a la fecha" },
+        2010,
+        6,
+        [new AnnualBudgetReportLine("3.1.01", "Alquiler", 6000m, 6500m, 12000m, 0m, 500m, 0.0833m)],
+        6000m,
+        6500m,
+        12000m);
+
+    private static readonly CashFlowReportResult SampleCashFlow = new(
+        SampleHeader with { ReportName = "Flujo de efectivo mensual" },
+        new DateOnly(2010, 1, 1),
+        new DateOnly(2010, 2, 28),
+        null,
+        [
+            new CashFlowReportLine(2010, 1, 500m, 250m, 250m),
+            new CashFlowReportLine(2010, 2, 0m, 100m, -100m),
+        ],
+        500m,
+        350m,
+        150m);
+
+    private static readonly VatPeriodReportResult SampleVatPeriod = new(
+        SampleHeader with { ReportName = "IVA del período" },
+        new DateOnly(2010, 1, 1),
+        new DateOnly(2010, 1, 31),
+        [new VatPeriodReportLine("08", "IVA 13%", 1000m, 130m, 400m, 52m)],
+        130m,
+        52m);
+
+    private static readonly WithholdingByCustomerReportResult SampleWithholdingByCustomer = new(
+        SampleHeader with { ReportName = "Retenciones aplicadas por clientes" },
+        new DateOnly(2010, 1, 1),
+        new DateOnly(2010, 1, 31),
+        [new WithholdingByCustomerLine("Cliente de prueba", "ABO-000001", 1, new DateOnly(2010, 1, 15), "Renta 2%", 1000m, 20m)],
+        20m);
+
+    [Fact]
+    public void AnnualBudgetReportPdfDocument_WithLines_GeneratesAValidPdf()
+    {
+        byte[] pdf = new AnnualBudgetReportPdfDocument(SampleAnnualBudget).GeneratePdf();
+
+        Assert.True(pdf.Length > 0);
+        Assert.Equal("%PDF", Encoding.ASCII.GetString(pdf, 0, 4));
+    }
+
+    [Fact]
+    public void BuildAnnualBudgetWorkbook_WithLines_GeneratesAValidXlsx()
+    {
+        byte[] excel = ReportExcelExporter.BuildAnnualBudgetWorkbook(SampleAnnualBudget);
+
+        Assert.True(excel.Length > 0);
+        Assert.Equal((byte)'P', excel[0]);
+        Assert.Equal((byte)'K', excel[1]);
+    }
+
+    [Fact]
+    public void CashFlowReportPdfDocument_WithLines_GeneratesAValidPdf()
+    {
+        byte[] pdf = new CashFlowReportPdfDocument(SampleCashFlow).GeneratePdf();
+
+        Assert.True(pdf.Length > 0);
+        Assert.Equal("%PDF", Encoding.ASCII.GetString(pdf, 0, 4));
+    }
+
+    [Fact]
+    public void BuildCashFlowWorkbook_WithLines_GeneratesAValidXlsx()
+    {
+        byte[] excel = ReportExcelExporter.BuildCashFlowWorkbook(SampleCashFlow);
+
+        Assert.True(excel.Length > 0);
+        Assert.Equal((byte)'P', excel[0]);
+        Assert.Equal((byte)'K', excel[1]);
+    }
+
+    [Fact]
+    public void VatPeriodReportPdfDocument_WithLines_GeneratesAValidPdf()
+    {
+        byte[] pdf = new VatPeriodReportPdfDocument(SampleVatPeriod).GeneratePdf();
+
+        Assert.True(pdf.Length > 0);
+        Assert.Equal("%PDF", Encoding.ASCII.GetString(pdf, 0, 4));
+    }
+
+    [Fact]
+    public void BuildVatPeriodWorkbook_WithLines_GeneratesAValidXlsx()
+    {
+        byte[] excel = ReportExcelExporter.BuildVatPeriodWorkbook(SampleVatPeriod);
+
+        Assert.True(excel.Length > 0);
+        Assert.Equal((byte)'P', excel[0]);
+        Assert.Equal((byte)'K', excel[1]);
+    }
+
+    [Fact]
+    public void WithholdingByCustomerReportPdfDocument_WithLines_GeneratesAValidPdf()
+    {
+        byte[] pdf = new WithholdingByCustomerReportPdfDocument(SampleWithholdingByCustomer).GeneratePdf();
+
+        Assert.True(pdf.Length > 0);
+        Assert.Equal("%PDF", Encoding.ASCII.GetString(pdf, 0, 4));
+    }
+
+    [Fact]
+    public void BuildWithholdingByCustomerWorkbook_WithLines_GeneratesAValidXlsx()
+    {
+        byte[] excel = ReportExcelExporter.BuildWithholdingByCustomerWorkbook(SampleWithholdingByCustomer);
 
         Assert.True(excel.Length > 0);
         Assert.Equal((byte)'P', excel[0]);

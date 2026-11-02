@@ -415,7 +415,7 @@ public sealed class ExpensesController(
         ExpenseBudgetCheck check = await service.CheckBudgetAsync(
             expense.CategoryId,
             expense.IssueDate,
-            expense.TotalAmount,
+            expense.NetAmount,
             cancellationToken);
 
         model.HasBudget = check.HasBudget;

@@ -170,6 +170,22 @@ internal sealed class BudgetService(
         }
     }
 
+    public async Task<BudgetExceededSummary> GetExceededSummaryAsync(
+        int periodYear,
+        int periodMonth,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<BudgetModel> results = await SearchByPeriodAsync(periodYear, periodMonth, cancellationToken);
+
+        BudgetModel[] exceeded = results
+            .Where(budget => budget.ExecutionStatus == BudgetExecutionStatus.Exceeded)
+            .ToArray();
+
+        decimal exceededAmount = exceeded.Sum(budget => Math.Max(0m, budget.ExecutedAmount - (budget.BudgetedAmount ?? 0m)));
+
+        return new BudgetExceededSummary(exceeded.Length, exceededAmount);
+    }
+
     private async Task<CatalogOperationResult?> ValidateLeafExpenseCategoryAsync(
         Guid categoryId,
         CancellationToken cancellationToken)
@@ -232,7 +248,7 @@ internal sealed class BudgetService(
                 && expense.IssueDate >= periodStart
                 && expense.IssueDate <= periodEnd)
             .GroupBy(expense => expense.CategoryId)
-            .Select(group => new { CategoryId = group.Key, Total = group.Sum(expense => expense.TotalAmount) })
+            .Select(group => new { CategoryId = group.Key, Total = group.Sum(expense => expense.NetAmount) })
             .ToDictionaryAsync(entry => entry.CategoryId, entry => entry.Total, cancellationToken);
     }
 
@@ -250,7 +266,7 @@ internal sealed class BudgetService(
                 && expense.Status == ExpenseStatus.Confirmed
                 && expense.IssueDate >= periodStart
                 && expense.IssueDate <= periodEnd)
-            .Select(expense => expense.TotalAmount)
+            .Select(expense => expense.NetAmount)
             .SumAsync(cancellationToken);
     }
 

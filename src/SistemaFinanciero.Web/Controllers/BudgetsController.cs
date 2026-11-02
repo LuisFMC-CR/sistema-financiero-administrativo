@@ -20,15 +20,25 @@ namespace SistemaFinanciero.Web.Controllers;
 public sealed class BudgetsController(IBudgetService service) : CatalogControllerBase
 {
     [HttpGet("")]
-    public async Task<IActionResult> Index(int? year, int? month, CancellationToken cancellationToken)
+    public async Task<IActionResult> Index(
+        int? year,
+        int? month,
+        BudgetListFilter filter = BudgetListFilter.OnlyWithBudget,
+        CancellationToken cancellationToken = default)
     {
         DateOnly today = DateOnly.FromDateTime(DateTime.Now);
         int periodYear = year is > 0 ? year.Value : today.Year;
         int periodMonth = month is >= 1 and <= 12 ? month.Value : today.Month;
+        BudgetListFilter normalizedFilter = Enum.IsDefined(filter) ? filter : BudgetListFilter.OnlyWithBudget;
 
         IReadOnlyList<BudgetModel> results = await service.SearchByPeriodAsync(periodYear, periodMonth, cancellationToken);
 
-        return View(new BudgetIndexViewModel(results, periodYear, periodMonth));
+        if (normalizedFilter == BudgetListFilter.OnlyWithBudget)
+        {
+            results = results.Where(budget => budget.BudgetId is not null).ToArray();
+        }
+
+        return View(new BudgetIndexViewModel(results, periodYear, periodMonth, normalizedFilter));
     }
 
     [HttpGet("agregar")]

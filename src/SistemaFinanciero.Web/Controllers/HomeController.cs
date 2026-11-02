@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SistemaFinanciero.Application.Budgets;
 using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Parameters;
 using SistemaFinanciero.Application.Payables;
@@ -27,6 +28,7 @@ namespace SistemaFinanciero.Web.Controllers;
 public sealed class HomeController(
     IReceivableService receivableService,
     IPayableService payableService,
+    IBudgetService budgetService,
     ISystemParametersService systemParametersService,
     IAuthorizationService authorizationService) : Controller
 {
@@ -50,7 +52,15 @@ public sealed class HomeController(
         OverdueSummary receivablesSummary = await receivableService.GetOverdueSummaryAsync(alertDays, cancellationToken);
         OverdueSummary payablesSummary = await payableService.GetOverdueSummaryAsync(alertDays, cancellationToken);
 
-        return View(new OverdueIndicatorViewModel(receivablesSummary, payablesSummary, alertDays));
+        DateOnly today = DateOnly.FromDateTime(DateTime.Now);
+        BudgetExceededSummary exceededSummary = await budgetService.GetExceededSummaryAsync(
+            today.Year, today.Month, cancellationToken);
+
+        return View(new HomeIndicatorsViewModel(
+            new OverdueIndicatorViewModel(receivablesSummary, payablesSummary, alertDays),
+            exceededSummary,
+            today.Year,
+            today.Month));
     }
 
     [AllowAnonymous]

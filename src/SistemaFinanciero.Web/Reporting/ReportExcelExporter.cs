@@ -2,6 +2,7 @@ using System.Globalization;
 using ClosedXML.Excel;
 using SistemaFinanciero.Application.Budgets;
 using SistemaFinanciero.Application.Reports;
+using SistemaFinanciero.Web.Models.Budgets;
 using SistemaFinanciero.Web.Models.Incomes;
 using SistemaFinanciero.Web.Models.Ledger;
 
@@ -89,7 +90,7 @@ public static class ReportExcelExporter
 
         int row = WriteHeader(sheet, result.Header);
 
-        string[] columns = ["Código", "Categoría", "Presupuestado", "Ejecutado", "Disponible", "Variación", "Variación %"];
+        string[] columns = ["Código", "Categoría", "Presupuestado", "Ejecutado", "Disponible", "Variación", "Variación %", "Ejecución"];
         WriteColumnHeaders(sheet, row, columns);
         row++;
 
@@ -128,6 +129,8 @@ public static class ReportExcelExporter
                 sheet.Cell(row, 7).Value = percent;
                 sheet.Cell(row, 7).Style.NumberFormat.Format = "0.0%";
             }
+
+            sheet.Cell(row, 8).Value = line.ExecutionStatus?.ToDisplayName() ?? string.Empty;
 
             row++;
         }
@@ -450,9 +453,181 @@ public static class ReportExcelExporter
         return row + 1;
     }
 
-    private static void WriteAccountingNote(IXLWorksheet sheet, int row)
+    public static byte[] BuildAnnualBudgetWorkbook(AnnualBudgetReportResult result)
     {
-        sheet.Cell(row, 1).Value = ReportDocumentStyles.AccountingNote;
+        using XLWorkbook workbook = new();
+        IXLWorksheet sheet = workbook.Worksheets.Add("Presupuesto anual");
+
+        int row = WriteHeader(sheet, result.Header);
+
+        string[] columns =
+        [
+            "Código", "Categoría", "Presupuestado acum.", "Ejecutado acum.", "Presupuesto anual",
+            "Disponible", "Variación", "Variación %", "Ejecución",
+        ];
+        WriteColumnHeaders(sheet, row, columns);
+        row++;
+
+        foreach (AnnualBudgetReportLine line in result.Lines)
+        {
+            sheet.Cell(row, 1).Value = line.CategoryCode;
+            sheet.Cell(row, 2).Value = line.CategoryName;
+            sheet.Cell(row, 3).Value = line.AccumulatedBudgeted;
+            sheet.Cell(row, 3).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Cell(row, 4).Value = line.AccumulatedExecuted;
+            sheet.Cell(row, 4).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Cell(row, 5).Value = line.AnnualBudgeted;
+            sheet.Cell(row, 5).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Cell(row, 6).Value = line.AvailableAmount;
+            sheet.Cell(row, 6).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Cell(row, 7).Value = line.VarianceAmount;
+            sheet.Cell(row, 7).Style.NumberFormat.Format = "#,##0.00";
+
+            if (line.VariancePercent is decimal percent)
+            {
+                sheet.Cell(row, 8).Value = percent;
+                sheet.Cell(row, 8).Style.NumberFormat.Format = "0.0%";
+            }
+
+            sheet.Cell(row, 9).Value = line.ExecutionStatus.ToDisplayName();
+
+            row++;
+        }
+
+        sheet.Cell(row, 2).Value = "Total";
+        sheet.Cell(row, 3).Value = result.TotalAccumulatedBudgeted;
+        sheet.Cell(row, 3).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Cell(row, 4).Value = result.TotalAccumulatedExecuted;
+        sheet.Cell(row, 4).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Cell(row, 5).Value = result.TotalAnnualBudgeted;
+        sheet.Cell(row, 5).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Row(row).Style.Font.SetBold();
+
+        sheet.Columns().AdjustToContents();
+        return ToBytes(workbook);
+    }
+
+    public static byte[] BuildCashFlowWorkbook(CashFlowReportResult result)
+    {
+        using XLWorkbook workbook = new();
+        IXLWorksheet sheet = workbook.Worksheets.Add("Flujo de efectivo");
+
+        int row = WriteHeader(sheet, result.Header);
+
+        string[] columns = ["Mes", "Entradas", "Salidas", "Neto"];
+        WriteColumnHeaders(sheet, row, columns);
+        row++;
+
+        CultureInfo culture = CultureInfo.GetCultureInfo("es-CR");
+
+        foreach (CashFlowReportLine line in result.Lines)
+        {
+            sheet.Cell(row, 1).Value = new DateOnly(line.PeriodYear, line.PeriodMonth, 1).ToString("MMMM yyyy", culture);
+            sheet.Cell(row, 2).Value = line.TotalInflow;
+            sheet.Cell(row, 2).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Cell(row, 3).Value = line.TotalOutflow;
+            sheet.Cell(row, 3).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Cell(row, 4).Value = line.Net;
+            sheet.Cell(row, 4).Style.NumberFormat.Format = "#,##0.00";
+            row++;
+        }
+
+        sheet.Cell(row, 1).Value = "Total";
+        sheet.Cell(row, 2).Value = result.GrandTotalInflow;
+        sheet.Cell(row, 2).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Cell(row, 3).Value = result.GrandTotalOutflow;
+        sheet.Cell(row, 3).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Cell(row, 4).Value = result.GrandTotalNet;
+        sheet.Cell(row, 4).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Row(row).Style.Font.SetBold();
+
+        sheet.Columns().AdjustToContents();
+        return ToBytes(workbook);
+    }
+
+    public static byte[] BuildVatPeriodWorkbook(VatPeriodReportResult result)
+    {
+        using XLWorkbook workbook = new();
+        IXLWorksheet sheet = workbook.Worksheets.Add("IVA del período");
+
+        int row = WriteHeader(sheet, result.Header);
+
+        string[] columns = ["Código", "Tarifa", "Base ventas", "IVA cobrado", "Base compras", "IVA pagado", "Diferencia"];
+        WriteColumnHeaders(sheet, row, columns);
+        row++;
+
+        foreach (VatPeriodReportLine line in result.Lines)
+        {
+            sheet.Cell(row, 1).Value = line.TaxCode;
+            sheet.Cell(row, 2).Value = line.TaxName;
+            sheet.Cell(row, 3).Value = line.SalesBase;
+            sheet.Cell(row, 3).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Cell(row, 4).Value = line.VatCollected;
+            sheet.Cell(row, 4).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Cell(row, 5).Value = line.PurchasesBase;
+            sheet.Cell(row, 5).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Cell(row, 6).Value = line.VatPaid;
+            sheet.Cell(row, 6).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Cell(row, 7).Value = line.Difference;
+            sheet.Cell(row, 7).Style.NumberFormat.Format = "#,##0.00";
+            row++;
+        }
+
+        sheet.Cell(row, 3).Value = "Total";
+        sheet.Cell(row, 4).Value = result.TotalVatCollected;
+        sheet.Cell(row, 4).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Cell(row, 6).Value = result.TotalVatPaid;
+        sheet.Cell(row, 6).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Cell(row, 7).Value = result.TotalVatCollected - result.TotalVatPaid;
+        sheet.Cell(row, 7).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Row(row).Style.Font.SetBold();
+        row++;
+
+        WriteNote(sheet, row, "Apoyo para la declaración; no sustituye la declaración ante Hacienda.");
+        sheet.Columns().AdjustToContents();
+        return ToBytes(workbook);
+    }
+
+    public static byte[] BuildWithholdingByCustomerWorkbook(WithholdingByCustomerReportResult result)
+    {
+        using XLWorkbook workbook = new();
+        IXLWorksheet sheet = workbook.Worksheets.Add("Retenciones por cliente");
+
+        int row = WriteHeader(sheet, result.Header);
+
+        string[] columns = ["Cliente", "Abono", "Factura", "Fecha", "Tipo de retención", "Base", "Monto"];
+        WriteColumnHeaders(sheet, row, columns);
+        row++;
+
+        foreach (WithholdingByCustomerLine line in result.Lines)
+        {
+            sheet.Cell(row, 1).Value = line.CustomerName;
+            sheet.Cell(row, 2).Value = line.ReceivablePaymentCode;
+            sheet.Cell(row, 3).Value = line.InvoiceNumber?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+            sheet.Cell(row, 4).Value = line.PaymentDate.ToDateTime(TimeOnly.MinValue);
+            sheet.Cell(row, 4).Style.DateFormat.Format = "dd/mm/yyyy";
+            sheet.Cell(row, 5).Value = line.WithholdingTypeName;
+            sheet.Cell(row, 6).Value = line.Base;
+            sheet.Cell(row, 6).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Cell(row, 7).Value = line.Amount;
+            sheet.Cell(row, 7).Style.NumberFormat.Format = "#,##0.00";
+            row++;
+        }
+
+        sheet.Cell(row, 6).Value = "Total";
+        sheet.Cell(row, 7).Value = result.TotalAmount;
+        sheet.Cell(row, 7).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Row(row).Style.Font.SetBold();
+
+        sheet.Columns().AdjustToContents();
+        return ToBytes(workbook);
+    }
+
+    private static void WriteAccountingNote(IXLWorksheet sheet, int row) => WriteNote(sheet, row, ReportDocumentStyles.AccountingNote);
+
+    private static void WriteNote(IXLWorksheet sheet, int row, string text)
+    {
+        sheet.Cell(row, 1).Value = text;
         sheet.Cell(row, 1).Style.Font.SetItalic();
     }
 

@@ -233,11 +233,13 @@ public interface IExpenseService
 
     /// <summary>
     /// Comprueba el presupuesto de una categoría y un mes antes de confirmar un gasto (regla 6); no
-    /// bloquea nada, solo informa para mostrar una alerta en la pantalla de confirmación.
+    /// bloquea nada, solo informa para mostrar una alerta en la pantalla de confirmación. Lo ejecutado
+    /// y la comparación con <paramref name="netAmount"/> usan el monto sin IVA (bloque 7 del paquete de
+    /// mejoras finales, punto 1): el IVA de las compras va a IVA acreditable, no al presupuesto.
     /// </summary>
     public Task<ExpenseBudgetCheck> CheckBudgetAsync(
         Guid categoryId,
         DateOnly issueDate,
-        decimal totalAmount,
+        decimal netAmount,
         CancellationToken cancellationToken = default);
 }

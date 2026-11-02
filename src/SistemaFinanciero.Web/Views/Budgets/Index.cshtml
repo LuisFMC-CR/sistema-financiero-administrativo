@@ -13,15 +13,27 @@
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
     <div>
         <h1 class="h2 mb-1">Presupuesto</h1>
-        <p class="text-body-secondary mb-0">Mensual, por categoría de gasto de último nivel; las superiores solo suman.</p>
+        <p class="text-body-secondary mb-0">Mensual, por categoría de gasto de último nivel; las superiores solo suman. Ejecutado sin IVA.</p>
     </div>
     <div class="d-flex align-items-center gap-2">
-        <a class="btn btn-outline-secondary btn-sm" asp-action="Index" asp-route-year="@previousPeriod.Year" asp-route-month="@previousPeriod.Month">« Anterior</a>
+        <a class="btn btn-outline-secondary btn-sm" asp-action="Index" asp-route-year="@previousPeriod.Year" asp-route-month="@previousPeriod.Month" asp-route-filter="@Model.Filter">« Anterior</a>
         <span class="fw-semibold text-capitalize">@periodLabel</span>
-        <a class="btn btn-outline-secondary btn-sm" asp-action="Index" asp-route-year="@nextPeriod.Year" asp-route-month="@nextPeriod.Month">Siguiente »</a>
+        <a class="btn btn-outline-secondary btn-sm" asp-action="Index" asp-route-year="@nextPeriod.Year" asp-route-month="@nextPeriod.Month" asp-route-filter="@Model.Filter">Siguiente »</a>
         <a class="btn btn-primary btn-sm" asp-action="Create" asp-route-year="@Model.PeriodYear" asp-route-month="@Model.PeriodMonth">Agregar línea</a>
     </div>
 </div>
+
+<form method="get" asp-action="Index" class="row gy-2 gx-3 align-items-end mb-3">
+    <input type="hidden" name="year" value="@Model.PeriodYear" />
+    <input type="hidden" name="month" value="@Model.PeriodMonth" />
+    <div class="col-auto">
+        <label class="form-label small mb-0" for="filter">Mostrar</label>
+        <select class="form-select form-select-sm" id="filter" name="filter" onchange="this.form.submit()">
+            <option value="@BudgetListFilter.OnlyWithBudget" selected="@(Model.Filter == BudgetListFilter.OnlyWithBudget)">Solo con presupuesto</option>
+            <option value="@BudgetListFilter.All" selected="@(Model.Filter == BudgetListFilter.All)">Todas</option>
+        </select>
+    </div>
+</form>
 
 <div class="table-responsive bg-white border rounded">
     <table class="table table-hover align-middle mb-0">
@@ -33,13 +45,14 @@
                 <th scope="col" class="text-end">Disponible</th>
                 <th scope="col" class="text-end">Variación</th>
                 <th scope="col" class="text-end">Variación %</th>
+                <th scope="col">Ejecución</th>
                 <th scope="col" class="text-end">Acciones</th>
             </tr>
         </thead>
         <tbody>
             @if (Model.Results.Count == 0)
             {
-                <tr><td colspan="7" class="text-center text-body-secondary py-4">No hay categorías de gasto de último nivel activas.</td></tr>
+                <tr><td colspan="8" class="text-center text-body-secondary py-4">No hay categorías para los filtros indicados.</td></tr>
             }
             @foreach (BudgetModel budget in Model.Results)
             {
@@ -50,6 +63,7 @@
                     <td class="text-end">@(budget.AvailableAmount is decimal available ? $"₡{available:N2}" : "—")</td>
                     <td class="text-end @(budget.VarianceAmount is > 0 ? "text-danger" : null)">@(budget.VarianceAmount is decimal variance ? $"₡{variance:N2}" : "—")</td>
                     <td class="text-end">@(budget.VariancePercent is decimal percent ? percent.ToString("P1") : "—")</td>
+                    <td><partial name="_BudgetExecutionBadge" model="budget.ExecutionStatus" /></td>
                     <td class="text-end">
                         <a asp-action="Edit" asp-route-categoryId="@budget.CategoryId" asp-route-year="@Model.PeriodYear" asp-route-month="@Model.PeriodMonth" class="btn btn-sm btn-outline-primary">Editar</a>
                     </td>

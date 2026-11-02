@@ -491,7 +491,7 @@ internal sealed class ExpenseService(
     public async Task<ExpenseBudgetCheck> CheckBudgetAsync(
         Guid categoryId,
         DateOnly issueDate,
-        decimal totalAmount,
+        decimal netAmount,
         CancellationToken cancellationToken = default)
     {
         Budget? budget = await dbContext.Set<Budget>()
@@ -516,12 +516,12 @@ internal sealed class ExpenseService(
                 && expense.Status == ExpenseStatus.Confirmed
                 && expense.IssueDate >= periodStart
                 && expense.IssueDate <= periodEnd)
-            .Select(expense => expense.TotalAmount)
+            .Select(expense => expense.NetAmount)
             .SumAsync(cancellationToken);
 
         decimal availableAmount = Math.Max(0m, budget.Amount - executedAmount);
 
-        return new ExpenseBudgetCheck(true, budget.Amount, availableAmount, totalAmount > availableAmount);
+        return new ExpenseBudgetCheck(true, budget.Amount, availableAmount, netAmount > availableAmount);
     }
 
     private static bool IsOwnedByAnotherUser(Expense expense, Guid? restrictToOwnerUserId) =>

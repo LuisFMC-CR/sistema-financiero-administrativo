@@ -1,0 +1,85 @@
+@using SistemaFinanciero.Application.Budgets
+@using SistemaFinanciero.Application.Reports
+@using SistemaFinanciero.Web.Models.Reports
+@model AnnualBudgetReportViewModel
+@{
+    ViewData["Title"] = "Presupuesto anual a la fecha";
+}
+
+<h1 class="h2 mb-1">Presupuesto anual a la fecha</h1>
+<p class="text-body-secondary mb-3">
+    Acumulado de enero hasta el mes indicado, sin IVA, por categoría de gasto de último nivel, con el
+    presupuesto anual como referencia (RF-87).
+</p>
+
+<form method="get" asp-action="AnnualBudget" class="row gy-2 gx-3 align-items-end mb-3">
+    <div class="col-auto">
+        <label class="form-label small mb-0" for="periodYear">Año</label>
+        <input class="form-control form-control-sm" type="number" id="periodYear" name="periodYear" value="@Model.PeriodYear" required />
+    </div>
+    <div class="col-auto">
+        <label class="form-label small mb-0" for="upToMonth">Hasta el mes</label>
+        <input class="form-control form-control-sm" type="number" min="1" max="12" id="upToMonth" name="upToMonth" value="@Model.UpToMonth" required />
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary btn-sm">Consultar</button>
+    </div>
+    @if (Model.Result is { Lines.Count: > 0 })
+    {
+        <div class="col-auto">
+            <a class="btn btn-outline-secondary btn-sm" asp-action="AnnualBudgetPdf" asp-route-periodYear="@Model.PeriodYear" asp-route-upToMonth="@Model.UpToMonth">Exportar PDF</a>
+            <a class="btn btn-outline-secondary btn-sm" asp-action="AnnualBudgetExcel" asp-route-periodYear="@Model.PeriodYear" asp-route-upToMonth="@Model.UpToMonth">Exportar Excel</a>
+        </div>
+    }
+</form>
+
+@if (Model.Result is AnnualBudgetReportResult result)
+{
+    <div class="table-responsive bg-white border rounded">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th scope="col">Categoría</th>
+                    <th scope="col" class="text-end">Presupuestado acum.</th>
+                    <th scope="col" class="text-end">Ejecutado acum.</th>
+                    <th scope="col" class="text-end">Presupuesto anual</th>
+                    <th scope="col" class="text-end">Disponible</th>
+                    <th scope="col" class="text-end">Variación</th>
+                    <th scope="col" class="text-end">Variación %</th>
+                    <th scope="col">Ejecución</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (result.Lines.Count == 0)
+                {
+                    <tr><td colspan="8" class="text-center text-body-secondary py-4">No hay categorías de gasto de último nivel activas.</td></tr>
+                }
+                @foreach (AnnualBudgetReportLine line in result.Lines)
+                {
+                    <tr>
+                        <td>@line.CategoryCode - @line.CategoryName</td>
+                        <td class="text-end">₡@line.AccumulatedBudgeted.ToString("N2")</td>
+                        <td class="text-end">₡@line.AccumulatedExecuted.ToString("N2")</td>
+                        <td class="text-end">₡@line.AnnualBudgeted.ToString("N2")</td>
+                        <td class="text-end">₡@line.AvailableAmount.ToString("N2")</td>
+                        <td class="text-end @(line.VarianceAmount > 0 ? "text-danger" : null)">₡@line.VarianceAmount.ToString("N2")</td>
+                        <td class="text-end">@(line.VariancePercent is decimal percent ? percent.ToString("P1") : "—")</td>
+                        <td><partial name="_BudgetExecutionBadge" model="(BudgetExecutionStatus?)line.ExecutionStatus" /></td>
+                    </tr>
+                }
+            </tbody>
+            @if (result.Lines.Count > 0)
+            {
+                <tfoot>
+                    <tr class="fw-semibold">
+                        <td class="text-end">Total</td>
+                        <td class="text-end">₡@result.TotalAccumulatedBudgeted.ToString("N2")</td>
+                        <td class="text-end">₡@result.TotalAccumulatedExecuted.ToString("N2")</td>
+                        <td class="text-end">₡@result.TotalAnnualBudgeted.ToString("N2")</td>
+                        <td colspan="4"></td>
+                    </tr>
+                </tfoot>
+            }
+        </table>
+    </div>
+}

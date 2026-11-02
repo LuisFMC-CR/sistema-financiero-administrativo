@@ -246,6 +246,109 @@ public sealed record IncomeStatementReportResult(
     decimal NetResult);
 
 /// <summary>
+/// Una categoría de gasto de último nivel dentro del presupuesto anual a la fecha (RF-87, bloque 7
+/// del paquete de mejoras finales, punto 3): acumulado de enero hasta el mes indicado, sin IVA, más
+/// el presupuesto total del año como referencia. Es solo una vista: no cambia cómo se registra el
+/// presupuesto, que sigue siendo manual, mes por mes y categoría por categoría.
+/// </summary>
+public sealed record AnnualBudgetReportLine(
+    string CategoryCode,
+    string CategoryName,
+    decimal AccumulatedBudgeted,
+    decimal AccumulatedExecuted,
+    decimal AnnualBudgeted,
+    decimal AvailableAmount,
+    decimal VarianceAmount,
+    decimal? VariancePercent)
+{
+    /// <summary>Semáforo de ejecución (RF-92) sobre el acumulado a la fecha.</summary>
+    public BudgetExecutionStatus ExecutionStatus =>
+        BudgetExecutionStatusCalculator.Compute(AccumulatedBudgeted, AccumulatedExecuted)!.Value;
+}
+
+/// <summary>Resultado del presupuesto anual a la fecha (RF-87).</summary>
+public sealed record AnnualBudgetReportResult(
+    ReportHeader Header,
+    int PeriodYear,
+    int UpToMonth,
+    IReadOnlyList<AnnualBudgetReportLine> Lines,
+    decimal TotalAccumulatedBudgeted,
+    decimal TotalAccumulatedExecuted,
+    decimal TotalAnnualBudgeted);
+
+/// <summary>Las entradas y salidas de efectivo de un mes, dentro del flujo de efectivo mensual.</summary>
+public sealed record CashFlowReportLine(
+    int PeriodYear,
+    int PeriodMonth,
+    decimal TotalInflow,
+    decimal TotalOutflow,
+    decimal Net);
+
+/// <summary>
+/// Resultado del flujo de efectivo mensual (RF-86, bloque 7 del paquete de mejoras finales, punto 5):
+/// entradas (ingresos vigentes de facturas de contado, abonos e ingresos manuales) contra salidas
+/// (pagos vigentes y gastos de contado confirmados), con IVA, por mes, con el neto.
+/// <see cref="CashAccountId"/> es nulo cuando el reporte incluye todas las cuentas de efectivo.
+/// </summary>
+public sealed record CashFlowReportResult(
+    ReportHeader Header,
+    DateOnly PeriodFrom,
+    DateOnly PeriodTo,
+    Guid? CashAccountId,
+    IReadOnlyList<CashFlowReportLine> Lines,
+    decimal GrandTotalInflow,
+    decimal GrandTotalOutflow,
+    decimal GrandTotalNet);
+
+/// <summary>El IVA cobrado y pagado de una tarifa, dentro del reporte de IVA del período.</summary>
+public sealed record VatPeriodReportLine(
+    string TaxCode,
+    string TaxName,
+    decimal SalesBase,
+    decimal VatCollected,
+    decimal PurchasesBase,
+    decimal VatPaid)
+{
+    /// <summary>Obtiene la diferencia entre el IVA cobrado y el IVA pagado de esta tarifa.</summary>
+    public decimal Difference => VatCollected - VatPaid;
+}
+
+/// <summary>
+/// Resultado del IVA del período (RF-84, bloque 7 del paquete de mejoras finales, punto 6): por
+/// tarifa, la base y el IVA de facturas confirmadas (cobrado) y de gastos confirmados (pagado);
+/// excluye siempre borradores y anulados. Apoyo para la declaración; no sustituye la declaración ante
+/// Hacienda.
+/// </summary>
+public sealed record VatPeriodReportResult(
+    ReportHeader Header,
+    DateOnly PeriodFrom,
+    DateOnly PeriodTo,
+    IReadOnlyList<VatPeriodReportLine> Lines,
+    decimal TotalVatCollected,
+    decimal TotalVatPaid);
+
+/// <summary>Una retención aplicada por un cliente al abonar una factura.</summary>
+public sealed record WithholdingByCustomerLine(
+    string CustomerName,
+    string ReceivablePaymentCode,
+    long? InvoiceNumber,
+    DateOnly PaymentDate,
+    string WithholdingTypeName,
+    decimal Base,
+    decimal Amount);
+
+/// <summary>
+/// Resultado de las retenciones aplicadas por clientes (RF-85, bloque 7 del paquete de mejoras
+/// finales, punto 7): solo de abonos vigentes, con el total.
+/// </summary>
+public sealed record WithholdingByCustomerReportResult(
+    ReportHeader Header,
+    DateOnly PeriodFrom,
+    DateOnly PeriodTo,
+    IReadOnlyList<WithholdingByCustomerLine> Lines,
+    decimal TotalAmount);
+
+/// <summary>
 /// Casos de uso de los reportes financieros (regla de negocio 8), en pantalla, PDF y Excel. Cada
 /// reporte agrega sus propios datos consultando las tablas directamente, igual criterio que
 /// <c>BudgetService</c>, porque no son operaciones de un solo módulo sino una vista de varios a la vez.
@@ -331,6 +434,42 @@ public interface IReportService
 
     /// <summary>Estado de resultados entre <paramref name="periodFrom"/> y <paramref name="periodTo"/>.</summary>
     public Task<IncomeStatementReportResult> GetIncomeStatementReportAsync(
+        DateOnly periodFrom,
+        DateOnly periodTo,
+        string generatedByUserName,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Presupuesto anual a la fecha (RF-87): acumulado de enero hasta <paramref name="upToMonth"/>
+    /// del año <paramref name="periodYear"/>, por cada categoría de gasto de último nivel.
+    /// </summary>
+    public Task<AnnualBudgetReportResult> GetAnnualBudgetReportAsync(
+        int periodYear,
+        int upToMonth,
+        string generatedByUserName,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Flujo de efectivo mensual (RF-86) entre <paramref name="periodFrom"/> y
+    /// <paramref name="periodTo"/>; <paramref name="cashAccountId"/> limita el resultado a una sola
+    /// cuenta de efectivo cuando se indica.
+    /// </summary>
+    public Task<CashFlowReportResult> GetCashFlowReportAsync(
+        DateOnly periodFrom,
+        DateOnly periodTo,
+        Guid? cashAccountId,
+        string generatedByUserName,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>IVA del período (RF-84) entre <paramref name="periodFrom"/> y <paramref name="periodTo"/>, por tarifa.</summary>
+    public Task<VatPeriodReportResult> GetVatPeriodReportAsync(
+        DateOnly periodFrom,
+        DateOnly periodTo,
+        string generatedByUserName,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Retenciones aplicadas por clientes (RF-85) entre <paramref name="periodFrom"/> y <paramref name="periodTo"/>.</summary>
+    public Task<WithholdingByCustomerReportResult> GetWithholdingByCustomerReportAsync(
         DateOnly periodFrom,
         DateOnly periodTo,
         string generatedByUserName,

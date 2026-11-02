@@ -1,0 +1,12 @@
+@using SistemaFinanciero.Application.Budgets
+@using SistemaFinanciero.Web.Models.Budgets
+@model BudgetExecutionStatus?
+
+@if (Model is BudgetExecutionStatus status)
+{
+    <span class="badge @status.ToBadgeClass()">@status.ToDisplayName()</span>
+}
+else
+{
+    <span class="text-body-secondary">—</span>
+}

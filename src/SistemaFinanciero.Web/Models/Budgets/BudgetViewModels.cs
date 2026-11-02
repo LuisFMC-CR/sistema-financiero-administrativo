@@ -5,11 +5,22 @@ using SistemaFinanciero.Application.Budgets;
 
 namespace SistemaFinanciero.Web.Models.Budgets;
 
+/// <summary>Filtro de la pantalla de presupuesto (bloque 7 del paquete de mejoras finales, punto 2).</summary>
+public enum BudgetListFilter
+{
+    /// <summary>Solo categorías con presupuesto configurado este mes; filtro predeterminado.</summary>
+    OnlyWithBudget = 1,
+
+    /// <summary>Todas las categorías de gasto de último nivel activas, con o sin presupuesto.</summary>
+    All = 2,
+}
+
 /// <summary>Modelo de listado del presupuesto de un mes: una fila por categoría de gasto de último nivel.</summary>
 public sealed record BudgetIndexViewModel(
     IReadOnlyList<BudgetModel> Results,
     int PeriodYear,
-    int PeriodMonth);
+    int PeriodMonth,
+    BudgetListFilter Filter);
 
 /// <summary>Entrada para crear o corregir el monto presupuestado de una categoría y un mes (regla 6).</summary>
 public sealed class BudgetEditViewModel
