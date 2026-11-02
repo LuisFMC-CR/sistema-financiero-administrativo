@@ -70,12 +70,15 @@ Si una tarea requiere algo de esta lista, detente y pregúntame. Fuera del siste
   sigue siendo la fecha de cierre, regla 16); la partida doble ya no está fuera: ver regla 1 y el
   bloque de asientos automáticos del paquete de mejoras finales;
 - intereses, préstamos y aportes de socios (el sistema no administra deudas ni capital de los socios);
-- Hacienda: emisión, firma o transmisión de comprobantes electrónicos, liquidación o declaraciones
-  tributarias (la factura solo guarda datos preparados para el traslado manual a la plataforma
-  externa, ver el bloque de factura 4.4 del paquete de mejoras finales);
+- Hacienda: emisión, firma o transmisión de comprobantes electrónicos o declaraciones tributarias (la
+  factura solo guarda datos preparados para el traslado manual a la plataforma externa, ver el bloque
+  de factura 4.4 del paquete de mejoras finales); la **liquidación interna del IVA** ya no está fuera:
+  es un registro interno del pago o del saldo a favor, ver la regla 3 (IVA) y el bloque de liquidación
+  del IVA del paquete v7;
 - impuestos distintos del IVA y retenciones a terceros;
 - dólares u otras monedas (el sistema opera **solo en colones**) y planilla;
-- saldos, transferencias, integración y conciliación bancarias;
+- saldos iniciales, integración y conciliación bancarias (los traspasos entre cuentas de efectivo
+  propias ya no están fuera: ver la regla 2 y el bloque de traspasos del paquete v7);
 - inventario, nube, app móvil, notificaciones entre usuarios, reportes personalizables y respaldos
   automáticos como función del sistema.
 
@@ -94,9 +97,11 @@ Facturación · Presupuesto · Impuestos y Retenciones · Mantenimiento · Consu
    `SystemRole`, ver el bloque de catálogo contable ampliado del paquete de mejoras finales): las
    reglas de contabilización las buscan por su rol, nunca por código o nombre; no tienen categoría
    financiera ni se eligen en ningún formulario de ingresos o gastos; se pueden renombrar pero no
-   inactivar ni mover. El usuario solo crea cuentas de detalle nuevas dentro de Efectivo, Ingresos y
-   Gastos. El catálogo en sí sigue siendo solo clasificación; la partida doble vive en los asientos
-   automáticos (bloque de asientos contables del paquete de mejoras finales), no en el catálogo.
+   inactivar ni mover. El usuario solo crea cuentas de detalle nuevas, siempre de **tercer nivel**,
+   dentro de los grupos de segundo nivel 1.1, 4.1, 4.2, 4.3, 5.1, 5.2 y 5.3 (ver el bloque de regla de
+   creación de cuentas contables del paquete v7; una cuenta nueva bajo 1.1 siempre es de efectivo). El
+   catálogo en sí sigue siendo solo clasificación; la partida doble vive en los asientos automáticos
+   (bloque de asientos contables del paquete de mejoras finales), no en el catálogo.
 2. **Flujo del dinero.**
    - Factura de contado → ingreso. Factura a crédito → cuenta por cobrar; cada abono rebaja el saldo
      y genera su ingreso. Gastos igual, con cuentas por pagar y pagos. Un gasto es solo una compra a
@@ -109,15 +114,32 @@ Facturación · Presupuesto · Impuestos y Retenciones · Mantenimiento · Consu
      cada línea admite retención); crea un abono o pago por cuenta en una sola transacción, todos con
      la misma referencia y un `GroupId` común; el límite se compara con el **total**; cada uno se anula
      de forma individual.
+   - El dinero que pasa de una cuenta de efectivo a otra es un **traspaso** (bloque de traspasos del
+     paquete v7), nunca un ingreso ni un gasto: no toca categorías, presupuesto ni estado de
+     resultados. El pago del IVA a Hacienda es una **liquidación** (bloque de liquidación del IVA del
+     paquete v7), nunca un gasto.
 3. **IVA y retenciones.**
-   - Solo IVA, como porcentaje. Tarifas precargadas: 13 % y Exento; Finanzas puede agregar o
-     actualizar tarifas.
+   - Tarifas precargadas: IVA 13 %, IVA 2 %, Exento y No sujeto; Gerencia puede agregar o actualizar
+     otras tarifas (bloque de IVA y retenciones del paquete v7). Cada cliente tiene una **condición de
+     IVA** (Normal, institución estatal de educación superior o no sujeto) que determina
+     automáticamente la tarifa de las líneas de sus facturas; la factura nunca ofrece una tarifa que no
+     corresponda a la condición del cliente.
    - Precios sin IVA. **Una tarifa por línea**; el IVA se calcula sobre el neto (bruto − descuento) y
      la línea guarda tarifa, base y monto. El gasto se registra sin IVA y el sistema calcula IVA y
-     total. Proveedor obligatorio en todo gasto.
-   - Retención: solo la que aplica un cliente obligado por ley al pagar (p. ej., 2 % de renta sobre el
-     neto). Va en el abono con tipo, porcentaje, base (por defecto el neto de la factura, editable) y
-     monto, y rebaja el saldo. Tipos no precargados. Los pagos a proveedores no llevan retención.
+     total. Proveedor obligatorio en todo gasto. En los gastos, el IVA puede marcarse como **no
+     acreditable** y entonces forma parte del costo en vez de acreditarse (bloque de IVA y retenciones
+     del paquete v7).
+   - El IVA se liquida mes a mes contra Hacienda (bloque de liquidación del IVA del paquete v7); ese
+     registro no sustituye la declaración oficial.
+   - Fuera del IVA: tasa cero, exoneraciones con documento, prorrata y retenciones de IVA por pagos con
+     tarjeta.
+   - Retención: la única que aplica es la del **2 % del sector público** (Ley del Impuesto sobre la
+     Renta, art. 23, inciso g), sobre el monto sin IVA, solo en operaciones que superan la base mínima
+     (un salario base) y solo para clientes marcados como sector público; si no corresponde, el
+     sistema no ofrece la retención (bloque de IVA y retenciones del paquete v7). Va en el abono con
+     tipo, porcentaje, base (propuesta por el sistema, editable dentro del límite que corresponde) y
+     monto, y rebaja el saldo. Los pagos a proveedores no llevan retención. Fuera: retenciones por
+     tarjeta, remesas al exterior, salarios, dividendos y dietas.
    - Cambios posteriores del catálogo no alteran documentos confirmados.
 4. **Estados y correcciones.**
    - Borrador (editable) → Confirmado (inmutable) → Anulado (motivo, usuario y fecha). Los borradores
@@ -131,51 +153,56 @@ Facturación · Presupuesto · Impuestos y Retenciones · Mantenimiento · Consu
    - Ajuste de saldo (solo Gerencia), aumento o disminución con motivo; invariante 0 ≤ saldo ≤ monto
      original; no genera ingresos ni pagos ni toca efectivo, documento o presupuesto; un error se
      corrige con otro ajuste en sentido contrario.
-   - Nota de crédito interna (bloque 8 del paquete de mejoras finales): no es una anulación (la
+   - Nota de crédito interna (bloque de nota de crédito del paquete v7): no es una anulación (la
      factura nunca debió existir) ni un ajuste de saldo; corrige una venta real después de facturar
      (devolución de un equipo, descuento posterior o exceso facturado), rebajando primero el saldo
      pendiente de la cuenta por cobrar y devolviendo en dinero lo que no alcance a rebajar. No existen
      saldos a favor del cliente.
 5. **Moneda.** Solo colones; sin tipo de cambio ni conversiones.
 6. **Presupuesto.** Mensual, por categoría de gasto de último nivel (las superiores solo suman).
-   Ejecutado = total **sin IVA** de los gastos confirmados del mes (sin borradores ni anulados; los
-   pagos no lo cambian; el IVA de esos gastos va a IVA acreditable, no al presupuesto — ver el bloque
-   de presupuesto del paquete de mejoras finales). Al confirmar un gasto que supera lo disponible se
-   muestra una alerta antes de
-   guardar, sin bloquear; si no hay presupuesto, se indica y se permite continuar. Monto 0 válido.
-   Cada cambio guarda monto anterior, nuevo, usuario y fecha. Disponible = presupuestado − ejecutado
-   (mínimo 0); variación = ejecutado − presupuestado; variación % = variación / presupuestado.
-7. **Límite de autorización.** Parámetro. Abonos y pagos sobre el límite solo los registra Gerencia;
-   los cambios solo afectan operaciones posteriores. Un gasto de contado sobre el límite no se
-   confirma de contado: va a crédito y Gerencia registra el pago. Al confirmar un gasto de contado se
-   indican cuenta de efectivo y referencia; el medio de pago es el del gasto.
+   Ejecutado = **costo** de los gastos confirmados del mes (sin borradores ni anulados; los pagos no lo
+   cambian): el monto sin IVA, más el IVA solo cuando ese gasto lo marca como no acreditable (bloque de
+   presupuesto y reportes del paquete v7; el IVA acreditable va a IVA acreditable, no al presupuesto).
+   Al confirmar un gasto que supera lo disponible se muestra una alerta antes de guardar, sin
+   bloquear; si no hay presupuesto, se indica y se permite continuar. Monto 0 válido. Cada cambio
+   guarda monto anterior, nuevo, usuario y fecha. Disponible = presupuestado − ejecutado (mínimo 0);
+   variación = ejecutado − presupuestado; variación % = variación / presupuestado.
+7. **Límite de autorización.** Parámetro. Abonos, pagos y traspasos sobre el límite solo los registra
+   Gerencia; los cambios solo afectan operaciones posteriores. Un gasto de contado sobre el límite no
+   se confirma de contado: va a crédito y Gerencia registra el pago. Al confirmar un gasto de contado
+   se indican cuenta de efectivo y referencia; el medio de pago es el del gasto.
 8. **Reportes** (PDF y Excel): ingresos recibidos por período; gastos por período y categoría;
    presupuesto contra lo ejecutado; presupuesto anual a la fecha; estado de cuenta de cliente; cuentas
-   por pagar por proveedor; comparativo mensual de ingresos y gastos; flujo de efectivo mensual; y los
-   contables y tributarios del paquete de mejoras finales: libro diario, libro mayor, balanza de
-   comprobación, estado de resultados, IVA del período y retenciones aplicadas por clientes. Cada
-   reporte muestra nombre, parámetros, fecha y hora y usuario. En Excel los montos van como números.
-   Sin datos: mensaje y no se genera archivo.
+   por pagar por proveedor; comparativo mensual de ingresos y gastos (desde los asientos); flujo de
+   efectivo mensual (desde los asientos); y los contables y tributarios del paquete de mejoras
+   finales: libro diario, libro mayor, balanza de comprobación, estado de resultados, IVA del período
+   y retenciones aplicadas por clientes. El paquete v7 agrega cuentas por cobrar por cliente con
+   antigüedad de saldos y antigüedad en el reporte de cuentas por pagar por proveedor. Cada reporte
+   muestra nombre, parámetros, fecha y hora y usuario. En Excel los montos van como números. Sin
+   datos: mensaje y no se genera archivo.
 9. **Cuentas vencidas.** Indicador en inicio y en Consultas para Finanzas y Gerencia, con cantidad y
    monto. Vencida: vencimiento anterior a hoy y saldo > 0. Próxima: vence en los próximos N días
    (parámetro, 7 por defecto).
 10. **Numeración y referencias.** Consecutivo interno de facturas, no fiscal. Al confirmar una
     factura de contado se indican cuenta de efectivo, medio de pago y referencia. Solo se exportan a
-    PDF facturas confirmadas o anuladas. Advertir, sin bloquear, si un ingreso, abono o pago repite la
-    referencia en la misma cuenta de efectivo.
+    PDF facturas confirmadas o anuladas. Advertir, sin bloquear, si un ingreso, abono, pago o traspaso
+    repite la referencia en la misma cuenta de efectivo.
 11. **Consultas y filtros.** Pantalla de Consultas con filtros combinados (fecha, estado, cliente,
     proveedor, categoría, cuenta contable), detalle con registros relacionados e historial. Además,
     cada listado tiene filtros sobre su propia tabla, al menos los de su RF: cuentas contables (RF-06),
     cuentas por cobrar y por pagar (RF-11, RF-17), ingresos (RF-23), gastos (RF-30), facturas (RF-36),
     IVA y retenciones (RF-49). Los filtros de los listados no reemplazan la pantalla de Consultas.
 12. **Códigos automáticos**, asignados al crear y no editables: `CLI-0001`, `PRV-0001`, `PRD-0001`,
-    `SRV-0001`, `ING-001`, `GAS-001`, `IMP-01`, `RET-01`. Cuentas contables: código jerárquico
-    (`3.1.07`) = siguiente hijo libre de la superior; después solo cambian nombre y referencia
-    bancaria. Generación segura ante concurrencia (secuencia o índice único con reintento).
+    `SRV-0001`, `REC-000001`, `GTO-000001`, `ABO-000001`, `PAG-000001` (y los nuevos del paquete v7:
+    `TRA-000001` traspaso, `LIQ-000001` liquidación de IVA y `NCR-000001` nota de crédito). Cuentas
+    contables: código jerárquico (`3.1.07`) = siguiente hijo libre de la superior; después solo
+    cambian nombre y referencia bancaria. Generación segura ante concurrencia (secuencia o índice
+    único con reintento).
 13. **Datos iniciales (RF-54)**, cargados por migración (nunca al arrancar): catálogo base, una
-    categoría por cuenta de detalle (mismo nombre), IVA 13 % y Exento, plazos de pago y parámetros
-    por defecto; sin tipos de retención. Las cuentas de grupo están protegidas; las de detalle se
-    pueden renombrar o inactivar, y se agregan nuevas dentro de los grupos. Catálogo base:
+    categoría por cuenta de detalle (mismo nombre), tarifas de IVA 13 %, IVA 2 %, Exento y No sujeto,
+    tipo de retención "Retención 2 % sector público" precargado, plazos de pago y parámetros por
+    defecto. Las cuentas de grupo están protegidas; las de detalle se pueden renombrar o inactivar, y
+    se agregan nuevas dentro de los grupos. Catálogo base:
     - 1 Activo › 1.1 Efectivo › 1.1.01 Caja chica, 1.1.02 Cuenta bancaria principal.
     - 2 Ingresos › 2.1 Ingresos por servicios › 2.1.01 Soporte técnico, 2.1.02 Mantenimiento y
       reparación de equipos, 2.1.03 Instalación de infraestructura informática; 2.2 Ingresos por
@@ -199,8 +226,12 @@ Facturación · Presupuesto · Impuestos y Retenciones · Mantenimiento · Consu
     retrocederla es una reapertura con motivo y queda en bitácora (valor anterior y nuevo). Anular en
     un mes cerrado exige reabrirlo. No puede ser posterior a hoy.
 
-Trazabilidad: usa los códigos RF-01 a RF-77 (RF-15 = pago a varias cuentas; RF-54 = datos iniciales)
-y CU-01 a CU-22 en `docs/` y en las pruebas; los flujos alternos de cada CU definen sus validaciones.
+Trazabilidad: usa los códigos RF-01 a RF-98 (RF-15 = pago a varias cuentas; RF-54 = datos iniciales;
+RF-78 a RF-92 del paquete de mejoras finales; RF-93 a RF-98 del paquete v7: condición de IVA del
+cliente y tarifa automática por línea, IVA no acreditable en gastos, retención del 2 % del sector
+público, traspaso entre cuentas de efectivo, liquidación mensual del IVA, cuentas por cobrar por
+cliente con antigüedad de saldos) y CU-01 a CU-22 en `docs/` y en las pruebas; los flujos alternos de
+cada CU definen sus validaciones.
 
 ## Modelo de datos aprobado
 
@@ -212,8 +243,8 @@ tablas y columnas. Si el código difiere, explícame la diferencia antes de migr
   `catalogos` (Clientes, Proveedores, ProductosServicios, CategoriasFinancieras, TarifasIva,
   TiposRetencion, PlazosPago, Parametros); `finanzas` (CuentasContables, Facturas, FacturaLineas,
   CuentasPorCobrar, Abonos, Retenciones, Ingresos, Gastos, CuentasPorPagar, Pagos, AjustesSaldo,
-  Presupuestos, PresupuestoCambios, y del paquete de mejoras finales: Asientos, AsientoLineas,
-  NotasCredito, NotaCreditoLineas).
+  Presupuestos, PresupuestoCambios, Asientos, AsientoLineas, y del paquete v7: Traspasos,
+  LiquidacionesIva, NotasCredito, NotaCreditoLineas).
 - **Tipos:** `CHAR(36)` → `uniqueidentifier`; `VARCHAR(n)` → `nvarchar(n)`; `TEXT` → `nvarchar(max)`;
   `DATETIME` → `datetimeoffset` (UTC); `BIT` → `bit`; `BINARY(8)` → `rowversion`. Importes
   `decimal(18,2)`, cantidades y precios `decimal(18,4)`, porcentajes `decimal(5,2)`, fechas `date`.
@@ -222,28 +253,40 @@ tablas y columnas. Si el código difiere, explícame la diferencia antes de migr
   1 Borrador, 2 Confirmado, 3 Anulado; CuentasPorCobrar/Pagar.Status 1 Pendiente, 2 Parcialmente
   pagada, 3 Pagada, 4 Anulada; Abonos, Pagos e Ingresos.Status 1 Vigente, 2 Anulado; Ingresos.Origin
   1 Factura de contado, 2 Abono, 3 Registro manual; PaymentMethod 1 Efectivo, 2 Transferencia
-  bancaria, 3 SINPE Móvil, 4 Tarjeta, 5 Cheque; CuentasContables.Type 1 Activo, 2 Ingreso, 3 Gasto;
-  CategoriasFinancieras.Kind 1 Ingreso, 2 Gasto; ProductosServicios.Type 1 Producto, 2 Servicio;
-  AjustesSaldo.Direction 1 Disminución, 2 Aumento.
+  bancaria, 3 SINPE Móvil, 4 Tarjeta, 5 Cheque; CuentasContables.Type 1 Activo, 2 Pasivo, 3 Patrimonio,
+  4 Ingreso, 5 Gasto; CategoriasFinancieras.Kind 1 Ingreso, 2 Gasto; ProductosServicios.Type
+  1 Producto, 2 Servicio; AjustesSaldo.Direction 1 Disminución, 2 Aumento; Asientos.SourceType
+  1 Factura, 2 Abono, 3 Ingreso manual, 4 Gasto, 5 Pago, 6 Ajuste de saldo, 7 Nota de crédito,
+  8 Traspaso, 9 Liquidación de IVA (el 7 queda reservado para nota de crédito aunque los bloques de
+  traspasos y liquidación se construyan antes); Traspasos.Status y LiquidacionesIva.Status 1 Vigente,
+  2 Anulada; NotasCredito.Status 1 Vigente, 2 Anulada; Clientes.VatCondition 1 Normal,
+  2 Institución estatal de educación superior, 3 No sujeto.
 - **Únicos:** Facturas.Number (nulo en borradores), CuentasPorCobrar.InvoiceId,
   CuentasPorPagar.ExpenseId, Retenciones.ReceivablePaymentId, Ingresos.ReceivablePaymentId,
   UsuariosRoles.UserId, (InvoiceId, LineNumber), (ExpenseCategoryId, PeriodYear, PeriodMonth), Code
-  de cada catálogo e Identification (obligatoria) de clientes y proveedores.
+  de cada catálogo e Identification (obligatoria) de clientes y proveedores; (PeriodYear, PeriodMonth)
+  de LiquidacionesIva filtrado a Status = 1 Vigente (una sola liquidación vigente por mes).
 - **Otras restricciones:** CHECK `0 <= Balance <= OriginalAmount`, con el saldo recalculado en la
   misma transacción de cada movimiento; AjustesSaldo con exactamente una de ReceivableId o PayableId;
   Ingresos.Origin coherente con InvoiceId y ReceivablePaymentId; Pagos.PayableId siempre fijo (un
   gasto de contado no genera ningún pago: guarda su cuenta de efectivo y su referencia en el propio
-  Gasto, igual que dice la regla 7; corregido respecto a una versión anterior de esta línea, ADR-0028).
+  Gasto, igual que dice la regla 7; corregido respecto a una versión anterior de esta línea, ADR-0028);
+  Traspasos con origen distinto de destino; LiquidacionesIva.VatPayableAmount =
+  VatCreditApplied + PaymentAmount, con CashAccountId obligatoria solo si PaymentAmount > 0;
+  NotasCredito.TotalAmount = AppliedToBalance + RefundedAmount.
 - **Auditoría:** CreatedAtUtc, CreatedByUserId, UpdatedAtUtc, UpdatedByUserId y RowVersion en
   catálogos y documentos, con FK reales a Usuarios (el diagrama no las dibuja). En catálogos con
   datos iniciales, los usuarios de auditoría admiten nulo para las filas de la migración.
-- **Secuencias SQL Server:** número de factura (se pide después de validar la confirmación) y
-  códigos CLI, PRV, PRD, SRV, ING, GAS, IMP y RET.
+- **Secuencias SQL Server:** número de factura (se pide después de validar la confirmación);
+  códigos CLI, PRV, PRD, SRV, REC, GTO, ABO y PAG; número de asiento; y las nuevas del paquete v7
+  para traspaso, liquidación de IVA y nota de crédito.
 - **Clases (diagramas UML):** ApplicationUser, Role, SecurityAuditEvent, OperationLogEntry
   (BitacoraOperaciones), SystemSettings (Parametros), Customer, Supplier, CatalogItem,
-  AccountingAccount, FinancialCategory, VatRate, WithholdingType, PaymentTerm, Invoice, InvoiceLine,
-  Receivable, ReceivablePayment (Abonos), Withholding, Income, Expense, Payable, SupplierPayment
-  (Pagos), BalanceAdjustment, Budget, BudgetChange.
+  AccountingAccount (LedgerAccount), FinancialCategory, VatRate (TaxType), WithholdingType,
+  PaymentTerm, Invoice, InvoiceLine, Receivable, ReceivablePayment (Abonos), Withholding, Income,
+  Expense, Payable, SupplierPayment (Pagos), BalanceAdjustment, Budget, BudgetChange, JournalEntry
+  (Asientos), JournalEntryLine (AsientoLineas), y del paquete v7: CashTransfer (Traspasos),
+  VatSettlement (LiquidacionesIva), CreditNote (NotasCredito), CreditNoteLine (NotaCreditoLineas).
 - **Operaciones publicadas:** Invoice.AddLine, RemoveLine, Confirm(closingDate), AssignNumber,
   Cancel; InvoiceLine.Recalculate; Receivable y Payable.ApplyPayment, RevertPayment, Adjust, Cancel;
   Expense.Recalculate, Confirm(closingDate, authorizationLimit), Cancel; ReceivablePayment,
@@ -251,47 +294,22 @@ tablas y columnas. Si el código difiere, explícame la diferencia antes de migr
   ChangeClosingDate(newDate, today, reason), UpdateLimits, UpdateCompany;
   PaymentTerm.CalculateDueDate; catálogos con Update, Activate y Deactivate (VatRate y
   WithholdingType con ChangeRate; AccountingAccount con Rename). Servicios: InvoiceService.ConfirmAsync,
-  ReceivablePaymentService.RegisterAsync, ExpenseService.CheckBudgetAsync y ConfirmAsync.
-- **Paquete de mejoras finales (pendiente; ver `prompt_claude_code_mejoras_finales_v2.md`, trabajo
-  bloque por bloque):**
-  - Columnas nuevas: Gastos.VoucherReference (obligatoria); Facturas.IncomeCategoryId (FK
-    CategoriasFinancieras), ElectronicInvoiceKey y ElectronicInvoiceNumber (opcionales, una sola vez);
-    ProductosServicios.CabysCode (obligatorio) y UnitOfMeasure pasa a lista fija de códigos oficiales;
-    FacturaLineas.CabysCode (copiado del catálogo al agregar la línea); Clientes y
-    Proveedores.IdentificationType; TiposImpuesto.HaciendaRateCode; ParametrosSistema
-    .CompanyActivityCode; CuentasContables.SystemRole (nula salvo en cuentas de sistema, única cuando
-    no es nula); Abonos.Code y Pagos.Code (cada uno único, prefijo propio).
-  - Enumeraciones nuevas: LedgerAccountType gana 2 Pasivo y 3 Patrimonio (los valores de Income=4 y
-    Expense=5 ya estaban reservados para esto); Asientos.SourceType 1 Factura, 2 Abono, 3 Ingreso
-    manual, 4 Gasto, 5 Pago, 6 Ajuste de saldo, 7 Nota de crédito; IdentificationType 1 Física,
-    2 Jurídica, 3 DIMEX, 4 NITE, 5 Extranjero no domiciliado; NotasCredito.Status 1 Vigente,
-    2 Anulada; CuentasContables.SystemRole con un valor por cuenta de sistema (cuentas por cobrar a
-    clientes, IVA acreditable, retenciones a favor, cuentas por pagar a proveedores, IVA por pagar,
-    ajustes a cuentas por cobrar, ajustes a favor en cuentas por pagar, devoluciones y descuentos
-    sobre ventas).
-  - Cuentas contables nuevas del catálogo base: 1.2 Cuentas por cobrar, 1.3 Impuestos a favor,
-    2.1 Cuentas por pagar, 2.2 Impuestos por pagar (todas cuentas de sistema); 4.4 Devoluciones y
-    descuentos sobre ventas (cuenta de sistema, naturaleza deudora dentro de Ingresos); 5.3 Costo de
-    ventas (**no** es cuenta de sistema: lleva categoría de gasto propia con código automático, igual
-    que las demás cuentas de detalle de Gastos).
-  - Códigos nuevos (regla 12 ampliada): ingresos y gastos dejan de compartir prefijo con sus
-    categorías (pasan de `ING-001`/`GAS-001` a `REC-000001`/`GTO-000001`); abonos `ABO-000001`; pagos
-    `PAG-000001`; notas de crédito `NCR-000001`. Secuencias nuevas: `finanzas.Seq_AsientoNumero` y las
-    que falten para abonos, pagos y notas de crédito (ingresos y gastos reutilizan sus secuencias
-    actuales con prefijo y relleno nuevos).
-  - Clases (diagramas UML) nuevas: JournalEntry (Asientos), JournalEntryLine (AsientoLineas),
-    CreditNote (NotasCredito), CreditNoteLine (NotaCreditoLineas).
-  - Las tablas `Asientos` y `AsientoLineas` son inmutables (no se editan ni eliminan): una anulación
-    genera un asiento de reversión nuevo, nunca modifica el original. `NotasCredito` sigue el mismo
-    patrón Vigente/Anulada que los demás documentos financieros (nunca se elimina físicamente).
+  ReceivablePaymentService.RegisterAsync, ExpenseService.CheckBudgetAsync y ConfirmAsync. El paquete
+  v7 agrega: CashTransfer.Cancel y el registro de CashTransferService; VatSettlement.Cancel y el
+  cálculo de VatSettlementService; CreditNote.Cancel y el reparto automático de
+  CreditNoteService.RegisterAsync.
+- **Asientos (JournalEntry/JournalEntryLine):** inmutables (no se editan ni eliminan): una anulación
+  genera un asiento de reversión nuevo, nunca modifica el original. NotasCredito, Traspasos y
+  LiquidacionesIva siguen el mismo patrón Vigente/Anulada que los demás documentos financieros (nunca
+  se eliminan físicamente).
 
 ## Perfiles (roles fijos; sin permisos por usuario)
 
 | Perfil | Permisos |
 |---|---|
 | Asistente | Consulta catálogos; mantiene clientes y proveedores; registra borradores de facturas y gastos y ve solo los suyos. No ve reportes, presupuesto ni saldos. |
-| Finanzas | Catálogos financieros (cuentas, categorías, tarifas, retenciones, productos); confirma documentos; ingresos manuales; abonos y pagos hasta el límite; presupuesto; consultas y reportes. |
-| Gerencia | Todo lo de Finanzas y Asistente (ve los borradores de todos), más lo exclusivo: abonos y pagos sobre el límite, anulaciones, ajustes de saldo y parámetros (límite, días de alerta, datos de la empresa, fecha de cierre). No administra usuarios. |
+| Finanzas | Catálogos financieros (cuentas, categorías, tarifas, retenciones, productos); confirma documentos; ingresos manuales; abonos, pagos y traspasos hasta el límite; liquidación del IVA hasta el límite; notas de crédito; presupuesto; consultas y reportes. |
+| Gerencia | Todo lo de Finanzas y Asistente (ve los borradores de todos), más lo exclusivo: abonos, pagos y traspasos sobre el límite, pagos de liquidación de IVA sobre el límite, anulaciones (incluidas notas de crédito, traspasos y liquidaciones), ajustes de saldo y parámetros (límite, días de alerta, datos de la empresa, fecha de cierre). No administra usuarios. |
 | Administrador | Solo usuarios y configuración técnica; sin acceso a información financiera. |
 
 - Gerencia entra en toda política que permita a Finanzas o Asistente; solo las de administración de
@@ -334,26 +352,43 @@ Orden de construcción:
 Prioriza flujos completos y demostrables (factura → cuenta por cobrar → abono → ingreso → reporte;
 gasto → cuenta por pagar → pago → presupuesto) sobre pantallas secundarias.
 
-Pasos 1 a 7 completos. Sigue el **paquete de mejoras finales** (`prompt_claude_code_mejoras_finales_v2.md`),
-último paquete de cambios de lógica antes de cerrar el documento académico, bloque por bloque y
-esperando confirmación entre cada uno:
-0. Actualizar este archivo (hecho, este cambio).
-1. Pendientes que el documento ya promete (referencia de comprobante en gastos, eventos de inicio de
-   sesión, tarifas de IVA por migración, datos del cliente y código de línea en la factura en PDF,
-   prefijo propio por tipo de documento).
-2. Categoría de ingreso en la factura (pasa del cobro a la factura; se hereda en el ingreso de
-   contado y de cada abono).
-3. Factura preparada para el formato 4.4 de Hacienda (CABYS, tipo de identificación, código de tarifa
-   oficial, clave y consecutivo del comprobante externo, exportación de datos); no se emite, firma ni
-   transmite nada ante Hacienda.
-4. Catálogo contable ampliado (Pasivo, Patrimonio, cuentas de sistema, y las nuevas 4.4 Devoluciones y
-   descuentos sobre ventas y 5.3 Costo de ventas).
-5. Asientos contables automáticos (partida doble) y su reversión al anular.
-6. Reportes contables (libro diario, libro mayor, balanza de comprobación, estado de resultados).
-7. Presupuesto y reportes con criterios coherentes (ejecutado sin IVA, presupuesto anual a la fecha,
-   comparativo desde los asientos, flujo de efectivo mensual, IVA del período, retenciones aplicadas
-   por clientes, semáforo de ejecución e indicador de presupuestos excedidos).
-8. Nota de crédito interna con devolución de dinero al cliente.
+Pasos 1 a 7 completos. Los bloques 0 a 6 del **paquete de mejoras finales**
+(`prompt_claude_code_mejoras_finales_v2.md`) están hechos y en el repositorio (último commit
+revisado: `26a71fe`, reportes contables y exportaciones):
+0. Actualizar `CLAUDE.md` (hecho).
+1. Pendientes que el documento ya promete (hecho).
+2. Categoría de ingreso en la factura (hecho).
+3. Factura preparada para el formato 4.4 de Hacienda (hecho).
+4. Catálogo contable ampliado (hecho).
+5. Asientos contables automáticos (partida doble) y su reversión al anular (hecho).
+6. Reportes contables (libro diario, libro mayor, balanza de comprobación, estado de resultados)
+   (hecho).
+
+El paquete v2 quedaba con los bloques 7 (presupuesto y reportes) y 8 (nota de crédito) pendientes; el
+bloque 7 se avanzó parcialmente (semáforo de ejecución, indicador de inicio, filtro de presupuesto,
+comparativo mensual desde los asientos, reporte "Ingresos recibidos", reportes de IVA del período y
+de retenciones por cliente). El **paquete v7** (`prompt_claude_code_mejoras_finales_v7.md`)
+**reemplaza** al v2 para todo lo que falta: retoma ese trabajo pendiente sin rehacerlo y agrega
+decisiones nuevas sobre lo ya construido (condición de IVA del cliente, IVA no acreditable, retención
+del 2 % del sector público, regla de creación de cuentas contables) y tres funciones nuevas
+(traspasos, liquidación del IVA y antigüedad de cuentas por cobrar), bloque por bloque y esperando
+confirmación entre cada uno:
+0. Actualizar `CLAUDE.md` y `README.md` (hecho, este cambio).
+1. IVA y retenciones que faltaron del paquete anterior (tarifas IVA 2 % y No sujeto, corrección del
+   código de Hacienda del Exento, condición de IVA del cliente con tarifa automática por línea,
+   retención del 2 % del sector público, IVA no acreditable en gastos, pantalla única "Impuestos y
+   retenciones").
+2. Datos del formato 4.4 que faltaron (actividad económica del cliente, datos codificados del emisor,
+   exportación completa, preparación del recibo electrónico de pago).
+3. Regla de creación de cuentas contables (solo bajo los grupos de segundo nivel permitidos, siempre
+   de tercer nivel; cuenta nueva bajo 1.1 siempre de efectivo).
+4. Traspaso entre cuentas de efectivo.
+5. Liquidación mensual del IVA.
+6. Presupuesto y reportes con criterios coherentes, terminado (costo real con IVA no acreditable,
+   flujo de efectivo desde las líneas de asiento de cuentas de efectivo con desglose por origen,
+   antigüedad de cuentas por cobrar y por pagar).
+7. Nota de crédito interna con devolución de dinero al cliente.
+8. Cierre del paquete (documentación, prueba de extremo a extremo, resumen final).
 
 ## Lo que el documento necesita del prototipo
 

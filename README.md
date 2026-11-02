@@ -5,7 +5,16 @@ Sistema web interno para centralizar el control financiero-administrativo de **S
 > Este sistema genera asientos contables automáticos (partida doble) a partir de cada operación, con
 > libro diario, libro mayor, balanza de comprobación y estado de resultados; no genera balance general
 > ni otros estados financieros oficiales, y no sustituye los comprobantes electrónicos ni los
-> servicios del Ministerio de Hacienda.
+> servicios del Ministerio de Hacienda. Incluye traspasos entre cuentas de efectivo propias y la
+> liquidación mensual interna del IVA (registro del pago o del saldo a favor); ninguna de las dos
+> sustituye la conciliación bancaria ni la declaración ante Hacienda.
+
+> Reportes financieros y contables, en pantalla, PDF y Excel: ingresos recibidos, gastos por
+> categoría, presupuesto contra lo ejecutado y presupuesto anual a la fecha, comparativo mensual y
+> flujo de efectivo mensual (ambos desde los asientos), estado de cuenta de cliente, cuentas por
+> cobrar por cliente con antigüedad de saldos, cuentas por pagar por proveedor con antigüedad, libro
+> diario, libro mayor, balanza de comprobación, estado de resultados, IVA del período y retenciones
+> aplicadas por clientes.
 
 ## Estado actual
 
