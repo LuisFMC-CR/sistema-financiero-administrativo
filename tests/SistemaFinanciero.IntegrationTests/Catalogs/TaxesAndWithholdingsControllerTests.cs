@@ -379,11 +379,6 @@ public sealed class TaxesAndWithholdingsControllerTests
             Guid actorId,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(OperationResult);
-
-        public Task<ReferenceTaxTypesLoadResult> LoadReferenceTaxTypesAsync(
-            Guid actorId,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ReferenceTaxTypesLoadResult(CatalogOperationResult.Succeeded(), 0, 0));
     }
 
     private sealed class RecordingWithholdingTypeService : IWithholdingTypeService

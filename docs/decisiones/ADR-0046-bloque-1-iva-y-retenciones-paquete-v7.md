@@ -56,15 +56,17 @@ eliminaron (la lógica vive ahora en `TaxesAndWithholdingsController`, con sus p
 se eliminaron por quedar huérfanas; igual los `TaxTypeEditViewModel`/`WithholdingTypeEditViewModel`
 (reemplazados por `TaxTypeRateEditViewModel`/`WithholdingTypeRateEditViewModel`, de alcance reducido).
 
-### 6. Se retira el botón "Cargar tarifas de referencia" de la interfaz — **cambio que se avisa aquí explícitamente**
+### 6. Se elimina por completo la carga manual de tarifas de referencia
 
-`ITaxTypeService.LoadReferenceTaxTypesAsync`/`ReferenceTaxTypesLoadResult`/`ReferenceTaxTypes` **no se
-eliminaron del código** (siguen compilando y sus pruebas siguen pasando), pero ya no tienen ningún
-botón ni acción que los invoque desde la interfaz: las cuatro tarifas de referencia (IVA 13 %, IVA 2 %,
-Exento, No sujeto) ya nacen siempre por migración de siembra (`SeedReferenceTaxTypes` +
-`AddTaxTypeSystemRolesAndVatRates`), así que el botón quedó redundante. Se deja el servicio intacto por
-si un ambiente muy antiguo lo necesitara manualmente, pero no se expone en ningún formulario nuevo. Si
-se prefiere eliminarlo del todo (contrato, implementación y pruebas), es un cambio aparte a confirmar.
+Primero se retiró solo el botón "Cargar tarifas de referencia" de la interfaz, dejando
+`ITaxTypeService.LoadReferenceTaxTypesAsync`/`ReferenceTaxTypesLoadResult`/`ReferenceTaxTypes` en el
+código sin ninguna acción que los invocara. El usuario confirmó eliminar también ese código: se
+retiraron el método de la interfaz y su implementación, el record `ReferenceTaxTypesLoadResult`, la
+clase `ReferenceTaxTypes` (Application) y sus pruebas (`ReferenceTaxTypesTests`,
+`SqlServerTaxTypeScenarioTests.LoadReference_CreatesOnlyTheMissingRatesAndNeverTouchesExistingOnes`).
+Las migraciones `SeedReferenceTaxTypes` y `AddTaxTypeHaciendaRateCode` no dependían de esa clase (su
+SQL va embebido directamente), así que no se tocaron: las cuatro tarifas de referencia (IVA 13 %,
+IVA 2 %, Exento, No sujeto) siguen naciendo siempre por migración de siembra.
 
 ### 7. Recalculación de IVA al cambiar el cliente de una factura en borrador
 

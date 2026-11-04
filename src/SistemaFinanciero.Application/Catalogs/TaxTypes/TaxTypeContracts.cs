@@ -6,9 +6,8 @@ namespace SistemaFinanciero.Application.Catalogs.TaxTypes;
 /// <summary>Datos requeridos para crear una tarifa de IVA.</summary>
 /// <remarks>
 /// Conexiones: lo recibe <c>ITaxTypeService.CreateAsync</c>, implementado por <c>TaxTypeService</c>
-/// (Infrastructure/Catalogs/TaxTypes); lo produce también <see cref="ReferenceTaxTypes"/> para la carga
-/// de tarifas de referencia. Lo consume <c>TaxTypesController</c> (Web, ruta
-/// <c>/catalogos/tipos-impuesto</c>).
+/// (Infrastructure/Catalogs/TaxTypes). Lo consume <c>TaxesAndWithholdingsController</c> (Web, ruta
+/// <c>/impuestos-y-retenciones/tarifas/crear</c>).
 /// </remarks>
 public sealed record CreateTaxTypeCommand(
     string Code,
@@ -50,12 +49,6 @@ public sealed record TaxTypeOption(
     decimal Rate,
     TaxTypeSystemRole? SystemRole);
 
-/// <summary>Resultado de cargar las tarifas de referencia: cuántas se crearon y cuántas ya existían.</summary>
-public sealed record ReferenceTaxTypesLoadResult(
-    CatalogOperationResult Operation,
-    int CreatedCount,
-    int ExistingCount);
-
 /// <summary>Casos de uso del catálogo de tipos de impuesto.</summary>
 public interface ITaxTypeService
 {
@@ -90,14 +83,6 @@ public interface ITaxTypeService
         Guid id,
         bool isActive,
         string version,
-        Guid actorId,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Crea las tarifas de IVA de referencia que aún no existan, identificadas por su código. No
-    /// modifica ni reactiva los tipos que ya existen.
-    /// </summary>
-    public Task<ReferenceTaxTypesLoadResult> LoadReferenceTaxTypesAsync(
         Guid actorId,
         CancellationToken cancellationToken = default);
 }

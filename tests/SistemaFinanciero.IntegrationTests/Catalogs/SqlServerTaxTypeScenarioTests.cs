@@ -90,66 +90,6 @@ public sealed class SqlServerTaxTypeScenarioTests : IClassFixture<FinancialWebAp
 
     [Fact]
     [Trait("Category", "SqlServer")]
-    public Task LoadReference_CreatesOnlyTheMissingRatesAndNeverTouchesExistingOnes()
-    {
-        return RunInRollbackTransactionAsync(async (context, services, actorId) =>
-        {
-            ITaxTypeService taxTypes = services.GetRequiredService<ITaxTypeService>();
-            int total = ReferenceTaxTypes.All.Count;
-
-            // La base puede ya contener tarifas si alguien usó el botón: se calcula lo que falta.
-            List<string> storedCodes = await context.Set<TaxType>().Select(taxType => taxType.Code).ToListAsync();
-            int alreadyStored = ReferenceTaxTypes.All.Count(reference => storedCodes.Contains(reference.Code));
-
-            // Un tipo con un código de referencia y datos propios, desactivado, no debe cambiar.
-            const string customCode = "IVA-13";
-            if (!storedCodes.Contains(customCode))
-            {
-                Assert.True((await taxTypes.CreateAsync(
-                    new CreateTaxTypeCommand(customCode, "IVA personalizado", 12m, "08", null),
-                    actorId)).IsSuccess);
-                TaxTypeModel custom = Assert.Single((await taxTypes.SearchAsync(
-                    new CatalogQuery(customCode, CatalogStatusFilter.Active))).Items);
-                Assert.True((await taxTypes.SetActiveAsync(custom.Id, false, custom.Version, actorId)).IsSuccess);
-                alreadyStored++;
-            }
-
-            ReferenceTaxTypesLoadResult first = await taxTypes.LoadReferenceTaxTypesAsync(actorId);
-
-            Assert.True(first.Operation.IsSuccess);
-            Assert.Equal(total - alreadyStored, first.CreatedCount);
-            Assert.Equal(alreadyStored, first.ExistingCount);
-
-            foreach (CreateTaxTypeCommand reference in ReferenceTaxTypes.All)
-            {
-                Assert.Contains(await context.Set<TaxType>().ToListAsync(), taxType => taxType.Code == reference.Code);
-            }
-
-            // Un tipo existente conserva sus datos y su baja: la carga no lo reactiva ni lo modifica.
-            TaxType kept = await context.Set<TaxType>().SingleAsync(taxType => taxType.Code == customCode);
-            if (kept.Name == "IVA personalizado")
-            {
-                Assert.False(kept.IsActive);
-                Assert.Equal(12m, kept.Rate);
-            }
-
-            // La segunda carga no encuentra nada que crear.
-            ReferenceTaxTypesLoadResult second = await taxTypes.LoadReferenceTaxTypesAsync(actorId);
-            Assert.True(second.Operation.IsSuccess);
-            Assert.Equal(0, second.CreatedCount);
-            Assert.Equal(total, second.ExistingCount);
-
-            // Las tarifas de referencia quedan a nombre de quien las cargó.
-            Assert.All(
-                await context.Set<TaxType>()
-                    .Where(taxType => taxType.Description != null && taxType.Description.Contains("asesoría contable"))
-                    .ToListAsync(),
-                taxType => Assert.Equal(actorId, taxType.CreatedByUserId));
-        });
-    }
-
-    [Fact]
-    [Trait("Category", "SqlServer")]
     public Task SetActiveAsync_RejectsDeactivatingASystemRoleTaxType()
     {
         return RunInRollbackTransactionAsync(async (context, services, actorId) =>

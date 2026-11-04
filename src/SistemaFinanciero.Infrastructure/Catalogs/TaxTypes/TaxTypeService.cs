@@ -11,11 +11,9 @@ namespace SistemaFinanciero.Infrastructure.Catalogs.TaxTypes;
 /// </summary>
 /// <remarks>
 /// Conexiones: implementa <c>ITaxTypeService</c> (Application); se registra en
-/// <c>DependencyInjection.AddInfrastructure</c>; lo inyecta <c>TaxTypesController</c> (Web). Lee y
-/// escribe <c>FinancialDbContext.TaxTypes</c> (tabla <c>catalogos.TiposImpuesto</c>);
-/// <see cref="LoadReferenceTaxTypesAsync"/> usa <c>ReferenceTaxTypes.All</c> (Application) para crear
-/// solo las tarifas que faltan. <see cref="GetActiveOptionsAsync"/> es lo que debería alimentar el
-/// selector de impuestos de una futura pantalla de facturas.
+/// <c>DependencyInjection.AddInfrastructure</c>; lo inyecta <c>TaxesAndWithholdingsController</c>
+/// (Web). Lee y escribe <c>FinancialDbContext.TaxTypes</c> (tabla <c>catalogos.TiposImpuesto</c>).
+/// <see cref="GetActiveOptionsAsync"/> alimenta el selector de impuestos de las líneas de factura.
 /// </remarks>
 internal sealed class TaxTypeService(
     FinancialDbContext dbContext,
@@ -216,54 +214,6 @@ internal sealed class TaxTypeService(
             dbContext.ChangeTracker.Clear();
             return CatalogOperationResult.Invalid(exception.Message);
         }
-    }
-
-    public async Task<ReferenceTaxTypesLoadResult> LoadReferenceTaxTypesAsync(
-        Guid actorId,
-        CancellationToken cancellationToken = default)
-    {
-        List<string> storedCodes = await dbContext.Set<TaxType>()
-            .AsNoTracking()
-            .Select(taxType => taxType.Code)
-            .ToListAsync(cancellationToken);
-        HashSet<string> existingCodes = new(storedCodes, StringComparer.OrdinalIgnoreCase);
-        DateTimeOffset now = timeProvider.GetUtcNow();
-        int createdCount = 0;
-
-        try
-        {
-            foreach (CreateTaxTypeCommand reference in ReferenceTaxTypes.All)
-            {
-                if (existingCodes.Contains(reference.Code))
-                {
-                    continue;
-                }
-
-                dbContext.Add(new TaxType(
-                    Guid.NewGuid(),
-                    reference.Code,
-                    reference.Name,
-                    reference.Rate,
-                    reference.HaciendaRateCode,
-                    reference.Description,
-                    now,
-                    actorId));
-                createdCount++;
-            }
-        }
-        catch (ArgumentException exception)
-        {
-            dbContext.ChangeTracker.Clear();
-            return new ReferenceTaxTypesLoadResult(CatalogOperationResult.Invalid(exception.Message), 0, 0);
-        }
-
-        CatalogOperationResult operation = createdCount == 0
-            ? CatalogOperationResult.Succeeded()
-            : await CatalogPersistence.SaveChangesAsync(dbContext, DuplicateCodeMessage, cancellationToken);
-
-        return operation.IsSuccess
-            ? new ReferenceTaxTypesLoadResult(operation, createdCount, ReferenceTaxTypes.All.Count - createdCount)
-            : new ReferenceTaxTypesLoadResult(operation, 0, 0);
     }
 
     private static TaxTypeModel Map(TaxType taxType)
