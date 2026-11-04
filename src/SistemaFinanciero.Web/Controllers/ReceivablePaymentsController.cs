@@ -228,6 +228,16 @@ public sealed class ReceivablePaymentsController(
             .Select(option => $"{option.Code} - {option.Name}")
             .SingleOrDefault() ?? "—";
 
+        // RF-95 (bloque 1 del paquete v7): la retención solo se ofrece a clientes con la marca de
+        // retención del sector público; si no la tiene, el formulario no muestra ninguna opción.
+        CustomerModel? customer = await customerService.GetAsync(model.CustomerId, cancellationToken);
+
+        if (customer?.AppliesStateWithholding != true)
+        {
+            model.WithholdingTypeOptions = [];
+            return;
+        }
+
         IReadOnlyList<WithholdingTypeOption> withholdingTypes = await withholdingTypeService.GetActiveOptionsAsync(cancellationToken);
         model.WithholdingTypeOptions = withholdingTypes
             .Select(option => new SelectListItem($"{option.Name} ({option.Rate:0.##}%)", option.Id.ToString()))
@@ -254,10 +264,41 @@ public sealed class ReceivablePaymentsController(
                 Balance = receivable.Balance,
                 InvoiceNetAmount = receivable.InvoiceNetAmount,
                 Amount = proposed,
-                WithholdingBase = receivable.InvoiceNetAmount,
+                WithholdingBase = ProposeWithholdingBase(receivable, proposed),
             });
         }
 
         return lines;
+    }
+
+    /// <summary>
+    /// Propone la base de la retención del 2 % del sector público (regla 3, RF-95):
+    /// <c>base = neto × monto aplicado / (total − 2 % × neto)</c>, sin superar el neto pendiente de
+    /// retención de la factura, aproximado por la proporción de saldo que queda sobre su monto
+    /// original. El usuario puede ajustarla dentro de ese límite; el servidor valida el límite real al
+    /// registrar el abono.
+    /// </summary>
+    private static decimal ProposeWithholdingBase(ReceivableModel receivable, decimal amountApplied)
+    {
+        if (amountApplied <= 0 || receivable.OriginalAmount <= 0)
+        {
+            return 0m;
+        }
+
+        decimal denominator = receivable.OriginalAmount - (0.02m * receivable.InvoiceNetAmount);
+
+        if (denominator <= 0)
+        {
+            return 0m;
+        }
+
+        decimal proposedBase = Math.Round(
+            receivable.InvoiceNetAmount * amountApplied / denominator,
+            2,
+            MidpointRounding.AwayFromZero);
+
+        decimal pendingNetAmount = receivable.Balance / receivable.OriginalAmount * receivable.InvoiceNetAmount;
+
+        return Math.Max(0m, Math.Min(proposedBase, pendingNetAmount));
     }
 }

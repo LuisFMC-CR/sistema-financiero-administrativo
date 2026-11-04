@@ -184,6 +184,7 @@ internal sealed class ExpenseService(
                 taxType.Code,
                 taxType.Name,
                 taxType.Rate,
+                command.VatCreditable,
                 command.PaymentMethod,
                 timeProvider.GetUtcNow(),
                 actorId);
@@ -259,6 +260,7 @@ internal sealed class ExpenseService(
                 taxType.Code,
                 taxType.Name,
                 taxType.Rate,
+                command.VatCreditable,
                 command.PaymentMethod,
                 timeProvider.GetUtcNow(),
                 actorId);
@@ -676,6 +678,7 @@ internal sealed class ExpenseService(
                 expense.TaxRate,
                 expense.TaxAmount,
                 expense.TotalAmount,
+                expense.VatCreditable,
                 expense.PaymentMethod,
                 expense.CashAccountId,
                 expense.CashAccountId is null ? null : cashAccountNames.GetValueOrDefault(expense.CashAccountId.Value, "—"),

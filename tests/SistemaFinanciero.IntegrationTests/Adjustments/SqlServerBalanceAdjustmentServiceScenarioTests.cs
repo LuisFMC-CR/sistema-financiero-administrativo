@@ -247,7 +247,7 @@ public sealed class SqlServerBalanceAdjustmentServiceScenarioTests : IClassFixtu
         ExpenseCreationResult created = await expenses.CreateAsync(
             new SaveExpenseCommand(
                 supplierId, categoryId, "Compra a crédito de pruebas de ajustes", "VC-0001", DateOnly.FromDateTime(DateTime.UtcNow),
-                PaymentTerm.Credit30, amount, taxTypeId, PaymentMethod.Cash),
+                PaymentTerm.Credit30, amount, taxTypeId, true, PaymentMethod.Cash),
             actorId);
         Guid expenseId = created.ExpenseId!.Value;
 
@@ -276,6 +276,9 @@ public sealed class SqlServerBalanceAdjustmentServiceScenarioTests : IClassFixtu
             null,
             null,
             null,
+            null,
+            VatCondition.Normal,
+            false,
             DateTimeOffset.UtcNow,
             actorId);
         context.Customers.Add(customer);

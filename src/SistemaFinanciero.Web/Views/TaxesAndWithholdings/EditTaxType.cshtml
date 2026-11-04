@@ -1,0 +1,54 @@
+@model TaxTypeRateEditViewModel
+@{
+    ViewData["Title"] = "Editar tarifa de IVA";
+}
+
+<div class="catalog-form">
+    <h1 class="h2">Editar tarifa de IVA</h1>
+    <p class="text-body-secondary">
+        El código, el nombre y el código de Hacienda quedan fijos después de crear la tarifa; solo se piden al agregar una nueva.
+        Los cambios no alteran las facturas ya creadas: cada línea conserva la tarifa que usó.
+    </p>
+    <form method="post" asp-antiforgery="true" class="card card-body">
+        <input asp-for="Version" type="hidden" />
+        <input asp-for="IsSystemRole" type="hidden" />
+        <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">Código</label>
+                <input value="@Model.Code" class="form-control" disabled readonly />
+            </div>
+            <div class="col-md-8">
+                <label class="form-label">Nombre</label>
+                <input value="@Model.Name" class="form-control" disabled readonly />
+            </div>
+            <div class="col-md-6">
+                <label asp-for="Rate" class="form-label"></label>
+                <input asp-for="Rate" type="number" min="0" step="0.0001" class="form-control" />
+                <span asp-validation-for="Rate" class="text-danger"></span>
+                <div class="form-text">Porcentaje de 0 a 100.</div>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Código de tarifa de Hacienda</label>
+                <input value="@(Model.HaciendaRateCode ?? "—")" class="form-control" disabled readonly />
+            </div>
+            <div class="col-12">
+                <label asp-for="Description" class="form-label"></label>
+                <textarea asp-for="Description" class="form-control" rows="3"></textarea>
+                <span asp-validation-for="Description" class="text-danger"></span>
+            </div>
+        </div>
+        @if (Model.IsSystemRole)
+        {
+            <p class="text-body-secondary small mt-3 mb-0">Esta tarifa la usa el sistema y no se puede inactivar.</p>
+        }
+        <div class="d-flex gap-2 mt-4">
+            <button type="submit" class="btn btn-primary">Guardar cambios</button>
+            <a asp-action="Index" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

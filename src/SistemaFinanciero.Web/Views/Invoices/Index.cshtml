@@ -48,7 +48,7 @@
                 <th scope="col" class="text-end">Total</th>
                 <th scope="col">Creada por</th>
             </tr>
-            <partial name="_Filters" model="new InvoiceFilterViewModel(Model.Search, Model.Status)" />
+            <partial name="_Filters" model="new InvoiceFilterViewModel(Model.Search, Model.Status, Model.IssueDateFrom, Model.IssueDateTo, Model.PaymentTerm)" />
         </thead>
         <tbody>
             @if (Model.Results.Items.Count == 0)
@@ -74,4 +74,4 @@
     </table>
 </div>
 
-<partial name="_Pagination" model="new InvoicePaginationViewModel(Model.Results.Page, Model.Results.TotalPages, Model.Results.HasPreviousPage, Model.Results.HasNextPage, Model.Search, Model.Status)" />
+<partial name="_Pagination" model="new InvoicePaginationViewModel(Model.Results.Page, Model.Results.TotalPages, Model.Results.HasPreviousPage, Model.Results.HasNextPage, Model.Search, Model.Status, Model.IssueDateFrom, Model.IssueDateTo, Model.PaymentTerm)" />

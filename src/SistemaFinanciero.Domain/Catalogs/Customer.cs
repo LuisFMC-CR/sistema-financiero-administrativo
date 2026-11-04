@@ -52,6 +52,9 @@ public sealed class Customer
         string? email,
         string? phone,
         string? address,
+        decimal? creditLimit,
+        VatCondition vatCondition,
+        bool appliesStateWithholding,
         DateTimeOffset createdAtUtc,
         Guid createdByUserId)
     {
@@ -67,6 +70,9 @@ public sealed class Customer
         Email = DomainRules.OptionalText(email, EmailMaxLength, nameof(email));
         Phone = DomainRules.OptionalText(phone, PhoneMaxLength, nameof(phone));
         Address = DomainRules.OptionalText(address, AddressMaxLength, nameof(address));
+        CreditLimit = RequireNonNegativeLimit(creditLimit, nameof(creditLimit));
+        VatCondition = DomainRules.DefinedEnum(vatCondition, nameof(vatCondition));
+        AppliesStateWithholding = appliesStateWithholding;
         CreatedAtUtc = DomainRules.RequiredUtcTimestamp(createdAtUtc, nameof(createdAtUtc));
         CreatedByUserId = DomainRules.RequiredId(createdByUserId, nameof(createdByUserId));
         UpdatedAtUtc = CreatedAtUtc;
@@ -101,6 +107,25 @@ public sealed class Customer
     /// <summary>Obtiene la dirección de contacto.</summary>
     public string? Address { get; private set; }
 
+    /// <summary>
+    /// Obtiene el límite propio de crédito, en colones, o <c>null</c> si no tiene uno configurado.
+    /// Es solo informativo: al confirmar una factura a crédito que lo supera, el sistema muestra una
+    /// alerta pero nunca bloquea la confirmación.
+    /// </summary>
+    public decimal? CreditLimit { get; private set; }
+
+    /// <summary>
+    /// Obtiene la condición de IVA (bloque 1 del paquete v7, RF-93), que determina automáticamente la
+    /// tarifa de IVA de cada línea de las facturas de este cliente. Predeterminada en Normal.
+    /// </summary>
+    public VatCondition VatCondition { get; private set; }
+
+    /// <summary>
+    /// Indica si el cliente retiene el 2 % del sector público (bloque 1 del paquete v7, RF-95) en sus
+    /// abonos, cuando el monto neto de la factura supera la base mínima. Predeterminado en falso.
+    /// </summary>
+    public bool AppliesStateWithholding { get; private set; }
+
     /// <summary>Indica si puede seleccionarse para nuevas operaciones.</summary>
     public bool IsActive { get; private set; }
 
@@ -129,6 +154,9 @@ public sealed class Customer
         string? email,
         string? phone,
         string? address,
+        decimal? creditLimit,
+        VatCondition vatCondition,
+        bool appliesStateWithholding,
         DateTimeOffset updatedAtUtc,
         Guid updatedByUserId)
     {
@@ -144,6 +172,8 @@ public sealed class Customer
         string? normalizedEmail = DomainRules.OptionalText(email, EmailMaxLength, nameof(email));
         string? normalizedPhone = DomainRules.OptionalText(phone, PhoneMaxLength, nameof(phone));
         string? normalizedAddress = DomainRules.OptionalText(address, AddressMaxLength, nameof(address));
+        decimal? normalizedCreditLimit = RequireNonNegativeLimit(creditLimit, nameof(creditLimit));
+        VatCondition normalizedVatCondition = DomainRules.DefinedEnum(vatCondition, nameof(vatCondition));
         DateTimeOffset normalizedUpdatedAtUtc = ValidateUpdateAudit(updatedAtUtc, updatedByUserId);
 
         Name = normalizedName;
@@ -152,6 +182,9 @@ public sealed class Customer
         Email = normalizedEmail;
         Phone = normalizedPhone;
         Address = normalizedAddress;
+        CreditLimit = normalizedCreditLimit;
+        VatCondition = normalizedVatCondition;
+        AppliesStateWithholding = appliesStateWithholding;
         Touch(normalizedUpdatedAtUtc, updatedByUserId);
     }
 
@@ -196,5 +229,22 @@ public sealed class Customer
     {
         UpdatedAtUtc = updatedAtUtc;
         UpdatedByUserId = updatedByUserId;
+    }
+
+    private static decimal? RequireNonNegativeLimit(decimal? value, string parameterName)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        decimal roundedValue = DomainRules.RoundMoney(value.Value);
+
+        return roundedValue >= 0
+            ? roundedValue
+            : throw new ArgumentOutOfRangeException(
+                parameterName,
+                value,
+                "El límite de crédito no puede ser negativo.");
     }
 }

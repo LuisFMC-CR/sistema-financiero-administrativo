@@ -62,6 +62,9 @@ public class ExpenseCreateViewModel
     [ValidateNever]
     public IReadOnlyList<SelectListItem> TaxTypeOptions { get; set; } = [];
 
+    [Display(Name = "IVA acreditable")]
+    public bool VatCreditable { get; set; } = true;
+
     [EnumDataType(typeof(PaymentMethod), ErrorMessage = "Seleccione un medio de pago válido.")]
     [Display(Name = "Medio de pago")]
     public PaymentMethod PaymentMethod { get; set; } = PaymentMethod.Cash;

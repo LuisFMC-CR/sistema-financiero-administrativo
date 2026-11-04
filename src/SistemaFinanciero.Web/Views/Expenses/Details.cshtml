@@ -62,6 +62,7 @@
             <h2 class="h5">Montos</h2>
             <p class="mb-1">Monto neto: ₡@expense.NetAmount.ToString("N2")</p>
             <p class="mb-1">IVA: @expense.TaxName (@expense.TaxRate.ToString("0.##")%) — ₡@expense.TaxAmount.ToString("N2")</p>
+            <p class="mb-1 text-body-secondary"><small>IVA acreditable: @(expense.VatCreditable ? "Sí" : "No")</small></p>
             <p class="mb-0 fw-semibold">Total: ₡@expense.TotalAmount.ToString("N2")</p>
             @if (expense.Status == ExpenseStatus.Confirmed && expense.CashAccountId is not null)
             {

@@ -69,6 +69,13 @@
             }
         </select>
         <span asp-validation-for="PaymentMethod" class="text-danger"></span>
-        <div class="form-text">No se vuelve a pedir al confirmar de contado (regla 7).</div>
+        <div class="form-text">No se vuelve a pedir al confirmar de contado.</div>
+    </div>
+    <div class="col-md-6 d-flex align-items-end">
+        <div class="form-check">
+            <input asp-for="VatCreditable" class="form-check-input" />
+            <label asp-for="VatCreditable" class="form-check-label"></label>
+        </div>
+        <div class="form-text ms-2">Si no lo es, el IVA pasa a formar parte del costo del gasto.</div>
     </div>
 </div>

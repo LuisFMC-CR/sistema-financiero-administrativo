@@ -24,6 +24,9 @@ public sealed class BusinessPartyCatalogTests
             " cliente@example.test ",
             " 2222-2222 ",
             " San José ",
+            500000.005m,
+            VatCondition.Normal,
+            false,
             CreatedAtUtc,
             CreatorId);
 
@@ -35,6 +38,9 @@ public sealed class BusinessPartyCatalogTests
         Assert.Equal("cliente@example.test", customer.Email);
         Assert.Equal("2222-2222", customer.Phone);
         Assert.Equal("San José", customer.Address);
+        Assert.Equal(500000.01m, customer.CreditLimit);
+        Assert.Equal(VatCondition.Normal, customer.VatCondition);
+        Assert.False(customer.AppliesStateWithholding);
         Assert.True(customer.IsActive);
         Assert.Equal(CreatedAtUtc, customer.CreatedAtUtc);
         Assert.Equal(CreatedAtUtc, customer.UpdatedAtUtc);
@@ -63,6 +69,9 @@ public sealed class BusinessPartyCatalogTests
             null,
             null,
             null,
+            null,
+            VatCondition.Normal,
+            false,
             CreatedAtUtc,
             CreatorId));
     }
@@ -79,10 +88,111 @@ public sealed class BusinessPartyCatalogTests
             null,
             null,
             null,
+            null,
+            VatCondition.Normal,
+            false,
             CreatedAtUtc,
             CreatorId);
 
         Assert.Equal("PASSPORT-AB12345", customer.Identification);
+    }
+
+    [Fact]
+    public void Customer_Constructor_RejectsANegativeCreditLimit()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Customer(
+            Guid.NewGuid(),
+            "CLI-004",
+            "Cliente",
+            IdentificationType.LegalEntity,
+            "3101000003",
+            null,
+            null,
+            null,
+            -1m,
+            VatCondition.Normal,
+            false,
+            CreatedAtUtc,
+            CreatorId));
+    }
+
+    [Fact]
+    public void Customer_UpdateDetails_AllowsAZeroCreditLimitAndClearingItBackToNull()
+    {
+        Customer customer = CreateCustomer();
+        DateTimeOffset changedAtUtc = CreatedAtUtc.AddMinutes(5);
+
+        customer.UpdateDetails(
+            customer.Name,
+            customer.IdentificationType,
+            customer.Identification,
+            null,
+            null,
+            null,
+            0m,
+            VatCondition.Normal,
+            false,
+            changedAtUtc,
+            EditorId);
+
+        Assert.Equal(0m, customer.CreditLimit);
+
+        customer.UpdateDetails(
+            customer.Name,
+            customer.IdentificationType,
+            customer.Identification,
+            null,
+            null,
+            null,
+            null,
+            VatCondition.Normal,
+            false,
+            changedAtUtc.AddMinutes(1),
+            EditorId);
+
+        Assert.Null(customer.CreditLimit);
+    }
+
+    [Fact]
+    public void Customer_Constructor_RejectsAnUndefinedVatCondition()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Customer(
+            Guid.NewGuid(),
+            "CLI-005",
+            "Cliente",
+            IdentificationType.LegalEntity,
+            "3101000004",
+            null,
+            null,
+            null,
+            null,
+            (VatCondition)99,
+            false,
+            CreatedAtUtc,
+            CreatorId));
+    }
+
+    [Fact]
+    public void Customer_UpdateDetails_ChangesVatConditionAndStateWithholding()
+    {
+        Customer customer = CreateCustomer();
+        DateTimeOffset changedAtUtc = CreatedAtUtc.AddMinutes(5);
+
+        customer.UpdateDetails(
+            customer.Name,
+            customer.IdentificationType,
+            customer.Identification,
+            null,
+            null,
+            null,
+            null,
+            VatCondition.StateHigherEducationInstitution,
+            true,
+            changedAtUtc,
+            EditorId);
+
+        Assert.Equal(VatCondition.StateHigherEducationInstitution, customer.VatCondition);
+        Assert.True(customer.AppliesStateWithholding);
     }
 
     [Fact]
@@ -143,6 +253,9 @@ public sealed class BusinessPartyCatalogTests
             null,
             null,
             null,
+            null,
+            VatCondition.Normal,
+            false,
             CreatedAtUtc.AddSeconds(-1),
             EditorId));
 
@@ -180,6 +293,9 @@ public sealed class BusinessPartyCatalogTests
             null,
             null,
             null,
+            null,
+            VatCondition.Normal,
+            false,
             CreatedAtUtc,
             CreatorId);
     }

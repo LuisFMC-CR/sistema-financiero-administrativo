@@ -22,6 +22,7 @@ public sealed class ExpenseTests
         Assert.Equal(1000m, expense.NetAmount);
         Assert.Equal(130m, expense.TaxAmount);
         Assert.Equal(1130m, expense.TotalAmount);
+        Assert.True(expense.VatCreditable);
     }
 
     [Fact]
@@ -60,6 +61,7 @@ public sealed class ExpenseTests
             "IVA",
             "Impuesto al valor agregado",
             13m,
+            vatCreditable: true,
             PaymentMethod.Cash,
             CreatedAtUtc,
             CreatorId));
@@ -83,6 +85,7 @@ public sealed class ExpenseTests
             "IVA-EXENTO",
             "IVA exento",
             0m,
+            vatCreditable: false,
             PaymentMethod.BankTransfer,
             updatedAtUtc,
             CreatorId);
@@ -94,6 +97,7 @@ public sealed class ExpenseTests
         Assert.Equal(0m, expense.TaxAmount);
         Assert.Equal(2000m, expense.TotalAmount);
         Assert.Equal(PaymentMethod.BankTransfer, expense.PaymentMethod);
+        Assert.False(expense.VatCreditable);
         Assert.Equal(updatedAtUtc, expense.UpdatedAtUtc);
     }
 
@@ -115,6 +119,7 @@ public sealed class ExpenseTests
             expense.TaxCode,
             expense.TaxName,
             13m,
+            expense.VatCreditable,
             expense.PaymentMethod,
             CreatedAtUtc.AddDays(2),
             CreatorId));
@@ -229,6 +234,7 @@ public sealed class ExpenseTests
         "IVA",
         "Impuesto al valor agregado",
         taxRate,
+        vatCreditable: true,
         PaymentMethod.Cash,
         CreatedAtUtc,
         CreatorId);

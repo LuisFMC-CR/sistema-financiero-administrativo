@@ -57,9 +57,8 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
     [InlineData("/catalogos/proveedores")]
     [InlineData("/catalogos/productos-servicios")]
     [InlineData("/catalogos/categorias-financieras")]
-    [InlineData("/catalogos/tipos-impuesto")]
     [InlineData("/catalogos/cuentas-contables")]
-    [InlineData("/catalogos/tipos-retencion")]
+    [InlineData("/impuestos-y-retenciones")]
     [InlineData("/parametros")]
     public async Task CatalogRoutes_WhenAnonymous_RedirectToLogin(string route)
     {
@@ -77,10 +76,8 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
 
     [Theory]
     [InlineData("/catalogos/productos-servicios/crear")]
-    [InlineData("/catalogos/tipos-impuesto/crear")]
     [InlineData("/catalogos/cuentas-contables/crear")]
     [InlineData("/catalogos/categorias-financieras/crear")]
-    [InlineData("/catalogos/tipos-retencion/crear")]
     public async Task FinanceUser_CanOpenFinancialCatalogCreationPages(string route)
     {
         using WebApplicationFactory<Program> financeFactory = factory.WithWebHostBuilder(builder =>
@@ -135,50 +132,46 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
     }
 
     [Fact]
-    public void TaxTypeEndpoints_OnlyFinanceCanChangeDataAndLoadingReferencesIsPostOnly()
+    public void TaxesAndWithholdingsEndpoints_OnlyManagementAndFinanceCanChangeDataAndTheListIsConsultOnly()
     {
         Microsoft.AspNetCore.Routing.RouteEndpoint[] endpoints = factory.Services
             .GetServices<Microsoft.AspNetCore.Routing.EndpointDataSource>()
             .SelectMany(source => source.Endpoints)
             .OfType<Microsoft.AspNetCore.Routing.RouteEndpoint>()
             .Where(endpoint => endpoint.RoutePattern.RawText?.StartsWith(
-                "catalogos/tipos-impuesto",
+                "impuestos-y-retenciones",
                 StringComparison.OrdinalIgnoreCase) == true)
             .ToArray();
 
-        Microsoft.AspNetCore.Routing.RouteEndpoint[] mutating = endpoints
-            .Where(endpoint => endpoint.Metadata
-                .GetMetadata<Microsoft.AspNetCore.Routing.HttpMethodMetadata>()!
-                .HttpMethods.Contains("POST"))
-            .ToArray();
-        Microsoft.AspNetCore.Routing.RouteEndpoint[] readOnly = endpoints.Except(mutating)
-            .Where(endpoint => !endpoint.RoutePattern.RawText!.Contains("crear", StringComparison.Ordinal)
-                && !endpoint.RoutePattern.RawText.Contains("editar", StringComparison.Ordinal))
-            .ToArray();
+        Microsoft.AspNetCore.Routing.RouteEndpoint index = Assert.Single(
+            endpoints,
+            endpoint => endpoint.RoutePattern.RawText == "impuestos-y-retenciones");
+        Microsoft.AspNetCore.Routing.RouteEndpoint[] managed = endpoints.Where(endpoint => endpoint != index).ToArray();
 
-        // Crear, editar, cambiar estado y cargar referencias son POST y exigen la política de Finanzas.
-        Assert.Contains(mutating, endpoint => endpoint.RoutePattern.RawText!.EndsWith("cargar-referencia", StringComparison.Ordinal));
+        // Todo lo que no sea el listado (crear, editar y cambiar estado, de ambas secciones) exige la
+        // política de mantenimiento de catálogos financieros.
+        Assert.NotEmpty(managed);
         Assert.All(
-            mutating,
+            managed,
             endpoint => Assert.Contains(
                 endpoint.Metadata.GetOrderedMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>(),
                 data => data.Policy == SystemPolicies.ManageBusinessCatalogs));
 
-        // La carga de referencias no se puede disparar con GET.
-        Microsoft.AspNetCore.Routing.RouteEndpoint load = Assert.Single(
-            endpoints,
-            endpoint => endpoint.RoutePattern.RawText!.EndsWith("cargar-referencia", StringComparison.Ordinal));
-        Assert.Equal(
-            ["POST"],
-            load.Metadata.GetMetadata<Microsoft.AspNetCore.Routing.HttpMethodMetadata>()!.HttpMethods);
+        // El listado único es de consulta: no exige la política de mantenimiento.
+        Assert.DoesNotContain(
+            index.Metadata.GetOrderedMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>(),
+            data => data.Policy == SystemPolicies.ManageBusinessCatalogs);
 
-        // El listado es de consulta: no exige la política de mantenimiento.
-        Assert.NotEmpty(readOnly);
+        // Cambiar el estado es siempre POST.
+        Microsoft.AspNetCore.Routing.RouteEndpoint[] stateEndpoints = managed
+            .Where(endpoint => endpoint.RoutePattern.RawText!.EndsWith("estado", StringComparison.Ordinal))
+            .ToArray();
+        Assert.Equal(2, stateEndpoints.Length);
         Assert.All(
-            readOnly,
-            endpoint => Assert.DoesNotContain(
-                endpoint.Metadata.GetOrderedMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>(),
-                data => data.Policy == SystemPolicies.ManageBusinessCatalogs));
+            stateEndpoints,
+            endpoint => Assert.Equal(
+                ["POST"],
+                endpoint.Metadata.GetMetadata<Microsoft.AspNetCore.Routing.HttpMethodMetadata>()!.HttpMethods));
     }
 
     [Fact]

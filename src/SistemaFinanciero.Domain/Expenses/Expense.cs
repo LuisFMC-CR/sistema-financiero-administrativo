@@ -67,6 +67,7 @@ public sealed class Expense
         string taxCode,
         string taxName,
         decimal taxRate,
+        bool vatCreditable,
         PaymentMethod paymentMethod,
         DateTimeOffset createdAtUtc,
         Guid createdByUserId)
@@ -88,6 +89,7 @@ public sealed class Expense
         TaxRate = NormalizeRate(taxRate, nameof(taxRate));
         TaxAmount = CalculateTaxAmount(NetAmount, TaxRate);
         TotalAmount = DomainRules.RoundMoney(NetAmount + TaxAmount);
+        VatCreditable = vatCreditable;
         PaymentMethod = DomainRules.DefinedEnum(paymentMethod, nameof(paymentMethod));
         CreatedAtUtc = DomainRules.RequiredUtcTimestamp(createdAtUtc, nameof(createdAtUtc));
         CreatedByUserId = DomainRules.RequiredId(createdByUserId, nameof(createdByUserId));
@@ -143,6 +145,13 @@ public sealed class Expense
 
     /// <summary>Total final de la compra, neto más IVA.</summary>
     public decimal TotalAmount { get; private set; }
+
+    /// <summary>
+    /// Indica si el IVA de este gasto se acredita (bloque 1 del paquete v7, RF-94). Predeterminado en
+    /// verdadero; si es falso, el asiento de confirmación debita el total (neto + IVA) a la categoría
+    /// y no genera línea de IVA acreditable, porque ese IVA pasa a formar parte del costo.
+    /// </summary>
+    public bool VatCreditable { get; private set; }
 
     /// <summary>Medio de pago, fijado desde el borrador; no se vuelve a pedir al confirmar (regla 7).</summary>
     public PaymentMethod PaymentMethod { get; private set; }
@@ -202,6 +211,7 @@ public sealed class Expense
         string taxCode,
         string taxName,
         decimal taxRate,
+        bool vatCreditable,
         PaymentMethod paymentMethod,
         DateTimeOffset updatedAtUtc,
         Guid updatedByUserId)
@@ -237,6 +247,7 @@ public sealed class Expense
         TaxRate = validTaxRate;
         TaxAmount = CalculateTaxAmount(NetAmount, TaxRate);
         TotalAmount = DomainRules.RoundMoney(NetAmount + TaxAmount);
+        VatCreditable = vatCreditable;
         PaymentMethod = validPaymentMethod;
     }
 

@@ -7,14 +7,25 @@ using SistemaFinanciero.Domain.Invoices;
 
 namespace SistemaFinanciero.Web.Models.Invoices;
 
-/// <summary>Modelo de listado de facturas, con su propio filtro de estado (Borrador/Confirmada/Anulada).</summary>
+/// <summary>
+/// Modelo de listado de facturas, con sus propios filtros de estado (Borrador/Confirmada/Anulada),
+/// rango de fecha de emisión y plazo de pago.
+/// </summary>
 public sealed record InvoiceIndexViewModel(
     SistemaFinanciero.Application.Catalogs.Common.PagedResult<InvoiceSummaryModel> Results,
     string? Search,
-    InvoiceStatusFilter Status);
+    InvoiceStatusFilter Status,
+    DateOnly? IssueDateFrom,
+    DateOnly? IssueDateTo,
+    PaymentTerm? PaymentTerm);
 
 /// <summary>Datos del formulario de filtros del listado de facturas.</summary>
-public sealed record InvoiceFilterViewModel(string? Search, InvoiceStatusFilter Status);
+public sealed record InvoiceFilterViewModel(
+    string? Search,
+    InvoiceStatusFilter Status,
+    DateOnly? IssueDateFrom,
+    DateOnly? IssueDateTo,
+    PaymentTerm? PaymentTerm);
 
 /// <summary>Datos necesarios para conservar los filtros al navegar entre páginas del listado.</summary>
 public sealed record InvoicePaginationViewModel(
@@ -23,7 +34,10 @@ public sealed record InvoicePaginationViewModel(
     bool HasPreviousPage,
     bool HasNextPage,
     string? Search,
-    InvoiceStatusFilter Status);
+    InvoiceStatusFilter Status,
+    DateOnly? IssueDateFrom,
+    DateOnly? IssueDateTo,
+    PaymentTerm? PaymentTerm);
 
 /// <summary>Entrada para crear el encabezado de un borrador de factura.</summary>
 public class InvoiceCreateViewModel
@@ -160,6 +174,18 @@ public sealed class InvoiceConfirmViewModel
 
     [ValidateNever]
     public decimal TotalAmount { get; set; }
+
+    [ValidateNever]
+    public bool HasCreditLimit { get; set; }
+
+    [ValidateNever]
+    public decimal? CreditLimit { get; set; }
+
+    [ValidateNever]
+    public decimal OutstandingBalanceBeforeThisInvoice { get; set; }
+
+    [ValidateNever]
+    public bool ExceedsCreditLimit { get; set; }
 
     [Display(Name = "Cuenta de efectivo")]
     public Guid? CashAccountId { get; set; }

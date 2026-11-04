@@ -126,6 +126,9 @@ public sealed class SqlServerReceivableServiceScenarioTests : IClassFixture<Fina
             null,
             null,
             null,
+            null,
+            VatCondition.Normal,
+            false,
             DateTimeOffset.UtcNow,
             actorId);
         context.Customers.Add(customer);

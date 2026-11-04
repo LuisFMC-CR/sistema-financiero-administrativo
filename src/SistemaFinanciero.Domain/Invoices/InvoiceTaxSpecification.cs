@@ -15,13 +15,14 @@ namespace SistemaFinanciero.Domain.Invoices;
 /// <param name="Rate">Porcentaje de IVA.</param>
 /// <param name="HaciendaRateCode">
 /// Código oficial de tarifa de Hacienda (bloque 3 del paquete de mejoras finales), para la
-/// exportación de datos de la factura (RF-88); "99" (sin clasificar) cuando no se conoce, por
-/// ejemplo en pruebas que no lo necesitan.
+/// exportación de datos de la factura (RF-88); nulo cuando la tarifa de origen no tiene uno (hoy,
+/// únicamente la tarifa de sistema "No sujeto" del bloque 1 del paquete v7) o cuando no se conoce,
+/// por ejemplo en pruebas que no lo necesitan.
 /// </param>
 /// <param name="TaxTypeId">Tipo de impuesto del catálogo de origen, cuando se usó uno.</param>
 public sealed record InvoiceTaxSpecification(
     string Code,
     string Name,
     decimal Rate,
-    string HaciendaRateCode = "99",
+    string? HaciendaRateCode = null,
     Guid? TaxTypeId = null);

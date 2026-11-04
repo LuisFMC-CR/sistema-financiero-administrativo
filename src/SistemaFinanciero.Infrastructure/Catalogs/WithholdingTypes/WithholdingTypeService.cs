@@ -84,7 +84,9 @@ internal sealed class WithholdingTypeService(
                 withholding.Id,
                 withholding.Code,
                 withholding.Name,
-                withholding.Rate))
+                withholding.Rate,
+                withholding.MinimumBase,
+                withholding.IsSystemType))
             .ToListAsync(cancellationToken);
     }
 
@@ -102,6 +104,7 @@ internal sealed class WithholdingTypeService(
                 command.Code,
                 command.Name,
                 command.Rate,
+                command.MinimumBase,
                 command.Description,
                 timeProvider.GetUtcNow(),
                 actorId);
@@ -148,6 +151,7 @@ internal sealed class WithholdingTypeService(
                 command.Code,
                 command.Name,
                 command.Rate,
+                command.MinimumBase,
                 command.Description,
                 timeProvider.GetUtcNow(),
                 actorId);
@@ -184,6 +188,12 @@ internal sealed class WithholdingTypeService(
             return CatalogOperationResult.Invalid("El token de concurrencia no es válido.");
         }
 
+        if (!isActive && withholding.IsSystemType)
+        {
+            dbContext.ChangeTracker.Clear();
+            return CatalogOperationResult.Invalid("Esta retención la usa el sistema y no se puede inactivar.");
+        }
+
         try
         {
             if (isActive)
@@ -214,8 +224,10 @@ internal sealed class WithholdingTypeService(
             withholding.Code,
             withholding.Name,
             withholding.Rate,
+            withholding.MinimumBase,
             withholding.Description,
             withholding.IsActive,
+            withholding.IsSystemType,
             withholding.CreatedAtUtc,
             withholding.UpdatedAtUtc,
             CatalogPersistence.EncodeVersion(withholding.RowVersion));

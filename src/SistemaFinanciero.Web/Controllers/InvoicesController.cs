@@ -47,13 +47,29 @@ public sealed class InvoicesController(
     public async Task<IActionResult> Index(
         string? search,
         InvoiceStatusFilter status = InvoiceStatusFilter.All,
+        DateOnly? issueDateFrom = null,
+        DateOnly? issueDateTo = null,
+        PaymentTerm? paymentTerm = null,
         int page = 1,
         CancellationToken cancellationToken = default)
     {
-        InvoiceQuery query = new(NormalizeSearch(search), NormalizeStatus(status), OwnerRestriction(), page: page);
+        InvoiceQuery query = new(
+            NormalizeSearch(search),
+            NormalizeStatus(status),
+            OwnerRestriction(),
+            issueDateFrom,
+            issueDateTo,
+            paymentTerm,
+            page: page);
         PagedResult<InvoiceSummaryModel> results = await service.SearchAsync(query, cancellationToken);
 
-        return View(new InvoiceIndexViewModel(results, query.Search, query.Status));
+        return View(new InvoiceIndexViewModel(
+            results,
+            query.Search,
+            query.Status,
+            query.IssueDateFrom,
+            query.IssueDateTo,
+            query.PaymentTerm));
     }
 
     [Authorize(Policy = SystemPolicies.CreateFinancialDrafts)]
@@ -286,7 +302,9 @@ public sealed class InvoicesController(
 
         if (result.IsSuccess)
         {
-            SetSuccessMessage("El encabezado de la factura fue actualizado correctamente.");
+            SetSuccessMessage(result.Message is null
+                ? "El encabezado de la factura fue actualizado correctamente."
+                : $"El encabezado de la factura fue actualizado correctamente. {result.Message}");
             return RedirectToAction(nameof(Details), new { id });
         }
 
@@ -318,7 +336,7 @@ public sealed class InvoicesController(
         }
 
         InvoiceLineInputViewModel model = new() { Version = invoice.Version };
-        await PopulateLineOptionsAsync(model, cancellationToken);
+        await PopulateLineOptionsAsync(model, invoice.CustomerId, cancellationToken);
         return View(model);
     }
 
@@ -331,7 +349,8 @@ public sealed class InvoicesController(
     {
         if (!ModelState.IsValid)
         {
-            await PopulateLineOptionsAsync(model, cancellationToken);
+            InvoiceModel? invoiceForOptions = await service.GetAsync(id, OwnerRestriction(), cancellationToken);
+            await PopulateLineOptionsAsync(model, invoiceForOptions?.CustomerId ?? Guid.Empty, cancellationToken);
             return View(model);
         }
 
@@ -354,8 +373,8 @@ public sealed class InvoicesController(
             return RedirectToAction(nameof(Details), new { id });
         }
 
-        await RefreshLineVersionAsync(id, model, cancellationToken);
-        await PopulateLineOptionsAsync(model, cancellationToken);
+        Guid customerIdAfterFailure = await RefreshLineVersionAsync(id, model, cancellationToken);
+        await PopulateLineOptionsAsync(model, customerIdAfterFailure, cancellationToken);
         return FormFailure(result, model, nameof(AddLine));
     }
 
@@ -379,7 +398,7 @@ public sealed class InvoicesController(
             DiscountAmount = line.DiscountAmount,
             Version = invoice.Version,
         };
-        await PopulateLineOptionsAsync(model, cancellationToken);
+        await PopulateLineOptionsAsync(model, invoice.CustomerId, cancellationToken);
         return View(model);
     }
 
@@ -393,7 +412,8 @@ public sealed class InvoicesController(
     {
         if (!ModelState.IsValid)
         {
-            await PopulateLineOptionsAsync(model, cancellationToken);
+            InvoiceModel? invoiceForOptions = await service.GetAsync(id, OwnerRestriction(), cancellationToken);
+            await PopulateLineOptionsAsync(model, invoiceForOptions?.CustomerId ?? Guid.Empty, cancellationToken);
             return View(model);
         }
 
@@ -417,8 +437,8 @@ public sealed class InvoicesController(
             return RedirectToAction(nameof(Details), new { id });
         }
 
-        await RefreshLineVersionAsync(id, model, cancellationToken);
-        await PopulateLineOptionsAsync(model, cancellationToken);
+        Guid customerIdAfterFailure = await RefreshLineVersionAsync(id, model, cancellationToken);
+        await PopulateLineOptionsAsync(model, customerIdAfterFailure, cancellationToken);
         return FormFailure(result, model, nameof(EditLine));
     }
 
@@ -474,6 +494,10 @@ public sealed class InvoicesController(
         {
             await PopulateConfirmOptionsAsync(model, cancellationToken);
         }
+        else
+        {
+            await PopulateCreditLimitCheckAsync(model, invoice, cancellationToken);
+        }
 
         return View(model);
     }
@@ -505,6 +529,10 @@ public sealed class InvoicesController(
             if (model.IsCash)
             {
                 await PopulateConfirmOptionsAsync(model, cancellationToken);
+            }
+            else
+            {
+                await PopulateCreditLimitCheckAsync(model, invoice, cancellationToken);
             }
 
             return View(model);
@@ -545,6 +573,10 @@ public sealed class InvoicesController(
         if (model.IsCash)
         {
             await PopulateConfirmOptionsAsync(model, cancellationToken);
+        }
+        else
+        {
+            await PopulateCreditLimitCheckAsync(model, invoice, cancellationToken);
         }
 
         return FormFailure(result, model, nameof(Confirm));
@@ -682,7 +714,7 @@ public sealed class InvoicesController(
     private static InvoiceStatusFilter NormalizeStatus(InvoiceStatusFilter status) =>
         Enum.IsDefined(status) ? status : InvoiceStatusFilter.All;
 
-    private async Task RefreshLineVersionAsync(
+    private async Task<Guid> RefreshLineVersionAsync(
         Guid invoiceId,
         InvoiceLineInputViewModel model,
         CancellationToken cancellationToken)
@@ -694,6 +726,8 @@ public sealed class InvoicesController(
             model.Version = latest.Version;
             ModelState.Remove(nameof(model.Version));
         }
+
+        return latest?.CustomerId ?? Guid.Empty;
     }
 
     /// <summary>
@@ -771,10 +805,30 @@ public sealed class InvoicesController(
             .ToList();
     }
 
-    private async Task PopulateLineOptionsAsync(
-        InvoiceLineInputViewModel model,
+    private async Task PopulateCreditLimitCheckAsync(
+        InvoiceConfirmViewModel model,
+        InvoiceModel invoice,
         CancellationToken cancellationToken)
     {
+        CustomerCreditLimitCheck check = await service.CheckCustomerCreditLimitAsync(
+            invoice.CustomerId,
+            invoice.TotalAmount,
+            cancellationToken);
+
+        model.HasCreditLimit = check.HasLimit;
+        model.CreditLimit = check.CreditLimit;
+        model.OutstandingBalanceBeforeThisInvoice = check.OutstandingBalanceBeforeThisInvoice;
+        model.ExceedsCreditLimit = check.ExceedsLimit;
+    }
+
+    private async Task PopulateLineOptionsAsync(
+        InvoiceLineInputViewModel model,
+        Guid customerId,
+        CancellationToken cancellationToken)
+    {
+        CustomerModel? customer = await customerService.GetAsync(customerId, cancellationToken);
+        VatCondition vatCondition = customer?.VatCondition ?? VatCondition.Normal;
+
         IReadOnlyList<TaxTypeOption> taxOptions = await taxTypeService.GetActiveOptionsAsync(cancellationToken);
         Dictionary<Guid, decimal> taxRatesById = taxOptions.ToDictionary(option => option.Id, option => option.Rate);
 
@@ -792,7 +846,20 @@ public sealed class InvoicesController(
                     : null))
             .ToList();
 
-        model.TaxTypeOptions = taxOptions
+        // RF-93 (bloque 1 del paquete v7): la factura nunca ofrece una tarifa que no corresponda a la
+        // condición de IVA del cliente. En Normal se excluyen las reservadas para otra condición; en
+        // las otras dos condiciones solo se ofrece la tarifa que esa condición fuerza.
+        IEnumerable<TaxTypeOption> allowedTaxOptions = vatCondition switch
+        {
+            VatCondition.StateHigherEducationInstitution =>
+                taxOptions.Where(option => option.SystemRole == TaxTypeSystemRole.Reduced2),
+            VatCondition.NotSubject =>
+                taxOptions.Where(option => option.SystemRole == TaxTypeSystemRole.NotSubject),
+            _ => taxOptions.Where(option =>
+                option.SystemRole is not (TaxTypeSystemRole.Reduced2 or TaxTypeSystemRole.NotSubject)),
+        };
+
+        model.TaxTypeOptions = allowedTaxOptions
             .Select(option => new InvoiceLineTaxTypeOptionViewModel(
                 option.Id,
                 $"{option.Name} ({option.Rate:0.##}%)",

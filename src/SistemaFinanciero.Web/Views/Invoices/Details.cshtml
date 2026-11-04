@@ -55,6 +55,7 @@
         <div class="card card-body h-100">
             <h2 class="h5">Cliente</h2>
             <p class="mb-1">@invoice.CustomerName</p>
+            <p class="mb-1 text-body-secondary"><small>Condición de IVA: @invoice.CustomerVatCondition.ToDisplayName()</small></p>
             <h2 class="h5 mt-3">Categoría de ingreso</h2>
             <p class="mb-1">@invoice.IncomeCategoryName</p>
             <h2 class="h5 mt-3">Condiciones</h2>

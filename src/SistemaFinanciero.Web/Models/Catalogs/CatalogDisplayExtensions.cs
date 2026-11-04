@@ -69,5 +69,13 @@ public static class CatalogDisplayExtensions
         IdentificationType.ForeignNonResident => "Extranjero no domiciliado",
         _ => "Desconocido",
     };
+
+    public static string ToDisplayName(this VatCondition condition) => condition switch
+    {
+        VatCondition.Normal => "Normal",
+        VatCondition.StateHigherEducationInstitution => "Institución estatal de educación superior",
+        VatCondition.NotSubject => "No sujeto",
+        _ => "Desconocido",
+    };
 }
 

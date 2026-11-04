@@ -180,6 +180,37 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
 
     [Fact]
     [Trait("Category", "SqlServer")]
+    public Task Expense_ConfirmedCashWithNonCreditableVat_DebitsCategoryByTheTotalAndSkipsVatCreditable()
+    {
+        // Bloque 1 del paquete v7, RF-94: el IVA no acreditable forma parte del costo, sin línea
+        // propia de IVA acreditable.
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IExpenseService expenses = services.GetRequiredService<IExpenseService>();
+            IJournalEntryService journal = services.GetRequiredService<IJournalEntryService>();
+            Guid supplierId = await CreateSupplierAsync(services, actorId);
+            Guid categoryId = await CreateExpenseCategoryAsync(services, actorId);
+            Guid categoryAccountId = await GetCategoryLedgerAccountIdAsync(services, categoryId);
+            Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "13");
+            Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
+            await SetAuthorizationLimitAsync(services, actorId, 10_000m);
+
+            Guid expenseId = await CreateDraftExpenseAsync(
+                expenses, supplierId, categoryId, taxTypeId, PaymentTerm.Cash, 1000m, actorId, vatCreditable: false);
+            ExpenseModel draft = (await expenses.GetAsync(expenseId))!;
+            await expenses.ConfirmAsync(
+                expenseId, new ConfirmExpenseCommand(cashAccountId, "REC-0002"), draft.Version, actorId, actorIsManagement: false);
+
+            JournalEntryTraceModel trace = (await journal.GetTraceAsync(JournalEntrySourceType.Expense, expenseId))!;
+            Assert.Equal(2, trace.Entry.Lines.Count);
+            AssertBalanced(trace.Entry);
+            AssertLine(trace.Entry, categoryAccountId, debit: 1130m, credit: 0m);
+            AssertLine(trace.Entry, cashAccountId, debit: 0m, credit: 1130m);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
     public Task Expense_ConfirmedCredit_CreditsPayablesInsteadOfCash()
     {
         return RunInRollbackTransactionAsync(async (services, actorId) =>
@@ -224,7 +255,7 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
             IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
             IReceivablePaymentService payments = services.GetRequiredService<IReceivablePaymentService>();
             IJournalEntryService journal = services.GetRequiredService<IJournalEntryService>();
-            Guid customerId = await CreateCustomerAsync(services, actorId);
+            Guid customerId = await CreateCustomerAsync(services, actorId, appliesStateWithholding: true);
             Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
             Guid withholdingTypeId = await CreateWithholdingTypeAsync(services, actorId, rate: 2m);
@@ -678,7 +709,8 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
         Guid taxTypeId,
         PaymentTerm paymentTerm,
         decimal netAmount,
-        Guid actorId)
+        Guid actorId,
+        bool vatCreditable = true)
     {
         ExpenseCreationResult created = await expenses.CreateAsync(
             new SaveExpenseCommand(
@@ -690,6 +722,7 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
                 paymentTerm,
                 netAmount,
                 taxTypeId,
+                vatCreditable,
                 PaymentMethod.Cash),
             actorId);
 
@@ -718,7 +751,10 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
         return (await context.Payables.AsNoTracking().SingleAsync(p => p.ExpenseId == expenseId)).Id;
     }
 
-    private static async Task<Guid> CreateCustomerAsync(IServiceProvider services, Guid actorId)
+    private static async Task<Guid> CreateCustomerAsync(
+        IServiceProvider services,
+        Guid actorId,
+        bool appliesStateWithholding = false)
     {
         FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
         string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
@@ -731,6 +767,9 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
             null,
             null,
             null,
+            null,
+            VatCondition.Normal,
+            appliesStateWithholding,
             DateTimeOffset.UtcNow,
             actorId);
         context.Customers.Add(customer);
@@ -894,6 +933,7 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
             $"RET-{suffix}",
             $"Renta {rate}%",
             rate,
+            null,
             null,
             DateTimeOffset.UtcNow,
             actorId);

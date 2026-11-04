@@ -39,9 +39,8 @@ public sealed class InvoiceLineTax
         Code = DomainRules.NormalizedCode(specification.Code, CodeMaxLength, nameof(specification.Code));
         Name = DomainRules.RequiredText(specification.Name, NameMaxLength, nameof(specification.Name));
         Rate = NormalizeRate(specification.Rate, nameof(specification.Rate));
-        HaciendaRateCode = DomainRules.RequiredDigits(
+        HaciendaRateCode = NormalizeHaciendaRateCode(
             specification.HaciendaRateCode,
-            HaciendaRateCodeLength,
             nameof(specification.HaciendaRateCode));
         TaxableAmount = taxableAmount;
         Amount = CalculateAmount(Rate, taxableAmount);
@@ -64,15 +63,23 @@ public sealed class InvoiceLineTax
 
     /// <summary>
     /// Código oficial de tarifa de Hacienda vigente al preparar la factura (bloque 3), para la
-    /// exportación de datos (RF-88).
+    /// exportación de datos (RF-88). Nulo cuando la tarifa de origen no tenía uno (bloque 1 del
+    /// paquete v7, tarifa de sistema "No sujeto").
     /// </summary>
-    public string HaciendaRateCode { get; private set; } = string.Empty;
+    public string? HaciendaRateCode { get; private set; }
 
     /// <summary>Base gravable conservada: el neto de la línea (bruto menos descuento).</summary>
     public decimal TaxableAmount { get; private set; }
 
     /// <summary>Importe tributario resultante, redondeado a dos decimales.</summary>
     public decimal Amount { get; private set; }
+
+    private static string? NormalizeHaciendaRateCode(string? value, string parameterName)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? null
+            : DomainRules.RequiredDigits(value, HaciendaRateCodeLength, parameterName);
+    }
 
     private static decimal NormalizeRate(decimal value, string parameterName)
     {

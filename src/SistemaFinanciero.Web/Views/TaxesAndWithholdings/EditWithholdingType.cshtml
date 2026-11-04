@@ -1,24 +1,26 @@
-@model WithholdingTypeEditViewModel
+@model WithholdingTypeRateEditViewModel
 @{
     ViewData["Title"] = "Editar tipo de retención";
 }
 
 <div class="catalog-form">
     <h1 class="h2">Editar tipo de retención</h1>
-    <p class="text-body-secondary">Los cambios no alteran los abonos ya registrados: cada uno conserva la tarifa que usó.</p>
+    <p class="text-body-secondary">
+        El código y el nombre quedan fijos después de crear el tipo de retención; solo se piden al agregar uno nuevo.
+        Los cambios no alteran los abonos ya registrados: cada uno conserva la tarifa que usó.
+    </p>
     <form method="post" asp-antiforgery="true" class="card card-body">
         <input asp-for="Version" type="hidden" />
+        <input asp-for="IsSystemType" type="hidden" />
         <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
         <div class="row g-3">
             <div class="col-md-4">
-                <label asp-for="Code" class="form-label"></label>
-                <input asp-for="Code" class="form-control text-uppercase" autocomplete="off" />
-                <span asp-validation-for="Code" class="text-danger"></span>
+                <label class="form-label">Código</label>
+                <input value="@Model.Code" class="form-control" disabled readonly />
             </div>
             <div class="col-md-8">
-                <label asp-for="Name" class="form-label"></label>
-                <input asp-for="Name" class="form-control" />
-                <span asp-validation-for="Name" class="text-danger"></span>
+                <label class="form-label">Nombre</label>
+                <input value="@Model.Name" class="form-control" disabled readonly />
             </div>
             <div class="col-md-6">
                 <label asp-for="Rate" class="form-label"></label>
@@ -28,12 +30,25 @@
                 </div>
                 <span asp-validation-for="Rate" class="text-danger"></span>
             </div>
+            <div class="col-md-6">
+                <label asp-for="MinimumBase" class="form-label"></label>
+                <div class="input-group">
+                    <span class="input-group-text">₡</span>
+                    <input asp-for="MinimumBase" type="number" min="0" step="0.01" class="form-control" />
+                </div>
+                <span asp-validation-for="MinimumBase" class="text-danger"></span>
+                <div class="form-text">Opcional. Si se deja en blanco, aplica sin importar el monto de la operación.</div>
+            </div>
             <div class="col-12">
                 <label asp-for="Description" class="form-label"></label>
                 <textarea asp-for="Description" class="form-control" rows="3"></textarea>
                 <span asp-validation-for="Description" class="text-danger"></span>
             </div>
         </div>
+        @if (Model.IsSystemType)
+        {
+            <p class="text-body-secondary small mt-3 mb-0">Esta retención la usa el sistema y no se puede inactivar.</p>
+        }
         <div class="d-flex gap-2 mt-4">
             <button type="submit" class="btn btn-primary">Guardar cambios</button>
             <a asp-action="Index" class="btn btn-outline-secondary">Cancelar</a>

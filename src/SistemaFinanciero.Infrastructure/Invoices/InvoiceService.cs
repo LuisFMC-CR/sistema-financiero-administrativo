@@ -82,6 +82,11 @@ internal sealed class InvoiceService(
             invoices = invoices.Where(invoice => invoice.IssueDate <= issueDateTo);
         }
 
+        if (query.PaymentTerm is PaymentTerm paymentTerm)
+        {
+            invoices = invoices.Where(invoice => invoice.PaymentTerm == paymentTerm);
+        }
+
         PagedResult<Invoice> page = await CatalogPersistence.ToPageAsync(
             invoices.OrderByDescending(invoice => invoice.CreatedAtUtc),
             query.Page,
@@ -149,6 +154,7 @@ internal sealed class InvoiceService(
             customer?.Identification ?? "—",
             customer?.Email,
             customer?.Phone,
+            customer?.VatCondition ?? VatCondition.Normal,
             categoryName,
             userNames.GetValueOrDefault(invoice.CreatedByUserId, "—"),
             catalogItemInfo,
@@ -234,7 +240,9 @@ internal sealed class InvoiceService(
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        Invoice? invoice = await LoadTrackedAsync(id, includeLines: false, restrictToOwnerUserId, cancellationToken);
+        // Con líneas siempre: si el cliente cambia, hay que recalcular la tarifa de cada una según
+        // la nueva condición de IVA (RF-93, bloque 1 del paquete v7).
+        Invoice? invoice = await LoadTrackedAsync(id, includeLines: true, restrictToOwnerUserId, cancellationToken);
 
         if (invoice is null)
         {
@@ -266,6 +274,8 @@ internal sealed class InvoiceService(
             return categoryValidation;
         }
 
+        bool customerChanged = command.CustomerId != invoice.CustomerId;
+
         try
         {
             invoice.UpdateHeader(
@@ -276,10 +286,25 @@ internal sealed class InvoiceService(
                 timeProvider.GetUtcNow(),
                 actorId);
 
-            return await CatalogPersistence.SaveChangesAsync(
+            int recalculatedLineCount = customerChanged
+                ? await RecalculateLineTaxesForNewCustomerAsync(invoice, actorId, cancellationToken)
+                : 0;
+
+            CatalogOperationResult saveResult = await CatalogPersistence.SaveChangesAsync(
                 dbContext,
                 "No fue posible actualizar la factura.",
                 cancellationToken);
+
+            if (saveResult.IsSuccess && recalculatedLineCount > 0)
+            {
+                return new CatalogOperationResult(
+                    CatalogOperationStatus.Success,
+                    recalculatedLineCount == 1
+                        ? "Se recalculó el IVA de 1 línea según la nueva condición del cliente."
+                        : $"Se recalculó el IVA de {recalculatedLineCount} líneas según la nueva condición del cliente.");
+            }
+
+            return saveResult;
         }
         catch (ArgumentException exception)
         {
@@ -291,6 +316,67 @@ internal sealed class InvoiceService(
             dbContext.ChangeTracker.Clear();
             return CatalogOperationResult.Invalid(exception.Message);
         }
+    }
+
+    /// <summary>
+    /// Vuelve a resolver la tarifa de cada línea existente según la nueva condición de IVA del
+    /// cliente (RF-93, bloque 1 del paquete v7) y reemplaza solo las que cambian; conserva la
+    /// posición y los demás datos de cada línea. Devuelve cuántas líneas cambiaron, para informarlo.
+    /// </summary>
+    private async Task<int> RecalculateLineTaxesForNewCustomerAsync(
+        Invoice invoice,
+        Guid actorId,
+        CancellationToken cancellationToken)
+    {
+        int changedCount = 0;
+
+        foreach (InvoiceLine line in invoice.Lines.ToArray())
+        {
+            Guid? defaultTaxTypeId = line.CatalogItemId is Guid catalogItemId
+                ? await dbContext.Set<CatalogItem>()
+                    .AsNoTracking()
+                    .Where(item => item.Id == catalogItemId)
+                    .Select(item => item.DefaultTaxTypeId)
+                    .SingleOrDefaultAsync(cancellationToken)
+                : null;
+
+            (CatalogOperationResult? error, Guid newTaxTypeId) = await ResolveLineTaxTypeIdAsync(
+                invoice.CustomerId,
+                defaultTaxTypeId,
+                commandTaxTypeId: null,
+                cancellationToken);
+
+            if (error is not null || newTaxTypeId == line.Tax.TaxTypeId)
+            {
+                continue;
+            }
+
+            (CatalogOperationResult? taxError, TaxType? taxType) = await LoadActiveTaxTypeAsync(
+                newTaxTypeId,
+                cancellationToken);
+
+            if (taxError is not null)
+            {
+                continue;
+            }
+
+            InvoiceTaxSpecification tax = new(taxType!.Code, taxType.Name, taxType.Rate, taxType.HaciendaRateCode, taxType.Id);
+            InvoiceLine replacement = new(
+                Guid.NewGuid(),
+                line.CatalogItemId,
+                line.CabysCode,
+                line.Description,
+                line.UnitOfMeasure,
+                line.Quantity,
+                line.UnitPrice,
+                line.DiscountAmount,
+                tax);
+
+            invoice.ReplaceLine(line.Id, replacement, timeProvider.GetUtcNow(), actorId);
+            changedCount++;
+        }
+
+        return changedCount;
     }
 
     public async Task<CatalogOperationResult> AddLineAsync(
@@ -316,7 +402,7 @@ internal sealed class InvoiceService(
         }
 
         (CatalogOperationResult? lineError, CatalogItem? catalogItem, decimal unitPrice, Guid taxTypeId) =
-            await ResolveLineInputAsync(command, cancellationToken);
+            await ResolveLineInputAsync(invoice.CustomerId, command, cancellationToken);
 
         if (lineError is not null)
         {
@@ -391,7 +477,7 @@ internal sealed class InvoiceService(
         }
 
         (CatalogOperationResult? lineError, CatalogItem? catalogItem, decimal unitPrice, Guid taxTypeId) =
-            await ResolveLineInputAsync(command, cancellationToken);
+            await ResolveLineInputAsync(invoice.CustomerId, command, cancellationToken);
 
         if (lineError is not null)
         {
@@ -763,6 +849,35 @@ internal sealed class InvoiceService(
         CancellationToken cancellationToken = default) =>
         DuplicateReferenceGuard.ExistsAsync(dbContext, cashAccountId, reference, cancellationToken);
 
+    public async Task<CustomerCreditLimitCheck> CheckCustomerCreditLimitAsync(
+        Guid customerId,
+        decimal invoiceTotalAmount,
+        CancellationToken cancellationToken = default)
+    {
+        decimal? creditLimit = await dbContext.Set<Customer>()
+            .AsNoTracking()
+            .Where(customer => customer.Id == customerId)
+            .Select(customer => customer.CreditLimit)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        decimal outstandingBalance = await dbContext.Set<Receivable>()
+            .AsNoTracking()
+            .Where(receivable => receivable.CustomerId == customerId
+                && (receivable.Status == ReceivableStatus.Pending
+                    || receivable.Status == ReceivableStatus.PartiallyPaid))
+            .Select(receivable => receivable.Balance)
+            .SumAsync(cancellationToken);
+
+        bool exceedsLimit = creditLimit is decimal limit
+            && outstandingBalance + invoiceTotalAmount > limit;
+
+        return new CustomerCreditLimitCheck(
+            creditLimit is not null,
+            creditLimit,
+            outstandingBalance,
+            exceedsLimit);
+    }
+
     private async Task<CatalogOperationResult?> ValidateCashConfirmationAsync(
         ConfirmInvoiceCommand command,
         CancellationToken cancellationToken)
@@ -849,9 +964,14 @@ internal sealed class InvoiceService(
     /// Carga el artículo del catálogo de la línea y resuelve el precio unitario y la tarifa de IVA: si
     /// el artículo tiene su propio precio de referencia o su tarifa predeterminada, esos valores se
     /// usan siempre; si no, se exige el valor correspondiente de <paramref name="command"/> (ADR-0043).
+    /// La tarifa final siempre pasa por <see cref="ResolveLineTaxTypeIdAsync"/>, que la ajusta o la
+    /// valida según la condición de IVA de <paramref name="customerId"/> (bloque 1 del paquete v7).
     /// </summary>
     private async Task<(CatalogOperationResult? Error, CatalogItem? CatalogItem, decimal UnitPrice, Guid TaxTypeId)>
-        ResolveLineInputAsync(InvoiceLineInputCommand command, CancellationToken cancellationToken)
+        ResolveLineInputAsync(
+            Guid customerId,
+            InvoiceLineInputCommand command,
+            CancellationToken cancellationToken)
     {
         CatalogItem? catalogItem = await dbContext.Set<CatalogItem>()
             .AsNoTracking()
@@ -878,19 +998,84 @@ internal sealed class InvoiceService(
                 default);
         }
 
-        Guid? taxTypeId = catalogItem.DefaultTaxTypeId ?? command.TaxTypeId;
+        (CatalogOperationResult? taxTypeError, Guid taxTypeId) = await ResolveLineTaxTypeIdAsync(
+            customerId,
+            catalogItem.DefaultTaxTypeId,
+            command.TaxTypeId,
+            cancellationToken);
+
+        if (taxTypeError is not null)
+        {
+            return (taxTypeError, null, default, default);
+        }
+
+        return (null, catalogItem, unitPrice.Value, taxTypeId);
+    }
+
+    /// <summary>
+    /// Resuelve la tarifa de IVA final de una línea según la condición de IVA del cliente (RF-93,
+    /// bloque 1 del paquete v7): en condición Normal usa la tarifa del artículo o del formulario (o
+    /// IVA 13 % si no se indicó ninguna), siempre que no sea una tarifa reservada para otra condición;
+    /// en las otras dos condiciones ignora el artículo y el formulario y fuerza la tarifa de sistema
+    /// que corresponde.
+    /// </summary>
+    private async Task<(CatalogOperationResult? Error, Guid TaxTypeId)> ResolveLineTaxTypeIdAsync(
+        Guid customerId,
+        Guid? defaultTaxTypeId,
+        Guid? commandTaxTypeId,
+        CancellationToken cancellationToken)
+    {
+        VatCondition vatCondition = await dbContext.Set<Customer>()
+            .AsNoTracking()
+            .Where(customer => customer.Id == customerId)
+            .Select(customer => customer.VatCondition)
+            .SingleAsync(cancellationToken);
+
+        if (vatCondition != VatCondition.Normal)
+        {
+            TaxTypeSystemRole requiredRole = vatCondition == VatCondition.StateHigherEducationInstitution
+                ? TaxTypeSystemRole.Reduced2
+                : TaxTypeSystemRole.NotSubject;
+
+            Guid forcedTaxTypeId = await dbContext.Set<TaxType>()
+                .AsNoTracking()
+                .Where(taxType => taxType.SystemRole == requiredRole)
+                .Select(taxType => taxType.Id)
+                .SingleAsync(cancellationToken);
+
+            return (null, forcedTaxTypeId);
+        }
+
+        Guid? taxTypeId = defaultTaxTypeId ?? commandTaxTypeId;
 
         if (taxTypeId is null)
         {
+            Guid general13Id = await dbContext.Set<TaxType>()
+                .AsNoTracking()
+                .Where(taxType => taxType.SystemRole == TaxTypeSystemRole.General13)
+                .Select(taxType => taxType.Id)
+                .SingleAsync(cancellationToken);
+
+            return (null, general13Id);
+        }
+
+        bool isReservedForAnotherCondition = await dbContext.Set<TaxType>()
+            .AsNoTracking()
+            .AnyAsync(
+                taxType => taxType.Id == taxTypeId.Value &&
+                    (taxType.SystemRole == TaxTypeSystemRole.Reduced2
+                        || taxType.SystemRole == TaxTypeSystemRole.NotSubject),
+                cancellationToken);
+
+        if (isReservedForAnotherCondition)
+        {
             return (
                 CatalogOperationResult.Invalid(
-                    "El artículo no tiene una tarifa de IVA predeterminada: indique la tarifa de la línea."),
-                null,
-                default,
+                    "La tarifa seleccionada no corresponde a la condición de IVA del cliente."),
                 default);
         }
 
-        return (null, catalogItem, unitPrice.Value, taxTypeId.Value);
+        return (null, taxTypeId.Value);
     }
 
     private async Task<(CatalogOperationResult? Error, TaxType? TaxType)> LoadActiveTaxTypeAsync(
@@ -914,7 +1099,8 @@ internal sealed class InvoiceService(
         IdentificationType IdentificationType,
         string Identification,
         string? Email,
-        string? Phone);
+        string? Phone,
+        VatCondition VatCondition);
 
     private async Task<CustomerContact?> GetCustomerContactAsync(
         Guid customerId,
@@ -928,7 +1114,8 @@ internal sealed class InvoiceService(
                 customer.IdentificationType,
                 customer.Identification,
                 customer.Email,
-                customer.Phone))
+                customer.Phone,
+                customer.VatCondition))
             .Take(1)
             .ToArrayAsync(cancellationToken);
 
@@ -998,6 +1185,7 @@ internal sealed class InvoiceService(
         string customerIdentification,
         string? customerEmail,
         string? customerPhone,
+        VatCondition customerVatCondition,
         string categoryName,
         string createdByUserName,
         IReadOnlyDictionary<Guid, CatalogItemInfo> catalogItemInfo,
@@ -1012,6 +1200,7 @@ internal sealed class InvoiceService(
             customerIdentification,
             customerEmail,
             customerPhone,
+            customerVatCondition,
             invoice.IncomeCategoryId,
             categoryName,
             invoice.IssueDate,

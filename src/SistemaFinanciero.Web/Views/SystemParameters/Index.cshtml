@@ -73,8 +73,8 @@ else
             <h2 class="h5">Fecha de cierre</h2>
             <p class="text-body-secondary small">
                 No se registra, confirma, anula ni ajusta nada con fecha igual o anterior a la de cierre.
-                Adelantarla es el cierre mensual (sin motivo); retrocederla es una reapertura y exige motivo
-                (regla de negocio 16). Nunca puede ser posterior a hoy.
+                Adelantarla es el cierre mensual (sin motivo); retrocederla es una reapertura y exige motivo.
+                Nunca puede ser posterior a hoy.
             </p>
             <form asp-action="ChangeClosingDate" method="post" class="card card-body">
                 <input asp-for="ClosingDateForm.Version" type="hidden" />
@@ -110,8 +110,8 @@ else
         <div class="catalog-form mt-4">
             <h2 class="h5">Datos de la empresa</h2>
             <p class="text-body-secondary small">
-                Encabezado de la factura interna en PDF (regla de negocio 15). Nombre y cédula jurídica
-                son obligatorios; dirección, teléfono y correo son opcionales.
+                Aparecen en el encabezado de la factura interna en PDF. Nombre y cédula jurídica son
+                obligatorios; dirección, teléfono y correo son opcionales.
             </p>
             <form asp-action="UpdateCompany" method="post" class="card card-body">
                 <input asp-for="CompanyDataForm.Version" type="hidden" />

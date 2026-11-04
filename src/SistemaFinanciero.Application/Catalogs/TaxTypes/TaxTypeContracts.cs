@@ -1,4 +1,5 @@
 using SistemaFinanciero.Application.Catalogs.Common;
+using SistemaFinanciero.Domain.Catalogs;
 
 namespace SistemaFinanciero.Application.Catalogs.TaxTypes;
 
@@ -16,12 +17,15 @@ public sealed record CreateTaxTypeCommand(
     string HaciendaRateCode,
     string? Description);
 
-/// <summary>Datos editables de una tarifa de IVA.</summary>
+/// <summary>
+/// Datos editables de una tarifa de IVA. <see cref="HaciendaRateCode"/> es nulo únicamente cuando se
+/// edita la tarifa de sistema "No sujeto" (bloque 1 del paquete v7); cualquier otra siempre lo exige.
+/// </summary>
 public sealed record UpdateTaxTypeCommand(
     string Code,
     string Name,
     decimal Rate,
-    string HaciendaRateCode,
+    string? HaciendaRateCode,
     string? Description);
 
 /// <summary>Proyección administrativa de una tarifa de IVA.</summary>
@@ -30,9 +34,10 @@ public sealed record TaxTypeModel(
     string Code,
     string Name,
     decimal Rate,
-    string HaciendaRateCode,
+    string? HaciendaRateCode,
     string? Description,
     bool IsActive,
+    TaxTypeSystemRole? SystemRole,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc,
     string Version);
@@ -42,7 +47,8 @@ public sealed record TaxTypeOption(
     Guid Id,
     string Code,
     string Name,
-    decimal Rate);
+    decimal Rate,
+    TaxTypeSystemRole? SystemRole);
 
 /// <summary>Resultado de cargar las tarifas de referencia: cuántas se crearon y cuántas ya existían.</summary>
 public sealed record ReferenceTaxTypesLoadResult(

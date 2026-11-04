@@ -25,6 +25,9 @@ internal sealed class WithholdingTypeConfiguration : IEntityTypeConfiguration<Wi
                 table.HasCheckConstraint(
                     "CK_TiposRetencion_Rate",
                     "[Rate] >= 0 AND [Rate] <= 100");
+                table.HasCheckConstraint(
+                    "CK_TiposRetencion_MinimumBase",
+                    "[MinimumBase] IS NULL OR [MinimumBase] >= 0");
             });
 
         builder.HasKey(withholding => withholding.Id);
@@ -37,10 +40,14 @@ internal sealed class WithholdingTypeConfiguration : IEntityTypeConfiguration<Wi
         builder.Property(withholding => withholding.Rate)
             .HasPrecision(18, 4)
             .IsRequired();
+        builder.Property(withholding => withholding.MinimumBase)
+            .HasPrecision(18, 2);
         builder.Property(withholding => withholding.Description)
             .HasMaxLength(WithholdingType.DescriptionMaxLength);
         builder.Property(withholding => withholding.IsActive)
             .HasDefaultValue(true);
+        builder.Property(withholding => withholding.IsSystemType)
+            .HasDefaultValue(false);
         builder.Property(withholding => withholding.CreatedAtUtc).IsRequired();
         builder.Property(withholding => withholding.UpdatedAtUtc).IsRequired();
         builder.Property(withholding => withholding.RowVersion).IsRowVersion();
@@ -50,6 +57,10 @@ internal sealed class WithholdingTypeConfiguration : IEntityTypeConfiguration<Wi
             .HasDatabaseName("UX_TiposRetencion_Code");
         builder.HasIndex(withholding => new { withholding.IsActive, withholding.Name })
             .HasDatabaseName("IX_TiposRetencion_IsActive_Name");
+        builder.HasIndex(withholding => withholding.IsSystemType)
+            .IsUnique()
+            .HasDatabaseName("UX_TiposRetencion_IsSystemType")
+            .HasFilter("[IsSystemType] = 1");
 
         builder.HasOne<ApplicationUser>()
             .WithMany()

@@ -132,7 +132,7 @@ public static class InvoiceElectronicDataExport
                 sheet.Cell(row, 13).Style.NumberFormat.Format = "#,##0.00";
                 sheet.Cell(row, 14).Value = line.NetAmount;
                 sheet.Cell(row, 14).Style.NumberFormat.Format = "#,##0.00";
-                sheet.Cell(row, 15).Value = line.TaxHaciendaRateCode;
+                sheet.Cell(row, 15).Value = line.TaxHaciendaRateCode ?? string.Empty;
                 sheet.Cell(row, 16).Value = line.TaxRate;
                 sheet.Cell(row, 17).Value = line.TaxAmount;
                 sheet.Cell(row, 17).Style.NumberFormat.Format = "#,##0.00";

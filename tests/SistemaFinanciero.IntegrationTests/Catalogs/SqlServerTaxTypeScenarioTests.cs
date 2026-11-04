@@ -150,6 +150,29 @@ public sealed class SqlServerTaxTypeScenarioTests : IClassFixture<FinancialWebAp
 
     [Fact]
     [Trait("Category", "SqlServer")]
+    public Task SetActiveAsync_RejectsDeactivatingASystemRoleTaxType()
+    {
+        return RunInRollbackTransactionAsync(async (context, services, actorId) =>
+        {
+            ITaxTypeService taxTypes = services.GetRequiredService<ITaxTypeService>();
+
+            // IVA-13 nace por la migración de siembra (bloque 1 del paquete v7) con SystemRole
+            // asignado: el sistema la busca por su rol, no por código ni nombre, y nunca se inactiva.
+            Guid general13Id = (await context.Set<TaxType>()
+                .SingleAsync(taxType => taxType.SystemRole == TaxTypeSystemRole.General13)).Id;
+            TaxTypeModel general13 = (await taxTypes.GetAsync(general13Id))!;
+
+            CatalogOperationResult result = await taxTypes.SetActiveAsync(
+                general13Id, isActive: false, general13.Version, actorId);
+
+            Assert.Equal(CatalogOperationStatus.Invalid, result.Status);
+            context.ChangeTracker.Clear();
+            Assert.True((await context.Set<TaxType>().SingleAsync(t => t.Id == general13Id)).IsActive);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
     public Task Database_RejectsTaxTypesThatBreakItsConstraints()
     {
         return RunInRollbackTransactionAsync(async (context, services, actorId) =>

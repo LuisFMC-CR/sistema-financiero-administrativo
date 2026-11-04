@@ -18,6 +18,7 @@ public sealed class WithholdingTypeTests
             " ret-2 ",
             " Retención del 2 % ",
             2.00005m,
+            462_200m,
             " Retención sobre compras ",
             CreatedAtUtc,
             CreatorId);
@@ -25,8 +26,10 @@ public sealed class WithholdingTypeTests
         Assert.Equal("RET-2", withholding.Code);
         Assert.Equal("Retención del 2 %", withholding.Name);
         Assert.Equal(2.0001m, withholding.Rate);
+        Assert.Equal(462_200m, withholding.MinimumBase);
         Assert.Equal("Retención sobre compras", withholding.Description);
         Assert.True(withholding.IsActive);
+        Assert.False(withholding.IsSystemType);
         Assert.Equal(CreatedAtUtc, withholding.CreatedAtUtc);
         Assert.Equal(CreatorId, withholding.UpdatedByUserId);
     }
@@ -67,6 +70,20 @@ public sealed class WithholdingTypeTests
         Assert.Throws<ArgumentOutOfRangeException>(() => CreateWithholdingType(rate: -0.00005m));
     }
 
+    [Fact]
+    public void Constructor_RejectsANegativeMinimumBase()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new WithholdingType(
+            Guid.NewGuid(),
+            "RET",
+            "Retención",
+            2m,
+            -1m,
+            null,
+            CreatedAtUtc,
+            CreatorId));
+    }
+
     [Theory]
     [InlineData("", "Nombre")]
     [InlineData("   ", "Nombre")]
@@ -79,6 +96,7 @@ public sealed class WithholdingTypeTests
             code,
             name,
             2m,
+            null,
             null,
             CreatedAtUtc,
             CreatorId));
@@ -93,6 +111,7 @@ public sealed class WithholdingTypeTests
             "Nombre",
             2m,
             null,
+            null,
             CreatedAtUtc,
             CreatorId));
     }
@@ -105,6 +124,7 @@ public sealed class WithholdingTypeTests
             "RET",
             "Retención",
             2m,
+            null,
             "   ",
             CreatedAtUtc,
             CreatorId);
@@ -118,7 +138,7 @@ public sealed class WithholdingTypeTests
         WithholdingType withholding = CreateWithholdingType(rate: 2m);
         DateTimeOffset changedAtUtc = CreatedAtUtc.AddMinutes(5);
 
-        withholding.UpdateDetails(" ret-4 ", " Retención 4 % ", 4m, " ", changedAtUtc, EditorId);
+        withholding.UpdateDetails(" ret-4 ", " Retención 4 % ", 4m, null, " ", changedAtUtc, EditorId);
 
         Assert.Equal("RET-4", withholding.Code);
         Assert.Equal("Retención 4 %", withholding.Name);
@@ -135,7 +155,7 @@ public sealed class WithholdingTypeTests
         WithholdingType withholding = CreateWithholdingType(rate: 2m);
 
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            withholding.UpdateDetails("NUEVO", "Nuevo nombre", 150m, "Otra", CreatedAtUtc.AddMinutes(1), EditorId));
+            withholding.UpdateDetails("NUEVO", "Nuevo nombre", 150m, null, "Otra", CreatedAtUtc.AddMinutes(1), EditorId));
 
         Assert.Equal("RET", withholding.Code);
         Assert.Equal("Retención", withholding.Name);
@@ -151,9 +171,9 @@ public sealed class WithholdingTypeTests
         WithholdingType withholding = CreateWithholdingType(rate: 2m);
 
         Assert.Throws<ArgumentException>(() =>
-            withholding.UpdateDetails("RET", "Retención", 2m, null, CreatedAtUtc.AddMinutes(1), Guid.Empty));
+            withholding.UpdateDetails("RET", "Retención", 2m, null, null, CreatedAtUtc.AddMinutes(1), Guid.Empty));
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            withholding.UpdateDetails("RET", "Retención", 2m, null, CreatedAtUtc.AddMinutes(-1), EditorId));
+            withholding.UpdateDetails("RET", "Retención", 2m, null, null, CreatedAtUtc.AddMinutes(-1), EditorId));
     }
 
     [Fact]
@@ -201,6 +221,7 @@ public sealed class WithholdingTypeTests
             "RET",
             "Retención",
             rate,
+            null,
             null,
             CreatedAtUtc,
             CreatorId);

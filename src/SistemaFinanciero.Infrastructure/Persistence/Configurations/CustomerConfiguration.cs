@@ -26,6 +26,12 @@ internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
                 table.HasCheckConstraint(
                     "CK_Clientes_IdentificationType",
                     "[IdentificationType] IN (1, 2, 3, 4, 5)");
+                table.HasCheckConstraint(
+                    "CK_Clientes_CreditLimit",
+                    "[CreditLimit] IS NULL OR [CreditLimit] >= 0");
+                table.HasCheckConstraint(
+                    "CK_Clientes_VatCondition",
+                    "[VatCondition] IN (1, 2, 3)");
             });
 
         builder.HasKey(customer => customer.Id);
@@ -45,6 +51,14 @@ internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
             .HasMaxLength(Customer.PhoneMaxLength);
         builder.Property(customer => customer.Address)
             .HasMaxLength(Customer.AddressMaxLength);
+        builder.Property(customer => customer.CreditLimit)
+            .HasPrecision(18, 2);
+        builder.Property(customer => customer.VatCondition)
+            .HasDefaultValue(VatCondition.Normal)
+            .IsRequired();
+        builder.Property(customer => customer.AppliesStateWithholding)
+            .HasDefaultValue(false)
+            .IsRequired();
         builder.Property(customer => customer.IsActive)
             .HasDefaultValue(true);
         builder.Property(customer => customer.CreatedAtUtc).IsRequired();

@@ -155,7 +155,7 @@ public sealed class CustomersController(ICustomerCatalogService service) : Catal
         return RedirectToAction(nameof(Index));
     }
 
-    private static SaveCustomerCommand ToCommand(BusinessContactInputViewModel model)
+    private static SaveCustomerCommand ToCommand(CustomerInputViewModel model)
     {
         return new(
             model.Name,
@@ -163,7 +163,10 @@ public sealed class CustomersController(ICustomerCatalogService service) : Catal
             model.Identification,
             model.Email,
             model.Phone,
-            model.Address);
+            model.Address,
+            model.CreditLimit,
+            model.VatCondition,
+            model.AppliesStateWithholding);
     }
 
     private static CustomerEditViewModel ToEditModel(CustomerModel customer)
@@ -177,6 +180,9 @@ public sealed class CustomersController(ICustomerCatalogService service) : Catal
             Email = customer.Email,
             Phone = customer.Phone,
             Address = customer.Address,
+            CreditLimit = customer.CreditLimit,
+            VatCondition = customer.VatCondition,
+            AppliesStateWithholding = customer.AppliesStateWithholding,
             Version = customer.Version,
         };
     }

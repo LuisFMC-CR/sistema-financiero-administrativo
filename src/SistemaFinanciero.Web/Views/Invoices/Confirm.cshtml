@@ -48,6 +48,27 @@
         else
         {
             <p class="text-body-secondary">Esta factura es a crédito: al confirmarla se genera su cuenta por cobrar.</p>
+
+            @if (!Model.HasCreditLimit)
+            {
+                <div class="alert alert-secondary" role="alert">
+                    Este cliente no tiene un límite de crédito configurado; puede continuar.
+                </div>
+            }
+            else if (Model.ExceedsCreditLimit)
+            {
+                <div class="alert alert-warning" role="alert">
+                    Esta factura deja el saldo del cliente en ₡@((Model.OutstandingBalanceBeforeThisInvoice + Model.TotalAmount).ToString("N2")),
+                    por encima de su límite de crédito de ₡@Model.CreditLimit?.ToString("N2"). Puede confirmarla igual.
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-light border" role="alert">
+                    Saldo pendiente actual del cliente: ₡@Model.OutstandingBalanceBeforeThisInvoice.ToString("N2")
+                    de ₡@Model.CreditLimit?.ToString("N2") de límite de crédito.
+                </div>
+            }
         }
 
         <div class="d-flex gap-2 mt-3">

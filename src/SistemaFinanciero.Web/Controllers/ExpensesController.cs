@@ -159,6 +159,7 @@ public sealed class ExpensesController(
             PaymentTerm = expense.PaymentTerm,
             NetAmount = expense.NetAmount,
             TaxTypeId = expense.TaxTypeId,
+            VatCreditable = expense.VatCreditable,
             PaymentMethod = expense.PaymentMethod,
             Version = expense.Version,
         };
@@ -385,6 +386,7 @@ public sealed class ExpensesController(
         model.PaymentTerm,
         model.NetAmount,
         model.TaxTypeId!.Value,
+        model.VatCreditable,
         model.PaymentMethod);
 
     private Guid? OwnerRestriction() => User.IsInRole(SystemRoles.Assistant) && TryGetActorId(out Guid actorId)

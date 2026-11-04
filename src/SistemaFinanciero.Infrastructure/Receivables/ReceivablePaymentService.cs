@@ -137,7 +137,7 @@ internal sealed class ReceivablePaymentService(
         }
 
         (RegisterReceivablePaymentResult? typeError, Dictionary<Guid, WithholdingType> withholdingTypes) =
-            await ResolveWithholdingTypesAsync(command, cancellationToken);
+            await ResolveWithholdingTypesAsync(command, receivables, cancellationToken);
 
         if (typeError is not null)
         {
@@ -362,31 +362,91 @@ internal sealed class ReceivablePaymentService(
         }
     }
 
+    /// <summary>
+    /// Carga y valida cada tipo de retención indicado en el abono. El cliente debe tener la marca de
+    /// retención del sector público y, cuando el tipo tiene base mínima, el neto de la factura debe
+    /// superarla; en cualquier otro caso se rechaza, aunque se haya enviado la retención (RF-95,
+    /// bloque 1 del paquete v7). También valida que la base enviada no supere el neto de esa factura
+    /// que todavía no tiene retención aplicada.
+    /// </summary>
     private async Task<(RegisterReceivablePaymentResult? Error, Dictionary<Guid, WithholdingType> Types)>
-        ResolveWithholdingTypesAsync(RegisterReceivablePaymentCommand command, CancellationToken cancellationToken)
+        ResolveWithholdingTypesAsync(
+            RegisterReceivablePaymentCommand command,
+            List<Receivable> receivables,
+            CancellationToken cancellationToken)
     {
         Dictionary<Guid, WithholdingType> withholdingTypes = [];
+        List<ReceivablePaymentAllocationCommand> allocationsWithWithholding = command.Allocations
+            .Where(allocation => allocation.Withholding is not null)
+            .ToList();
 
-        foreach (ReceivablePaymentAllocationCommand allocation in command.Allocations)
+        if (allocationsWithWithholding.Count == 0)
         {
-            if (allocation.Withholding is not { } withholdingInput ||
-                withholdingTypes.ContainsKey(withholdingInput.WithholdingTypeId))
+            return (null, withholdingTypes);
+        }
+
+        bool appliesStateWithholding = await dbContext.Set<Customer>()
+            .AsNoTracking()
+            .Where(customer => customer.Id == command.CustomerId)
+            .Select(customer => customer.AppliesStateWithholding)
+            .SingleAsync(cancellationToken);
+
+        if (!appliesStateWithholding)
+        {
+            return (
+                Rejected("Este cliente no está marcado para retener; no se puede registrar una retención."),
+                withholdingTypes);
+        }
+
+        Guid[] invoiceIds = receivables.Select(receivable => receivable.InvoiceId).Distinct().ToArray();
+        Dictionary<Guid, decimal> netAmountsByInvoiceId = await dbContext.Set<Invoice>()
+            .AsNoTracking()
+            .Where(invoice => invoiceIds.Contains(invoice.Id))
+            .ToDictionaryAsync(invoice => invoice.Id, invoice => invoice.NetAmount, cancellationToken);
+
+        foreach (ReceivablePaymentAllocationCommand allocation in allocationsWithWithholding)
+        {
+            WithholdingInputCommand withholdingInput = allocation.Withholding!;
+
+            if (!withholdingTypes.TryGetValue(withholdingInput.WithholdingTypeId, out WithholdingType? type))
             {
-                continue;
+                type = await dbContext.Set<WithholdingType>()
+                    .AsNoTracking()
+                    .SingleOrDefaultAsync(
+                        candidate => candidate.Id == withholdingInput.WithholdingTypeId,
+                        cancellationToken);
+
+                if (type is null || !type.IsActive)
+                {
+                    return (Rejected("El tipo de retención seleccionado no existe o está inactivo."), withholdingTypes);
+                }
+
+                withholdingTypes[withholdingInput.WithholdingTypeId] = type;
             }
 
-            WithholdingType? type = await dbContext.Set<WithholdingType>()
+            Receivable receivable = receivables.Single(candidate => candidate.Id == allocation.ReceivableId);
+            decimal netAmount = netAmountsByInvoiceId[receivable.InvoiceId];
+
+            if (type.MinimumBase is decimal minimumBase && netAmount <= minimumBase)
+            {
+                return (
+                    Rejected("La retención no aplica a esta factura: no supera la base mínima del tipo."),
+                    withholdingTypes);
+            }
+
+            decimal alreadyWithheld = await dbContext.Set<Withholding>()
                 .AsNoTracking()
-                .SingleOrDefaultAsync(
-                    candidate => candidate.Id == withholdingInput.WithholdingTypeId,
-                    cancellationToken);
+                .Where(withholding => dbContext.Set<ReceivablePayment>()
+                    .Any(payment => payment.Id == withholding.ReceivablePaymentId
+                        && payment.ReceivableId == allocation.ReceivableId))
+                .SumAsync(withholding => withholding.Base, cancellationToken);
 
-            if (type is null || !type.IsActive)
+            if (withholdingInput.Base > netAmount - alreadyWithheld)
             {
-                return (Rejected("El tipo de retención seleccionado no existe o está inactivo."), withholdingTypes);
+                return (
+                    Rejected("La base de la retención no puede superar el neto de la factura que aún no tiene retención."),
+                    withholdingTypes);
             }
-
-            withholdingTypes[withholdingInput.WithholdingTypeId] = type;
         }
 
         return (null, withholdingTypes);

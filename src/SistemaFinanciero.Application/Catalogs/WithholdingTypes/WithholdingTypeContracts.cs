@@ -12,6 +12,7 @@ public sealed record CreateWithholdingTypeCommand(
     string Code,
     string Name,
     decimal Rate,
+    decimal? MinimumBase,
     string? Description);
 
 /// <summary>Datos editables de un tipo de retención.</summary>
@@ -19,6 +20,7 @@ public sealed record UpdateWithholdingTypeCommand(
     string Code,
     string Name,
     decimal Rate,
+    decimal? MinimumBase,
     string? Description);
 
 /// <summary>Proyección administrativa de un tipo de retención.</summary>
@@ -27,14 +29,22 @@ public sealed record WithholdingTypeModel(
     string Code,
     string Name,
     decimal Rate,
+    decimal? MinimumBase,
     string? Description,
     bool IsActive,
+    bool IsSystemType,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc,
     string Version);
 
 /// <summary>Opción activa para el selector de retenciones de un abono.</summary>
-public sealed record WithholdingTypeOption(Guid Id, string Code, string Name, decimal Rate);
+public sealed record WithholdingTypeOption(
+    Guid Id,
+    string Code,
+    string Name,
+    decimal Rate,
+    decimal? MinimumBase,
+    bool IsSystemType);
 
 /// <summary>Casos de uso del catálogo de tipos de retención.</summary>
 public interface IWithholdingTypeService

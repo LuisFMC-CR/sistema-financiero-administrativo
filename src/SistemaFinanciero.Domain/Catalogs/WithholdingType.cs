@@ -35,12 +35,16 @@ public sealed class WithholdingType
     {
     }
 
-    /// <summary>Crea un tipo de retención activo.</summary>
+    /// <summary>
+    /// Crea un tipo de retención activo. Siempre nace sin marca de sistema: esa marca solo la asigna
+    /// la migración de siembra directamente por SQL (bloque 1 del paquete v7), nunca este constructor.
+    /// </summary>
     public WithholdingType(
         Guid id,
         string code,
         string name,
         decimal rate,
+        decimal? minimumBase,
         string? description,
         DateTimeOffset createdAtUtc,
         Guid createdByUserId)
@@ -49,12 +53,14 @@ public sealed class WithholdingType
         Code = DomainRules.NormalizedCode(code, CodeMaxLength, nameof(code));
         Name = DomainRules.RequiredText(name, NameMaxLength, nameof(name));
         Rate = RequireRate(rate, nameof(rate));
+        MinimumBase = RequireNonNegativeMinimumBase(minimumBase, nameof(minimumBase));
         Description = DomainRules.OptionalText(description, DescriptionMaxLength, nameof(description));
         CreatedAtUtc = DomainRules.RequiredUtcTimestamp(createdAtUtc, nameof(createdAtUtc));
         CreatedByUserId = DomainRules.RequiredId(createdByUserId, nameof(createdByUserId));
         UpdatedAtUtc = CreatedAtUtc;
         UpdatedByUserId = CreatedByUserId;
         IsActive = true;
+        IsSystemType = false;
     }
 
     /// <summary>Obtiene el identificador técnico estable.</summary>
@@ -69,11 +75,23 @@ public sealed class WithholdingType
     /// <summary>Obtiene el porcentaje de retención, con cuatro decimales.</summary>
     public decimal Rate { get; private set; }
 
+    /// <summary>
+    /// Obtiene la base mínima de la operación para que este tipo aplique (bloque 1 del paquete v7,
+    /// RF-95), o <c>null</c> si no tiene una. El monto neto (sin IVA) de la factura debe superarla.
+    /// </summary>
+    public decimal? MinimumBase { get; private set; }
+
     /// <summary>Obtiene la descripción opcional.</summary>
     public string? Description { get; private set; }
 
     /// <summary>Indica si puede seleccionarse en abonos nuevos.</summary>
     public bool IsActive { get; private set; }
+
+    /// <summary>
+    /// Indica si es la retención del 2 % del sector público que las reglas del sistema buscan por esta
+    /// marca, nunca por código ni nombre (bloque 1 del paquete v7, RF-95); nunca se inactiva.
+    /// </summary>
+    public bool IsSystemType { get; private set; }
 
     /// <summary>Obtiene el instante UTC de creación.</summary>
     public DateTimeOffset CreatedAtUtc { get; private set; }
@@ -90,11 +108,12 @@ public sealed class WithholdingType
     /// <summary>Obtiene el token de concurrencia administrado por la persistencia.</summary>
     public byte[] RowVersion { get; private set; } = [];
 
-    /// <summary>Actualiza código, nombre, tarifa y descripción.</summary>
+    /// <summary>Actualiza código, nombre, tarifa, base mínima y descripción.</summary>
     public void UpdateDetails(
         string code,
         string name,
         decimal rate,
+        decimal? minimumBase,
         string? description,
         DateTimeOffset updatedAtUtc,
         Guid updatedByUserId)
@@ -102,6 +121,7 @@ public sealed class WithholdingType
         string normalizedCode = DomainRules.NormalizedCode(code, CodeMaxLength, nameof(code));
         string normalizedName = DomainRules.RequiredText(name, NameMaxLength, nameof(name));
         decimal normalizedRate = RequireRate(rate, nameof(rate));
+        decimal? normalizedMinimumBase = RequireNonNegativeMinimumBase(minimumBase, nameof(minimumBase));
         string? normalizedDescription = DomainRules.OptionalText(
             description,
             DescriptionMaxLength,
@@ -111,6 +131,7 @@ public sealed class WithholdingType
         Code = normalizedCode;
         Name = normalizedName;
         Rate = normalizedRate;
+        MinimumBase = normalizedMinimumBase;
         Description = normalizedDescription;
         Touch(normalizedUpdatedAtUtc, updatedByUserId);
     }
@@ -148,6 +169,23 @@ public sealed class WithholdingType
         }
 
         return roundedRate;
+    }
+
+    private static decimal? RequireNonNegativeMinimumBase(decimal? value, string parameterName)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        decimal roundedValue = DomainRules.RoundMoney(value.Value);
+
+        return roundedValue >= 0
+            ? roundedValue
+            : throw new ArgumentOutOfRangeException(
+                parameterName,
+                value,
+                "La base mínima no puede ser negativa.");
     }
 
     private void SetActive(bool isActive, DateTimeOffset updatedAtUtc, Guid updatedByUserId)

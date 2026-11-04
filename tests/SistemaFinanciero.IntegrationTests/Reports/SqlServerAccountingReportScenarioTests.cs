@@ -347,7 +347,7 @@ public sealed class SqlServerAccountingReportScenarioTests : IClassFixture<Finan
     {
         ExpenseCreationResult created = await expenses.CreateAsync(
             new SaveExpenseCommand(
-                supplierId, categoryId, "Compra de prueba", "VC-0001", issueDate, PaymentTerm.Cash, netAmount, taxTypeId, PaymentMethod.Cash),
+                supplierId, categoryId, "Compra de prueba", "VC-0001", issueDate, PaymentTerm.Cash, netAmount, taxTypeId, true, PaymentMethod.Cash),
             actorId);
 
         Assert.True(created.Operation.IsSuccess);
@@ -420,6 +420,9 @@ public sealed class SqlServerAccountingReportScenarioTests : IClassFixture<Finan
             null,
             null,
             null,
+            null,
+            VatCondition.Normal,
+            false,
             DateTimeOffset.UtcNow,
             actorId);
         context.Customers.Add(customer);

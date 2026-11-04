@@ -73,7 +73,7 @@ public sealed class SqlServerPayableServiceScenarioTests : IClassFixture<Financi
         ExpenseCreationResult created = await expenses.CreateAsync(
             new SaveExpenseCommand(
                 supplierId, categoryId, "Compra a crédito de pruebas de vencidas", "VC-0001", issueDate,
-                PaymentTerm.Credit30, netAmount, taxTypeId, PaymentMethod.Cash),
+                PaymentTerm.Credit30, netAmount, taxTypeId, true, PaymentMethod.Cash),
             actorId);
         Guid expenseId = created.ExpenseId!.Value;
 

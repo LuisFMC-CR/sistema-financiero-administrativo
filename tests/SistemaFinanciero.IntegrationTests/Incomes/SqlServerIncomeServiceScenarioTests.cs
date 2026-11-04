@@ -258,6 +258,9 @@ public sealed class SqlServerIncomeServiceScenarioTests : IClassFixture<Financia
             null,
             null,
             null,
+            null,
+            VatCondition.Normal,
+            false,
             DateTimeOffset.UtcNow,
             actorId);
         context.Customers.Add(customer);

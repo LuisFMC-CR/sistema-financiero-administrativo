@@ -104,6 +104,9 @@ internal sealed class CustomerCatalogService(
                 command.Email,
                 command.Phone,
                 command.Address,
+                command.CreditLimit,
+                command.VatCondition,
+                command.AppliesStateWithholding,
                 timeProvider.GetUtcNow(),
                 actorId);
 
@@ -152,6 +155,9 @@ internal sealed class CustomerCatalogService(
                 command.Email,
                 command.Phone,
                 command.Address,
+                command.CreditLimit,
+                command.VatCondition,
+                command.AppliesStateWithholding,
                 timeProvider.GetUtcNow(),
                 actorId);
 
@@ -230,6 +236,9 @@ internal sealed class CustomerCatalogService(
             customer.Email,
             customer.Phone,
             customer.Address,
+            customer.CreditLimit,
+            customer.VatCondition,
+            customer.AppliesStateWithholding,
             customer.IsActive,
             customer.CreatedAtUtc,
             customer.UpdatedAtUtc,

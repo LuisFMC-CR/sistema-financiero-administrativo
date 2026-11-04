@@ -1,13 +1,12 @@
-@model TaxTypeEditViewModel
+@model WithholdingTypeCreateViewModel
 @{
-    ViewData["Title"] = "Editar tipo de impuesto";
+    ViewData["Title"] = "Nuevo tipo de retención";
 }
 
 <div class="catalog-form">
-    <h1 class="h2">Editar tipo de impuesto</h1>
-    <p class="text-body-secondary">Los cambios no alteran las facturas ya creadas: cada línea conserva la tarifa que usó.</p>
-    <form method="post" asp-antiforgery="true" class="card card-body">
-        <input asp-for="Version" type="hidden" />
+    <h1 class="h2">Nuevo tipo de retención</h1>
+    <p class="text-body-secondary">La retención se aplicará como porcentaje sobre la base que se indique al registrar el abono.</p>
+    <form asp-action="CreateWithholdingType" method="post" class="card card-body">
         <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
         <div class="row g-3">
             <div class="col-md-4">
@@ -22,14 +21,20 @@
             </div>
             <div class="col-md-6">
                 <label asp-for="Rate" class="form-label"></label>
-                <input asp-for="Rate" type="number" min="0" step="0.0001" class="form-control" />
+                <div class="input-group">
+                    <input asp-for="Rate" type="number" min="0" max="100" step="0.0001" class="form-control" />
+                    <span class="input-group-text">%</span>
+                </div>
                 <span asp-validation-for="Rate" class="text-danger"></span>
-                <div class="form-text">Porcentaje de 0 a 100.</div>
             </div>
             <div class="col-md-6">
-                <label asp-for="HaciendaRateCode" class="form-label"></label>
-                <input asp-for="HaciendaRateCode" class="form-control" maxlength="2" placeholder="2 dígitos" />
-                <span asp-validation-for="HaciendaRateCode" class="text-danger"></span>
+                <label asp-for="MinimumBase" class="form-label"></label>
+                <div class="input-group">
+                    <span class="input-group-text">₡</span>
+                    <input asp-for="MinimumBase" type="number" min="0" step="0.01" class="form-control" />
+                </div>
+                <span asp-validation-for="MinimumBase" class="text-danger"></span>
+                <div class="form-text">Opcional. Si se deja en blanco, aplica sin importar el monto de la operación.</div>
             </div>
             <div class="col-12">
                 <label asp-for="Description" class="form-label"></label>
@@ -38,7 +43,7 @@
             </div>
         </div>
         <div class="d-flex gap-2 mt-4">
-            <button type="submit" class="btn btn-primary">Guardar cambios</button>
+            <button type="submit" class="btn btn-primary">Guardar tipo de retención</button>
             <a asp-action="Index" class="btn btn-outline-secondary">Cancelar</a>
         </div>
     </form>

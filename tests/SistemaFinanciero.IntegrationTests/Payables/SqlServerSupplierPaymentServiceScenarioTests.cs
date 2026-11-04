@@ -275,6 +275,7 @@ public sealed class SqlServerSupplierPaymentServiceScenarioTests : IClassFixture
                 PaymentTerm.Credit30,
                 amount,
                 taxTypeId,
+                true,
                 PaymentMethod.Cash),
             actorId);
         Guid expenseId = created.ExpenseId!.Value;

@@ -28,7 +28,10 @@ internal sealed class TaxTypeConfiguration : IEntityTypeConfiguration<TaxType>
                     "[Rate] >= 0 AND [Rate] <= 100");
                 table.HasCheckConstraint(
                     "CK_TiposImpuesto_HaciendaRateCode",
-                    "LEN([HaciendaRateCode]) = 2");
+                    "[HaciendaRateCode] IS NULL OR LEN([HaciendaRateCode]) = 2");
+                table.HasCheckConstraint(
+                    "CK_TiposImpuesto_SystemRole",
+                    "[SystemRole] IS NULL OR [SystemRole] IN (1, 2, 3, 4)");
             });
 
         builder.HasKey(taxType => taxType.Id);
@@ -42,10 +45,10 @@ internal sealed class TaxTypeConfiguration : IEntityTypeConfiguration<TaxType>
             .HasPrecision(18, 4)
             .IsRequired();
         builder.Property(taxType => taxType.HaciendaRateCode)
-            .HasMaxLength(TaxType.HaciendaRateCodeLength)
-            .IsRequired();
+            .HasMaxLength(TaxType.HaciendaRateCodeLength);
         builder.Property(taxType => taxType.Description)
             .HasMaxLength(TaxType.DescriptionMaxLength);
+        builder.Property(taxType => taxType.SystemRole);
         builder.Property(taxType => taxType.IsActive)
             .HasDefaultValue(true);
         builder.Property(taxType => taxType.CreatedAtUtc).IsRequired();
@@ -57,6 +60,10 @@ internal sealed class TaxTypeConfiguration : IEntityTypeConfiguration<TaxType>
             .HasDatabaseName("UX_TiposImpuesto_Code");
         builder.HasIndex(taxType => new { taxType.IsActive, taxType.Name })
             .HasDatabaseName("IX_TiposImpuesto_IsActive_Name");
+        builder.HasIndex(taxType => taxType.SystemRole)
+            .IsUnique()
+            .HasDatabaseName("UX_TiposImpuesto_SystemRole")
+            .HasFilter("[SystemRole] IS NOT NULL");
 
         builder.HasOne<ApplicationUser>()
             .WithMany()

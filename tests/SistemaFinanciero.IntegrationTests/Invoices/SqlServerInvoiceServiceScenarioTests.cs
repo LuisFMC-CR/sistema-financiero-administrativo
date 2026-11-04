@@ -421,6 +421,41 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
 
     [Fact]
     [Trait("Category", "SqlServer")]
+    public Task SearchAsync_FiltersByPaymentTerm()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            Guid customerId = await CreateCustomerAsync(services, actorId);
+            Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "13");
+            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+
+            Guid cashInvoiceId = await CreateInvoiceWithLineAsync(
+                services, invoices, customerId, incomeCategoryId, taxTypeId, actorId);
+
+            Guid creditInvoiceId = await CreateInvoiceWithLineAsync(
+                services, invoices, customerId, incomeCategoryId, taxTypeId, actorId);
+            InvoiceModel creditDraft = (await invoices.GetAsync(creditInvoiceId))!;
+            await invoices.UpdateHeaderAsync(
+                creditInvoiceId,
+                new UpdateInvoiceHeaderCommand(customerId, incomeCategoryId, creditDraft.IssueDate, PaymentTerm.Credit30),
+                creditDraft.Version,
+                actorId);
+
+            PagedResult<InvoiceSummaryModel> onlyCash = await invoices.SearchAsync(
+                new InvoiceQuery(paymentTerm: PaymentTerm.Cash, createdByUserId: actorId));
+            Assert.Contains(onlyCash.Items, item => item.Id == cashInvoiceId);
+            Assert.DoesNotContain(onlyCash.Items, item => item.Id == creditInvoiceId);
+
+            PagedResult<InvoiceSummaryModel> onlyCredit30 = await invoices.SearchAsync(
+                new InvoiceQuery(paymentTerm: PaymentTerm.Credit30, createdByUserId: actorId));
+            Assert.Contains(onlyCredit30.Items, item => item.Id == creditInvoiceId);
+            Assert.DoesNotContain(onlyCredit30.Items, item => item.Id == cashInvoiceId);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
     public Task CreateAsync_WithAnIssueDateOnOrBeforeTheClosingDate_IsRejected()
     {
         return RunInRollbackTransactionAsync(async (services, actorId) =>
@@ -623,6 +658,87 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
 
     [Fact]
     [Trait("Category", "SqlServer")]
+    public Task CheckCustomerCreditLimitAsync_WithoutALimitConfigured_NeverExceeds()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            Guid customerId = await CreateCustomerAsync(services, actorId);
+
+            CustomerCreditLimitCheck check = await invoices.CheckCustomerCreditLimitAsync(customerId, 1_000_000m);
+
+            Assert.False(check.HasLimit);
+            Assert.Null(check.CreditLimit);
+            Assert.False(check.ExceedsLimit);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task CheckCustomerCreditLimitAsync_SumsOutstandingReceivablesAndNeverBlocksConfirmation()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            Guid customerId = await CreateCustomerAsync(services, actorId, creditLimit: 150m);
+            Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
+            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+
+            // Primera factura a crédito de ₡100: todavía dentro del límite de ₡150.
+            Guid firstInvoiceId = await CreateInvoiceWithLineAsync(
+                services, invoices, customerId, incomeCategoryId, taxTypeId, actorId);
+            InvoiceModel firstDraft = (await invoices.GetAsync(firstInvoiceId))!;
+            await invoices.UpdateHeaderAsync(
+                firstInvoiceId,
+                new UpdateInvoiceHeaderCommand(customerId, incomeCategoryId, firstDraft.IssueDate, PaymentTerm.Credit30),
+                firstDraft.Version,
+                actorId);
+            firstDraft = (await invoices.GetAsync(firstInvoiceId))!;
+
+            CustomerCreditLimitCheck beforeFirstConfirm = await invoices.CheckCustomerCreditLimitAsync(
+                customerId, firstDraft.TotalAmount);
+            Assert.True(beforeFirstConfirm.HasLimit);
+            Assert.Equal(150m, beforeFirstConfirm.CreditLimit);
+            Assert.Equal(0m, beforeFirstConfirm.OutstandingBalanceBeforeThisInvoice);
+            Assert.False(beforeFirstConfirm.ExceedsLimit);
+
+            await invoices.ConfirmAsync(
+                firstInvoiceId, new ConfirmInvoiceCommand(null, null, null), firstDraft.Version, actorId);
+
+            // Segunda factura a crédito de ₡100: el saldo pendiente (₡100) más esta (₡100) supera el
+            // límite de ₡150, pero el sistema solo lo advierte: nunca bloquea la confirmación.
+            Guid secondInvoiceId = await CreateInvoiceWithLineAsync(
+                services, invoices, customerId, incomeCategoryId, taxTypeId, actorId);
+            InvoiceModel secondDraft = (await invoices.GetAsync(secondInvoiceId))!;
+            await invoices.UpdateHeaderAsync(
+                secondInvoiceId,
+                new UpdateInvoiceHeaderCommand(customerId, incomeCategoryId, secondDraft.IssueDate, PaymentTerm.Credit30),
+                secondDraft.Version,
+                actorId);
+            secondDraft = (await invoices.GetAsync(secondInvoiceId))!;
+
+            CustomerCreditLimitCheck beforeSecondConfirm = await invoices.CheckCustomerCreditLimitAsync(
+                customerId, secondDraft.TotalAmount);
+            Assert.True(beforeSecondConfirm.HasLimit);
+            Assert.Equal(100m, beforeSecondConfirm.OutstandingBalanceBeforeThisInvoice);
+            Assert.True(beforeSecondConfirm.ExceedsLimit);
+
+            CatalogOperationResult secondConfirm = await invoices.ConfirmAsync(
+                secondInvoiceId, new ConfirmInvoiceCommand(null, null, null), secondDraft.Version, actorId);
+            Assert.True(secondConfirm.IsSuccess);
+
+            FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+            decimal totalOutstanding = await context.Receivables
+                .Where(receivable => receivable.CustomerId == customerId
+                    && (receivable.Status == ReceivableStatus.Pending
+                        || receivable.Status == ReceivableStatus.PartiallyPaid))
+                .SumAsync(receivable => receivable.Balance);
+            Assert.Equal(200m, totalOutstanding);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
     public Task AddLineAsync_WithACatalogItemWithItsOwnPriceAndTax_IgnoresManualPriceAndTaxAndCopiesTheItemsData()
     {
         return RunInRollbackTransactionAsync(async (services, actorId) =>
@@ -717,8 +833,10 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
 
     [Fact]
     [Trait("Category", "SqlServer")]
-    public Task AddLineAsync_WithACatalogItemWithoutADefaultTaxTypeAndNoManualTaxType_IsRejected()
+    public Task AddLineAsync_WithACatalogItemWithoutADefaultTaxTypeAndNoManualTaxType_FallsBackToGeneral13ForANormalCustomer()
     {
+        // Bloque 1 del paquete v7, punto 3: un cliente de condición Normal sin tarifa del artículo ni
+        // del formulario usa IVA 13 % en vez de rechazar la línea.
         return RunInRollbackTransactionAsync(async (services, actorId) =>
         {
             IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
@@ -739,7 +857,107 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
                 draft.Version,
                 actorId);
 
+            Assert.True(add.IsSuccess);
+            InvoiceModel updated = (await invoices.GetAsync(invoiceId))!;
+            Assert.Equal(13m, updated.Lines.Single().TaxRate);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task AddLineAsync_WithATaxTypeReservedForAnotherVatCondition_IsRejectedForANormalCustomer()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            Guid customerId = await CreateCustomerAsync(services, actorId);
+            Guid catalogItemId = await CreateCatalogItemAsync(
+                services, actorId, "Servicio sin tarifa", referencePriceCrc: 10_000m);
+            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid reduced2Id = (await context.Set<TaxType>()
+                .SingleAsync(taxType => taxType.SystemRole == TaxTypeSystemRole.Reduced2)).Id;
+
+            InvoiceCreationResult created = await invoices.CreateAsync(
+                new CreateInvoiceCommand(customerId, incomeCategoryId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Cash),
+                actorId);
+            Guid invoiceId = created.InvoiceId!.Value;
+            InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
+
+            CatalogOperationResult add = await invoices.AddLineAsync(
+                invoiceId,
+                new InvoiceLineInputCommand(catalogItemId, 1m, null, 0m, reduced2Id),
+                draft.Version,
+                actorId);
+
             Assert.Equal(CatalogOperationStatus.Invalid, add.Status);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task AddLineAsync_ForAStateHigherEducationInstitutionCustomer_AlwaysForcesReduced2()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            Guid customerId = await CreateCustomerAsync(
+                services, actorId, vatCondition: VatCondition.StateHigherEducationInstitution);
+            Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "13");
+            Guid catalogItemId = await CreateCatalogItemAsync(
+                services, actorId, "Soporte técnico", referencePriceCrc: 10_000m, defaultTaxTypeId: taxTypeId);
+            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+
+            InvoiceCreationResult created = await invoices.CreateAsync(
+                new CreateInvoiceCommand(customerId, incomeCategoryId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Cash),
+                actorId);
+            Guid invoiceId = created.InvoiceId!.Value;
+            InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
+
+            // El artículo trae su propia tarifa de 13 %, pero la condición del cliente la ignora.
+            CatalogOperationResult add = await invoices.AddLineAsync(
+                invoiceId,
+                new InvoiceLineInputCommand(catalogItemId, 1m, null, 0m, null),
+                draft.Version,
+                actorId);
+
+            Assert.True(add.IsSuccess);
+            InvoiceModel updated = (await invoices.GetAsync(invoiceId))!;
+            Assert.Equal(2m, updated.Lines.Single().TaxRate);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task UpdateHeaderAsync_ChangingTheCustomer_RecalculatesLineTaxesForTheNewCondition()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            Guid normalCustomerId = await CreateCustomerAsync(services, actorId);
+            Guid notSubjectCustomerId = await CreateCustomerAsync(
+                services, actorId, vatCondition: VatCondition.NotSubject);
+            Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "13");
+            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+
+            Guid invoiceId = await CreateInvoiceWithLineAsync(
+                services, invoices, normalCustomerId, incomeCategoryId, taxTypeId, actorId);
+            InvoiceModel beforeChange = (await invoices.GetAsync(invoiceId))!;
+            Assert.Equal(13m, beforeChange.Lines.Single().TaxRate);
+
+            CatalogOperationResult result = await invoices.UpdateHeaderAsync(
+                invoiceId,
+                new UpdateInvoiceHeaderCommand(
+                    notSubjectCustomerId, incomeCategoryId, beforeChange.IssueDate, beforeChange.PaymentTerm),
+                beforeChange.Version,
+                actorId);
+
+            Assert.True(result.IsSuccess);
+            Assert.Contains("recalculó el IVA de 1 línea", result.Message);
+
+            InvoiceModel afterChange = (await invoices.GetAsync(invoiceId))!;
+            Assert.Equal(0m, afterChange.Lines.Single().TaxRate);
+            Assert.Equal("No sujeto", afterChange.Lines.Single().TaxName);
         });
     }
 
@@ -800,7 +1018,12 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
         return invoiceId;
     }
 
-    private static async Task<Guid> CreateCustomerAsync(IServiceProvider services, Guid actorId)
+    private static async Task<Guid> CreateCustomerAsync(
+        IServiceProvider services,
+        Guid actorId,
+        decimal? creditLimit = null,
+        VatCondition vatCondition = VatCondition.Normal,
+        bool appliesStateWithholding = false)
     {
         FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
         string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
@@ -813,6 +1036,9 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
             null,
             null,
             null,
+            creditLimit,
+            vatCondition,
+            appliesStateWithholding,
             DateTimeOffset.UtcNow,
             actorId);
         context.Customers.Add(customer);

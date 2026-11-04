@@ -34,6 +34,7 @@ public sealed record InvoiceQuery
         Guid? createdByUserId = null,
         DateOnly? issueDateFrom = null,
         DateOnly? issueDateTo = null,
+        PaymentTerm? paymentTerm = null,
         int page = 1,
         int pageSize = 20)
     {
@@ -42,6 +43,7 @@ public sealed record InvoiceQuery
         CreatedByUserId = createdByUserId;
         IssueDateFrom = issueDateFrom;
         IssueDateTo = issueDateTo;
+        PaymentTerm = paymentTerm;
         Page = Math.Max(1, page);
         PageSize = Math.Clamp(pageSize, 1, 100);
     }
@@ -57,6 +59,9 @@ public sealed record InvoiceQuery
 
     /// <summary>Fecha de emisión máxima opcional, para la pantalla de Consultas (regla 11).</summary>
     public DateOnly? IssueDateTo { get; }
+
+    /// <summary>Plazo de pago opcional por el que filtrar (regla 11).</summary>
+    public PaymentTerm? PaymentTerm { get; }
 
     /// <summary>
     /// Cuando no es nulo, limita el resultado a las facturas creadas por este usuario (Asistente).
@@ -135,7 +140,7 @@ public sealed record InvoiceLineModel(
     string TaxCode,
     string TaxName,
     decimal TaxRate,
-    string TaxHaciendaRateCode,
+    string? TaxHaciendaRateCode,
     decimal TaxableAmount,
     decimal TaxAmount,
     decimal TotalAmount);
@@ -150,6 +155,7 @@ public sealed record InvoiceModel(
     string CustomerIdentification,
     string? CustomerEmail,
     string? CustomerPhone,
+    VatCondition CustomerVatCondition,
     Guid IncomeCategoryId,
     string IncomeCategoryName,
     DateOnly IssueDate,
@@ -191,6 +197,17 @@ public sealed record InvoiceSummaryModel(
     InvoiceStatus Status,
     decimal TotalAmount,
     string CreatedByUserName);
+
+/// <summary>
+/// Resultado de comparar el saldo pendiente de un cliente contra su límite de crédito propio, al
+/// confirmar una factura a crédito. Es solo informativo: <see cref="ExceedsLimit"/> nunca bloquea la
+/// confirmación, igual que <c>ExpenseBudgetCheck</c> con el presupuesto de un gasto.
+/// </summary>
+public sealed record CustomerCreditLimitCheck(
+    bool HasLimit,
+    decimal? CreditLimit,
+    decimal OutstandingBalanceBeforeThisInvoice,
+    bool ExceedsLimit);
 
 /// <summary>
 /// Casos de uso del ciclo de vida de la factura administrativa: crear y editar el borrador, agregar,
@@ -302,5 +319,15 @@ public interface IInvoiceService
     public Task<bool> HasDuplicateCashReferenceAsync(
         Guid cashAccountId,
         string reference,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Compara el saldo pendiente vigente del cliente más esta factura contra su límite propio de
+    /// crédito, para mostrar una alerta informativa al confirmar una factura a crédito. Solo aplica a
+    /// crédito: una factura de contado no genera cuenta por cobrar.
+    /// </summary>
+    public Task<CustomerCreditLimitCheck> CheckCustomerCreditLimitAsync(
+        Guid customerId,
+        decimal invoiceTotalAmount,
         CancellationToken cancellationToken = default);
 }

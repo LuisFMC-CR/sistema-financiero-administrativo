@@ -1,4 +1,5 @@
 @using SistemaFinanciero.Application.Invoices
+@using SistemaFinanciero.Domain.Invoices
 @using SistemaFinanciero.Web.Models.Invoices
 @model InvoiceFilterViewModel
 
@@ -25,6 +26,36 @@
                     }
                 }
             </select>
+            <select name="paymentTerm" class="form-select form-select-sm" style="max-width: 180px;" aria-label="Plazo">
+                <option value="">Todos los plazos</option>
+                @foreach (PaymentTerm term in Enum.GetValues<PaymentTerm>())
+                {
+                    if (term == Model.PaymentTerm)
+                    {
+                        <option value="@term" selected>@term.ToDisplayName()</option>
+                    }
+                    else
+                    {
+                        <option value="@term">@term.ToDisplayName()</option>
+                    }
+                }
+            </select>
+            <label class="visually-hidden" for="invoice-filter-issue-date-from">Emisión desde</label>
+            <input id="invoice-filter-issue-date-from"
+                   name="issueDateFrom"
+                   type="date"
+                   value="@Model.IssueDateFrom?.ToString("yyyy-MM-dd")"
+                   class="form-control form-control-sm"
+                   style="max-width: 160px;"
+                   aria-label="Emisión desde" />
+            <label class="visually-hidden" for="invoice-filter-issue-date-to">Emisión hasta</label>
+            <input id="invoice-filter-issue-date-to"
+                   name="issueDateTo"
+                   type="date"
+                   value="@Model.IssueDateTo?.ToString("yyyy-MM-dd")"
+                   class="form-control form-control-sm"
+                   style="max-width: 160px;"
+                   aria-label="Emisión hasta" />
             <button type="submit" class="btn btn-sm btn-primary">Aplicar</button>
             <a asp-action="Index" class="btn btn-sm btn-outline-secondary">Limpiar</a>
         </form>

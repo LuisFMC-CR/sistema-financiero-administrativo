@@ -36,7 +36,10 @@ public sealed class TaxType
     {
     }
 
-    /// <summary>Crea una tarifa de IVA activa.</summary>
+    /// <summary>
+    /// Crea una tarifa de IVA activa. Siempre nace sin rol de sistema: ese rol solo lo asigna la
+    /// migración de siembra directamente por SQL (bloque 1 del paquete v7), nunca este constructor.
+    /// </summary>
     public TaxType(
         Guid id,
         string code,
@@ -61,6 +64,7 @@ public sealed class TaxType
         UpdatedAtUtc = CreatedAtUtc;
         UpdatedByUserId = CreatedByUserId;
         IsActive = true;
+        SystemRole = null;
     }
 
     /// <summary>Obtiene el identificador técnico estable.</summary>
@@ -78,12 +82,21 @@ public sealed class TaxType
     /// <summary>
     /// Obtiene el código oficial de tarifa de IVA de Hacienda (bloque 3 del paquete de mejoras
     /// finales), de 2 dígitos; no se emite, firma ni transmite nada con él, solo prepara los datos
-    /// para el traslado manual a la plataforma externa.
+    /// para el traslado manual a la plataforma externa. Nulo únicamente en la tarifa de sistema "No
+    /// sujeto" (bloque 1 del paquete v7), porque el catálogo de Hacienda no tiene un código para ella;
+    /// cualquier tarifa agregada a mano siempre lo exige.
     /// </summary>
-    public string HaciendaRateCode { get; private set; } = string.Empty;
+    public string? HaciendaRateCode { get; private set; }
 
     /// <summary>Obtiene la descripción opcional.</summary>
     public string? Description { get; private set; }
+
+    /// <summary>
+    /// Obtiene el rol de sistema, cuando esta tarifa es una de las cuatro que las reglas del sistema
+    /// buscan por su rol (bloque 1 del paquete v7): nunca por código ni nombre, porque son editables.
+    /// Nulo para cualquier tarifa que Gerencia agregue; solo la migración de siembra lo asigna.
+    /// </summary>
+    public TaxTypeSystemRole? SystemRole { get; private set; }
 
     /// <summary>Indica si puede seleccionarse en facturas nuevas.</summary>
     public bool IsActive { get; private set; }
@@ -103,12 +116,16 @@ public sealed class TaxType
     /// <summary>Obtiene el token de concurrencia administrado por la persistencia.</summary>
     public byte[] RowVersion { get; private set; } = [];
 
-    /// <summary>Actualiza código, nombre, tarifa, código de Hacienda y descripción.</summary>
+    /// <summary>
+    /// Actualiza código, nombre, tarifa, código de Hacienda y descripción. Solo la tarifa de sistema
+    /// "No sujeto" admite un código de Hacienda vacío (bloque 1 del paquete v7); cualquier otra, de
+    /// sistema o agregada a mano, siempre lo exige.
+    /// </summary>
     public void UpdateDetails(
         string code,
         string name,
         decimal rate,
-        string haciendaRateCode,
+        string? haciendaRateCode,
         string? description,
         DateTimeOffset updatedAtUtc,
         Guid updatedByUserId)
@@ -116,10 +133,9 @@ public sealed class TaxType
         string normalizedCode = DomainRules.NormalizedCode(code, CodeMaxLength, nameof(code));
         string normalizedName = DomainRules.RequiredText(name, NameMaxLength, nameof(name));
         decimal normalizedRate = RequireRate(rate, nameof(rate));
-        string normalizedHaciendaRateCode = DomainRules.RequiredDigits(
-            haciendaRateCode,
-            HaciendaRateCodeLength,
-            nameof(haciendaRateCode));
+        string? normalizedHaciendaRateCode = SystemRole == TaxTypeSystemRole.NotSubject && string.IsNullOrWhiteSpace(haciendaRateCode)
+            ? null
+            : DomainRules.RequiredDigits(haciendaRateCode, HaciendaRateCodeLength, nameof(haciendaRateCode));
         string? normalizedDescription = DomainRules.OptionalText(
             description,
             DescriptionMaxLength,

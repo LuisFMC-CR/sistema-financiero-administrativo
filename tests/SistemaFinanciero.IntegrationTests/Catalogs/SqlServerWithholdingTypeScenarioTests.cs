@@ -34,6 +34,7 @@ public sealed class SqlServerWithholdingTypeScenarioTests : IClassFixture<Financ
                 code,
                 "Retención de integración",
                 2m,
+                null,
                 "Descripción original");
 
             Assert.True((await withholdingTypes.CreateAsync(original, actorId)).IsSuccess);
@@ -52,7 +53,7 @@ public sealed class SqlServerWithholdingTypeScenarioTests : IClassFixture<Financ
             Assert.Single((await withholdingTypes.SearchAsync(
                 new CatalogQuery("original", CatalogStatusFilter.Active))).Items, item => item.Id == created.Id);
 
-            UpdateWithholdingTypeCommand update = new(code, "Retención actualizada", 4m, null);
+            UpdateWithholdingTypeCommand update = new(code, "Retención actualizada", 4m, null, null);
             Assert.True((await withholdingTypes.UpdateAsync(created.Id, update, created.Version, actorId)).IsSuccess);
 
             CatalogOperationResult stale = await withholdingTypes.UpdateAsync(
@@ -88,6 +89,31 @@ public sealed class SqlServerWithholdingTypeScenarioTests : IClassFixture<Financ
 
     [Fact]
     [Trait("Category", "SqlServer")]
+    public Task SetActiveAsync_RejectsDeactivatingASystemTypeWithholding()
+    {
+        return RunInRollbackTransactionAsync(async (context, services, actorId) =>
+        {
+            IWithholdingTypeService withholdingTypes = services.GetRequiredService<IWithholdingTypeService>();
+
+            // La retención del 2 % del sector público nace por la migración de siembra (bloque 1 del
+            // paquete v7) con IsSystemType = true: el sistema la busca por ese rol, no por código ni
+            // nombre, y nunca se inactiva.
+            Guid stateWithholdingId = (await context.Set<SistemaFinanciero.Domain.Catalogs.WithholdingType>()
+                .SingleAsync(withholding => withholding.IsSystemType)).Id;
+            WithholdingTypeModel stateWithholding = (await withholdingTypes.GetAsync(stateWithholdingId))!;
+
+            CatalogOperationResult result = await withholdingTypes.SetActiveAsync(
+                stateWithholdingId, isActive: false, stateWithholding.Version, actorId);
+
+            Assert.Equal(CatalogOperationStatus.Invalid, result.Status);
+            context.ChangeTracker.Clear();
+            Assert.True((await context.Set<SistemaFinanciero.Domain.Catalogs.WithholdingType>()
+                .SingleAsync(w => w.Id == stateWithholdingId)).IsActive);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
     public Task Database_RejectsWithholdingTypesThatBreakItsConstraints()
     {
         return RunInRollbackTransactionAsync(async (context, services, actorId) =>
@@ -95,7 +121,7 @@ public sealed class SqlServerWithholdingTypeScenarioTests : IClassFixture<Financ
             IWithholdingTypeService withholdingTypes = services.GetRequiredService<IWithholdingTypeService>();
             string code = $"C-{Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()}";
             Assert.True((await withholdingTypes.CreateAsync(
-                new CreateWithholdingTypeCommand(code, "Restricciones", 2m, null),
+                new CreateWithholdingTypeCommand(code, "Restricciones", 2m, null, null),
                 actorId)).IsSuccess);
             Guid id = (await context.Set<SistemaFinanciero.Domain.Catalogs.WithholdingType>()
                 .SingleAsync(candidate => candidate.Code == code)).Id;

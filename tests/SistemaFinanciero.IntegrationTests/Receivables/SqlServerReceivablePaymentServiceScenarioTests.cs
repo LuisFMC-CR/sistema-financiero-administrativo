@@ -86,7 +86,7 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
         {
             IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
             IReceivablePaymentService payments = services.GetRequiredService<IReceivablePaymentService>();
-            Guid customerId = await CreateCustomerAsync(services, actorId);
+            Guid customerId = await CreateCustomerAsync(services, actorId, appliesStateWithholding: true);
             Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
             Guid withholdingTypeId = await CreateWithholdingTypeAsync(services, actorId, rate: 2m);
@@ -124,6 +124,83 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
             Income income = await context.Incomes.SingleAsync(
                 i => i.ReceivablePaymentId == result.ReceivablePaymentIds[0]);
             Assert.Equal(1000m, income.Amount);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task Register_WithAWithholdingForACustomerWithoutTheStateWithholdingMark_IsRejected()
+    {
+        // Bloque 1 del paquete v7, RF-95: el servidor rechaza la retención aunque se envíe, si el
+        // cliente no tiene la marca de retención del sector público.
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            IReceivablePaymentService payments = services.GetRequiredService<IReceivablePaymentService>();
+            Guid customerId = await CreateCustomerAsync(services, actorId, appliesStateWithholding: false);
+            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
+            Guid withholdingTypeId = await CreateWithholdingTypeAsync(services, actorId, rate: 2m);
+            await SetAuthorizationLimitAsync(services, actorId, 10_000m);
+
+            Guid receivableId = await CreateConfirmedCreditReceivableAsync(
+                services, invoices, customerId, incomeCategoryId, actorId, amount: 1000m);
+
+            RegisterReceivablePaymentResult result = await payments.RegisterAsync(
+                new RegisterReceivablePaymentCommand(
+                    customerId,
+                    cashAccountId,
+                    "AB-RET-REJ-1",
+                    DateOnly.FromDateTime(DateTime.UtcNow),
+                    [
+                        new ReceivablePaymentAllocationCommand(
+                            receivableId, 980m, new WithholdingInputCommand(withholdingTypeId, 1000m)),
+                    ]),
+                actorId,
+                actorIsManagement: false);
+
+            Assert.Equal(CatalogOperationStatus.Invalid, result.Operation.Status);
+
+            FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+            Receivable receivable = await context.Receivables.SingleAsync(r => r.Id == receivableId);
+            Assert.Equal(1000m, receivable.Balance);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task Register_WithAWithholdingBelowTheMinimumBase_IsRejected()
+    {
+        // Bloque 1 del paquete v7, RF-95: el neto de la factura debe superar la base mínima del tipo.
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            IReceivablePaymentService payments = services.GetRequiredService<IReceivablePaymentService>();
+            Guid customerId = await CreateCustomerAsync(services, actorId, appliesStateWithholding: true);
+            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
+            Guid withholdingTypeId = await CreateWithholdingTypeAsync(
+                services, actorId, rate: 2m, minimumBase: 462_200m);
+            await SetAuthorizationLimitAsync(services, actorId, 10_000m);
+
+            // El neto de la factura (1000) no supera la base mínima (462 200).
+            Guid receivableId = await CreateConfirmedCreditReceivableAsync(
+                services, invoices, customerId, incomeCategoryId, actorId, amount: 1000m);
+
+            RegisterReceivablePaymentResult result = await payments.RegisterAsync(
+                new RegisterReceivablePaymentCommand(
+                    customerId,
+                    cashAccountId,
+                    "AB-RET-REJ-2",
+                    DateOnly.FromDateTime(DateTime.UtcNow),
+                    [
+                        new ReceivablePaymentAllocationCommand(
+                            receivableId, 980m, new WithholdingInputCommand(withholdingTypeId, 1000m)),
+                    ]),
+                actorId,
+                actorIsManagement: false);
+
+            Assert.Equal(CatalogOperationStatus.Invalid, result.Operation.Status);
         });
     }
 
@@ -401,7 +478,10 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
         return (await context.Receivables.SingleAsync(r => r.InvoiceId == invoiceId)).Id;
     }
 
-    private static async Task<Guid> CreateCustomerAsync(IServiceProvider services, Guid actorId)
+    private static async Task<Guid> CreateCustomerAsync(
+        IServiceProvider services,
+        Guid actorId,
+        bool appliesStateWithholding = false)
     {
         FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
         string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
@@ -414,6 +494,9 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
             null,
             null,
             null,
+            null,
+            VatCondition.Normal,
+            appliesStateWithholding,
             DateTimeOffset.UtcNow,
             actorId);
         context.Customers.Add(customer);
@@ -514,7 +597,11 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
         return category.Id;
     }
 
-    private static async Task<Guid> CreateWithholdingTypeAsync(IServiceProvider services, Guid actorId, decimal rate)
+    private static async Task<Guid> CreateWithholdingTypeAsync(
+        IServiceProvider services,
+        Guid actorId,
+        decimal rate,
+        decimal? minimumBase = null)
     {
         FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
         string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
@@ -523,6 +610,7 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
             $"RET-{suffix}",
             $"Renta {rate}%",
             rate,
+            minimumBase,
             null,
             DateTimeOffset.UtcNow,
             actorId);

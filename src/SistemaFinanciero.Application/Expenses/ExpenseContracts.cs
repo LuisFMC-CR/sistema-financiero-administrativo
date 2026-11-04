@@ -102,6 +102,7 @@ public sealed record SaveExpenseCommand(
     PaymentTerm PaymentTerm,
     decimal NetAmount,
     Guid TaxTypeId,
+    bool VatCreditable,
     PaymentMethod PaymentMethod);
 
 /// <summary>
@@ -150,6 +151,7 @@ public sealed record ExpenseModel(
     decimal TaxRate,
     decimal TaxAmount,
     decimal TotalAmount,
+    bool VatCreditable,
     PaymentMethod PaymentMethod,
     Guid? CashAccountId,
     string? CashAccountName,

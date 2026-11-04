@@ -60,6 +60,24 @@ public sealed class InvoiceLineTaxTests
     }
 
     [Fact]
+    public void Line_AllowsAMissingHaciendaRateCode()
+    {
+        // Bloque 1 del paquete v7: la tarifa de sistema "No sujeto" no tiene código de Hacienda.
+        InvoiceTaxSpecification notSubject = new("NO-SUJETO", "No sujeto", 0m, HaciendaRateCode: null);
+
+        InvoiceLine line = CreateLine(1m, 100m, 0m, notSubject);
+
+        Assert.Null(line.Tax.HaciendaRateCode);
+    }
+
+    [Fact]
+    public void Line_RejectsAHaciendaRateCodeWithTheWrongLength()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            CreateLine(1m, 100m, 0m, Vat(13m) with { HaciendaRateCode = "123" }));
+    }
+
+    [Fact]
     public void Line_RejectsANegativeRate()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() =>

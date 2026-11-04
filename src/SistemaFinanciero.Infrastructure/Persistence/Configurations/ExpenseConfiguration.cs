@@ -59,6 +59,7 @@ internal sealed class ExpenseConfiguration : IEntityTypeConfiguration<Expense>
         builder.Property(expense => expense.TaxRate).HasPrecision(18, 4).IsRequired();
         builder.Property(expense => expense.TaxAmount).HasPrecision(18, 2).IsRequired();
         builder.Property(expense => expense.TotalAmount).HasPrecision(18, 2).IsRequired();
+        builder.Property(expense => expense.VatCreditable).HasDefaultValue(true).IsRequired();
         builder.Property(expense => expense.PaymentMethod).IsRequired();
         builder.Property(expense => expense.Reference).HasMaxLength(Expense.ReferenceMaxLength);
         builder.Property(expense => expense.Status).IsRequired();

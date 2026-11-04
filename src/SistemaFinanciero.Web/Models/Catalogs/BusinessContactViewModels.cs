@@ -78,7 +78,24 @@ public abstract class BusinessContactInputViewModel : IValidatableObject
 }
 
 /// <summary>Entrada para crear un cliente.</summary>
-public class CustomerInputViewModel : BusinessContactInputViewModel;
+public class CustomerInputViewModel : BusinessContactInputViewModel
+{
+    [Range(
+        typeof(decimal),
+        "0",
+        "99999999999999.99",
+        ErrorMessage = "El límite de crédito no puede ser negativo.",
+        ParseLimitsInInvariantCulture = true,
+        ConvertValueInInvariantCulture = true)]
+    [Display(Name = "Límite de crédito")]
+    public decimal? CreditLimit { get; set; }
+
+    [Display(Name = "Condición de IVA")]
+    public VatCondition VatCondition { get; set; } = VatCondition.Normal;
+
+    [Display(Name = "Retiene 2 % (sector público)")]
+    public bool AppliesStateWithholding { get; set; }
+}
 
 /// <summary>Entrada para editar un cliente con control de concurrencia. El código se muestra fijo.</summary>
 public sealed class CustomerEditViewModel : CustomerInputViewModel

@@ -570,7 +570,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             ExpenseCreationResult createdExpense = await expenses.CreateAsync(
                 new SaveExpenseCommand(
                     supplierId, expenseCategoryId, "Compra con IVA de prueba de IVA del período", "VC-IVA-1",
-                    entryDate, PaymentTerm.Cash, 400m, taxType.Id, PaymentMethod.Cash),
+                    entryDate, PaymentTerm.Cash, 400m, taxType.Id, true, PaymentMethod.Cash),
                 actorId);
             Guid expenseId = createdExpense.ExpenseId!.Value;
             ExpenseModel expenseDraft = (await expenses.GetAsync(expenseId))!;
@@ -581,7 +581,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             ExpenseCreationResult cancelledExpense = await expenses.CreateAsync(
                 new SaveExpenseCommand(
                     supplierId, expenseCategoryId, "Compra anulada de prueba de IVA del período", "VC-IVA-2",
-                    entryDate, PaymentTerm.Cash, 9999m, taxType.Id, PaymentMethod.Cash),
+                    entryDate, PaymentTerm.Cash, 9999m, taxType.Id, true, PaymentMethod.Cash),
                 actorId);
             ExpenseModel cancelledDraft = (await expenses.GetAsync(cancelledExpense.ExpenseId!.Value))!;
             await expenses.ConfirmAsync(
@@ -614,7 +614,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
         {
             IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
             IReceivablePaymentService payments = services.GetRequiredService<IReceivablePaymentService>();
-            Guid customerId = await CreateCustomerAsync(services, actorId);
+            Guid customerId = await CreateCustomerAsync(services, actorId, appliesStateWithholding: true);
             Guid incomeCategoryId = await CreateCategoryAsync(services, actorId, FinancialCategoryKind.Income);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
             Guid withholdingTypeId = await CreateWithholdingTypeAsync(services, actorId, rate: 2m);
@@ -664,7 +664,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
         FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
         string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
         WithholdingType type = new(
-            Guid.NewGuid(), $"RET-{suffix}", $"Renta {rate}% de pruebas de reportes", rate, null, DateTimeOffset.UtcNow, actorId);
+            Guid.NewGuid(), $"RET-{suffix}", $"Renta {rate}% de pruebas de reportes", rate, null, null, DateTimeOffset.UtcNow, actorId);
         context.WithholdingTypes.Add(type);
         await context.SaveChangesAsync();
         return type.Id;
@@ -718,7 +718,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
         ExpenseCreationResult created = await expenses.CreateAsync(
             new SaveExpenseCommand(
                 supplierId, categoryId, "Compra a crédito de pruebas de reportes", "VC-0001", issueDate, PaymentTerm.Credit30,
-                amount, taxTypeId, PaymentMethod.Cash),
+                amount, taxTypeId, true, PaymentMethod.Cash),
             actorId);
         Guid expenseId = created.ExpenseId!.Value;
 
@@ -734,7 +734,10 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
         return (await context.Payables.SingleAsync(p => p.ExpenseId == expenseId)).Id;
     }
 
-    private static async Task<Guid> CreateCustomerAsync(IServiceProvider services, Guid actorId)
+    private static async Task<Guid> CreateCustomerAsync(
+        IServiceProvider services,
+        Guid actorId,
+        bool appliesStateWithholding = false)
     {
         FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
         string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
@@ -747,6 +750,9 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             null,
             null,
             null,
+            null,
+            VatCondition.Normal,
+            appliesStateWithholding,
             DateTimeOffset.UtcNow,
             actorId);
         context.Customers.Add(customer);
@@ -774,7 +780,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
         ExpenseCreationResult created = await expenses.CreateAsync(
             new SaveExpenseCommand(
                 supplierId, categoryId, "Gasto de prueba de reportes", "VC-0001", issueDate, PaymentTerm.Cash,
-                netAmount, taxTypeId, PaymentMethod.Cash),
+                netAmount, taxTypeId, true, PaymentMethod.Cash),
             actorId);
         Guid expenseId = created.ExpenseId!.Value;
 
@@ -801,7 +807,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
         ExpenseCreationResult created = await expenses.CreateAsync(
             new SaveExpenseCommand(
                 supplierId, categoryId, "Borrador de pruebas de reportes", "VC-0001", issueDate, PaymentTerm.Cash,
-                netAmount, taxTypeId, PaymentMethod.Cash),
+                netAmount, taxTypeId, true, PaymentMethod.Cash),
             actorId);
         return created.ExpenseId!.Value;
     }

@@ -33,7 +33,7 @@ internal sealed class InvoiceLineConfiguration : IEntityTypeConfiguration<Invoic
                     "[Tax_Rate] >= 0 AND [Tax_TaxableAmount] >= 0 AND [Tax_Amount] >= 0");
                 table.HasCheckConstraint(
                     "CK_FacturaLineas_Tax_HaciendaRateCode",
-                    "LEN([Tax_HaciendaRateCode]) = 2");
+                    "[Tax_HaciendaRateCode] IS NULL OR LEN([Tax_HaciendaRateCode]) = 2");
             });
         builder.HasKey(line => line.Id);
 
@@ -66,7 +66,7 @@ internal sealed class InvoiceLineConfiguration : IEntityTypeConfiguration<Invoic
                 .HasMaxLength(InvoiceLineTax.NameMaxLength).IsRequired();
             tax.Property(t => t.Rate).HasColumnName("Tax_Rate").HasPrecision(18, 4).IsRequired();
             tax.Property(t => t.HaciendaRateCode).HasColumnName("Tax_HaciendaRateCode")
-                .HasMaxLength(InvoiceLineTax.HaciendaRateCodeLength).IsRequired();
+                .HasMaxLength(InvoiceLineTax.HaciendaRateCodeLength);
             tax.Property(t => t.TaxableAmount).HasColumnName("Tax_TaxableAmount").HasPrecision(18, 2).IsRequired();
             tax.Property(t => t.Amount).HasColumnName("Tax_Amount").HasPrecision(18, 2).IsRequired();
             tax.Property(t => t.TaxTypeId).HasColumnName("TaxTypeId");

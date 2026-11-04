@@ -125,9 +125,9 @@ public sealed class CatalogViewModelValidationTests
     }
 
     [Fact]
-    public void TaxTypeEdit_RequiresTheVersionToken()
+    public void TaxTypeRateEdit_RequiresTheVersionToken()
     {
-        TaxTypeEditViewModel model = new() { Code = "IVA", Name = "IVA", Rate = 13m, Version = string.Empty };
+        TaxTypeRateEditViewModel model = new() { Rate = 13m, Version = string.Empty };
 
         Assert.Contains(
             Validate(model),
@@ -275,9 +275,9 @@ public sealed class CatalogViewModelValidationTests
     }
 
     [Fact]
-    public void WithholdingTypeEdit_RequiresTheVersionToken()
+    public void WithholdingTypeRateEdit_RequiresTheVersionToken()
     {
-        WithholdingTypeEditViewModel model = new() { Code = "RET", Name = "Retención", Rate = 2m, Version = string.Empty };
+        WithholdingTypeRateEditViewModel model = new() { Rate = 2m, Version = string.Empty };
 
         Assert.Contains(
             Validate(model),

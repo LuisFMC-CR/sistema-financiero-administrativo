@@ -32,6 +32,7 @@ public sealed class InvoiceElectronicDataExportTests
     private static InvoiceModel CreateInvoice() => new(
         Guid.NewGuid(), 42, Guid.NewGuid(), "Cliente de prueba",
         IdentificationType.LegalEntity, "3101000001", "cliente@example.test", "8888-8888",
+        VatCondition.Normal,
         Guid.NewGuid(), "Categoría de prueba",
         new DateOnly(2026, 1, 10), PaymentTerm.Credit30, new DateOnly(2026, 2, 9), InvoiceStatus.Confirmed,
         2000m, 100m, 1900m, 130m, 2030m,

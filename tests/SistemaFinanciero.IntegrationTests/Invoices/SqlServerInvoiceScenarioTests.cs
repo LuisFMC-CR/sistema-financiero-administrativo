@@ -337,6 +337,9 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
             null,
             null,
             null,
+            null,
+            VatCondition.Normal,
+            false,
             now,
             actorId);
         context.Customers.Add(customer);

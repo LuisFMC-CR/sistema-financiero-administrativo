@@ -11,6 +11,9 @@
                    asp-action="Index"
                    asp-route-search="@Model.Search"
                    asp-route-status="@Model.Status"
+                   asp-route-issueDateFrom="@Model.IssueDateFrom?.ToString("yyyy-MM-dd")"
+                   asp-route-issueDateTo="@Model.IssueDateTo?.ToString("yyyy-MM-dd")"
+                   asp-route-paymentTerm="@Model.PaymentTerm"
                    asp-route-page="@(Model.CurrentPage - 1)"
                    aria-disabled="@(!Model.HasPreviousPage)">Anterior</a>
             </li>
@@ -19,6 +22,9 @@
                    asp-action="Index"
                    asp-route-search="@Model.Search"
                    asp-route-status="@Model.Status"
+                   asp-route-issueDateFrom="@Model.IssueDateFrom?.ToString("yyyy-MM-dd")"
+                   asp-route-issueDateTo="@Model.IssueDateTo?.ToString("yyyy-MM-dd")"
+                   asp-route-paymentTerm="@Model.PaymentTerm"
                    asp-route-page="@(Model.CurrentPage + 1)"
                    aria-disabled="@(!Model.HasNextPage)">Siguiente</a>
             </li>

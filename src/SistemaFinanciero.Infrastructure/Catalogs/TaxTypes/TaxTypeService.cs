@@ -86,7 +86,8 @@ internal sealed class TaxTypeService(
                 taxType.Id,
                 taxType.Code,
                 taxType.Name,
-                taxType.Rate))
+                taxType.Rate,
+                taxType.SystemRole))
             .ToListAsync(cancellationToken);
     }
 
@@ -188,6 +189,12 @@ internal sealed class TaxTypeService(
             return CatalogOperationResult.Invalid("El token de concurrencia no es válido.");
         }
 
+        if (!isActive && taxType.SystemRole is not null)
+        {
+            dbContext.ChangeTracker.Clear();
+            return CatalogOperationResult.Invalid("Esta tarifa la usa el sistema y no se puede inactivar.");
+        }
+
         try
         {
             if (isActive)
@@ -269,6 +276,7 @@ internal sealed class TaxTypeService(
             taxType.HaciendaRateCode,
             taxType.Description,
             taxType.IsActive,
+            taxType.SystemRole,
             taxType.CreatedAtUtc,
             taxType.UpdatedAtUtc,
             CatalogPersistence.EncodeVersion(taxType.RowVersion));

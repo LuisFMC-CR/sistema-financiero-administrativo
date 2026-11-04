@@ -360,6 +360,12 @@ internal sealed class CatalogItemService(
             return CatalogOperationResult.Invalid("La tarifa de IVA predeterminada debe estar activa.");
         }
 
+        if (taxType.SystemRole is TaxTypeSystemRole.Reduced2 or TaxTypeSystemRole.NotSubject)
+        {
+            return CatalogOperationResult.Invalid(
+                "Esta tarifa depende de la condición de IVA del cliente y no puede ser la predeterminada de un artículo.");
+        }
+
         return null;
     }
 

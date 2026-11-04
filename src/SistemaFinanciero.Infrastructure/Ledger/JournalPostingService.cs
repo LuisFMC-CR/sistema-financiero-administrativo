@@ -76,7 +76,9 @@ internal static class JournalPostingService
 
     /// <summary>
     /// Gasto confirmado de contado (crédito cuenta de efectivo) o a crédito (crédito cuentas por
-    /// pagar), siempre con débito a la categoría de gasto (neto) y al IVA acreditable.
+    /// pagar). Si el IVA es acreditable (bloque 1 del paquete v7, RF-94), debita la categoría por el
+    /// neto y el IVA acreditable por separado; si no lo es, debita la categoría por el total (neto +
+    /// IVA) y omite la línea de IVA acreditable, porque ese IVA pasa a formar parte del costo.
     /// </summary>
     public static async Task PostExpenseConfirmationAsync(
         FinancialDbContext dbContext,
@@ -90,10 +92,13 @@ internal static class JournalPostingService
         Guid creditAccountId = expense.CashAccountId
             ?? await GetSystemAccountIdAsync(dbContext, LedgerAccountSystemRole.PayablesToSuppliers, cancellationToken);
 
+        decimal categoryDebit = expense.VatCreditable ? expense.NetAmount : expense.TotalAmount;
+        decimal vatCreditableDebit = expense.VatCreditable ? expense.TaxAmount : 0m;
+
         List<JournalEntryLineInput> lines =
         [
-            new(categoryAccountId, expense.NetAmount, 0m),
-            new(vatCreditableAccountId, expense.TaxAmount, 0m),
+            new(categoryAccountId, categoryDebit, 0m),
+            new(vatCreditableAccountId, vatCreditableDebit, 0m),
             new(creditAccountId, 0m, expense.TotalAmount),
         ];
 

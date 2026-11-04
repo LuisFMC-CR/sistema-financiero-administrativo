@@ -451,6 +451,11 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<bool>("AppliesStateWithholding")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -461,6 +466,10 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("CreatedByUserId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("CreditLimit")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("Email")
                         .HasMaxLength(254)
@@ -500,6 +509,11 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("UpdatedByUserId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("VatCondition")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(1);
+
                     b.HasKey("Id");
 
                     b.HasIndex("Code")
@@ -521,7 +535,11 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_Clientes_Codigo_NoVacio", "LEN(LTRIM(RTRIM([Code]))) > 0");
 
+                            t.HasCheckConstraint("CK_Clientes_CreditLimit", "[CreditLimit] IS NULL OR [CreditLimit] >= 0");
+
                             t.HasCheckConstraint("CK_Clientes_IdentificationType", "[IdentificationType] IN (1, 2, 3, 4, 5)");
+
+                            t.HasCheckConstraint("CK_Clientes_VatCondition", "[VatCondition] IN (1, 2, 3)");
                         });
                 });
 
@@ -814,7 +832,6 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(300)");
 
                     b.Property<string>("HaciendaRateCode")
-                        .IsRequired()
                         .HasMaxLength(2)
                         .HasColumnType("nvarchar(2)");
 
@@ -838,6 +855,9 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
 
+                    b.Property<int?>("SystemRole")
+                        .HasColumnType("int");
+
                     b.Property<DateTimeOffset>("UpdatedAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -852,6 +872,11 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CreatedByUserId");
 
+                    b.HasIndex("SystemRole")
+                        .IsUnique()
+                        .HasDatabaseName("UX_TiposImpuesto_SystemRole")
+                        .HasFilter("[SystemRole] IS NOT NULL");
+
                     b.HasIndex("UpdatedByUserId");
 
                     b.HasIndex("IsActive", "Name")
@@ -861,9 +886,11 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_TiposImpuesto_Codigo_NoVacio", "LEN(LTRIM(RTRIM([Code]))) > 0");
 
-                            t.HasCheckConstraint("CK_TiposImpuesto_HaciendaRateCode", "LEN([HaciendaRateCode]) = 2");
+                            t.HasCheckConstraint("CK_TiposImpuesto_HaciendaRateCode", "[HaciendaRateCode] IS NULL OR LEN([HaciendaRateCode]) = 2");
 
                             t.HasCheckConstraint("CK_TiposImpuesto_Rate", "[Rate] >= 0 AND [Rate] <= 100");
+
+                            t.HasCheckConstraint("CK_TiposImpuesto_SystemRole", "[SystemRole] IS NULL OR [SystemRole] IN (1, 2, 3, 4)");
                         });
                 });
 
@@ -892,6 +919,15 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
+
+                    b.Property<bool>("IsSystemType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<decimal?>("MinimumBase")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -922,6 +958,11 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CreatedByUserId");
 
+                    b.HasIndex("IsSystemType")
+                        .IsUnique()
+                        .HasDatabaseName("UX_TiposRetencion_IsSystemType")
+                        .HasFilter("[IsSystemType] = 1");
+
                     b.HasIndex("UpdatedByUserId");
 
                     b.HasIndex("IsActive", "Name")
@@ -930,6 +971,8 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                     b.ToTable("TiposRetencion", "catalogos", t =>
                         {
                             t.HasCheckConstraint("CK_TiposRetencion_Codigo_NoVacio", "LEN(LTRIM(RTRIM([Code]))) > 0");
+
+                            t.HasCheckConstraint("CK_TiposRetencion_MinimumBase", "[MinimumBase] IS NULL OR [MinimumBase] >= 0");
 
                             t.HasCheckConstraint("CK_TiposRetencion_Rate", "[Rate] >= 0 AND [Rate] <= 100");
                         });
@@ -1041,6 +1084,11 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("UpdatedByUserId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("VatCreditable")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
 
                     b.Property<string>("VoucherReference")
                         .IsRequired()
@@ -1415,7 +1463,7 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_FacturaLineas_Position", "[Position] > 0");
 
-                            t.HasCheckConstraint("CK_FacturaLineas_Tax_HaciendaRateCode", "LEN([Tax_HaciendaRateCode]) = 2");
+                            t.HasCheckConstraint("CK_FacturaLineas_Tax_HaciendaRateCode", "[Tax_HaciendaRateCode] IS NULL OR LEN([Tax_HaciendaRateCode]) = 2");
 
                             t.HasCheckConstraint("CK_FacturaLineas_Tax_RateAmount", "[Tax_Rate] >= 0 AND [Tax_TaxableAmount] >= 0 AND [Tax_Amount] >= 0");
                         });
@@ -2698,7 +2746,6 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                                 .HasColumnName("Tax_Code");
 
                             b1.Property<string>("HaciendaRateCode")
-                                .IsRequired()
                                 .HasMaxLength(2)
                                 .HasColumnType("nvarchar(2)")
                                 .HasColumnName("Tax_HaciendaRateCode");
