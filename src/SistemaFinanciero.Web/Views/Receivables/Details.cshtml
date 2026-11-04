@@ -50,10 +50,12 @@
             <tr>
                 <th scope="col">Código</th>
                 <th scope="col">Fecha</th>
+                <th scope="col">Factura</th>
                 <th scope="col">Referencia</th>
                 <th scope="col">Cuenta de efectivo</th>
                 <th scope="col" class="text-end">Monto</th>
                 <th scope="col" class="text-end">Retención</th>
+                <th scope="col" class="text-end">Saldo resultante</th>
                 <th scope="col">Estado</th>
                 <th scope="col" class="text-end">Acciones</th>
             </tr>
@@ -61,20 +63,42 @@
         <tbody>
             @if (Model.Payments.Count == 0)
             {
-                <tr><td colspan="8" class="text-center text-body-secondary py-4">Esta cuenta por cobrar no tiene abonos.</td></tr>
+                <tr><td colspan="10" class="text-center text-body-secondary py-4">Esta cuenta por cobrar no tiene abonos.</td></tr>
             }
             @{
                 int receivablePaymentSourceType = (int)JournalEntrySourceType.ReceivablePayment;
+
+                // Saldo resultante por abono (preparación del recibo electrónico de pago, bloque 2 del
+                // paquete v7): se calcula en orden cronológico ascendente sobre los abonos vigentes,
+                // restando del monto original; uno anulado ya no afecta el saldo real y no muestra nada.
+                Dictionary<Guid, decimal> resultingBalances = [];
+                decimal runningBalance = receivable.OriginalAmount;
+                foreach (ReceivablePaymentModel activePayment in Model.Payments
+                    .Where(p => p.Status == ReceivablePaymentStatus.Active)
+                    .OrderBy(p => p.PaymentDate)
+                    .ThenBy(p => p.Code))
+                {
+                    runningBalance -= activePayment.Amount + (activePayment.WithholdingAmount ?? 0m);
+                    resultingBalances[activePayment.Id] = runningBalance;
+                }
             }
             @foreach (ReceivablePaymentModel payment in Model.Payments)
             {
                 <tr>
                     <td class="fw-semibold">@payment.Code</td>
                     <td>@payment.PaymentDate.ToString("dd/MM/yyyy")</td>
+                    <td>
+                        @(receivable.InvoiceNumber?.ToString() ?? "—")
+                        @if (!string.IsNullOrWhiteSpace(receivable.InvoiceElectronicKey))
+                        {
+                            <br /><small class="text-body-secondary">Clave: @receivable.InvoiceElectronicKey</small>
+                        }
+                    </td>
                     <td>@payment.Reference</td>
                     <td>@payment.CashAccountName</td>
                     <td class="text-end">₡@payment.Amount.ToString("N2")</td>
                     <td class="text-end">@(payment.WithholdingAmount is decimal amount ? $"₡{amount:N2}" : "—")</td>
+                    <td class="text-end">@(resultingBalances.TryGetValue(payment.Id, out decimal resultingBalance) ? $"₡{resultingBalance:N2}" : "—")</td>
                     <td>
                         @payment.Status.ToDisplayName()
                         @if (payment.Status == ReceivablePaymentStatus.Cancelled && !string.IsNullOrWhiteSpace(payment.CancellationReason))

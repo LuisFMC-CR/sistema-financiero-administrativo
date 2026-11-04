@@ -12,6 +12,7 @@ public sealed record ReceivableModel(
     Guid Id,
     Guid InvoiceId,
     long? InvoiceNumber,
+    string? InvoiceElectronicKey,
     decimal InvoiceNetAmount,
     Guid CustomerId,
     string CustomerName,

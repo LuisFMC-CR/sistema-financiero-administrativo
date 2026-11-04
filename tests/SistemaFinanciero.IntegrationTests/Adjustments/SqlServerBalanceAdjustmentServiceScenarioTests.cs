@@ -279,6 +279,7 @@ public sealed class SqlServerBalanceAdjustmentServiceScenarioTests : IClassFixtu
             null,
             VatCondition.Normal,
             false,
+            null,
             DateTimeOffset.UtcNow,
             actorId);
         context.Customers.Add(customer);

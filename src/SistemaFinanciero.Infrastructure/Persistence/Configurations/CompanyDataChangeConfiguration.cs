@@ -17,7 +17,21 @@ internal sealed class CompanyDataChangeConfiguration : IEntityTypeConfiguration<
 {
     public void Configure(EntityTypeBuilder<CompanyDataChange> builder)
     {
-        builder.ToTable("ParametrosEmpresaHistorial", "finanzas");
+        builder.ToTable(
+            "ParametrosEmpresaHistorial",
+            "finanzas",
+            table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_ParametrosEmpresaHistorial_CompanyProvinceCode",
+                    "[CompanyProvinceCode] IS NULL OR LEN([CompanyProvinceCode]) = 1");
+                table.HasCheckConstraint(
+                    "CK_ParametrosEmpresaHistorial_CompanyCantonCode",
+                    "[CompanyCantonCode] IS NULL OR LEN([CompanyCantonCode]) = 2");
+                table.HasCheckConstraint(
+                    "CK_ParametrosEmpresaHistorial_CompanyDistrictCode",
+                    "[CompanyDistrictCode] IS NULL OR LEN([CompanyDistrictCode]) = 2");
+            });
 
         builder.HasKey(change => change.Id);
         builder.Property(change => change.CompanyName).HasMaxLength(SystemParameters.CompanyNameMaxLength).IsRequired();
@@ -27,6 +41,14 @@ internal sealed class CompanyDataChangeConfiguration : IEntityTypeConfiguration<
         builder.Property(change => change.CompanyEmail).HasMaxLength(SystemParameters.CompanyEmailMaxLength);
         builder.Property(change => change.CompanyActivityCode)
             .HasMaxLength(SystemParameters.CompanyActivityCodeMaxLength);
+        builder.Property(change => change.CompanyTradeName)
+            .HasMaxLength(SystemParameters.CompanyTradeNameMaxLength);
+        builder.Property(change => change.CompanyProvinceCode)
+            .HasMaxLength(SystemParameters.CompanyProvinceCodeLength);
+        builder.Property(change => change.CompanyCantonCode)
+            .HasMaxLength(SystemParameters.CompanyCantonCodeLength);
+        builder.Property(change => change.CompanyDistrictCode)
+            .HasMaxLength(SystemParameters.CompanyDistrictCodeLength);
         builder.Property(change => change.ChangedAtUtc).IsRequired();
 
         builder.HasIndex(change => change.ChangedAtUtc)

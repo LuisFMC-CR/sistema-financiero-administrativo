@@ -11,12 +11,19 @@ namespace SistemaFinanciero.Web.Reporting;
 
 /// <summary>
 /// Prepara los datos de una factura confirmada para el formato 4.4 de Hacienda (bloque 3 del paquete
-/// de mejoras finales, RF-88): no emite, firma ni transmite nada ante Hacienda, solo guarda un JSON
-/// (una factura) o un libro de Excel (varias, de un período) con los datos ya clasificados para el
-/// traslado manual a la plataforma externa.
+/// de mejoras finales, RF-88, completado en el bloque 2 del paquete v7): no emite, firma ni transmite
+/// nada ante Hacienda, solo guarda un JSON (una factura) o un libro de Excel (varias, de un período)
+/// con los datos ya clasificados para el traslado manual a la plataforma externa.
 /// </summary>
 public static class InvoiceElectronicDataExport
 {
+    /// <summary>
+    /// Código de Hacienda "99 Otros" para el descuento de cada línea (bloque 2 del paquete v7): no se
+    /// encontró un código específico de "descuento comercial" en el catálogo disponible; pendiente de
+    /// validar contra el Anexo 4.4 oficial.
+    /// </summary>
+    private const string OtherDiscountCode = "99";
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -33,12 +40,18 @@ public static class InvoiceElectronicDataExport
                 numero = invoice.Number,
                 fecha = invoice.IssueDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 estado = invoice.Status.ToString(),
+                claveOficial = invoice.ElectronicInvoiceKey,
+                consecutivoOficial = invoice.ElectronicInvoiceNumber,
             },
             emisor = new
             {
                 nombre = companyData?.CompanyName,
+                nombreComercial = companyData?.CompanyTradeName,
                 cedulaJuridica = companyData?.CompanyLegalId,
-                direccion = companyData?.CompanyAddress,
+                provincia = companyData?.CompanyProvinceCode,
+                canton = companyData?.CompanyCantonCode,
+                distrito = companyData?.CompanyDistrictCode,
+                otrasSenas = companyData?.CompanyAddress,
                 telefono = companyData?.CompanyPhone,
                 correo = companyData?.CompanyEmail,
                 codigoActividad = companyData?.CompanyActivityCode,
@@ -49,6 +62,7 @@ public static class InvoiceElectronicDataExport
                 identificacion = invoice.CustomerIdentification,
                 nombre = invoice.CustomerName,
                 correo = invoice.CustomerEmail,
+                actividadEconomica = invoice.CustomerActivityCode,
             },
             condicionVenta = new
             {
@@ -70,6 +84,7 @@ public static class InvoiceElectronicDataExport
                     unidadMedida = line.UnitOfMeasure,
                     precioUnitario = line.UnitPrice,
                     descuento = line.DiscountAmount,
+                    codigoDescuento = line.DiscountAmount > 0 ? OtherDiscountCode : null,
                     @base = line.NetAmount,
                     codigoTarifa = line.TaxHaciendaRateCode,
                     tarifa = line.TaxRate,
@@ -97,9 +112,10 @@ public static class InvoiceElectronicDataExport
 
         string[] columns =
         [
-            "Factura", "Fecha", "Receptor", "Tipo ident.", "Identificación", "Línea", "CABYS",
-            "Código comercial", "Descripción", "Cantidad", "Unidad", "Precio unitario", "Descuento",
-            "Base", "Código tarifa", "Tarifa", "IVA", "Total línea",
+            "Factura", "Clave oficial", "Consecutivo oficial", "Fecha", "Receptor", "Tipo ident.",
+            "Identificación", "Actividad receptor", "Línea", "CABYS", "Código comercial", "Descripción",
+            "Cantidad", "Unidad", "Precio unitario", "Descuento", "Código descuento", "Base",
+            "Código tarifa", "Tarifa", "IVA", "Total línea",
         ];
         int row = 5;
         for (int index = 0; index < columns.Length; index++)
@@ -115,29 +131,33 @@ public static class InvoiceElectronicDataExport
             foreach (InvoiceLineModel line in invoice.Lines.OrderBy(line => line.Position))
             {
                 sheet.Cell(row, 1).Value = invoice.Number;
-                sheet.Cell(row, 2).Value = invoice.IssueDate.ToDateTime(TimeOnly.MinValue);
-                sheet.Cell(row, 2).Style.DateFormat.Format = "dd/mm/yyyy";
-                sheet.Cell(row, 3).Value = invoice.CustomerName;
-                sheet.Cell(row, 4).Value = invoice.CustomerIdentificationType.ToHaciendaCode();
-                sheet.Cell(row, 5).Value = invoice.CustomerIdentification;
-                sheet.Cell(row, 6).Value = line.Position;
-                sheet.Cell(row, 7).Value = line.CabysCode ?? string.Empty;
-                sheet.Cell(row, 8).Value = line.CatalogItemCode ?? string.Empty;
-                sheet.Cell(row, 9).Value = line.Description;
-                sheet.Cell(row, 10).Value = line.Quantity;
-                sheet.Cell(row, 11).Value = line.UnitOfMeasure;
-                sheet.Cell(row, 12).Value = line.UnitPrice;
-                sheet.Cell(row, 12).Style.NumberFormat.Format = "#,##0.0000";
-                sheet.Cell(row, 13).Value = line.DiscountAmount;
-                sheet.Cell(row, 13).Style.NumberFormat.Format = "#,##0.00";
-                sheet.Cell(row, 14).Value = line.NetAmount;
-                sheet.Cell(row, 14).Style.NumberFormat.Format = "#,##0.00";
-                sheet.Cell(row, 15).Value = line.TaxHaciendaRateCode ?? string.Empty;
-                sheet.Cell(row, 16).Value = line.TaxRate;
-                sheet.Cell(row, 17).Value = line.TaxAmount;
-                sheet.Cell(row, 17).Style.NumberFormat.Format = "#,##0.00";
-                sheet.Cell(row, 18).Value = line.TotalAmount;
+                sheet.Cell(row, 2).Value = invoice.ElectronicInvoiceKey ?? string.Empty;
+                sheet.Cell(row, 3).Value = invoice.ElectronicInvoiceNumber ?? string.Empty;
+                sheet.Cell(row, 4).Value = invoice.IssueDate.ToDateTime(TimeOnly.MinValue);
+                sheet.Cell(row, 4).Style.DateFormat.Format = "dd/mm/yyyy";
+                sheet.Cell(row, 5).Value = invoice.CustomerName;
+                sheet.Cell(row, 6).Value = invoice.CustomerIdentificationType.ToHaciendaCode();
+                sheet.Cell(row, 7).Value = invoice.CustomerIdentification;
+                sheet.Cell(row, 8).Value = invoice.CustomerActivityCode ?? string.Empty;
+                sheet.Cell(row, 9).Value = line.Position;
+                sheet.Cell(row, 10).Value = line.CabysCode ?? string.Empty;
+                sheet.Cell(row, 11).Value = line.CatalogItemCode ?? string.Empty;
+                sheet.Cell(row, 12).Value = line.Description;
+                sheet.Cell(row, 13).Value = line.Quantity;
+                sheet.Cell(row, 14).Value = line.UnitOfMeasure;
+                sheet.Cell(row, 15).Value = line.UnitPrice;
+                sheet.Cell(row, 15).Style.NumberFormat.Format = "#,##0.0000";
+                sheet.Cell(row, 16).Value = line.DiscountAmount;
+                sheet.Cell(row, 16).Style.NumberFormat.Format = "#,##0.00";
+                sheet.Cell(row, 17).Value = line.DiscountAmount > 0 ? OtherDiscountCode : string.Empty;
+                sheet.Cell(row, 18).Value = line.NetAmount;
                 sheet.Cell(row, 18).Style.NumberFormat.Format = "#,##0.00";
+                sheet.Cell(row, 19).Value = line.TaxHaciendaRateCode ?? string.Empty;
+                sheet.Cell(row, 20).Value = line.TaxRate;
+                sheet.Cell(row, 21).Value = line.TaxAmount;
+                sheet.Cell(row, 21).Style.NumberFormat.Format = "#,##0.00";
+                sheet.Cell(row, 22).Value = line.TotalAmount;
+                sheet.Cell(row, 22).Style.NumberFormat.Format = "#,##0.00";
                 row++;
             }
         }
@@ -151,20 +171,29 @@ public static class InvoiceElectronicDataExport
 
     private static object BuildSummary(InvoiceModel invoice)
     {
-        decimal ServiceTotal(bool taxed) => invoice.Lines
-            .Where(line => line.CatalogItemType == CatalogItemType.Service && (line.TaxRate > 0) == taxed)
+        // Una línea de tarifa 0 % es "no sujeto" cuando no tiene código de Hacienda (la tarifa de
+        // sistema No sujeto, bloque 1 del paquete v7, no tiene uno); con código es "exento" (p. ej.
+        // la tarifa Exento, código 10). Antes de este bloque, todo lo de tarifa 0 % se contaba como
+        // exento sin distinguir.
+        static bool IsNotSubject(InvoiceLineModel line) => line.TaxRate == 0 && line.TaxHaciendaRateCode is null;
+        static bool IsExempt(InvoiceLineModel line) => line.TaxRate == 0 && line.TaxHaciendaRateCode is not null;
+
+        decimal ServiceTotal(Func<InvoiceLineModel, bool> predicate) => invoice.Lines
+            .Where(line => line.CatalogItemType == CatalogItemType.Service && predicate(line))
             .Sum(line => line.NetAmount);
 
-        decimal GoodsTotal(bool taxed) => invoice.Lines
-            .Where(line => line.CatalogItemType == CatalogItemType.Product && (line.TaxRate > 0) == taxed)
+        decimal GoodsTotal(Func<InvoiceLineModel, bool> predicate) => invoice.Lines
+            .Where(line => line.CatalogItemType == CatalogItemType.Product && predicate(line))
             .Sum(line => line.NetAmount);
 
         return new
         {
-            totalServiciosGravados = ServiceTotal(taxed: true),
-            totalServiciosExentos = ServiceTotal(taxed: false),
-            totalMercanciasGravadas = GoodsTotal(taxed: true),
-            totalMercanciasExentas = GoodsTotal(taxed: false),
+            totalServiciosGravados = ServiceTotal(line => line.TaxRate > 0),
+            totalServiciosExentos = ServiceTotal(IsExempt),
+            totalServiciosNoSujetos = ServiceTotal(IsNotSubject),
+            totalMercanciasGravadas = GoodsTotal(line => line.TaxRate > 0),
+            totalMercanciasExentas = GoodsTotal(IsExempt),
+            totalMercanciasNoSujetas = GoodsTotal(IsNotSubject),
             totalDescuentos = invoice.Lines.Sum(line => line.DiscountAmount),
             ventaNeta = invoice.Lines.Sum(line => line.NetAmount),
             ivaPorTarifa = invoice.Lines

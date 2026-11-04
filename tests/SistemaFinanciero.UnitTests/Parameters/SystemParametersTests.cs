@@ -171,7 +171,7 @@ public sealed class SystemParametersTests
 
         parameters.UpdateCompany(
             "Soporte Experto", "3-101-123456", "San José, Costa Rica", "2222-2222", "info@soportexperto.cr",
-            "620301", changedAtUtc, EditorId);
+            "620301", "Soporte Experto CR", "1", "01", "02", changedAtUtc, EditorId);
 
         Assert.Equal("Soporte Experto", parameters.CompanyName);
         Assert.Equal("3-101-123456", parameters.CompanyLegalId);
@@ -179,6 +179,10 @@ public sealed class SystemParametersTests
         Assert.Equal("2222-2222", parameters.CompanyPhone);
         Assert.Equal("info@soportexperto.cr", parameters.CompanyEmail);
         Assert.Equal("620301", parameters.CompanyActivityCode);
+        Assert.Equal("Soporte Experto CR", parameters.CompanyTradeName);
+        Assert.Equal("1", parameters.CompanyProvinceCode);
+        Assert.Equal("01", parameters.CompanyCantonCode);
+        Assert.Equal("02", parameters.CompanyDistrictCode);
         Assert.Equal(changedAtUtc, parameters.UpdatedAtUtc);
         Assert.Equal(EditorId, parameters.UpdatedByUserId);
     }
@@ -189,12 +193,47 @@ public sealed class SystemParametersTests
         SystemParameters parameters = CreateParameters(500_000m, 7);
 
         parameters.UpdateCompany(
-            "Soporte Experto", "3-101-123456", null, null, null, null, CreatedAtUtc.AddMinutes(5), EditorId);
+            "Soporte Experto", "3-101-123456", null, null, null, null, null, null, null, null, CreatedAtUtc.AddMinutes(5), EditorId);
 
         Assert.Null(parameters.CompanyAddress);
         Assert.Null(parameters.CompanyPhone);
         Assert.Null(parameters.CompanyEmail);
         Assert.Null(parameters.CompanyActivityCode);
+        Assert.Null(parameters.CompanyTradeName);
+        Assert.Null(parameters.CompanyProvinceCode);
+        Assert.Null(parameters.CompanyCantonCode);
+        Assert.Null(parameters.CompanyDistrictCode);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("8")]
+    [InlineData("9")]
+    public void UpdateCompany_RejectsAProvinceCodeOutsideOneToSeven(string provinceCode)
+    {
+        SystemParameters parameters = CreateParameters(500_000m, 7);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            parameters.UpdateCompany(
+                "Soporte Experto", "3-101-123456", null, null, null, null, null, provinceCode, null, null,
+                CreatedAtUtc.AddMinutes(5), EditorId));
+    }
+
+    [Theory]
+    [InlineData("1")]
+    [InlineData("123")]
+    public void UpdateCompany_RejectsACantonOrDistrictCodeWithTheWrongLength(string invalidCode)
+    {
+        SystemParameters parameters = CreateParameters(500_000m, 7);
+
+        Assert.Throws<ArgumentException>(() =>
+            parameters.UpdateCompany(
+                "Soporte Experto", "3-101-123456", null, null, null, null, null, null, invalidCode, null,
+                CreatedAtUtc.AddMinutes(5), EditorId));
+        Assert.Throws<ArgumentException>(() =>
+            parameters.UpdateCompany(
+                "Soporte Experto", "3-101-123456", null, null, null, null, null, null, null, invalidCode,
+                CreatedAtUtc.AddMinutes(5), EditorId));
     }
 
     [Theory]
@@ -206,7 +245,9 @@ public sealed class SystemParametersTests
         SystemParameters parameters = CreateParameters(500_000m, 7);
 
         Assert.Throws<ArgumentException>(() =>
-            parameters.UpdateCompany(name!, "3-101-123456", null, null, null, null, CreatedAtUtc.AddMinutes(5), EditorId));
+            parameters.UpdateCompany(
+                name!, "3-101-123456", null, null, null, null, null, null, null, null,
+                CreatedAtUtc.AddMinutes(5), EditorId));
     }
 
     [Theory]
@@ -217,7 +258,9 @@ public sealed class SystemParametersTests
         SystemParameters parameters = CreateParameters(500_000m, 7);
 
         Assert.Throws<ArgumentException>(() =>
-            parameters.UpdateCompany("Soporte Experto", legalId!, null, null, null, null, CreatedAtUtc.AddMinutes(5), EditorId));
+            parameters.UpdateCompany(
+                "Soporte Experto", legalId!, null, null, null, null, null, null, null, null,
+                CreatedAtUtc.AddMinutes(5), EditorId));
     }
 
     private static SystemParameters CreateParameters(decimal authorizationLimitCrc, int overdueAlertDays) =>

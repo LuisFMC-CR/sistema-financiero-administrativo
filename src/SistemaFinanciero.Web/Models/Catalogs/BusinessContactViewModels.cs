@@ -95,6 +95,10 @@ public class CustomerInputViewModel : BusinessContactInputViewModel
 
     [Display(Name = "Retiene 2 % (sector público)")]
     public bool AppliesStateWithholding { get; set; }
+
+    [StringLength(10, ErrorMessage = "El código de actividad económica no puede superar 10 caracteres.")]
+    [Display(Name = "Código de actividad económica")]
+    public string? ActivityCode { get; set; }
 }
 
 /// <summary>Entrada para editar un cliente con control de concurrencia. El código se muestra fijo.</summary>

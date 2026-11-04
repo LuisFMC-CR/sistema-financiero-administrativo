@@ -447,6 +447,10 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("ActivityCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
                     b.Property<string>("Address")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -1621,6 +1625,14 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
+                    b.Property<string>("CompanyCantonCode")
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
+
+                    b.Property<string>("CompanyDistrictCode")
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
+
                     b.Property<string>("CompanyEmail")
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
@@ -1639,6 +1651,14 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
 
+                    b.Property<string>("CompanyProvinceCode")
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
+                    b.Property<string>("CompanyTradeName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ChangedAtUtc")
@@ -1646,7 +1666,14 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ChangedByUserId");
 
-                    b.ToTable("ParametrosEmpresaHistorial", "finanzas");
+                    b.ToTable("ParametrosEmpresaHistorial", "finanzas", t =>
+                        {
+                            t.HasCheckConstraint("CK_ParametrosEmpresaHistorial_CompanyCantonCode", "[CompanyCantonCode] IS NULL OR LEN([CompanyCantonCode]) = 2");
+
+                            t.HasCheckConstraint("CK_ParametrosEmpresaHistorial_CompanyDistrictCode", "[CompanyDistrictCode] IS NULL OR LEN([CompanyDistrictCode]) = 2");
+
+                            t.HasCheckConstraint("CK_ParametrosEmpresaHistorial_CompanyProvinceCode", "[CompanyProvinceCode] IS NULL OR LEN([CompanyProvinceCode]) = 1");
+                        });
                 });
 
             modelBuilder.Entity("SistemaFinanciero.Domain.Parameters.SystemParameterChange", b =>
@@ -1714,6 +1741,14 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
+                    b.Property<string>("CompanyCantonCode")
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
+
+                    b.Property<string>("CompanyDistrictCode")
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
+
                     b.Property<string>("CompanyEmail")
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
@@ -1729,6 +1764,14 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                     b.Property<string>("CompanyPhone")
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("CompanyProvinceCode")
+                        .HasMaxLength(1)
+                        .HasColumnType("nvarchar(1)");
+
+                    b.Property<string>("CompanyTradeName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("datetimeoffset");
@@ -1760,6 +1803,12 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                     b.ToTable("ParametrosSistema", "finanzas", t =>
                         {
                             t.HasCheckConstraint("CK_ParametrosSistema_AuthorizationLimit", "[AuthorizationLimitCrc] >= 0");
+
+                            t.HasCheckConstraint("CK_ParametrosSistema_CompanyCantonCode", "[CompanyCantonCode] IS NULL OR LEN([CompanyCantonCode]) = 2");
+
+                            t.HasCheckConstraint("CK_ParametrosSistema_CompanyDistrictCode", "[CompanyDistrictCode] IS NULL OR LEN([CompanyDistrictCode]) = 2");
+
+                            t.HasCheckConstraint("CK_ParametrosSistema_CompanyProvinceCode", "[CompanyProvinceCode] IS NULL OR LEN([CompanyProvinceCode]) = 1");
 
                             t.HasCheckConstraint("CK_ParametrosSistema_OverdueAlertDays", "[OverdueAlertDays] > 0");
                         });

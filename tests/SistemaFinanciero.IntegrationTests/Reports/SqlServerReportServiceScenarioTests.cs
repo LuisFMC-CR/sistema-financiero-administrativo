@@ -753,6 +753,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             null,
             VatCondition.Normal,
             appliesStateWithholding,
+            null,
             DateTimeOffset.UtcNow,
             actorId);
         context.Customers.Add(customer);

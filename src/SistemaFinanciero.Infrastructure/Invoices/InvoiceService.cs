@@ -155,6 +155,7 @@ internal sealed class InvoiceService(
             customer?.Email,
             customer?.Phone,
             customer?.VatCondition ?? VatCondition.Normal,
+            customer?.ActivityCode,
             categoryName,
             userNames.GetValueOrDefault(invoice.CreatedByUserId, "—"),
             catalogItemInfo,
@@ -1100,7 +1101,8 @@ internal sealed class InvoiceService(
         string Identification,
         string? Email,
         string? Phone,
-        VatCondition VatCondition);
+        VatCondition VatCondition,
+        string? ActivityCode);
 
     private async Task<CustomerContact?> GetCustomerContactAsync(
         Guid customerId,
@@ -1115,7 +1117,8 @@ internal sealed class InvoiceService(
                 customer.Identification,
                 customer.Email,
                 customer.Phone,
-                customer.VatCondition))
+                customer.VatCondition,
+                customer.ActivityCode))
             .Take(1)
             .ToArrayAsync(cancellationToken);
 
@@ -1186,6 +1189,7 @@ internal sealed class InvoiceService(
         string? customerEmail,
         string? customerPhone,
         VatCondition customerVatCondition,
+        string? customerActivityCode,
         string categoryName,
         string createdByUserName,
         IReadOnlyDictionary<Guid, CatalogItemInfo> catalogItemInfo,
@@ -1201,6 +1205,7 @@ internal sealed class InvoiceService(
             customerEmail,
             customerPhone,
             customerVatCondition,
+            customerActivityCode,
             invoice.IncomeCategoryId,
             categoryName,
             invoice.IssueDate,

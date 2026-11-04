@@ -29,6 +29,10 @@ public sealed class CompanyDataChange
         string? companyPhone,
         string? companyEmail,
         string? companyActivityCode,
+        string? companyTradeName,
+        string? companyProvinceCode,
+        string? companyCantonCode,
+        string? companyDistrictCode,
         DateTimeOffset changedAtUtc,
         Guid changedByUserId)
     {
@@ -44,6 +48,14 @@ public sealed class CompanyDataChange
             companyEmail, SystemParameters.CompanyEmailMaxLength, nameof(companyEmail));
         CompanyActivityCode = DomainRules.OptionalText(
             companyActivityCode, SystemParameters.CompanyActivityCodeMaxLength, nameof(companyActivityCode));
+        CompanyTradeName = DomainRules.OptionalText(
+            companyTradeName, SystemParameters.CompanyTradeNameMaxLength, nameof(companyTradeName));
+        CompanyProvinceCode = DomainRules.OptionalDigits(
+            companyProvinceCode, SystemParameters.CompanyProvinceCodeLength, nameof(companyProvinceCode));
+        CompanyCantonCode = DomainRules.OptionalDigits(
+            companyCantonCode, SystemParameters.CompanyCantonCodeLength, nameof(companyCantonCode));
+        CompanyDistrictCode = DomainRules.OptionalDigits(
+            companyDistrictCode, SystemParameters.CompanyDistrictCodeLength, nameof(companyDistrictCode));
         ChangedAtUtc = DomainRules.RequiredUtcTimestamp(changedAtUtc, nameof(changedAtUtc));
         ChangedByUserId = DomainRules.RequiredId(changedByUserId, nameof(changedByUserId));
     }
@@ -68,6 +80,18 @@ public sealed class CompanyDataChange
 
     /// <summary>Obtiene el código de actividad económica vigente desde este cambio.</summary>
     public string? CompanyActivityCode { get; private set; }
+
+    /// <summary>Obtiene el nombre comercial vigente desde este cambio.</summary>
+    public string? CompanyTradeName { get; private set; }
+
+    /// <summary>Obtiene el código de provincia vigente desde este cambio.</summary>
+    public string? CompanyProvinceCode { get; private set; }
+
+    /// <summary>Obtiene el código de cantón vigente desde este cambio.</summary>
+    public string? CompanyCantonCode { get; private set; }
+
+    /// <summary>Obtiene el código de distrito vigente desde este cambio.</summary>
+    public string? CompanyDistrictCode { get; private set; }
 
     /// <summary>Obtiene el instante UTC del cambio.</summary>
     public DateTimeOffset ChangedAtUtc { get; private set; }

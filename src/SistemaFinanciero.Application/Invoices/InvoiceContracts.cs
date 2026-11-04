@@ -156,6 +156,7 @@ public sealed record InvoiceModel(
     string? CustomerEmail,
     string? CustomerPhone,
     VatCondition CustomerVatCondition,
+    string? CustomerActivityCode,
     Guid IncomeCategoryId,
     string IncomeCategoryName,
     DateOnly IssueDate,

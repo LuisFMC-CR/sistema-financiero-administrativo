@@ -68,7 +68,7 @@ public sealed class CompanyDataViewModel
     public string LegalId { get; set; } = string.Empty;
 
     [StringLength(300, ErrorMessage = "La dirección no puede superar 300 caracteres.")]
-    [Display(Name = "Dirección")]
+    [Display(Name = "Otras señas")]
     public string? Address { get; set; }
 
     [StringLength(30, ErrorMessage = "El teléfono no puede superar 30 caracteres.")]
@@ -83,6 +83,23 @@ public sealed class CompanyDataViewModel
     [StringLength(10, ErrorMessage = "El código de actividad económica no puede superar 10 caracteres.")]
     [Display(Name = "Código de actividad económica")]
     public string? ActivityCode { get; set; }
+
+    [StringLength(100, ErrorMessage = "El nombre comercial no puede superar 100 caracteres.")]
+    [Display(Name = "Nombre comercial")]
+    public string? TradeName { get; set; }
+
+    [Display(Name = "Provincia")]
+    public string? ProvinceCode { get; set; }
+
+    [StringLength(2, ErrorMessage = "El código de cantón debe tener exactamente 2 dígitos.")]
+    [RegularExpression(@"^\d{2}$", ErrorMessage = "El código de cantón debe tener exactamente 2 dígitos.")]
+    [Display(Name = "Cantón")]
+    public string? CantonCode { get; set; }
+
+    [StringLength(2, ErrorMessage = "El código de distrito debe tener exactamente 2 dígitos.")]
+    [RegularExpression(@"^\d{2}$", ErrorMessage = "El código de distrito debe tener exactamente 2 dígitos.")]
+    [Display(Name = "Distrito")]
+    public string? DistrictCode { get; set; }
 
     [Required(ErrorMessage = "No fue posible validar la versión del registro.")]
     public string Version { get; set; } = string.Empty;

@@ -166,7 +166,8 @@ public sealed class CustomersController(ICustomerCatalogService service) : Catal
             model.Address,
             model.CreditLimit,
             model.VatCondition,
-            model.AppliesStateWithholding);
+            model.AppliesStateWithholding,
+            model.ActivityCode);
     }
 
     private static CustomerEditViewModel ToEditModel(CustomerModel customer)
@@ -183,6 +184,7 @@ public sealed class CustomersController(ICustomerCatalogService service) : Catal
             CreditLimit = customer.CreditLimit,
             VatCondition = customer.VatCondition,
             AppliesStateWithholding = customer.AppliesStateWithholding,
+            ActivityCode = customer.ActivityCode,
             Version = customer.Version,
         };
     }

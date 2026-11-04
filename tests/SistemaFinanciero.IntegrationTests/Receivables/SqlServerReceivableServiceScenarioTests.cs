@@ -60,6 +60,39 @@ public sealed class SqlServerReceivableServiceScenarioTests : IClassFixture<Fina
         });
     }
 
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task GetAsync_ExposesTheInvoiceElectronicKeyOnceRegistered()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IReceivableService receivables = services.GetRequiredService<IReceivableService>();
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            Guid customerId = await CreateCustomerAsync(services, actorId);
+            Guid taxTypeId = await CreateTaxTypeAsync(services, actorId);
+            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+            Guid receivableId = await CreateConfirmedCreditReceivableAsync(
+                services, invoices, customerId, taxTypeId, incomeCategoryId, actorId, today, 500m);
+
+            ReceivableModel beforeRegistering = (await receivables.GetAsync(receivableId))!;
+            Assert.Null(beforeRegistering.InvoiceElectronicKey);
+
+            InvoiceModel invoice = (await invoices.GetAsync(beforeRegistering.InvoiceId))!;
+            string key = new string('5', 50);
+            string number = new string('1', 20);
+            Assert.True((await invoices.RegisterElectronicInvoiceAsync(
+                beforeRegistering.InvoiceId,
+                new RegisterElectronicInvoiceCommand(key, number),
+                invoice.Version,
+                actorId)).IsSuccess);
+
+            ReceivableModel afterRegistering = (await receivables.GetAsync(receivableId))!;
+            Assert.Equal(key, afterRegistering.InvoiceElectronicKey);
+        });
+    }
+
     private static async Task<Guid> CreateConfirmedCreditReceivableAsync(
         IServiceProvider services,
         IInvoiceService invoices,
@@ -129,6 +162,7 @@ public sealed class SqlServerReceivableServiceScenarioTests : IClassFixture<Fina
             null,
             VatCondition.Normal,
             false,
+            null,
             DateTimeOffset.UtcNow,
             actorId);
         context.Customers.Add(customer);

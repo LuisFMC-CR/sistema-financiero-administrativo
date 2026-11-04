@@ -497,6 +497,7 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
             null,
             VatCondition.Normal,
             appliesStateWithholding,
+            null,
             DateTimeOffset.UtcNow,
             actorId);
         context.Customers.Add(customer);

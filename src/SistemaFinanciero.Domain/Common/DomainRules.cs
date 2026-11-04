@@ -118,6 +118,15 @@ internal static class DomainRules
     }
 
     /// <summary>
+    /// Igual que <see cref="RequiredDigits"/>, pero admite un valor nulo o en blanco (bloque 2 del
+    /// paquete v7: cantón y distrito de la empresa, opcionales mientras no se conozcan).
+    /// </summary>
+    public static string? OptionalDigits(string? value, int length, string parameterName)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : RequiredDigits(value, length, parameterName);
+    }
+
+    /// <summary>
     /// Exige un texto compuesto únicamente por dígitos, con una longitud entre
     /// <paramref name="minLength"/> y <paramref name="maxLength"/> (DIMEX: 11 o 12 dígitos, bloque 3
     /// del paquete de mejoras finales).

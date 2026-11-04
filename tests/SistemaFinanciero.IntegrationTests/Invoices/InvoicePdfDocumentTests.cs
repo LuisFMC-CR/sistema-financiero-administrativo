@@ -25,6 +25,7 @@ public sealed class InvoicePdfDocumentTests
     private static readonly SystemParametersModel SampleCompanyData = new(
         500_000m, 7, DateOnly.MinValue,
         "Soporte Experto", "3-101-123456", "San José, Costa Rica", "2222-2222", "info@soportexperto.cr", "620301",
+        "Soporte Experto CR", "1", "01", "02",
         DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "v1");
 
     private static readonly InvoiceLineModel SampleLine = new(
@@ -38,6 +39,7 @@ public sealed class InvoicePdfDocumentTests
             Guid.NewGuid(), 42, Guid.NewGuid(), "Cliente de prueba",
             IdentificationType.LegalEntity, "3-101-999999", "cliente@example.test", "8888-8888",
             VatCondition.Normal,
+            null,
             Guid.NewGuid(), "Categoría de prueba",
             new DateOnly(2026, 1, 10), PaymentTerm.Cash, null, InvoiceStatus.Confirmed,
             1000m, 0m, 1000m, 130m, 1130m,
@@ -58,6 +60,7 @@ public sealed class InvoicePdfDocumentTests
             Guid.NewGuid(), 43, Guid.NewGuid(), "Cliente de prueba",
             IdentificationType.LegalEntity, "3-101-999999", "cliente@example.test", "8888-8888",
             VatCondition.Normal,
+            null,
             Guid.NewGuid(), "Categoría de prueba",
             new DateOnly(2026, 1, 10), PaymentTerm.Credit30, new DateOnly(2026, 2, 9), InvoiceStatus.Confirmed,
             1000m, 0m, 1000m, 130m, 1130m,
@@ -78,6 +81,7 @@ public sealed class InvoicePdfDocumentTests
             Guid.NewGuid(), 44, Guid.NewGuid(), "Cliente de prueba",
             IdentificationType.LegalEntity, "3-101-999999", "cliente@example.test", "8888-8888",
             VatCondition.Normal,
+            null,
             Guid.NewGuid(), "Categoría de prueba",
             new DateOnly(2026, 1, 10), PaymentTerm.Credit30, new DateOnly(2026, 2, 9), InvoiceStatus.Cancelled,
             1000m, 0m, 1000m, 130m, 1130m,
@@ -98,6 +102,7 @@ public sealed class InvoicePdfDocumentTests
             Guid.NewGuid(), 45, Guid.NewGuid(), "Cliente de prueba",
             IdentificationType.LegalEntity, "3-101-999999", "cliente@example.test", "8888-8888",
             VatCondition.Normal,
+            null,
             Guid.NewGuid(), "Categoría de prueba",
             new DateOnly(2026, 1, 10), PaymentTerm.Credit30, new DateOnly(2026, 2, 9), InvoiceStatus.Confirmed,
             1000m, 0m, 1000m, 130m, 1130m,
@@ -121,6 +126,7 @@ public sealed class InvoicePdfDocumentTests
             Guid.NewGuid(), 46, Guid.NewGuid(), "Cliente de prueba",
             IdentificationType.LegalEntity, "3-101-999999", null, null,
             VatCondition.Normal,
+            null,
             Guid.NewGuid(), "Categoría de prueba",
             new DateOnly(2026, 1, 10), PaymentTerm.Cash, null, InvoiceStatus.Confirmed,
             1000m, 0m, 1000m, 130m, 1130m,

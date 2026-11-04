@@ -36,6 +36,12 @@ public sealed class Customer
     /// <summary>Longitud máxima de la dirección.</summary>
     public const int AddressMaxLength = 500;
 
+    /// <summary>
+    /// Longitud máxima del código de actividad económica (bloque 2 del paquete v7), usado para
+    /// preparar la exportación de datos de la factura (RF-88).
+    /// </summary>
+    public const int ActivityCodeMaxLength = 10;
+
     private Customer()
     {
     }
@@ -55,6 +61,7 @@ public sealed class Customer
         decimal? creditLimit,
         VatCondition vatCondition,
         bool appliesStateWithholding,
+        string? activityCode,
         DateTimeOffset createdAtUtc,
         Guid createdByUserId)
     {
@@ -73,6 +80,7 @@ public sealed class Customer
         CreditLimit = RequireNonNegativeLimit(creditLimit, nameof(creditLimit));
         VatCondition = DomainRules.DefinedEnum(vatCondition, nameof(vatCondition));
         AppliesStateWithholding = appliesStateWithholding;
+        ActivityCode = DomainRules.OptionalText(activityCode, ActivityCodeMaxLength, nameof(activityCode));
         CreatedAtUtc = DomainRules.RequiredUtcTimestamp(createdAtUtc, nameof(createdAtUtc));
         CreatedByUserId = DomainRules.RequiredId(createdByUserId, nameof(createdByUserId));
         UpdatedAtUtc = CreatedAtUtc;
@@ -126,6 +134,13 @@ public sealed class Customer
     /// </summary>
     public bool AppliesStateWithholding { get; private set; }
 
+    /// <summary>
+    /// Obtiene el código de actividad económica del cliente (bloque 2 del paquete v7), usado para
+    /// preparar la exportación de datos de la factura (RF-88). Algunos clientes institucionales lo
+    /// exigen (p. ej. la UCR, código 8530.1).
+    /// </summary>
+    public string? ActivityCode { get; private set; }
+
     /// <summary>Indica si puede seleccionarse para nuevas operaciones.</summary>
     public bool IsActive { get; private set; }
 
@@ -157,6 +172,7 @@ public sealed class Customer
         decimal? creditLimit,
         VatCondition vatCondition,
         bool appliesStateWithholding,
+        string? activityCode,
         DateTimeOffset updatedAtUtc,
         Guid updatedByUserId)
     {
@@ -174,6 +190,7 @@ public sealed class Customer
         string? normalizedAddress = DomainRules.OptionalText(address, AddressMaxLength, nameof(address));
         decimal? normalizedCreditLimit = RequireNonNegativeLimit(creditLimit, nameof(creditLimit));
         VatCondition normalizedVatCondition = DomainRules.DefinedEnum(vatCondition, nameof(vatCondition));
+        string? normalizedActivityCode = DomainRules.OptionalText(activityCode, ActivityCodeMaxLength, nameof(activityCode));
         DateTimeOffset normalizedUpdatedAtUtc = ValidateUpdateAudit(updatedAtUtc, updatedByUserId);
 
         Name = normalizedName;
@@ -185,6 +202,7 @@ public sealed class Customer
         CreditLimit = normalizedCreditLimit;
         VatCondition = normalizedVatCondition;
         AppliesStateWithholding = appliesStateWithholding;
+        ActivityCode = normalizedActivityCode;
         Touch(normalizedUpdatedAtUtc, updatedByUserId);
     }
 

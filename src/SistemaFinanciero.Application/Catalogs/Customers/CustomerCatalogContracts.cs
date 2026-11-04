@@ -15,7 +15,8 @@ public sealed record SaveCustomerCommand(
     string? Address,
     decimal? CreditLimit,
     VatCondition VatCondition,
-    bool AppliesStateWithholding);
+    bool AppliesStateWithholding,
+    string? ActivityCode);
 
 /// <summary>Opción activa para el selector de cliente al crear una factura.</summary>
 public sealed record CustomerOption(Guid Id, string Code, string Name, string Identification);
@@ -33,6 +34,7 @@ public sealed record CustomerModel(
     decimal? CreditLimit,
     VatCondition VatCondition,
     bool AppliesStateWithholding,
+    string? ActivityCode,
     bool IsActive,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc,

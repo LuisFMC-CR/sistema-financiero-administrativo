@@ -195,7 +195,7 @@ internal sealed class ReceivableService(
             .Where(invoice => ids.Contains(invoice.Id))
             .ToDictionaryAsync(
                 invoice => invoice.Id,
-                invoice => new InvoiceInfo(invoice.Number, invoice.NetAmount),
+                invoice => new InvoiceInfo(invoice.Number, invoice.ElectronicInvoiceKey, invoice.NetAmount),
                 cancellationToken);
     }
 
@@ -222,6 +222,7 @@ internal sealed class ReceivableService(
             receivable.Id,
             receivable.InvoiceId,
             invoiceInfo.Number,
+            invoiceInfo.ElectronicInvoiceKey,
             invoiceInfo.NetAmount,
             receivable.CustomerId,
             customerName,
@@ -233,5 +234,5 @@ internal sealed class ReceivableService(
             CatalogPersistence.EncodeVersion(receivable.RowVersion));
     }
 
-    private readonly record struct InvoiceInfo(long? Number, decimal NetAmount);
+    private readonly record struct InvoiceInfo(long? Number, string? ElectronicInvoiceKey, decimal NetAmount);
 }

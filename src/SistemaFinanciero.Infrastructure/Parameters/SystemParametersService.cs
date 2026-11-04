@@ -218,6 +218,10 @@ internal sealed class SystemParametersService(
                 command.Phone,
                 command.Email,
                 command.ActivityCode,
+                command.TradeName,
+                command.ProvinceCode,
+                command.CantonCode,
+                command.DistrictCode,
                 now,
                 actorId);
 
@@ -229,6 +233,10 @@ internal sealed class SystemParametersService(
                 parameters.CompanyPhone,
                 parameters.CompanyEmail,
                 parameters.CompanyActivityCode,
+                parameters.CompanyTradeName,
+                parameters.CompanyProvinceCode,
+                parameters.CompanyCantonCode,
+                parameters.CompanyDistrictCode,
                 now,
                 actorId));
 
@@ -256,6 +264,10 @@ internal sealed class SystemParametersService(
             parameters.CompanyPhone,
             parameters.CompanyEmail,
             parameters.CompanyActivityCode,
+            parameters.CompanyTradeName,
+            parameters.CompanyProvinceCode,
+            parameters.CompanyCantonCode,
+            parameters.CompanyDistrictCode,
             parameters.CreatedAtUtc,
             parameters.UpdatedAtUtc,
             updatedByUserName,

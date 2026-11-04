@@ -107,6 +107,7 @@ internal sealed class CustomerCatalogService(
                 command.CreditLimit,
                 command.VatCondition,
                 command.AppliesStateWithholding,
+                command.ActivityCode,
                 timeProvider.GetUtcNow(),
                 actorId);
 
@@ -158,6 +159,7 @@ internal sealed class CustomerCatalogService(
                 command.CreditLimit,
                 command.VatCondition,
                 command.AppliesStateWithholding,
+                command.ActivityCode,
                 timeProvider.GetUtcNow(),
                 actorId);
 
@@ -239,6 +241,7 @@ internal sealed class CustomerCatalogService(
             customer.CreditLimit,
             customer.VatCondition,
             customer.AppliesStateWithholding,
+            customer.ActivityCode,
             customer.IsActive,
             customer.CreatedAtUtc,
             customer.UpdatedAtUtc,

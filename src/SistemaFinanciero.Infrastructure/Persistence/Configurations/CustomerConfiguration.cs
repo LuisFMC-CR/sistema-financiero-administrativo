@@ -59,6 +59,8 @@ internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.Property(customer => customer.AppliesStateWithholding)
             .HasDefaultValue(false)
             .IsRequired();
+        builder.Property(customer => customer.ActivityCode)
+            .HasMaxLength(Customer.ActivityCodeMaxLength);
         builder.Property(customer => customer.IsActive)
             .HasDefaultValue(true);
         builder.Property(customer => customer.CreatedAtUtc).IsRequired();

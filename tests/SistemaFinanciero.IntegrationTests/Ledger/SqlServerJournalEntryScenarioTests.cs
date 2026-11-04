@@ -770,6 +770,7 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
             null,
             VatCondition.Normal,
             appliesStateWithholding,
+            null,
             DateTimeOffset.UtcNow,
             actorId);
         context.Customers.Add(customer);

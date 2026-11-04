@@ -1039,6 +1039,7 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
             creditLimit,
             vatCondition,
             appliesStateWithholding,
+            null,
             DateTimeOffset.UtcNow,
             actorId);
         context.Customers.Add(customer);

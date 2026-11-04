@@ -227,7 +227,9 @@ public sealed class SqlServerSystemParametersScenarioTests : IClassFixture<Finan
             Assert.Null(created.CompanyName);
 
             CatalogOperationResult first = await parameters.UpdateCompanyAsync(
-                new SaveCompanyDataCommand("Soporte Experto", "3-101-123456", "San José", "2222-2222", "info@soportexperto.cr", "620301"),
+                new SaveCompanyDataCommand(
+                    "Soporte Experto", "3-101-123456", "San José", "2222-2222", "info@soportexperto.cr",
+                    "620301", "Soporte Experto CR", "1", "01", "02"),
                 created.Version,
                 actorId);
             Assert.True(first.IsSuccess);
@@ -236,9 +238,13 @@ public sealed class SqlServerSystemParametersScenarioTests : IClassFixture<Finan
             Assert.Equal("Soporte Experto", current.CompanyName);
             Assert.Equal("3-101-123456", current.CompanyLegalId);
             Assert.Equal("San José", current.CompanyAddress);
+            Assert.Equal("Soporte Experto CR", current.CompanyTradeName);
+            Assert.Equal("1", current.CompanyProvinceCode);
+            Assert.Equal("01", current.CompanyCantonCode);
+            Assert.Equal("02", current.CompanyDistrictCode);
 
             CatalogOperationResult second = await parameters.UpdateCompanyAsync(
-                new SaveCompanyDataCommand("Soporte Experto S.A.", "3-101-123456", null, null, null, null),
+                new SaveCompanyDataCommand("Soporte Experto S.A.", "3-101-123456", null, null, null, null, null, null, null, null),
                 current.Version,
                 actorId);
             Assert.True(second.IsSuccess);
@@ -250,8 +256,10 @@ public sealed class SqlServerSystemParametersScenarioTests : IClassFixture<Finan
 
             Assert.Equal(2, history.Count);
             Assert.Equal("Soporte Experto", history[0].CompanyName);
+            Assert.Equal("1", history[0].CompanyProvinceCode);
             Assert.Equal("Soporte Experto S.A.", history[1].CompanyName);
             Assert.Null(history[1].CompanyAddress);
+            Assert.Null(history[1].CompanyProvinceCode);
         });
     }
 
@@ -266,7 +274,27 @@ public sealed class SqlServerSystemParametersScenarioTests : IClassFixture<Finan
             SystemParametersModel created = (await parameters.GetAsync())!;
 
             CatalogOperationResult result = await parameters.UpdateCompanyAsync(
-                new SaveCompanyDataCommand("Soporte Experto", "", null, null, null, null),
+                new SaveCompanyDataCommand("Soporte Experto", "", null, null, null, null, null, null, null, null),
+                created.Version,
+                actorId);
+
+            Assert.Equal(CatalogOperationStatus.Invalid, result.Status);
+            _ = context;
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task UpdateCompanyAsync_RejectsAProvinceCodeOutsideTheRealRange()
+    {
+        return RunInRollbackTransactionAsync(async (context, services, actorId) =>
+        {
+            ISystemParametersService parameters = services.GetRequiredService<ISystemParametersService>();
+            await parameters.CreateAsync(new SaveSystemParametersCommand(500_000m, 7), actorId);
+            SystemParametersModel created = (await parameters.GetAsync())!;
+
+            CatalogOperationResult result = await parameters.UpdateCompanyAsync(
+                new SaveCompanyDataCommand("Soporte Experto", "3-101-123456", null, null, null, null, null, "9", null, null),
                 created.Version,
                 actorId);
 

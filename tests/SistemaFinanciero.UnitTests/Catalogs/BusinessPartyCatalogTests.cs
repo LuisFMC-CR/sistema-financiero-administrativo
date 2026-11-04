@@ -27,6 +27,7 @@ public sealed class BusinessPartyCatalogTests
             500000.005m,
             VatCondition.Normal,
             false,
+            "8530.1",
             CreatedAtUtc,
             CreatorId);
 
@@ -41,6 +42,7 @@ public sealed class BusinessPartyCatalogTests
         Assert.Equal(500000.01m, customer.CreditLimit);
         Assert.Equal(VatCondition.Normal, customer.VatCondition);
         Assert.False(customer.AppliesStateWithholding);
+        Assert.Equal("8530.1", customer.ActivityCode);
         Assert.True(customer.IsActive);
         Assert.Equal(CreatedAtUtc, customer.CreatedAtUtc);
         Assert.Equal(CreatedAtUtc, customer.UpdatedAtUtc);
@@ -72,6 +74,7 @@ public sealed class BusinessPartyCatalogTests
             null,
             VatCondition.Normal,
             false,
+            null,
             CreatedAtUtc,
             CreatorId));
     }
@@ -91,6 +94,7 @@ public sealed class BusinessPartyCatalogTests
             null,
             VatCondition.Normal,
             false,
+            null,
             CreatedAtUtc,
             CreatorId);
 
@@ -112,6 +116,7 @@ public sealed class BusinessPartyCatalogTests
             -1m,
             VatCondition.Normal,
             false,
+            null,
             CreatedAtUtc,
             CreatorId));
     }
@@ -132,6 +137,7 @@ public sealed class BusinessPartyCatalogTests
             0m,
             VatCondition.Normal,
             false,
+            null,
             changedAtUtc,
             EditorId);
 
@@ -147,6 +153,7 @@ public sealed class BusinessPartyCatalogTests
             null,
             VatCondition.Normal,
             false,
+            null,
             changedAtUtc.AddMinutes(1),
             EditorId);
 
@@ -168,6 +175,7 @@ public sealed class BusinessPartyCatalogTests
             null,
             (VatCondition)99,
             false,
+            null,
             CreatedAtUtc,
             CreatorId));
     }
@@ -188,6 +196,7 @@ public sealed class BusinessPartyCatalogTests
             null,
             VatCondition.StateHigherEducationInstitution,
             true,
+            null,
             changedAtUtc,
             EditorId);
 
@@ -256,6 +265,7 @@ public sealed class BusinessPartyCatalogTests
             null,
             VatCondition.Normal,
             false,
+            null,
             CreatedAtUtc.AddSeconds(-1),
             EditorId));
 
@@ -296,6 +306,7 @@ public sealed class BusinessPartyCatalogTests
             null,
             VatCondition.Normal,
             false,
+            null,
             CreatedAtUtc,
             CreatorId);
     }

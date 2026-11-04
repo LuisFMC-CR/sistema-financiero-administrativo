@@ -45,6 +45,24 @@ public sealed class SystemParameters
     /// <summary>Longitud máxima del código de actividad económica (bloque 3).</summary>
     public const int CompanyActivityCodeMaxLength = 10;
 
+    /// <summary>Longitud máxima del nombre comercial (bloque 2 del paquete v7).</summary>
+    public const int CompanyTradeNameMaxLength = 100;
+
+    /// <summary>Longitud exacta del código de provincia (1 dígito, bloque 2 del paquete v7).</summary>
+    public const int CompanyProvinceCodeLength = 1;
+
+    /// <summary>Longitud exacta del código de cantón (2 dígitos, bloque 2 del paquete v7).</summary>
+    public const int CompanyCantonCodeLength = 2;
+
+    /// <summary>Longitud exacta del código de distrito (2 dígitos, bloque 2 del paquete v7).</summary>
+    public const int CompanyDistrictCodeLength = 2;
+
+    /// <summary>Código de la primera provincia (San José).</summary>
+    private const int MinProvinceCode = 1;
+
+    /// <summary>Código de la última provincia (Limón).</summary>
+    private const int MaxProvinceCode = 7;
+
     /// <summary>Identificador fijo de la única fila permitida.</summary>
     public static readonly Guid SingletonId = Guid.Parse("00000000-0000-0000-0000-000000000001");
 
@@ -125,9 +143,31 @@ public sealed class SystemParameters
     /// </summary>
     public string? CompanyActivityCode { get; private set; }
 
+    /// <summary>Obtiene el nombre comercial de la empresa, cuando difiere de la razón social.</summary>
+    public string? CompanyTradeName { get; private set; }
+
     /// <summary>
-    /// Actualiza los datos de la empresa (RF-55). Nombre y cédula jurídica son obligatorios; dirección,
-    /// teléfono, correo y actividad económica son opcionales. Solo Gerencia los define.
+    /// Obtiene el código de provincia de la ubicación del emisor (1 a 7), para el formato 4.4 de
+    /// Hacienda (bloque 2 del paquete v7).
+    /// </summary>
+    public string? CompanyProvinceCode { get; private set; }
+
+    /// <summary>
+    /// Obtiene el código de cantón de la ubicación del emisor. Solo valida formato (2 dígitos): no
+    /// existe todavía un catálogo completo de cantones en el sistema.
+    /// </summary>
+    public string? CompanyCantonCode { get; private set; }
+
+    /// <summary>
+    /// Obtiene el código de distrito de la ubicación del emisor. Solo valida formato (2 dígitos): no
+    /// existe todavía un catálogo completo de distritos en el sistema.
+    /// </summary>
+    public string? CompanyDistrictCode { get; private set; }
+
+    /// <summary>
+    /// Actualiza los datos de la empresa (RF-55). Nombre y cédula jurídica son obligatorios; el resto,
+    /// incluida la ubicación codificada del bloque 2 del paquete v7, es opcional. Solo Gerencia los
+    /// define.
     /// </summary>
     public void UpdateCompany(
         string name,
@@ -136,6 +176,10 @@ public sealed class SystemParameters
         string? phone,
         string? email,
         string? activityCode,
+        string? tradeName,
+        string? provinceCode,
+        string? cantonCode,
+        string? districtCode,
         DateTimeOffset updatedAtUtc,
         Guid updatedByUserId)
     {
@@ -148,6 +192,13 @@ public sealed class SystemParameters
             activityCode,
             CompanyActivityCodeMaxLength,
             nameof(activityCode));
+        string? validTradeName = DomainRules.OptionalText(
+            tradeName,
+            CompanyTradeNameMaxLength,
+            nameof(tradeName));
+        string? validProvinceCode = RequireProvinceCode(provinceCode, nameof(provinceCode));
+        string? validCantonCode = DomainRules.OptionalDigits(cantonCode, CompanyCantonCodeLength, nameof(cantonCode));
+        string? validDistrictCode = DomainRules.OptionalDigits(districtCode, CompanyDistrictCodeLength, nameof(districtCode));
         Guid normalizedUserId = DomainRules.RequiredId(updatedByUserId, nameof(updatedByUserId));
         DateTimeOffset normalizedUpdatedAtUtc = DomainRules.RequiredUtcTimestamp(
             updatedAtUtc,
@@ -160,8 +211,38 @@ public sealed class SystemParameters
         CompanyPhone = validPhone;
         CompanyEmail = validEmail;
         CompanyActivityCode = validActivityCode;
+        CompanyTradeName = validTradeName;
+        CompanyProvinceCode = validProvinceCode;
+        CompanyCantonCode = validCantonCode;
+        CompanyDistrictCode = validDistrictCode;
         UpdatedAtUtc = normalizedUpdatedAtUtc;
         UpdatedByUserId = normalizedUserId;
+    }
+
+    /// <summary>
+    /// Valida el código de provincia: formato (1 dígito) y rango real (1 a 7, las siete provincias de
+    /// Costa Rica). Cantón y distrito solo validan formato porque no hay todavía un catálogo completo
+    /// de sus códigos (bloque 2 del paquete v7, pendiente de completar en el ADR).
+    /// </summary>
+    private static string? RequireProvinceCode(string? provinceCode, string parameterName)
+    {
+        string? normalized = DomainRules.OptionalDigits(provinceCode, CompanyProvinceCodeLength, parameterName);
+
+        if (normalized is null)
+        {
+            return null;
+        }
+
+        int code = int.Parse(normalized, System.Globalization.CultureInfo.InvariantCulture);
+        if (code < MinProvinceCode || code > MaxProvinceCode)
+        {
+            throw new ArgumentOutOfRangeException(
+                parameterName,
+                provinceCode,
+                $"El código de provincia debe estar entre {MinProvinceCode} y {MaxProvinceCode}.");
+        }
+
+        return normalized;
     }
 
     /// <summary>

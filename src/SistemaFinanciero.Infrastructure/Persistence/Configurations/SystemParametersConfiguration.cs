@@ -27,6 +27,15 @@ internal sealed class SystemParametersConfiguration : IEntityTypeConfiguration<S
                 table.HasCheckConstraint(
                     "CK_ParametrosSistema_OverdueAlertDays",
                     "[OverdueAlertDays] > 0");
+                table.HasCheckConstraint(
+                    "CK_ParametrosSistema_CompanyProvinceCode",
+                    "[CompanyProvinceCode] IS NULL OR LEN([CompanyProvinceCode]) = 1");
+                table.HasCheckConstraint(
+                    "CK_ParametrosSistema_CompanyCantonCode",
+                    "[CompanyCantonCode] IS NULL OR LEN([CompanyCantonCode]) = 2");
+                table.HasCheckConstraint(
+                    "CK_ParametrosSistema_CompanyDistrictCode",
+                    "[CompanyDistrictCode] IS NULL OR LEN([CompanyDistrictCode]) = 2");
             });
 
         builder.HasKey(parameters => parameters.Id);
@@ -43,6 +52,14 @@ internal sealed class SystemParametersConfiguration : IEntityTypeConfiguration<S
         builder.Property(parameters => parameters.CompanyEmail).HasMaxLength(SystemParameters.CompanyEmailMaxLength);
         builder.Property(parameters => parameters.CompanyActivityCode)
             .HasMaxLength(SystemParameters.CompanyActivityCodeMaxLength);
+        builder.Property(parameters => parameters.CompanyTradeName)
+            .HasMaxLength(SystemParameters.CompanyTradeNameMaxLength);
+        builder.Property(parameters => parameters.CompanyProvinceCode)
+            .HasMaxLength(SystemParameters.CompanyProvinceCodeLength);
+        builder.Property(parameters => parameters.CompanyCantonCode)
+            .HasMaxLength(SystemParameters.CompanyCantonCodeLength);
+        builder.Property(parameters => parameters.CompanyDistrictCode)
+            .HasMaxLength(SystemParameters.CompanyDistrictCodeLength);
         builder.Property(parameters => parameters.CreatedAtUtc).IsRequired();
         builder.Property(parameters => parameters.UpdatedAtUtc).IsRequired();
         builder.Property(parameters => parameters.RowVersion).IsRowVersion();

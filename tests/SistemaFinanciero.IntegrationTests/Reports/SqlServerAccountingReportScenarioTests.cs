@@ -423,6 +423,7 @@ public sealed class SqlServerAccountingReportScenarioTests : IClassFixture<Finan
             null,
             VatCondition.Normal,
             false,
+            null,
             DateTimeOffset.UtcNow,
             actorId);
         context.Customers.Add(customer);

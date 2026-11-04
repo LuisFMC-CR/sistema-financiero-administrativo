@@ -44,7 +44,8 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
                 null,
                 null,
                 VatCondition.Normal,
-                false);
+                false,
+                null);
 
             Assert.True((await customers.CreateAsync(original, actorId)).IsSuccess);
 
@@ -99,7 +100,8 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
                         null,
                         null,
                         VatCondition.Normal,
-                        false),
+                        false,
+                        null),
                     actorId)).IsSuccess);
             }
 

@@ -4,6 +4,19 @@
     ViewData["Title"] = "Parámetros del sistema";
     bool canManage = (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ManageSystemParameters)).Succeeded;
     bool isConfigured = !string.IsNullOrEmpty(Model.Parameters.Version);
+
+    // Las 7 provincias de Costa Rica (bloque 2 del paquete v7): lista fija y cerrada, sin tabla de
+    // catálogo. Cantón y distrito no tienen una lista equivalente todavía (pendiente en el ADR).
+    (string Code, string Name)[] CostaRicaProvinces =
+    [
+        ("1", "San José"),
+        ("2", "Alajuela"),
+        ("3", "Cartago"),
+        ("4", "Heredia"),
+        ("5", "Guanacaste"),
+        ("6", "Puntarenas"),
+        ("7", "Limón"),
+    ];
 }
 
 <div class="mb-3">
@@ -110,8 +123,9 @@ else
         <div class="catalog-form mt-4">
             <h2 class="h5">Datos de la empresa</h2>
             <p class="text-body-secondary small">
-                Aparecen en el encabezado de la factura interna en PDF. Nombre y cédula jurídica son
-                obligatorios; dirección, teléfono y correo son opcionales.
+                Aparecen en el encabezado de la factura interna en PDF y en los datos preparados para el
+                formato 4.4 de Hacienda. Nombre y cédula jurídica son obligatorios; el resto, incluida la
+                ubicación codificada (provincia, cantón y distrito) y las otras señas, es opcional.
             </p>
             <form asp-action="UpdateCompany" method="post" class="card card-body">
                 <input asp-for="CompanyDataForm.Version" type="hidden" />
@@ -140,6 +154,63 @@ else
                             <input value="@Model.CompanyDataForm.LegalId" class="form-control" readonly />
                         }
                         <span asp-validation-for="CompanyDataForm.LegalId" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-6">
+                        <label asp-for="CompanyDataForm.TradeName" class="form-label"></label>
+                        @if (canManage)
+                        {
+                            <input asp-for="CompanyDataForm.TradeName" class="form-control" maxlength="100" />
+                        }
+                        else
+                        {
+                            <input value="@Model.CompanyDataForm.TradeName" class="form-control" readonly />
+                        }
+                        <span asp-validation-for="CompanyDataForm.TradeName" class="text-danger"></span>
+                        <div class="form-text">Opcional, cuando difiere de la razón social.</div>
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="CompanyDataForm.ProvinceCode" class="form-label"></label>
+                        @if (canManage)
+                        {
+                            <select asp-for="CompanyDataForm.ProvinceCode" class="form-select">
+                                <option value="">(Sin indicar)</option>
+                                @foreach ((string code, string name) in CostaRicaProvinces)
+                                {
+                                    <option value="@code">@code - @name</option>
+                                }
+                            </select>
+                        }
+                        else
+                        {
+                            <input value="@Model.CompanyDataForm.ProvinceCode" class="form-control" readonly />
+                        }
+                        <span asp-validation-for="CompanyDataForm.ProvinceCode" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="CompanyDataForm.CantonCode" class="form-label"></label>
+                        @if (canManage)
+                        {
+                            <input asp-for="CompanyDataForm.CantonCode" class="form-control" maxlength="2" placeholder="2 dígitos" />
+                        }
+                        else
+                        {
+                            <input value="@Model.CompanyDataForm.CantonCode" class="form-control" readonly />
+                        }
+                        <span asp-validation-for="CompanyDataForm.CantonCode" class="text-danger"></span>
+                        <div class="form-text">Solo valida el formato: todavía no hay catálogo completo de cantones.</div>
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="CompanyDataForm.DistrictCode" class="form-label"></label>
+                        @if (canManage)
+                        {
+                            <input asp-for="CompanyDataForm.DistrictCode" class="form-control" maxlength="2" placeholder="2 dígitos" />
+                        }
+                        else
+                        {
+                            <input value="@Model.CompanyDataForm.DistrictCode" class="form-control" readonly />
+                        }
+                        <span asp-validation-for="CompanyDataForm.DistrictCode" class="text-danger"></span>
+                        <div class="form-text">Solo valida el formato: todavía no hay catálogo completo de distritos.</div>
                     </div>
                     <div class="col-md-12">
                         <label asp-for="CompanyDataForm.Address" class="form-label"></label>

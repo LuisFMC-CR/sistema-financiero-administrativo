@@ -78,5 +78,11 @@
             <label asp-for="AppliesStateWithholding" class="form-check-label"></label>
         </div>
     </div>
+    <div class="col-md-4">
+        <label asp-for="ActivityCode" class="form-label"></label>
+        <input asp-for="ActivityCode" class="form-control" maxlength="10" autocomplete="off" />
+        <span asp-validation-for="ActivityCode" class="text-danger"></span>
+        <div class="form-text">Opcional. Algunos clientes institucionales lo exigen (p. ej. la UCR, 8530.1).</div>
+    </div>
 </div>
 
