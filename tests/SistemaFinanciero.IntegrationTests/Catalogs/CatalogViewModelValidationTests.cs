@@ -80,51 +80,6 @@ public sealed class CatalogViewModelValidationTests
     }
 
     [Fact]
-    public void TaxType_AcceptsAValidPercentageAndAZeroRate()
-    {
-        TaxTypeCreateViewModel model = new()
-        {
-            Code = "IVA-0",
-            Name = "IVA 0 %",
-            Rate = 0m,
-            HaciendaRateCode = "01",
-        };
-
-        Assert.Empty(Validate(model));
-    }
-
-    [Fact]
-    public void TaxType_RejectsANegativeRate()
-    {
-        TaxTypeCreateViewModel model = new() { Code = "IVA", Name = "IVA", Rate = -0.5m };
-
-        Assert.Contains(
-            Validate(model),
-            result => result.MemberNames.Contains(nameof(model.Rate)));
-    }
-
-    [Fact]
-    public void TaxType_RejectsFieldsBeyondDatabaseLengthsAndMissingRequiredOnes()
-    {
-        TaxTypeCreateViewModel tooLong = new()
-        {
-            Code = new string('A', 31),
-            Name = new string('N', 121),
-            Description = new string('D', 301),
-        };
-        TaxTypeCreateViewModel missing = new() { Code = string.Empty, Name = string.Empty };
-
-        List<ValidationResult> longResults = Validate(tooLong);
-        List<ValidationResult> missingResults = Validate(missing);
-
-        Assert.Contains(longResults, result => result.MemberNames.Contains(nameof(tooLong.Code)));
-        Assert.Contains(longResults, result => result.MemberNames.Contains(nameof(tooLong.Name)));
-        Assert.Contains(longResults, result => result.MemberNames.Contains(nameof(tooLong.Description)));
-        Assert.Contains(missingResults, result => result.MemberNames.Contains(nameof(missing.Code)));
-        Assert.Contains(missingResults, result => result.MemberNames.Contains(nameof(missing.Name)));
-    }
-
-    [Fact]
     public void TaxTypeRateEdit_RequiresTheVersionToken()
     {
         TaxTypeRateEditViewModel model = new() { Rate = 13m, Version = string.Empty };
@@ -207,49 +162,6 @@ public sealed class CatalogViewModelValidationTests
         Assert.Contains(
             Validate(model),
             result => result.MemberNames.Contains(nameof(model.Version)));
-    }
-
-    [Fact]
-    public void WithholdingType_AcceptsAValidRateIncludingTheBounds()
-    {
-        WithholdingTypeCreateViewModel zero = new() { Code = "RET-0", Name = "Sin retención", Rate = 0m };
-        WithholdingTypeCreateViewModel full = new() { Code = "RET-100", Name = "Retención total", Rate = 100m };
-
-        Assert.Empty(Validate(zero));
-        Assert.Empty(Validate(full));
-    }
-
-    [Theory]
-    [InlineData(-0.01)]
-    [InlineData(100.01)]
-    public void WithholdingType_RejectsARateOutsideZeroToOneHundred(decimal rate)
-    {
-        WithholdingTypeCreateViewModel model = new() { Code = "RET", Name = "Retención", Rate = rate };
-
-        Assert.Contains(
-            Validate(model),
-            result => result.MemberNames.Contains(nameof(model.Rate)));
-    }
-
-    [Fact]
-    public void WithholdingType_RejectsFieldsBeyondDatabaseLengthsAndMissingRequiredOnes()
-    {
-        WithholdingTypeCreateViewModel tooLong = new()
-        {
-            Code = new string('A', 31),
-            Name = new string('N', 121),
-            Description = new string('D', 301),
-        };
-        WithholdingTypeCreateViewModel missing = new() { Code = string.Empty, Name = string.Empty };
-
-        List<ValidationResult> longResults = Validate(tooLong);
-        List<ValidationResult> missingResults = Validate(missing);
-
-        Assert.Contains(longResults, result => result.MemberNames.Contains(nameof(tooLong.Code)));
-        Assert.Contains(longResults, result => result.MemberNames.Contains(nameof(tooLong.Name)));
-        Assert.Contains(longResults, result => result.MemberNames.Contains(nameof(tooLong.Description)));
-        Assert.Contains(missingResults, result => result.MemberNames.Contains(nameof(missing.Code)));
-        Assert.Contains(missingResults, result => result.MemberNames.Contains(nameof(missing.Name)));
     }
 
     [Fact]

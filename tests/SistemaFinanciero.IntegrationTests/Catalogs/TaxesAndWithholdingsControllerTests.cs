@@ -16,48 +16,6 @@ namespace SistemaFinanciero.IntegrationTests.Catalogs;
 public sealed class TaxesAndWithholdingsControllerTests
 {
     [Fact]
-    public async Task CreateTaxType_WithAPercentageAboveOneHundred_ReturnsAnErrorWithoutCallingTheService()
-    {
-        RecordingTaxTypeService service = new();
-        TaxesAndWithholdingsController controller = CreateController(service, new RecordingWithholdingTypeService(), isManagement: true);
-        TaxTypeCreateViewModel model = new() { Code = "ESP", Name = "Impuesto", Rate = 100.5m };
-
-        IActionResult result = await controller.CreateTaxType(model, CancellationToken.None);
-
-        Assert.IsType<ViewResult>(result);
-        Assert.True(controller.ModelState.ContainsKey(nameof(model.Rate)));
-        Assert.Equal(0, service.CreateCalls);
-    }
-
-    [Fact]
-    public async Task CreateTaxType_WithoutManagement_IsForbidden()
-    {
-        RecordingTaxTypeService service = new();
-        TaxesAndWithholdingsController controller = CreateController(service, new RecordingWithholdingTypeService(), isManagement: false);
-        TaxTypeCreateViewModel model = new() { Code = "ESP", Name = "Impuesto", Rate = 13m, HaciendaRateCode = "08" };
-
-        IActionResult result = await controller.CreateTaxType(model, CancellationToken.None);
-
-        Assert.IsType<ForbidResult>(result);
-        Assert.Equal(0, service.CreateCalls);
-    }
-
-    [Fact]
-    public async Task CreateTaxType_WithValidData_CallsTheServiceAndRedirectsToIndex()
-    {
-        RecordingTaxTypeService service = new();
-        TaxesAndWithholdingsController controller = CreateController(service, new RecordingWithholdingTypeService(), isManagement: true);
-        TaxTypeCreateViewModel model = new() { Code = "IVA-2", Name = "IVA 2 %", Rate = 2m, HaciendaRateCode = "03" };
-
-        IActionResult result = await controller.CreateTaxType(model, CancellationToken.None);
-
-        RedirectToActionResult redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal(nameof(TaxesAndWithholdingsController.Index), redirect.ActionName);
-        Assert.Equal(1, service.CreateCalls);
-        Assert.Equal(2m, service.LastCreate!.Rate);
-    }
-
-    [Fact]
     public async Task EditTaxType_IgnoresThePostedCodeNameAndHaciendaRateCodeAndKeepsTheCurrentOnes()
     {
         Guid id = Guid.NewGuid();
@@ -135,34 +93,6 @@ public sealed class TaxesAndWithholdingsControllerTests
     }
 
     [Fact]
-    public async Task CreateWithholdingType_WithValidData_CallsTheServiceAndRedirectsToIndex()
-    {
-        RecordingWithholdingTypeService service = new();
-        TaxesAndWithholdingsController controller = CreateController(new RecordingTaxTypeService(), service, isManagement: true);
-        WithholdingTypeCreateViewModel model = new() { Code = "RET-2", Name = "Retención 2 %", Rate = 2m };
-
-        IActionResult result = await controller.CreateWithholdingType(model, CancellationToken.None);
-
-        RedirectToActionResult redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal(nameof(TaxesAndWithholdingsController.Index), redirect.ActionName);
-        Assert.Equal(1, service.CreateCalls);
-        Assert.Equal(2m, service.LastCreate!.Rate);
-    }
-
-    [Fact]
-    public async Task CreateWithholdingType_WithoutManagement_IsForbidden()
-    {
-        RecordingWithholdingTypeService service = new();
-        TaxesAndWithholdingsController controller = CreateController(new RecordingTaxTypeService(), service, isManagement: false);
-        WithholdingTypeCreateViewModel model = new() { Code = "RET-2", Name = "Retención 2 %", Rate = 2m };
-
-        IActionResult result = await controller.CreateWithholdingType(model, CancellationToken.None);
-
-        Assert.IsType<ForbidResult>(result);
-        Assert.Equal(0, service.CreateCalls);
-    }
-
-    [Fact]
     public async Task EditWithholdingType_IgnoresThePostedCodeAndNameAndKeepsTheCurrentOnes()
     {
         Guid id = Guid.NewGuid();
@@ -221,26 +151,19 @@ public sealed class TaxesAndWithholdingsControllerTests
     }
 
     [Fact]
-    public async Task Index_NormalizesUntrustedFiltersForBothSectionsBeforeCallingTheServices()
+    public async Task Index_RequestsBothSectionsWithoutFiltersIncludingInactiveRows()
     {
         RecordingTaxTypeService taxService = new();
         RecordingWithholdingTypeService withholdingService = new();
         TaxesAndWithholdingsController controller = CreateController(taxService, withholdingService, isManagement: true);
 
-        IActionResult result = await controller.Index(
-            taxCode: new string('x', 150),
-            taxStatus: (CatalogStatusFilter)999,
-            taxPage: 1,
-            withholdingCode: new string('y', 150),
-            withholdingStatus: (CatalogStatusFilter)999,
-            withholdingPage: 1,
-            cancellationToken: CancellationToken.None);
+        IActionResult result = await controller.Index(CancellationToken.None);
 
         Assert.IsType<ViewResult>(result);
-        Assert.Equal(new string('x', 30), taxService.LastQuery!.Code);
-        Assert.Equal(CatalogStatusFilter.Active, taxService.LastQuery.Status);
-        Assert.Equal(new string('y', 30), withholdingService.LastQuery!.Code);
-        Assert.Equal(CatalogStatusFilter.Active, withholdingService.LastQuery.Status);
+        Assert.Null(taxService.LastQuery!.Code);
+        Assert.Equal(CatalogStatusFilter.All, taxService.LastQuery.Status);
+        Assert.Null(withholdingService.LastQuery!.Code);
+        Assert.Equal(CatalogStatusFilter.All, withholdingService.LastQuery.Status);
     }
 
     private static TaxTypeModel CreateTaxType(

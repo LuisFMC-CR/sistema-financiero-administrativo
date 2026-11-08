@@ -1,4 +1,3 @@
-@using SistemaFinanciero.Application.Catalogs.Common
 @using SistemaFinanciero.Application.Catalogs.TaxTypes
 @using SistemaFinanciero.Application.Catalogs.WithholdingTypes
 @model TaxesAndWithholdingsIndexViewModel
@@ -8,17 +7,10 @@
 
 <div class="mb-3">
     <h1 class="h2 mb-1">Impuestos y retenciones</h1>
-    <p class="text-body-secondary mb-0">Tarifas de IVA de las líneas de factura y tipos de retención que un cliente aplica al pagar.</p>
+    <p class="text-body-secondary mb-0">Tarifas de IVA de las líneas de factura y tipos de retención que un cliente aplica al pagar. Catálogo fijo: solo se edita.</p>
 </div>
 
 <h2 class="h4">Tarifas de IVA</h2>
-<form id="tax-filters" asp-action="Index" method="get" role="search">
-    <input type="hidden" name="withholdingCode" value="@Model.WithholdingQuery.Code" />
-    <input type="hidden" name="withholdingName" value="@Model.WithholdingQuery.Name" />
-    <input type="hidden" name="withholdingRate" value="@Model.WithholdingQuery.Rate?.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)" />
-    <input type="hidden" name="minimumBase" value="@Model.WithholdingQuery.MinimumBase?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)" />
-    <input type="hidden" name="withholdingStatus" value="@Model.WithholdingQuery.Status" />
-</form>
 <div class="table-responsive bg-white border rounded mb-4">
     <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
@@ -32,40 +24,6 @@
                 {
                     <th scope="col" class="text-end">Acciones</th>
                 }
-            </tr>
-            <tr class="table-filter-row">
-                <th class="p-2"><input form="tax-filters" name="taxCode" value="@Model.TaxQuery.Code" maxlength="30" class="form-control form-control-sm" placeholder="Código" aria-label="Filtrar por código" /></th>
-                <th class="p-2"><input form="tax-filters" name="taxName" value="@Model.TaxQuery.Name" maxlength="120" class="form-control form-control-sm" placeholder="Nombre" aria-label="Filtrar por nombre" /></th>
-                <th class="p-2"><input form="tax-filters" name="haciendaRateCode" value="@Model.TaxQuery.HaciendaRateCode" maxlength="2" class="form-control form-control-sm" placeholder="Código" aria-label="Filtrar por código de Hacienda" /></th>
-                <th class="p-2"><input form="tax-filters" name="taxRate" type="number" min="0" max="100" step="0.0001" value="@Model.TaxQuery.Rate?.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)" class="form-control form-control-sm text-end" placeholder="%" aria-label="Filtrar por tarifa" /></th>
-                <th class="p-2">
-                    <select form="tax-filters" name="taxStatus" class="form-select form-select-sm" aria-label="Filtrar por estado">
-                        @foreach (CatalogStatusFilter status in Enum.GetValues<CatalogStatusFilter>())
-                        {
-                            <option value="@status" selected="@(status == Model.TaxQuery.Status)">@status.ToDisplayName()</option>
-                        }
-                    </select>
-                </th>
-                @if (Model.CanManage)
-                {
-                    <th class="p-2"></th>
-                }
-            </tr>
-            <tr>
-                <th colspan="@(Model.CanManage ? 6 : 5)" class="p-2 text-end">
-                    <button form="tax-filters" type="submit" class="btn btn-sm btn-primary" aria-label="Buscar tarifas" title="Buscar">
-                        <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5" /><path d="m10.5 10.5 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
-                    </button>
-                    <a asp-action="Index"
-                       asp-route-withholdingCode="@Model.WithholdingQuery.Code"
-                       asp-route-withholdingName="@Model.WithholdingQuery.Name"
-                       asp-route-withholdingRate="@Model.WithholdingQuery.Rate?.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)"
-                       asp-route-minimumBase="@Model.WithholdingQuery.MinimumBase?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)"
-                       asp-route-withholdingStatus="@Model.WithholdingQuery.Status"
-                       class="btn btn-sm btn-outline-secondary" aria-label="Limpiar filtros de tarifas" title="Limpiar">
-                        <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 4h10M6 4V2.5h4V4m2 0-.6 9H4.6L4 4m2.5 2v4.5m3-4.5v4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
-                    </a>
-                </th>
             </tr>
         </thead>
         <tbody>
@@ -109,40 +67,8 @@
         </tbody>
     </table>
 </div>
-@if (Model.TaxTypes.TotalPages > 1)
-{
-    <nav aria-label="Paginación de tarifas de IVA" class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
-        <span class="text-body-secondary">Página @Model.TaxTypes.Page de @Model.TaxTypes.TotalPages</span>
-        <ul class="pagination mb-0">
-            <li class="page-item @(!Model.TaxTypes.HasPreviousPage ? "disabled" : null)">
-                <a class="page-link" asp-action="Index"
-                   asp-route-taxCode="@Model.TaxQuery.Code" asp-route-taxName="@Model.TaxQuery.Name" asp-route-haciendaRateCode="@Model.TaxQuery.HaciendaRateCode" asp-route-taxRate="@Model.TaxQuery.Rate" asp-route-taxStatus="@Model.TaxQuery.Status" asp-route-taxPage="@(Model.TaxTypes.Page - 1)"
-                   asp-route-withholdingCode="@Model.WithholdingQuery.Code" asp-route-withholdingName="@Model.WithholdingQuery.Name" asp-route-withholdingRate="@Model.WithholdingQuery.Rate" asp-route-minimumBase="@Model.WithholdingQuery.MinimumBase" asp-route-withholdingStatus="@Model.WithholdingQuery.Status">Anterior</a>
-            </li>
-            <li class="page-item @(!Model.TaxTypes.HasNextPage ? "disabled" : null)">
-                <a class="page-link" asp-action="Index"
-                   asp-route-taxCode="@Model.TaxQuery.Code" asp-route-taxName="@Model.TaxQuery.Name" asp-route-haciendaRateCode="@Model.TaxQuery.HaciendaRateCode" asp-route-taxRate="@Model.TaxQuery.Rate" asp-route-taxStatus="@Model.TaxQuery.Status" asp-route-taxPage="@(Model.TaxTypes.Page + 1)"
-                   asp-route-withholdingCode="@Model.WithholdingQuery.Code" asp-route-withholdingName="@Model.WithholdingQuery.Name" asp-route-withholdingRate="@Model.WithholdingQuery.Rate" asp-route-minimumBase="@Model.WithholdingQuery.MinimumBase" asp-route-withholdingStatus="@Model.WithholdingQuery.Status">Siguiente</a>
-            </li>
-        </ul>
-    </nav>
-}
-@if (Model.CanAdd)
-{
-    <p class="mb-4">
-        <a asp-action="CreateTaxType" class="link-secondary small">Agregar otra tarifa de IVA</a>
-        <span class="text-body-secondary small"> — se aplica con las reglas generales del sistema y solo queda disponible para clientes de condición Normal.</span>
-    </p>
-}
 
 <h2 class="h4">Tipos de retención</h2>
-<form id="withholding-filters" asp-action="Index" method="get" role="search">
-    <input type="hidden" name="taxCode" value="@Model.TaxQuery.Code" />
-    <input type="hidden" name="taxName" value="@Model.TaxQuery.Name" />
-    <input type="hidden" name="haciendaRateCode" value="@Model.TaxQuery.HaciendaRateCode" />
-    <input type="hidden" name="taxRate" value="@Model.TaxQuery.Rate?.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)" />
-    <input type="hidden" name="taxStatus" value="@Model.TaxQuery.Status" />
-</form>
 <div class="table-responsive bg-white border rounded mb-4">
     <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
@@ -156,40 +82,6 @@
                 {
                     <th scope="col" class="text-end">Acciones</th>
                 }
-            </tr>
-            <tr class="table-filter-row">
-                <th class="p-2"><input form="withholding-filters" name="withholdingCode" value="@Model.WithholdingQuery.Code" maxlength="30" class="form-control form-control-sm" placeholder="Código" aria-label="Filtrar por código" /></th>
-                <th class="p-2"><input form="withholding-filters" name="withholdingName" value="@Model.WithholdingQuery.Name" maxlength="120" class="form-control form-control-sm" placeholder="Nombre" aria-label="Filtrar por nombre" /></th>
-                <th class="p-2"><input form="withholding-filters" name="withholdingRate" type="number" min="0" max="100" step="0.0001" value="@Model.WithholdingQuery.Rate?.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)" class="form-control form-control-sm text-end" placeholder="%" aria-label="Filtrar por tarifa" /></th>
-                <th class="p-2"><input form="withholding-filters" name="minimumBase" type="number" min="0" step="0.01" value="@Model.WithholdingQuery.MinimumBase?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)" class="form-control form-control-sm text-end" placeholder="₡" aria-label="Filtrar por base mínima" /></th>
-                <th class="p-2">
-                    <select form="withholding-filters" name="withholdingStatus" class="form-select form-select-sm" aria-label="Filtrar por estado">
-                        @foreach (CatalogStatusFilter status in Enum.GetValues<CatalogStatusFilter>())
-                        {
-                            <option value="@status" selected="@(status == Model.WithholdingQuery.Status)">@status.ToDisplayName()</option>
-                        }
-                    </select>
-                </th>
-                @if (Model.CanManage)
-                {
-                    <th class="p-2"></th>
-                }
-            </tr>
-            <tr>
-                <th colspan="@(Model.CanManage ? 6 : 5)" class="p-2 text-end">
-                    <button form="withholding-filters" type="submit" class="btn btn-sm btn-primary" aria-label="Buscar retenciones" title="Buscar">
-                        <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5" /><path d="m10.5 10.5 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
-                    </button>
-                    <a asp-action="Index"
-                       asp-route-taxCode="@Model.TaxQuery.Code"
-                       asp-route-taxName="@Model.TaxQuery.Name"
-                       asp-route-haciendaRateCode="@Model.TaxQuery.HaciendaRateCode"
-                       asp-route-taxRate="@Model.TaxQuery.Rate?.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)"
-                       asp-route-taxStatus="@Model.TaxQuery.Status"
-                       class="btn btn-sm btn-outline-secondary" aria-label="Limpiar filtros de retenciones" title="Limpiar">
-                        <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 4h10M6 4V2.5h4V4m2 0-.6 9H4.6L4 4m2.5 2v4.5m3-4.5v4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
-                    </a>
-                </th>
             </tr>
         </thead>
         <tbody>
@@ -233,28 +125,3 @@
         </tbody>
     </table>
 </div>
-@if (Model.WithholdingTypes.TotalPages > 1)
-{
-    <nav aria-label="Paginación de tipos de retención" class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
-        <span class="text-body-secondary">Página @Model.WithholdingTypes.Page de @Model.WithholdingTypes.TotalPages</span>
-        <ul class="pagination mb-0">
-            <li class="page-item @(!Model.WithholdingTypes.HasPreviousPage ? "disabled" : null)">
-                <a class="page-link" asp-action="Index"
-                   asp-route-withholdingCode="@Model.WithholdingQuery.Code" asp-route-withholdingName="@Model.WithholdingQuery.Name" asp-route-withholdingRate="@Model.WithholdingQuery.Rate?.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)" asp-route-minimumBase="@Model.WithholdingQuery.MinimumBase?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)" asp-route-withholdingStatus="@Model.WithholdingQuery.Status" asp-route-withholdingPage="@(Model.WithholdingTypes.Page - 1)"
-                   asp-route-taxCode="@Model.TaxQuery.Code" asp-route-taxName="@Model.TaxQuery.Name" asp-route-haciendaRateCode="@Model.TaxQuery.HaciendaRateCode" asp-route-taxRate="@Model.TaxQuery.Rate?.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)" asp-route-taxStatus="@Model.TaxQuery.Status">Anterior</a>
-            </li>
-            <li class="page-item @(!Model.WithholdingTypes.HasNextPage ? "disabled" : null)">
-                <a class="page-link" asp-action="Index"
-                   asp-route-withholdingCode="@Model.WithholdingQuery.Code" asp-route-withholdingName="@Model.WithholdingQuery.Name" asp-route-withholdingRate="@Model.WithholdingQuery.Rate?.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)" asp-route-minimumBase="@Model.WithholdingQuery.MinimumBase?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)" asp-route-withholdingStatus="@Model.WithholdingQuery.Status" asp-route-withholdingPage="@(Model.WithholdingTypes.Page + 1)"
-                   asp-route-taxCode="@Model.TaxQuery.Code" asp-route-taxName="@Model.TaxQuery.Name" asp-route-haciendaRateCode="@Model.TaxQuery.HaciendaRateCode" asp-route-taxRate="@Model.TaxQuery.Rate?.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)" asp-route-taxStatus="@Model.TaxQuery.Status">Siguiente</a>
-            </li>
-        </ul>
-    </nav>
-}
-@if (Model.CanAdd)
-{
-    <p class="mb-0">
-        <a asp-action="CreateWithholdingType" class="link-secondary small">Agregar otro tipo de retención</a>
-        <span class="text-body-secondary small"> — se aplica con las reglas generales del sistema.</span>
-    </p>
-}

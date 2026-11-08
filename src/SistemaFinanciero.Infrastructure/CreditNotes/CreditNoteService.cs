@@ -400,7 +400,7 @@ internal sealed class CreditNoteService(
             bool isValidCashAccount = await dbContext.LedgerAccounts.AsNoTracking()
                 .AnyAsync(account => account.Id == cashAccountId
                     && account.IsActive
-                    && account.IsCash,
+                    && account.CashKind != null,
                     cancellationToken);
             if (!isValidCashAccount)
             {

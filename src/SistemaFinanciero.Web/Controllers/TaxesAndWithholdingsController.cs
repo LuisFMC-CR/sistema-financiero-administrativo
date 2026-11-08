@@ -18,8 +18,9 @@ namespace SistemaFinanciero.Web.Controllers;
 /// Conexiones: usa <c>ITaxTypeService</c> e <c>IWithholdingTypeService</c> (Application), sin cambiar
 /// ninguno de los dos. Finanzas y Gerencia editan el porcentaje, la base mínima, la descripción y el
 /// estado; las tarifas y la retención que usan la lógica del sistema (<c>SystemRole</c>/
-/// <c>IsSystemType</c>) no se pueden inactivar, y código, nombre y código de Hacienda quedan fijos
-/// después de crearlos: solo se piden al agregar uno nuevo, opción reservada a Gerencia.
+/// <c>IsSystemType</c>) no se pueden inactivar. Sin pantalla de alta ni filtros (paquete v8): el
+/// catálogo es fijo y solo se agrega una tarifa o retención nueva a pedido explícito del usuario,
+/// directamente en el código/una migración, nunca desde el navegador.
 /// </remarks>
 [Authorize(Policy = SystemPolicies.ViewBusinessCatalogs)]
 [Route("impuestos-y-retenciones")]
@@ -29,99 +30,23 @@ public sealed class TaxesAndWithholdingsController(
     IAuthorizationService authorizationService) : CatalogControllerBase
 {
     [HttpGet("")]
-    public async Task<IActionResult> Index(
-        string? taxCode = null,
-        string? taxName = null,
-        string? haciendaRateCode = null,
-        decimal? taxRate = null,
-        CatalogStatusFilter taxStatus = CatalogStatusFilter.Active,
-        int taxPage = 1,
-        string? withholdingCode = null,
-        string? withholdingName = null,
-        decimal? withholdingRate = null,
-        decimal? minimumBase = null,
-        CatalogStatusFilter withholdingStatus = CatalogStatusFilter.Active,
-        int withholdingPage = 1,
-        CancellationToken cancellationToken = default)
+    public async Task<IActionResult> Index(CancellationToken cancellationToken = default)
     {
-        CatalogQuery taxQuery = new(
-            status: NormalizeStatus(taxStatus),
-            page: taxPage,
-            code: taxCode,
-            name: taxName,
-            haciendaRateCode: haciendaRateCode,
-            rate: taxRate);
-        CatalogQuery withholdingQuery = new(
-            status: NormalizeStatus(withholdingStatus),
-            page: withholdingPage,
-            code: withholdingCode,
-            name: withholdingName,
-            rate: withholdingRate,
-            minimumBase: minimumBase);
+        // Sin filtros (bloque de simplificación del paquete v8): el catálogo de tarifas de IVA y
+        // tipos de retención es fijo y pequeño; se muestra completo, activos e inactivos, para que
+        // Gerencia pueda reactivar uno si lo necesita.
+        CatalogQuery taxQuery = new(status: CatalogStatusFilter.All);
+        CatalogQuery withholdingQuery = new(status: CatalogStatusFilter.All);
 
         PagedResult<TaxTypeModel> taxTypes = await taxTypeService.SearchAsync(taxQuery, cancellationToken);
         PagedResult<WithholdingTypeModel> withholdingTypes = await withholdingTypeService.SearchAsync(withholdingQuery, cancellationToken);
 
         bool canManage = (await authorizationService.AuthorizeAsync(User, SystemPolicies.ManageBusinessCatalogs)).Succeeded;
-        bool canAdd = User.IsInRole(SystemRoles.Management);
 
         return View(new TaxesAndWithholdingsIndexViewModel(
             taxTypes,
-            taxQuery,
             withholdingTypes,
-            withholdingQuery,
-            canManage,
-            canAdd));
-    }
-
-    [Authorize(Policy = SystemPolicies.ManageBusinessCatalogs)]
-    [HttpGet("tarifas/crear")]
-    public IActionResult CreateTaxType()
-    {
-        if (!User.IsInRole(SystemRoles.Management))
-        {
-            return Forbid();
-        }
-
-        return View(new TaxTypeCreateViewModel());
-    }
-
-    [Authorize(Policy = SystemPolicies.ManageBusinessCatalogs)]
-    [HttpPost("tarifas/crear")]
-    public async Task<IActionResult> CreateTaxType(TaxTypeCreateViewModel model, CancellationToken cancellationToken)
-    {
-        if (!User.IsInRole(SystemRoles.Management))
-        {
-            return Forbid();
-        }
-
-        if (model.Rate > SistemaFinanciero.Domain.Catalogs.TaxType.MaxPercentageRate)
-        {
-            ModelState.AddModelError(nameof(model.Rate), "La tarifa porcentual no puede superar 100 %.");
-        }
-
-        if (!ModelState.IsValid)
-        {
-            return View(model);
-        }
-
-        if (!TryGetActorId(out Guid actorId))
-        {
-            return Forbid();
-        }
-
-        CatalogOperationResult result = await taxTypeService.CreateAsync(
-            new CreateTaxTypeCommand(model.Code, model.Name, model.Rate, model.HaciendaRateCode, model.Description),
-            actorId,
-            cancellationToken);
-
-        if (result.IsSuccess)
-        {
-            SetSuccessMessage("El tipo de impuesto fue creado correctamente.");
-            return RedirectToAction(nameof(Index));
-        }
-
-        return FormFailure(result, model, nameof(CreateTaxType));
+            canManage));
     }
 
     [Authorize(Policy = SystemPolicies.ManageBusinessCatalogs)]
@@ -220,51 +145,6 @@ public sealed class TaxesAndWithholdingsController(
 
         SetSuccessMessage(model.IsActive ? "El tipo de impuesto fue reactivado." : "El tipo de impuesto fue desactivado.");
         return RedirectToAction(nameof(Index));
-    }
-
-    [Authorize(Policy = SystemPolicies.ManageBusinessCatalogs)]
-    [HttpGet("retenciones/crear")]
-    public IActionResult CreateWithholdingType()
-    {
-        if (!User.IsInRole(SystemRoles.Management))
-        {
-            return Forbid();
-        }
-
-        return View(new WithholdingTypeCreateViewModel());
-    }
-
-    [Authorize(Policy = SystemPolicies.ManageBusinessCatalogs)]
-    [HttpPost("retenciones/crear")]
-    public async Task<IActionResult> CreateWithholdingType(WithholdingTypeCreateViewModel model, CancellationToken cancellationToken)
-    {
-        if (!User.IsInRole(SystemRoles.Management))
-        {
-            return Forbid();
-        }
-
-        if (!ModelState.IsValid)
-        {
-            return View(model);
-        }
-
-        if (!TryGetActorId(out Guid actorId))
-        {
-            return Forbid();
-        }
-
-        CatalogOperationResult result = await withholdingTypeService.CreateAsync(
-            new CreateWithholdingTypeCommand(model.Code, model.Name, model.Rate, model.MinimumBase, model.Description),
-            actorId,
-            cancellationToken);
-
-        if (result.IsSuccess)
-        {
-            SetSuccessMessage("El tipo de retención fue creado correctamente.");
-            return RedirectToAction(nameof(Index));
-        }
-
-        return FormFailure(result, model, nameof(CreateWithholdingType));
     }
 
     [Authorize(Policy = SystemPolicies.ManageBusinessCatalogs)]

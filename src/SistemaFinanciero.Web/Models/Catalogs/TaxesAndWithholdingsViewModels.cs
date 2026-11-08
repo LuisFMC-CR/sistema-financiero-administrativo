@@ -8,16 +8,13 @@ namespace SistemaFinanciero.Web.Models.Catalogs;
 
 /// <summary>
 /// Modelo de la pantalla única "Impuestos y retenciones" (bloque 1 del paquete v7, módulo Gestionar
-/// Impuestos y Retenciones de la Tabla 4): dos secciones independientes, cada una con su propio
-/// filtro, búsqueda y paginación.
+/// Impuestos y Retenciones de la Tabla 4): dos secciones independientes, sin filtros ni alta desde el
+/// navegador (paquete v8) — el catálogo es fijo y pequeño; solo se edita.
 /// </summary>
 public sealed record TaxesAndWithholdingsIndexViewModel(
     PagedResult<TaxTypeModel> TaxTypes,
-    CatalogQuery TaxQuery,
     PagedResult<WithholdingTypeModel> WithholdingTypes,
-    CatalogQuery WithholdingQuery,
-    bool CanManage,
-    bool CanAdd);
+    bool CanManage);
 
 /// <summary>
 /// Entrada reducida para editar una tarifa de IVA desde la pantalla única: solo el porcentaje, la
