@@ -77,7 +77,7 @@ public sealed class SystemParametersController(ISystemParametersService service)
     [Authorize(Policy = SystemPolicies.ManageAccountingPeriods)]
     [HttpPost("periodo-fiscal")]
     public async Task<IActionResult> UpdateFiscalPeriod(
-        FiscalPeriodViewModel model,
+        [Bind(Prefix = "FiscalPeriodForm")] FiscalPeriodViewModel model,
         CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid)
@@ -123,7 +123,7 @@ public sealed class SystemParametersController(ISystemParametersService service)
     [Authorize(Policy = SystemPolicies.ManageAccountingPeriods)]
     [HttpPost("periodos/reabrir")]
     public async Task<IActionResult> ReopenAccountingPeriod(
-        ReopenAccountingPeriodViewModel model,
+        [Bind(Prefix = "ReopenAccountingPeriodForm")] ReopenAccountingPeriodViewModel model,
         CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid)
@@ -187,7 +187,7 @@ public sealed class SystemParametersController(ISystemParametersService service)
     [Authorize(Policy = SystemPolicies.ManageSystemParameters)]
     [HttpPost("datos-empresa")]
     public async Task<IActionResult> UpdateCompany(
-        CompanyDataViewModel model,
+        [Bind(Prefix = "CompanyDataForm")] CompanyDataViewModel model,
         CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid)
