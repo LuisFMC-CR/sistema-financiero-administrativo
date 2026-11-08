@@ -24,7 +24,7 @@ trazable y accesible según las responsabilidades de cada usuario.
 - Gastos de contado y crédito, cuentas por pagar y pagos.
 - Presupuestos en CRC por período y categoría.
 - Impuestos y retenciones parametrizables, sujetos a validación con la empresa.
-- Consultas, reportes administrativos, seguridad y bitácora.
+- Reportes administrativos, seguridad y bitácora.
 - Roles: Administrador, Gerencia, Finanzas y Asistente.
 - Los movimientos confirmados no se eliminan físicamente.
 

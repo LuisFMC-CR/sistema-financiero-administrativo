@@ -15,6 +15,15 @@ public enum UserStatusFilter
     All,
 }
 
+/// <summary>Estado de acceso que se puede seleccionar en el listado administrativo.</summary>
+public enum UserAccessFilter
+{
+    All,
+    LockedOut,
+    PasswordChangeRequired,
+    Available,
+}
+
 /// <summary>
 /// Consulta normalizada de usuarios con búsqueda, filtros y paginación del lado del servidor.
 /// </summary>
@@ -26,13 +35,19 @@ public sealed record UserQuery
         UserStatusFilter status = UserStatusFilter.Active,
         string? role = null,
         int page = 1,
-        int pageSize = 20)
+        int pageSize = 20,
+        string? fullName = null,
+        string? email = null,
+        UserAccessFilter access = UserAccessFilter.All)
     {
         Search = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
         Status = status;
         Role = string.IsNullOrWhiteSpace(role) ? null : role.Trim();
         Page = Math.Max(1, page);
         PageSize = Math.Clamp(pageSize, 1, 100);
+        FullName = string.IsNullOrWhiteSpace(fullName) ? null : fullName.Trim();
+        Email = string.IsNullOrWhiteSpace(email) ? null : email.Trim();
+        Access = access;
     }
 
     /// <summary>Texto buscado en nombre o correo.</summary>
@@ -49,6 +64,12 @@ public sealed record UserQuery
 
     /// <summary>Cantidad máxima de filas por página.</summary>
     public int PageSize { get; }
+
+    public string? FullName { get; }
+
+    public string? Email { get; }
+
+    public UserAccessFilter Access { get; }
 }
 
 /// <summary>Datos seguros que se muestran al administrar una cuenta interna.</summary>

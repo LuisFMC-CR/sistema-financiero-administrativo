@@ -196,7 +196,8 @@ public sealed class SqlServerBalanceAdjustmentServiceScenarioTests : IClassFixtu
             context.SystemParameters.Add(parameters);
         }
 
-        parameters.ChangeClosingDate(closingDate, closingDate, reason: null, DateTimeOffset.UtcNow, actorId);
+        context.AccountingPeriodOverrides.Add(new AccountingPeriodOverride(
+            closingDate.Year, closingDate.Month, "Período cerrado para la prueba", DateTimeOffset.UtcNow, actorId));
         await context.SaveChangesAsync();
     }
 
@@ -208,10 +209,10 @@ public sealed class SqlServerBalanceAdjustmentServiceScenarioTests : IClassFixtu
         decimal amount)
     {
         Guid taxTypeId = await CreateTaxTypeAsync(services, actorId);
-        Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+        Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
 
         InvoiceCreationResult created = await invoices.CreateAsync(
-            new CreateInvoiceCommand(customerId, incomeCategoryId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Credit30),
+            new CreateInvoiceCommand(customerId, incomeAccountId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Credit30),
             actorId);
         Guid invoiceId = created.InvoiceId!.Value;
 
@@ -241,12 +242,12 @@ public sealed class SqlServerBalanceAdjustmentServiceScenarioTests : IClassFixtu
         Guid actorId,
         decimal amount)
     {
-        Guid categoryId = await CreateExpenseCategoryAsync(services, actorId);
+        Guid accountId = await CreateExpenseCategoryAsync(services, actorId);
         Guid taxTypeId = await CreateTaxTypeAsync(services, actorId);
 
         ExpenseCreationResult created = await expenses.CreateAsync(
             new SaveExpenseCommand(
-                supplierId, categoryId, "Compra a crédito de pruebas de ajustes", "VC-0001", DateOnly.FromDateTime(DateTime.UtcNow),
+                supplierId, accountId, "Compra a crédito de pruebas de ajustes", "VC-0001", DateOnly.FromDateTime(DateTime.UtcNow),
                 PaymentTerm.Credit30, amount, taxTypeId, true, PaymentMethod.Cash),
             actorId);
         Guid expenseId = created.ExpenseId!.Value;
@@ -326,19 +327,7 @@ public sealed class SqlServerBalanceAdjustmentServiceScenarioTests : IClassFixtu
         context.LedgerAccounts.Add(ledgerAccount);
         await context.SaveChangesAsync();
 
-        FinancialCategory category = new(
-            Guid.NewGuid(),
-            $"CAT-{suffix}",
-            "Categoría de pruebas de ajustes",
-            FinancialCategoryKind.Expense,
-            null,
-            ledgerAccount.Id,
-            null,
-            DateTimeOffset.UtcNow,
-            actorId);
-        context.FinancialCategories.Add(category);
-        await context.SaveChangesAsync();
-        return category.Id;
+        return ledgerAccount.Id;
     }
 
     private static async Task<Guid> CreateIncomeCategoryAsync(IServiceProvider services, Guid actorId)
@@ -359,19 +348,7 @@ public sealed class SqlServerBalanceAdjustmentServiceScenarioTests : IClassFixtu
         context.LedgerAccounts.Add(ledgerAccount);
         await context.SaveChangesAsync();
 
-        FinancialCategory category = new(
-            Guid.NewGuid(),
-            $"CATI-{suffix}",
-            "Categoría de ingreso de pruebas de ajustes",
-            FinancialCategoryKind.Income,
-            null,
-            ledgerAccount.Id,
-            null,
-            DateTimeOffset.UtcNow,
-            actorId);
-        context.FinancialCategories.Add(category);
-        await context.SaveChangesAsync();
-        return category.Id;
+        return ledgerAccount.Id;
     }
 
     private static async Task<Guid> CreateTaxTypeAsync(IServiceProvider services, Guid actorId)

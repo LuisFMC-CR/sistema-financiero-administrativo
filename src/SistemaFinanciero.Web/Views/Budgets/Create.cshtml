@@ -25,11 +25,11 @@
             <input asp-for="PeriodMonth" type="hidden" />
             <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
             <div class="mb-3">
-                <label asp-for="CategoryId" class="form-label"></label>
-                <select asp-for="CategoryId" asp-items="Model.CategoryOptions" class="form-select">
+                <label asp-for="AccountId" class="form-label"></label>
+                <select asp-for="AccountId" asp-items="Model.CategoryOptions" class="form-select">
                     <option value="">Seleccione una categoría de gasto</option>
                 </select>
-                <span asp-validation-for="CategoryId" class="text-danger"></span>
+                <span asp-validation-for="AccountId" class="text-danger"></span>
             </div>
             <div class="mb-3">
                 <label asp-for="Amount" class="form-label"></label>

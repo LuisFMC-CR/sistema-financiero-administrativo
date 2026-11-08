@@ -1,5 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
+using SistemaFinanciero.Application.Catalogs.Common;
+using SistemaFinanciero.Application.Catalogs.LedgerAccounts;
 using SistemaFinanciero.Domain.Catalogs;
 
 namespace SistemaFinanciero.Web.Models.Catalogs;
@@ -9,6 +11,31 @@ public sealed record LedgerAccountParentOptionViewModel(
     Guid Id,
     string Label,
     LedgerAccountType Type);
+
+/// <summary>
+/// Modelo del listado tabular del catálogo contable. Conserva los filtros por columna y la
+/// paginación para que la vista pueda reenviarlos y dibujar los enlaces de página.
+/// </summary>
+public sealed class LedgerAccountIndexViewModel
+{
+    /// <summary>Página de cuentas contables con su saldo actual.</summary>
+    public PagedResult<LedgerAccountModel> Results { get; init; } = new([], 1, 500, 0);
+
+    /// <summary>Filtro por código.</summary>
+    public string? Code { get; init; }
+
+    /// <summary>Filtro por nombre o descripción.</summary>
+    public string? Name { get; init; }
+
+    /// <summary>Filtro por tipo contable.</summary>
+    public LedgerAccountType? Type { get; init; }
+
+    /// <summary>Filtro por naturaleza: movimiento (<c>true</c>) o acumuladora (<c>false</c>).</summary>
+    public bool? IsMovement { get; init; }
+
+    /// <summary>Filtro por estado: activa (<c>true</c>) o inactiva/bloqueada (<c>false</c>).</summary>
+    public bool? IsActive { get; init; }
+}
 
 /// <summary>
 /// Entrada para crear una cuenta de detalle dentro de un grupo del catálogo base (regla 13). El

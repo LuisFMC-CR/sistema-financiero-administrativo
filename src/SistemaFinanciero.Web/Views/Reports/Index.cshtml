@@ -28,7 +28,11 @@
     </a>
     <a class="list-group-item list-group-item-action" asp-action="PayableBySupplier">
         <div class="fw-semibold">Cuentas por pagar por proveedor</div>
-        <div class="text-body-secondary small">Cuentas por pagar vigentes a la fecha, agrupadas por proveedor.</div>
+        <div class="text-body-secondary small">Cuentas por pagar vigentes a la fecha, agrupadas por proveedor, con antigüedad de saldos.</div>
+    </a>
+    <a class="list-group-item list-group-item-action" asp-action="ReceivableByCustomer">
+        <div class="fw-semibold">Cuentas por cobrar por cliente</div>
+        <div class="text-body-secondary small">Cuentas por cobrar vigentes a la fecha, agrupadas por cliente, con antigüedad de saldos.</div>
     </a>
     <a class="list-group-item list-group-item-action" asp-action="JournalBook">
         <div class="fw-semibold">Libro diario</div>
@@ -48,7 +52,7 @@
     </a>
     <a class="list-group-item list-group-item-action" asp-action="AnnualBudget">
         <div class="fw-semibold">Presupuesto anual a la fecha</div>
-        <div class="text-body-secondary small">Acumulado de enero hasta un mes, por categoría de gasto de último nivel, con el presupuesto anual de referencia.</div>
+        <div class="text-body-secondary small">Acumulado por período fiscal configurado, con el presupuesto anual de referencia.</div>
     </a>
     <a class="list-group-item list-group-item-action" asp-action="CashFlow">
         <div class="fw-semibold">Flujo de efectivo mensual</div>

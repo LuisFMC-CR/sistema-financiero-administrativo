@@ -15,7 +15,7 @@ namespace SistemaFinanciero.Domain.Budgets;
 /// Conexiones: la crea y edita <c>BudgetService.SetAmountAsync</c> (Infrastructure/Budgets), que
 /// también registra cada cambio en <see cref="BudgetChange"/>. Se guarda en
 /// <c>finanzas.Presupuestos</c> vía <c>BudgetConfiguration</c>, con índice único por
-/// (CategoryId, PeriodYear, PeriodMonth).
+/// (AccountId, PeriodYear, PeriodMonth).
 /// </remarks>
 public sealed class Budget
 {
@@ -32,7 +32,7 @@ public sealed class Budget
     /// <summary>Crea la primera configuración del presupuesto de una categoría y un mes.</summary>
     public Budget(
         Guid id,
-        Guid categoryId,
+        Guid accountId,
         int periodYear,
         int periodMonth,
         decimal amount,
@@ -40,7 +40,7 @@ public sealed class Budget
         Guid createdByUserId)
     {
         Id = DomainRules.RequiredId(id, nameof(id));
-        CategoryId = DomainRules.RequiredId(categoryId, nameof(categoryId));
+        AccountId = DomainRules.RequiredId(accountId, nameof(accountId));
         PeriodYear = RequireValidYear(periodYear, nameof(periodYear));
         PeriodMonth = RequireValidMonth(periodMonth, nameof(periodMonth));
         Amount = RequireNonNegativeAmount(amount, nameof(amount));
@@ -54,7 +54,7 @@ public sealed class Budget
     public Guid Id { get; private set; }
 
     /// <summary>Obtiene la categoría de gasto de último nivel presupuestada.</summary>
-    public Guid CategoryId { get; private set; }
+    public Guid AccountId { get; private set; }
 
     /// <summary>Obtiene el año del periodo presupuestado.</summary>
     public int PeriodYear { get; private set; }

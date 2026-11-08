@@ -1,0 +1,75 @@
+@using SistemaFinanciero.Web.Models.Receivables
+@model RegisterSingleReceivablePaymentViewModel
+@{
+    ViewData["Title"] = "Registrar abono";
+}
+
+<div class="catalog-form">
+    <h1 class="h2">Registrar abono</h1>
+    <p class="text-body-secondary">
+        El abono se aplicará únicamente a la cuenta por cobrar seleccionada. El cliente y la factura
+        se toman de esa cuenta.
+    </p>
+    <div class="card card-body mb-3">
+        <dl class="row mb-0">
+            <dt class="col-sm-3">Cliente</dt>
+            <dd class="col-sm-9">@Model.CustomerName</dd>
+            <dt class="col-sm-3">Factura</dt>
+            <dd class="col-sm-9">@Model.InvoiceLabel</dd>
+            <dt class="col-sm-3">Saldo pendiente</dt>
+            <dd class="col-sm-9">₡@Model.Balance.ToString("N2")</dd>
+        </dl>
+    </div>
+
+    <form asp-action="RegisterSingle" asp-route-id="@Model.ReceivableId" method="post" class="card card-body">
+        <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label asp-for="Amount" class="form-label"></label>
+                <input asp-for="Amount" type="number" step="0.01" min="0.01" max="@Model.Balance" class="form-control" />
+                <span asp-validation-for="Amount" class="text-danger"></span>
+                <small class="form-text">El monto más la retención, si aplica, no puede superar el saldo pendiente.</small>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="CashAccountId" class="form-label"></label>
+                <select asp-for="CashAccountId" asp-items="Model.CashAccountOptions" class="form-select">
+                    <option value="">Seleccione una cuenta de efectivo</option>
+                </select>
+                <span asp-validation-for="CashAccountId" class="text-danger"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="Reference" class="form-label"></label>
+                <input asp-for="Reference" class="form-control" />
+                <span asp-validation-for="Reference" class="text-danger"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="PaymentDate" class="form-label"></label>
+                <input asp-for="PaymentDate" type="date" class="form-control" />
+                <span asp-validation-for="PaymentDate" class="text-danger"></span>
+            </div>
+            @if (Model.WithholdingTypeOptions.Count > 0)
+            {
+                <div class="col-md-6">
+                    <label asp-for="WithholdingTypeId" class="form-label"></label>
+                    <select asp-for="WithholdingTypeId" asp-items="Model.WithholdingTypeOptions" class="form-select">
+                        <option value="">Sin retención</option>
+                    </select>
+                    <span asp-validation-for="WithholdingTypeId" class="text-danger"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="WithholdingBase" class="form-label"></label>
+                    <input asp-for="WithholdingBase" type="number" step="0.01" min="0" class="form-control" />
+                    <span asp-validation-for="WithholdingBase" class="text-danger"></span>
+                </div>
+            }
+        </div>
+        <div class="d-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-success">Registrar abono</button>
+            <a asp-controller="Receivables" asp-action="Details" asp-route-id="@Model.ReceivableId" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

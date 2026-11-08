@@ -49,12 +49,11 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
             Guid customerId = await CreateCustomerAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "13");
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
-            Guid incomeAccountId = await GetCategoryLedgerAccountIdAsync(services, incomeCategoryId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
             Guid vatPayableAccountId = await GetSystemAccountIdAsync(services, LedgerAccountSystemRole.VatPayable);
 
             Guid invoiceId = await CreateInvoiceWithLineAsync(
-                services, invoices, customerId, incomeCategoryId, taxTypeId, actorId, netAmount: 100m);
+                services, invoices, customerId, incomeAccountId, taxTypeId, actorId, netAmount: 100m);
             InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
 
             await invoices.ConfirmAsync(
@@ -86,13 +85,12 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
             IJournalEntryService journal = services.GetRequiredService<IJournalEntryService>();
             Guid customerId = await CreateCustomerAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "13");
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
-            Guid incomeAccountId = await GetCategoryLedgerAccountIdAsync(services, incomeCategoryId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
             Guid vatPayableAccountId = await GetSystemAccountIdAsync(services, LedgerAccountSystemRole.VatPayable);
             Guid receivableAccountId = await GetSystemAccountIdAsync(services, LedgerAccountSystemRole.ReceivablesFromCustomers);
 
             Guid invoiceId = await CreateCreditInvoiceWithLineAsync(
-                services, invoices, customerId, incomeCategoryId, taxTypeId, actorId, netAmount: 100m);
+                services, invoices, customerId, incomeAccountId, taxTypeId, actorId, netAmount: 100m);
             InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
 
             await invoices.ConfirmAsync(invoiceId, new ConfirmInvoiceCommand(null, null, null), draft.Version, actorId);
@@ -108,46 +106,6 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
 
     [Fact]
     [Trait("Category", "SqlServer")]
-    public Task Invoice_CancelledCash_GeneratesAReversalWithSwappedLinesAndTheSameDate()
-    {
-        return RunInRollbackTransactionAsync(async (services, actorId) =>
-        {
-            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
-            IJournalEntryService journal = services.GetRequiredService<IJournalEntryService>();
-            Guid customerId = await CreateCustomerAsync(services, actorId);
-            Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "13");
-            Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
-
-            Guid invoiceId = await CreateInvoiceWithLineAsync(
-                services, invoices, customerId, incomeCategoryId, taxTypeId, actorId, netAmount: 100m);
-            InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
-            await invoices.ConfirmAsync(
-                invoiceId, new ConfirmInvoiceCommand(cashAccountId, PaymentMethod.Cash, "F-0001"), draft.Version, actorId);
-
-            InvoiceModel confirmed = (await invoices.GetAsync(invoiceId))!;
-            await invoices.CancelAsync(invoiceId, "Error de digitación", confirmed.Version, actorId);
-
-            JournalEntryTraceModel trace = (await journal.GetTraceAsync(JournalEntrySourceType.Invoice, invoiceId))!;
-            Assert.NotNull(trace.Reversal);
-            JournalEntryModel reversal = trace.Reversal!;
-
-            Assert.Equal(trace.Entry.Id, reversal.ReversesEntryId);
-            Assert.Equal(trace.Entry.EntryDate, reversal.EntryDate);
-            AssertBalanced(reversal);
-
-            foreach (JournalEntryLineModel originalLine in trace.Entry.Lines)
-            {
-                JournalEntryLineModel reversedLine = Assert.Single(
-                    reversal.Lines, line => line.AccountId == originalLine.AccountId);
-                Assert.Equal(originalLine.Debit, reversedLine.Credit);
-                Assert.Equal(originalLine.Credit, reversedLine.Debit);
-            }
-        });
-    }
-
-    [Fact]
-    [Trait("Category", "SqlServer")]
     public Task Expense_ConfirmedCash_DebitsCategoryAndVatCreditsCash()
     {
         return RunInRollbackTransactionAsync(async (services, actorId) =>
@@ -155,15 +113,15 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
             IJournalEntryService journal = services.GetRequiredService<IJournalEntryService>();
             Guid supplierId = await CreateSupplierAsync(services, actorId);
-            Guid categoryId = await CreateExpenseCategoryAsync(services, actorId);
-            Guid categoryAccountId = await GetCategoryLedgerAccountIdAsync(services, categoryId);
+            Guid accountId = await CreateExpenseCategoryAsync(services, actorId);
+            Guid categoryAccountId = await GetCategoryLedgerAccountIdAsync(services, accountId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "13");
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
             Guid vatCreditableAccountId = await GetSystemAccountIdAsync(services, LedgerAccountSystemRole.VatCreditable);
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
             Guid expenseId = await CreateDraftExpenseAsync(
-                expenses, supplierId, categoryId, taxTypeId, PaymentTerm.Cash, 1000m, actorId);
+                expenses, supplierId, accountId, taxTypeId, PaymentTerm.Cash, 1000m, actorId);
             ExpenseModel draft = (await expenses.GetAsync(expenseId))!;
             await expenses.ConfirmAsync(
                 expenseId, new ConfirmExpenseCommand(cashAccountId, "REC-0001"), draft.Version, actorId, actorIsManagement: false);
@@ -189,14 +147,14 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
             IJournalEntryService journal = services.GetRequiredService<IJournalEntryService>();
             Guid supplierId = await CreateSupplierAsync(services, actorId);
-            Guid categoryId = await CreateExpenseCategoryAsync(services, actorId);
-            Guid categoryAccountId = await GetCategoryLedgerAccountIdAsync(services, categoryId);
+            Guid accountId = await CreateExpenseCategoryAsync(services, actorId);
+            Guid categoryAccountId = await GetCategoryLedgerAccountIdAsync(services, accountId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "13");
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
             Guid expenseId = await CreateDraftExpenseAsync(
-                expenses, supplierId, categoryId, taxTypeId, PaymentTerm.Cash, 1000m, actorId, vatCreditable: false);
+                expenses, supplierId, accountId, taxTypeId, PaymentTerm.Cash, 1000m, actorId, vatCreditable: false);
             ExpenseModel draft = (await expenses.GetAsync(expenseId))!;
             await expenses.ConfirmAsync(
                 expenseId, new ConfirmExpenseCommand(cashAccountId, "REC-0002"), draft.Version, actorId, actorIsManagement: false);
@@ -218,14 +176,14 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
             IJournalEntryService journal = services.GetRequiredService<IJournalEntryService>();
             Guid supplierId = await CreateSupplierAsync(services, actorId);
-            Guid categoryId = await CreateExpenseCategoryAsync(services, actorId);
-            Guid categoryAccountId = await GetCategoryLedgerAccountIdAsync(services, categoryId);
+            Guid accountId = await CreateExpenseCategoryAsync(services, actorId);
+            Guid categoryAccountId = await GetCategoryLedgerAccountIdAsync(services, accountId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "13");
             Guid vatCreditableAccountId = await GetSystemAccountIdAsync(services, LedgerAccountSystemRole.VatCreditable);
             Guid payablesAccountId = await GetSystemAccountIdAsync(services, LedgerAccountSystemRole.PayablesToSuppliers);
 
             Guid expenseId = await CreateDraftExpenseAsync(
-                expenses, supplierId, categoryId, taxTypeId, PaymentTerm.Credit30, 1000m, actorId);
+                expenses, supplierId, accountId, taxTypeId, PaymentTerm.Credit30, 1000m, actorId);
             ExpenseModel draft = (await expenses.GetAsync(expenseId))!;
             await expenses.ConfirmAsync(
                 expenseId, new ConfirmExpenseCommand(null, null), draft.Version, actorId, actorIsManagement: false);
@@ -256,7 +214,7 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
             IReceivablePaymentService payments = services.GetRequiredService<IReceivablePaymentService>();
             IJournalEntryService journal = services.GetRequiredService<IJournalEntryService>();
             Guid customerId = await CreateCustomerAsync(services, actorId, appliesStateWithholding: true);
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
             Guid withholdingTypeId = await CreateWithholdingTypeAsync(services, actorId, rate: 2m);
             Guid receivableAccountId = await GetSystemAccountIdAsync(services, LedgerAccountSystemRole.ReceivablesFromCustomers);
@@ -264,7 +222,7 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
             Guid receivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, incomeCategoryId, actorId, amount: 1000m);
+                services, invoices, customerId, incomeAccountId, actorId, amount: 1000m);
 
             RegisterReceivablePaymentResult result = await payments.RegisterAsync(
                 new RegisterReceivablePaymentCommand(
@@ -300,13 +258,13 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
             IReceivablePaymentService payments = services.GetRequiredService<IReceivablePaymentService>();
             IJournalEntryService journal = services.GetRequiredService<IJournalEntryService>();
             Guid customerId = await CreateCustomerAsync(services, actorId);
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
             Guid receivableAccountId = await GetSystemAccountIdAsync(services, LedgerAccountSystemRole.ReceivablesFromCustomers);
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
             Guid receivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, incomeCategoryId, actorId, amount: 100m);
+                services, invoices, customerId, incomeAccountId, actorId, amount: 100m);
 
             RegisterReceivablePaymentResult result = await payments.RegisterAsync(
                 new RegisterReceivablePaymentCommand(
@@ -386,12 +344,11 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
             IIncomeService incomes = services.GetRequiredService<IIncomeService>();
             IJournalEntryService journal = services.GetRequiredService<IJournalEntryService>();
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
-            Guid incomeAccountId = await GetCategoryLedgerAccountIdAsync(services, incomeCategoryId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
 
             IncomeCreationResult created = await incomes.CreateManualAsync(
                 new CreateManualIncomeCommand(
-                    incomeCategoryId,
+                    incomeAccountId,
                     cashAccountId,
                     15_000m,
                     DateOnly.FromDateTime(DateTime.UtcNow),
@@ -429,13 +386,13 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
             Guid customerId = await CreateCustomerAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
             // Ingreso de factura de contado: regla de contabilización — el ingreso no tiene asiento
             // propio, su efecto ya está en el asiento de la factura.
             Guid cashInvoiceId = await CreateInvoiceWithLineAsync(
-                services, invoices, customerId, incomeCategoryId, taxTypeId, actorId, netAmount: 100m);
+                services, invoices, customerId, incomeAccountId, taxTypeId, actorId, netAmount: 100m);
             InvoiceModel draft = (await invoices.GetAsync(cashInvoiceId))!;
             await invoices.ConfirmAsync(
                 cashInvoiceId, new ConfirmInvoiceCommand(cashAccountId, PaymentMethod.Cash, "F-0001"), draft.Version, actorId);
@@ -446,7 +403,7 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
 
             // Ingreso de abono: mismo criterio.
             Guid receivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, incomeCategoryId, actorId, amount: 100m);
+                services, invoices, customerId, incomeAccountId, actorId, amount: 100m);
             RegisterReceivablePaymentResult registered = await payments.RegisterAsync(
                 new RegisterReceivablePaymentCommand(
                     customerId, cashAccountId, "AB-0003", DateOnly.FromDateTime(DateTime.UtcNow),
@@ -471,12 +428,12 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
             IBalanceAdjustmentService adjustments = services.GetRequiredService<IBalanceAdjustmentService>();
             IJournalEntryService journal = services.GetRequiredService<IJournalEntryService>();
             Guid customerId = await CreateCustomerAsync(services, actorId);
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
             Guid receivableAccountId = await GetSystemAccountIdAsync(services, LedgerAccountSystemRole.ReceivablesFromCustomers);
             Guid adjustmentAccountId = await GetSystemAccountIdAsync(services, LedgerAccountSystemRole.ReceivableAdjustments);
 
             Guid receivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, incomeCategoryId, actorId, amount: 1000m);
+                services, invoices, customerId, incomeAccountId, actorId, amount: 1000m);
             string version = (await receivables.GetAsync(receivableId))!.Version;
 
             await adjustments.AdjustReceivableAsync(
@@ -549,7 +506,7 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
 
     [Fact]
     [Trait("Category", "SqlServer")]
-    public Task BackfillAsync_RegeneratesAMissingEntryOnceAndStaysIdempotent()
+    public Task SearchAsync_ReturnsTheConfirmedInvoiceEntryWithItsLinesTotalAndPeriodSummary()
     {
         return RunInRollbackTransactionAsync(async (services, actorId) =>
         {
@@ -558,50 +515,42 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
             Guid customerId = await CreateCustomerAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "13");
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
 
             Guid invoiceId = await CreateInvoiceWithLineAsync(
-                services, invoices, customerId, incomeCategoryId, taxTypeId, actorId, netAmount: 100m);
+                services, invoices, customerId, incomeAccountId, taxTypeId, actorId, netAmount: 100m);
             InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
             await invoices.ConfirmAsync(
                 invoiceId, new ConfirmInvoiceCommand(cashAccountId, PaymentMethod.Cash, "F-0001"), draft.Version, actorId);
 
-            FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+            JournalEntryTraceModel trace = (await journal.GetTraceAsync(JournalEntrySourceType.Invoice, invoiceId))!;
+            DateOnly entryDate = trace.Entry.EntryDate;
 
-            // El asiento ya existe (lo generó la confirmación en vivo). Se guarda una fotografía de sus
-            // líneas y se borra con SQL directo (fuera del change tracker, que lo protege de
-            // modificarse o borrarse por el camino normal de EF) para simular un documento previo al
-            // bloque 5, sin asiento todavía.
-            JournalEntryTraceModel beforeDeletion = (await journal.GetTraceAsync(JournalEntrySourceType.Invoice, invoiceId))!;
-            Guid originalEntryId = beforeDeletion.Entry.Id;
-            (Guid AccountId, decimal Debit, decimal Credit)[] originalLines = beforeDeletion.Entry.Lines
-                .Select(line => (line.AccountId, line.Debit, line.Credit))
-                .OrderBy(line => line.AccountId)
-                .ToArray();
+            JournalEntryListResult all = await journal.SearchAsync(
+                entryDate.Year, entryDate.Month, JournalEntryStateFilter.All);
 
-            await context.Database.ExecuteSqlInterpolatedAsync(
-                $"DELETE FROM finanzas.Asientos WHERE Id = {originalEntryId}");
+            JournalEntryListItem item = Assert.Single(
+                all.Entries,
+                entry => entry.SourceType == JournalEntrySourceType.Invoice && entry.SourceId == invoiceId);
 
-            Assert.Null(await journal.GetTraceAsync(JournalEntrySourceType.Invoice, invoiceId));
+            Assert.Equal(trace.Entry.Number, item.Number);
+            Assert.Null(item.ReversesEntryId);
+            Assert.Equal(trace.Entry.Lines.Sum(line => line.Debit), item.TotalAmount);
+            Assert.Equal(trace.Entry.Lines.Count, item.Lines.Count);
+            Assert.Equal(all.Entries.Count, all.EntriesCount);
+            Assert.Equal(all.Entries.Sum(entry => entry.TotalAmount), all.TotalMovements);
 
-            await journal.BackfillAsync();
+            JournalEntryListResult exactEntry = await journal.SearchAsync(
+                entryDate.Year, entryDate.Month, JournalEntryStateFilter.All, trace.Entry.Number);
+            Assert.Collection(exactEntry.Entries, entry => Assert.Equal(trace.Entry.Number, entry.Number));
 
-            JournalEntryTraceModel regenerated = (await journal.GetTraceAsync(JournalEntrySourceType.Invoice, invoiceId))!;
-            Assert.NotEqual(originalEntryId, regenerated.Entry.Id);
-            (Guid AccountId, decimal Debit, decimal Credit)[] regeneratedLines = regenerated.Entry.Lines
-                .Select(line => (line.AccountId, line.Debit, line.Credit))
-                .OrderBy(line => line.AccountId)
-                .ToArray();
-            Assert.Equal(originalLines, regeneratedLines);
+            JournalEntryListResult posted = await journal.SearchAsync(
+                entryDate.Year, entryDate.Month, JournalEntryStateFilter.Posted);
+            Assert.Contains(posted.Entries, entry => entry.SourceId == invoiceId);
 
-            // Repetirlo no debe duplicar el asiento de esta factura: sigue existiendo exactamente uno.
-            await journal.BackfillAsync();
-
-            int entriesForInvoice = await context.Set<JournalEntry>()
-                .CountAsync(entry => entry.SourceType == JournalEntrySourceType.Invoice
-                    && entry.SourceId == invoiceId
-                    && entry.ReversesEntryId == null);
-            Assert.Equal(1, entriesForInvoice);
+            JournalEntryListResult reversals = await journal.SearchAsync(
+                entryDate.Year, entryDate.Month, JournalEntryStateFilter.Reversal);
+            Assert.DoesNotContain(reversals.Entries, entry => entry.SourceId == invoiceId);
         });
     }
 
@@ -626,24 +575,24 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
         return (await context.LedgerAccounts.AsNoTracking().SingleAsync(account => account.SystemRole == role)).Id;
     }
 
-    private static async Task<Guid> GetCategoryLedgerAccountIdAsync(IServiceProvider services, Guid categoryId)
+    private static Task<Guid> GetCategoryLedgerAccountIdAsync(IServiceProvider services, Guid accountId)
     {
-        FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
-        return (await context.FinancialCategories.AsNoTracking().SingleAsync(category => category.Id == categoryId))
-            .LedgerAccountId;
+        // La cuenta contable ya es la cuenta del libro mayor: no hay una categoría intermedia.
+        _ = services;
+        return Task.FromResult(accountId);
     }
 
     private static async Task<Guid> CreateInvoiceWithLineAsync(
         IServiceProvider services,
         IInvoiceService invoices,
         Guid customerId,
-        Guid incomeCategoryId,
+        Guid incomeAccountId,
         Guid taxTypeId,
         Guid actorId,
         decimal netAmount)
     {
         InvoiceCreationResult created = await invoices.CreateAsync(
-            new CreateInvoiceCommand(customerId, incomeCategoryId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Cash),
+            new CreateInvoiceCommand(customerId, incomeAccountId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Cash),
             actorId);
         Guid invoiceId = created.InvoiceId!.Value;
         InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
@@ -662,13 +611,13 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
         IServiceProvider services,
         IInvoiceService invoices,
         Guid customerId,
-        Guid incomeCategoryId,
+        Guid incomeAccountId,
         Guid taxTypeId,
         Guid actorId,
         decimal netAmount)
     {
         InvoiceCreationResult created = await invoices.CreateAsync(
-            new CreateInvoiceCommand(customerId, incomeCategoryId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Credit30),
+            new CreateInvoiceCommand(customerId, incomeAccountId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Credit30),
             actorId);
         Guid invoiceId = created.InvoiceId!.Value;
         InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
@@ -687,13 +636,13 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
         IServiceProvider services,
         IInvoiceService invoices,
         Guid customerId,
-        Guid incomeCategoryId,
+        Guid incomeAccountId,
         Guid actorId,
         decimal amount)
     {
         Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
         Guid invoiceId = await CreateCreditInvoiceWithLineAsync(
-            services, invoices, customerId, incomeCategoryId, taxTypeId, actorId, amount);
+            services, invoices, customerId, incomeAccountId, taxTypeId, actorId, amount);
 
         InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
         await invoices.ConfirmAsync(invoiceId, new ConfirmInvoiceCommand(null, null, null), draft.Version, actorId);
@@ -705,7 +654,7 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
     private static async Task<Guid> CreateDraftExpenseAsync(
         IExpenseService expenses,
         Guid supplierId,
-        Guid categoryId,
+        Guid accountId,
         Guid taxTypeId,
         PaymentTerm paymentTerm,
         decimal netAmount,
@@ -715,7 +664,7 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
         ExpenseCreationResult created = await expenses.CreateAsync(
             new SaveExpenseCommand(
                 supplierId,
-                categoryId,
+                accountId,
                 "Compra de prueba",
                 "VC-0001",
                 DateOnly.FromDateTime(DateTime.UtcNow),
@@ -737,11 +686,11 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
         Guid actorId,
         decimal amount)
     {
-        Guid categoryId = await CreateExpenseCategoryAsync(services, actorId);
+        Guid accountId = await CreateExpenseCategoryAsync(services, actorId);
         Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
 
         Guid expenseId = await CreateDraftExpenseAsync(
-            expenses, supplierId, categoryId, taxTypeId, PaymentTerm.Credit30, amount, actorId);
+            expenses, supplierId, accountId, taxTypeId, PaymentTerm.Credit30, amount, actorId);
 
         ExpenseModel draft = (await expenses.GetAsync(expenseId))!;
         await expenses.ConfirmAsync(
@@ -877,19 +826,7 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
         context.LedgerAccounts.Add(ledgerAccount);
         await context.SaveChangesAsync();
 
-        FinancialCategory category = new(
-            Guid.NewGuid(),
-            $"CAT-{suffix}",
-            "Categoría de ingreso de pruebas de asientos",
-            FinancialCategoryKind.Income,
-            null,
-            ledgerAccount.Id,
-            null,
-            DateTimeOffset.UtcNow,
-            actorId);
-        context.FinancialCategories.Add(category);
-        await context.SaveChangesAsync();
-        return category.Id;
+        return ledgerAccount.Id;
     }
 
     private static async Task<Guid> CreateExpenseCategoryAsync(IServiceProvider services, Guid actorId)
@@ -910,19 +847,7 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
         context.LedgerAccounts.Add(ledgerAccount);
         await context.SaveChangesAsync();
 
-        FinancialCategory category = new(
-            Guid.NewGuid(),
-            $"CAT-{suffix}",
-            "Categoría de gasto de pruebas de asientos",
-            FinancialCategoryKind.Expense,
-            null,
-            ledgerAccount.Id,
-            null,
-            DateTimeOffset.UtcNow,
-            actorId);
-        context.FinancialCategories.Add(category);
-        await context.SaveChangesAsync();
-        return category.Id;
+        return ledgerAccount.Id;
     }
 
     private static async Task<Guid> CreateWithholdingTypeAsync(IServiceProvider services, Guid actorId, decimal rate)

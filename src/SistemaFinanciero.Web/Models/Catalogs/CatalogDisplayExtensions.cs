@@ -21,13 +21,6 @@ public static class CatalogDisplayExtensions
         _ => "Desconocido",
     };
 
-    public static string ToDisplayName(this FinancialCategoryKind kind) => kind switch
-    {
-        FinancialCategoryKind.Income => "Ingreso",
-        FinancialCategoryKind.Expense => "Gasto",
-        _ => "Desconocida",
-    };
-
     public static string ToDisplayName(this LedgerAccountType type) => type switch
     {
         LedgerAccountType.Asset => "Activo",

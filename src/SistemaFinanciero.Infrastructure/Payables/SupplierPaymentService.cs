@@ -119,7 +119,7 @@ internal sealed class SupplierPaymentService(
         }
 
         string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
-            dbContext, command.PaymentDate, cancellationToken);
+            dbContext, command.PaymentDate, timeProvider, cancellationToken);
 
         if (closingDateViolation is not null)
         {
@@ -240,7 +240,7 @@ internal sealed class SupplierPaymentService(
         }
 
         string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
-            dbContext, payment.PaymentDate, cancellationToken);
+            dbContext, payment.PaymentDate, timeProvider, cancellationToken);
 
         if (closingDateViolation is not null)
         {

@@ -9,13 +9,12 @@ namespace SistemaFinanciero.Domain.Receivables;
 /// <remarks>
 /// Una factura a crédito tiene como máximo una cuenta por cobrar (<see cref="InvoiceId"/> es único en
 /// la base de datos). El saldo lo reduce cada abono (<see cref="ApplyPayment"/>, por el monto pagado
-/// más la retención, si la hay) y lo restituye anular uno de ellos (<see cref="RevertPayment"/>).
-/// Todavía no admite un ajuste de saldo independiente (regla 4): esa operación, junto con la
-/// validación de la fecha de cierre, queda para el paso 6 del roadmap de <c>CLAUDE.md</c>.
+/// más la retención, si la hay), se restituye al anular uno (<see cref="RevertPayment"/>) o se liquida
+/// por completo mediante <see cref="CancelByCreditNote"/>.
 ///
-/// Conexiones: la crea <c>InvoiceService.ConfirmAsync</c> cuando la factura es a crédito, y la anula
-/// en cascada <c>InvoiceService.CancelAsync</c> cuando la factura se anula sin abonos vigentes. Se
-/// guarda en <c>finanzas.CuentasPorCobrar</c> vía <c>ReceivableConfiguration</c>.
+/// Conexiones: la crea <c>InvoiceService.ConfirmAsync</c> cuando la factura es a crédito, y
+/// <c>CreditNoteService.RegisterAsync</c> la cancela al emitir una nota de crédito total. Se guarda
+/// en <c>finanzas.CuentasPorCobrar</c> vía <c>ReceivableConfiguration</c>.
 /// <c>ReceivablePaymentService</c> (siguiente bloque del roadmap) la actualiza al registrar o anular
 /// un abono.
 /// </remarks>
@@ -176,6 +175,31 @@ public sealed class Receivable
         }
 
         Touch(cancelledAtUtc, cancelledByUserId);
+        Status = ReceivableStatus.Cancelled;
+        CancelledAtUtc = cancelledAtUtc;
+        CancelledByUserId = cancelledByUserId;
+    }
+
+    /// <summary>
+    /// Cierra la cuenta por cobrar como parte de una nota de crédito total, que aplica exactamente
+    /// el saldo pendiente. Los abonos y retenciones previos permanecen como historial.
+    /// </summary>
+    public void CancelByCreditNote(
+        decimal appliedToBalance,
+        DateTimeOffset cancelledAtUtc,
+        Guid cancelledByUserId)
+    {
+        EnsureNotCancelled();
+        decimal amount = DomainRules.RoundMoney(appliedToBalance);
+
+        if (amount != Balance)
+        {
+            throw new InvalidOperationException(
+                "La nota de crédito debe aplicar el saldo pendiente completo de la cuenta por cobrar.");
+        }
+
+        Touch(cancelledAtUtc, cancelledByUserId);
+        Balance = 0m;
         Status = ReceivableStatus.Cancelled;
         CancelledAtUtc = cancelledAtUtc;
         CancelledByUserId = cancelledByUserId;

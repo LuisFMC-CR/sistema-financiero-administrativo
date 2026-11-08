@@ -12,8 +12,8 @@ public sealed record IncomeModel(
     Guid? InvoiceId,
     long? InvoiceNumber,
     Guid? ReceivablePaymentId,
-    Guid CategoryId,
-    string CategoryName,
+    Guid AccountId,
+    string AccountName,
     Guid CashAccountId,
     string CashAccountName,
     decimal Amount,
@@ -61,7 +61,7 @@ public sealed record IncomeQuery
         DateOnly? incomeDateFrom = null,
         DateOnly? incomeDateTo = null,
         IncomeOriginFilter origin = IncomeOriginFilter.All,
-        string? categoryName = null,
+        string? accountName = null,
         string? cashAccountName = null,
         string? referenceOrDescription = null,
         decimal? amountMin = null,
@@ -73,7 +73,7 @@ public sealed record IncomeQuery
         IncomeDateFrom = incomeDateFrom;
         IncomeDateTo = incomeDateTo;
         Origin = origin;
-        CategoryName = string.IsNullOrWhiteSpace(categoryName) ? null : categoryName.Trim();
+        AccountName = string.IsNullOrWhiteSpace(accountName) ? null : accountName.Trim();
         CashAccountName = string.IsNullOrWhiteSpace(cashAccountName) ? null : cashAccountName.Trim();
         ReferenceOrDescription = string.IsNullOrWhiteSpace(referenceOrDescription) ? null : referenceOrDescription.Trim();
         AmountMin = amountMin;
@@ -93,7 +93,7 @@ public sealed record IncomeQuery
     public IncomeOriginFilter Origin { get; }
 
     /// <summary>Texto opcional buscado en el nombre de la categoría.</summary>
-    public string? CategoryName { get; }
+    public string? AccountName { get; }
 
     /// <summary>Texto opcional buscado en el nombre de la cuenta de efectivo.</summary>
     public string? CashAccountName { get; }
@@ -122,7 +122,7 @@ public sealed record IncomeQuery
 /// intereses que acredite el banco, nunca préstamos ni aportes (regla 2).
 /// </summary>
 public sealed record CreateManualIncomeCommand(
-    Guid CategoryId,
+    Guid AccountId,
     Guid CashAccountId,
     decimal Amount,
     DateOnly IncomeDate,

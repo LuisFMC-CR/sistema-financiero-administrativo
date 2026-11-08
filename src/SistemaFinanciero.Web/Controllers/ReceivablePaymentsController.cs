@@ -7,25 +7,19 @@ using SistemaFinanciero.Application.Catalogs.LedgerAccounts;
 using SistemaFinanciero.Application.Catalogs.WithholdingTypes;
 using SistemaFinanciero.Application.Receivables;
 using SistemaFinanciero.Application.Security;
+using SistemaFinanciero.Domain.Receivables;
 using SistemaFinanciero.Web.Models.Receivables;
 
 namespace SistemaFinanciero.Web.Controllers;
 
-/// <summary>Registra y anula abonos, incluido el reparto a varias facturas del mismo cliente.</summary>
+/// <summary>Registra abonos individuales o repartidos y permite anularlos.</summary>
 /// <remarks>
-/// Conexiones: usa <c>IReceivableService</c> para proponer el reparto (de la más antigua a la más
-/// nueva, regla 2) e <c>IReceivablePaymentService</c> para registrarlo o anularlo.
-/// <c>ICustomerCatalogService</c>, <c>ILedgerAccountService</c> e <c>IWithholdingTypeService</c>
-/// alimentan los selectores. El registro es un asistente de dos pasos:
-/// <see cref="Start(Guid?, CancellationToken)"/> pide cliente, monto, cuenta de efectivo, referencia y
-/// fecha; <see cref="Start(RegisterReceivablePaymentStartViewModel, CancellationToken)"/> calcula el
-/// reparto propuesto y lo muestra editable; <see cref="Register"/> lo registra. Ya no pide la
-/// categoría del ingreso: cada ingreso hereda la de su propia factura (bloque 2 del paquete de
-/// mejoras finales), y un mismo abono a varias facturas puede heredar categorías distintas. Si el
-/// registro falla, se regresa al paso 1 en vez de reconstruir el paso 2 con los datos ya editados,
-/// para mantener el flujo simple.
+/// Conexiones: usa <c>IReceivableService</c> para cargar la cuenta seleccionada y proponer reparto
+/// (de la más antigua a la más nueva, regla 2), e <c>IReceivablePaymentService</c> para registrar o
+/// anular abonos. El formulario individual obtiene cliente y factura del registro en el servidor;
+/// el asistente de reparto múltiple se inicia desde Ingresos.
 /// </remarks>
-[Route("cuentas-por-cobrar/abonos")]
+[Route("ingresos/abonos")]
 public sealed class ReceivablePaymentsController(
     IReceivableService receivableService,
     IReceivablePaymentService paymentService,
@@ -33,6 +27,93 @@ public sealed class ReceivablePaymentsController(
     ILedgerAccountService ledgerAccountService,
     IWithholdingTypeService withholdingTypeService) : CatalogControllerBase
 {
+    [Authorize(Policy = SystemPolicies.ConfirmFinancialTransactions)]
+    [HttpGet("cuenta/{id:guid}")]
+    public async Task<IActionResult> RegisterSingle(Guid id, CancellationToken cancellationToken)
+    {
+        ReceivableModel? receivable = await receivableService.GetAsync(id, cancellationToken);
+
+        if (receivable is null)
+        {
+            return NotFound();
+        }
+
+        if (!CanReceivePayment(receivable))
+        {
+            TempData["ErrorMessage"] = "La cuenta por cobrar seleccionada ya no tiene saldo pendiente.";
+            return RedirectToAction("Details", "Receivables", new { id });
+        }
+
+        RegisterSingleReceivablePaymentViewModel model = new()
+        {
+            ReceivableId = receivable.Id,
+            Amount = receivable.Balance,
+            WithholdingBase = ProposeWithholdingBase(receivable, receivable.Balance),
+        };
+        await PopulateSingleOptionsAsync(model, receivable, cancellationToken);
+        return View("RegisterSingle", model);
+    }
+
+    [Authorize(Policy = SystemPolicies.ConfirmFinancialTransactions)]
+    [HttpPost("cuenta/{id:guid}")]
+    public async Task<IActionResult> RegisterSingle(
+        Guid id,
+        RegisterSingleReceivablePaymentViewModel model,
+        CancellationToken cancellationToken)
+    {
+        ReceivableModel? receivable = await receivableService.GetAsync(id, cancellationToken);
+
+        if (receivable is null)
+        {
+            return NotFound();
+        }
+
+        if (!CanReceivePayment(receivable))
+        {
+            TempData["ErrorMessage"] = "La cuenta por cobrar seleccionada ya no tiene saldo pendiente.";
+            return RedirectToAction("Details", "Receivables", new { id });
+        }
+
+        if (!ModelState.IsValid)
+        {
+            model.ReceivableId = receivable.Id;
+            await PopulateSingleOptionsAsync(model, receivable, cancellationToken);
+            return View("RegisterSingle", model);
+        }
+
+        if (!TryGetActorId(out Guid actorId))
+        {
+            return Forbid();
+        }
+
+        WithholdingInputCommand? withholding = model.WithholdingTypeId is Guid withholdingTypeId
+            ? new WithholdingInputCommand(withholdingTypeId, model.WithholdingBase ?? 0m)
+            : null;
+        RegisterReceivablePaymentResult result = await paymentService.RegisterAsync(
+            new RegisterReceivablePaymentCommand(
+                receivable.CustomerId,
+                model.CashAccountId!.Value,
+                model.Reference,
+                model.PaymentDate,
+                [new ReceivablePaymentAllocationCommand(receivable.Id, model.Amount, withholding)]),
+            actorId,
+            User.IsInRole(SystemRoles.Management),
+            cancellationToken);
+
+        if (!result.Operation.IsSuccess)
+        {
+            ModelState.AddModelError(string.Empty, result.Operation.Message ?? "No fue posible registrar el abono.");
+            model.ReceivableId = receivable.Id;
+            await PopulateSingleOptionsAsync(model, receivable, cancellationToken);
+            return View("RegisterSingle", model);
+        }
+
+        SetSuccessMessage(result.DuplicateReferenceWarning
+            ? "El abono fue registrado. Advertencia: la referencia ya se había usado antes en esta cuenta de efectivo."
+            : "El abono fue registrado.");
+        return RedirectToAction("Details", "Receivables", new { id = receivable.Id });
+    }
+
     [Authorize(Policy = SystemPolicies.ConfirmFinancialTransactions)]
     [HttpGet("nuevo")]
     public async Task<IActionResult> Start(Guid? clienteId, CancellationToken cancellationToken)
@@ -218,6 +299,43 @@ public sealed class ReceivablePaymentsController(
             .ToList();
     }
 
+    private async Task PopulateSingleOptionsAsync(
+        RegisterSingleReceivablePaymentViewModel model,
+        ReceivableModel receivable,
+        CancellationToken cancellationToken)
+    {
+        model.CustomerName = receivable.CustomerName;
+        model.InvoiceLabel = receivable.InvoiceNumber?.ToString(
+            System.Globalization.CultureInfo.InvariantCulture) ?? "—";
+        model.Balance = receivable.Balance;
+
+        IReadOnlyList<CashAccountOption> cashAccounts = await ledgerAccountService.GetActiveCashAccountsAsync(cancellationToken);
+        model.CashAccountOptions = cashAccounts
+            .Select(option => new SelectListItem(
+                $"{option.Code} - {option.Name}",
+                option.Id.ToString(),
+                option.Id == model.CashAccountId))
+            .ToList();
+
+        CustomerModel? customer = await customerService.GetAsync(receivable.CustomerId, cancellationToken);
+
+        if (customer?.AppliesStateWithholding != true)
+        {
+            model.WithholdingTypeOptions = [];
+            model.WithholdingTypeId = null;
+            model.WithholdingBase = 0m;
+            return;
+        }
+
+        IReadOnlyList<WithholdingTypeOption> withholdingTypes = await withholdingTypeService.GetActiveOptionsAsync(cancellationToken);
+        model.WithholdingTypeOptions = withholdingTypes
+            .Select(option => new SelectListItem(
+                $"{option.Name} ({option.Rate:0.##}%)",
+                option.Id.ToString(),
+                option.Id == model.WithholdingTypeId))
+            .ToList();
+    }
+
     private async Task PopulateAllocateLabelsAsync(
         RegisterReceivablePaymentAllocateViewModel model,
         CancellationToken cancellationToken)
@@ -300,5 +418,11 @@ public sealed class ReceivablePaymentsController(
         decimal pendingNetAmount = receivable.Balance / receivable.OriginalAmount * receivable.InvoiceNetAmount;
 
         return Math.Max(0m, Math.Min(proposedBase, pendingNetAmount));
+    }
+
+    private static bool CanReceivePayment(ReceivableModel receivable)
+    {
+        return receivable.Balance > 0m
+            && receivable.Status is ReceivableStatus.Pending or ReceivableStatus.PartiallyPaid;
     }
 }

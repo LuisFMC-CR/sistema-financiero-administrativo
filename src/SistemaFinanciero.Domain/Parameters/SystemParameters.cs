@@ -3,9 +3,8 @@ using SistemaFinanciero.Domain.Common;
 namespace SistemaFinanciero.Domain.Parameters;
 
 /// <summary>
-/// Parámetros financieros únicos del sistema: el límite de autorización de abonos y pagos (regla de
-/// negocio 7), los días de alerta de vencimiento próximo (regla de negocio 9) y la fecha de cierre
-/// (regla de negocio 16).
+/// Parámetros únicos del sistema: límite de autorización, días de alerta, datos de empresa y período
+/// fiscal. La fecha de cierre manual se conserva solo como dato histórico legado.
 /// </summary>
 /// <remarks>
 /// Existe como máximo una fila, siempre con el mismo identificador fijo <see cref="SingletonId"/>. No
@@ -15,12 +14,10 @@ namespace SistemaFinanciero.Domain.Parameters;
 /// Conexiones: la crea y edita <c>SystemParametersService</c> (Infrastructure/Parameters); se guarda en
 /// <c>finanzas.ParametrosSistema</c> vía <c>SystemParametersConfiguration</c>; la presenta
 /// <c>SystemParametersController</c> (Web, ruta <c>/parametros</c>). Cada cambio de límite o días genera
-/// además un <see cref="SystemParameterChange"/>; cada cambio de <see cref="ClosingDate"/> genera un
-/// <see cref="ClosingDateChange"/>; cada cambio de los datos de la empresa genera un
-/// <see cref="CompanyDataChange"/> (RF-55). Todavía nada lee <see cref="AuthorizationLimitCrc"/> ni
-/// <see cref="OverdueAlertDays"/> para aplicar la regla: eso lo hará el futuro módulo de abonos/pagos
-/// (el límite) y el de Consultas (la alerta de vencimiento). <see cref="ClosingDate"/> todavía no se
-/// valida en las demás operaciones: eso queda para el siguiente bloque del roadmap.
+/// además un <see cref="SystemParameterChange"/>; cada cambio del período fiscal genera un
+/// <see cref="FiscalPeriodChange"/>; cada cambio de los datos de la empresa genera un
+/// <see cref="CompanyDataChange"/> (RF-55). La columna <see cref="ClosingDate"/> se mantiene por
+/// compatibilidad histórica y no gobierna el cierre mensual automático.
 /// </remarks>
 public sealed class SystemParameters
 {
@@ -56,6 +53,12 @@ public sealed class SystemParameters
 
     /// <summary>Longitud exacta del código de distrito (2 dígitos, bloque 2 del paquete v7).</summary>
     public const int CompanyDistrictCodeLength = 2;
+
+    /// <summary>Longitud exacta del código de sucursal para la clave de Hacienda (bloque 3).</summary>
+    public const int CompanyBranchCodeLength = 3;
+
+    /// <summary>Longitud exacta del código de terminal para la clave de Hacienda (bloque 3).</summary>
+    public const int CompanyTerminalCodeLength = 5;
 
     /// <summary>Código de la primera provincia (San José).</summary>
     private const int MinProvinceCode = 1;
@@ -165,6 +168,26 @@ public sealed class SystemParameters
     public string? CompanyDistrictCode { get; private set; }
 
     /// <summary>
+    /// Obtiene el código de sucursal de la empresa, para el consecutivo del comprobante electrónico de
+    /// Hacienda (bloque 3). Mientras no esté configurado, no se pueden confirmar facturas ni registrar
+    /// notas de crédito.
+    /// </summary>
+    public string? CompanyBranchCode { get; private set; }
+
+    /// <summary>
+    /// Obtiene el código de terminal de la empresa, para el consecutivo del comprobante electrónico de
+    /// Hacienda (bloque 3). Mientras no esté configurado, no se pueden confirmar facturas ni registrar
+    /// notas de crédito.
+    /// </summary>
+    public string? CompanyTerminalCode { get; private set; }
+
+    /// <summary>Primer día del período fiscal de doce meses vigente.</summary>
+    public DateOnly? FiscalPeriodStartDate { get; private set; }
+
+    /// <summary>Último día del período fiscal de doce meses vigente.</summary>
+    public DateOnly? FiscalPeriodEndDate { get; private set; }
+
+    /// <summary>
     /// Actualiza los datos de la empresa (RF-55). Nombre y cédula jurídica son obligatorios; el resto,
     /// incluida la ubicación codificada del bloque 2 del paquete v7, es opcional. Solo Gerencia los
     /// define.
@@ -180,6 +203,8 @@ public sealed class SystemParameters
         string? provinceCode,
         string? cantonCode,
         string? districtCode,
+        string? branchCode,
+        string? terminalCode,
         DateTimeOffset updatedAtUtc,
         Guid updatedByUserId)
     {
@@ -199,6 +224,8 @@ public sealed class SystemParameters
         string? validProvinceCode = RequireProvinceCode(provinceCode, nameof(provinceCode));
         string? validCantonCode = DomainRules.OptionalDigits(cantonCode, CompanyCantonCodeLength, nameof(cantonCode));
         string? validDistrictCode = DomainRules.OptionalDigits(districtCode, CompanyDistrictCodeLength, nameof(districtCode));
+        string? validBranchCode = DomainRules.OptionalDigits(branchCode, CompanyBranchCodeLength, nameof(branchCode));
+        string? validTerminalCode = DomainRules.OptionalDigits(terminalCode, CompanyTerminalCodeLength, nameof(terminalCode));
         Guid normalizedUserId = DomainRules.RequiredId(updatedByUserId, nameof(updatedByUserId));
         DateTimeOffset normalizedUpdatedAtUtc = DomainRules.RequiredUtcTimestamp(
             updatedAtUtc,
@@ -215,6 +242,8 @@ public sealed class SystemParameters
         CompanyProvinceCode = validProvinceCode;
         CompanyCantonCode = validCantonCode;
         CompanyDistrictCode = validDistrictCode;
+        CompanyBranchCode = validBranchCode;
+        CompanyTerminalCode = validTerminalCode;
         UpdatedAtUtc = normalizedUpdatedAtUtc;
         UpdatedByUserId = normalizedUserId;
     }
@@ -246,36 +275,25 @@ public sealed class SystemParameters
     }
 
     /// <summary>
-    /// Obtiene la fecha de cierre (regla 16): no se registra, confirma, anula ni ajusta nada con
-    /// fecha igual o anterior a esta.
+    /// Conserva la última fecha de cierre manual de versiones anteriores. El cierre vigente es
+    /// automático por mes y no utiliza esta columna histórica.
     /// </summary>
     public DateOnly ClosingDate { get; private set; }
 
-    /// <summary>Indica si todavía se puede operar con la fecha de negocio indicada (regla 16).</summary>
-    public bool IsOpen(DateOnly date) => date > ClosingDate;
-
-    /// <summary>
-    /// Cambia la fecha de cierre. Adelantarla es el cierre mensual, sin motivo; retrocederla es una
-    /// reapertura y exige motivo (regla 16). Nunca puede quedar posterior a <paramref name="today"/>.
-    /// </summary>
-    public void ChangeClosingDate(
-        DateOnly newClosingDate,
-        DateOnly today,
-        string? reason,
+    /// <summary>Actualiza el período fiscal anual; el motivo es opcional y queda en la bitácora.</summary>
+    public void UpdateFiscalPeriod(
+        DateOnly startDate,
+        DateOnly endDate,
         DateTimeOffset updatedAtUtc,
         Guid updatedByUserId)
     {
-        if (newClosingDate > today)
+        if (startDate.Year >= DateOnly.MaxValue.Year
+            || startDate.Day != 1
+            || endDate != startDate.AddYears(1).AddDays(-1))
         {
-            throw new ArgumentOutOfRangeException(
-                nameof(newClosingDate),
-                newClosingDate,
-                "La fecha de cierre no puede ser posterior a hoy.");
-        }
-
-        if (newClosingDate < ClosingDate)
-        {
-            DomainRules.RequiredText(reason, ClosingDateChangeReasonMaxLength, nameof(reason));
+            throw new ArgumentException(
+                "El período fiscal debe iniciar el primer día de un mes y abarcar exactamente doce meses.",
+                nameof(endDate));
         }
 
         Guid normalizedUserId = DomainRules.RequiredId(updatedByUserId, nameof(updatedByUserId));
@@ -284,7 +302,8 @@ public sealed class SystemParameters
             nameof(updatedAtUtc),
             UpdatedAtUtc);
 
-        ClosingDate = newClosingDate;
+        FiscalPeriodStartDate = startDate;
+        FiscalPeriodEndDate = endDate;
         UpdatedAtUtc = normalizedUpdatedAtUtc;
         UpdatedByUserId = normalizedUserId;
     }

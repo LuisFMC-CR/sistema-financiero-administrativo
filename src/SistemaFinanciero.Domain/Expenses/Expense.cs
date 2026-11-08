@@ -57,7 +57,7 @@ public sealed class Expense
         Guid id,
         string code,
         Guid supplierId,
-        Guid categoryId,
+        Guid accountId,
         string description,
         string voucherReference,
         DateOnly issueDate,
@@ -75,7 +75,7 @@ public sealed class Expense
         Id = DomainRules.RequiredId(id, nameof(id));
         Code = DomainRules.NormalizedCode(code, CodeMaxLength, nameof(code));
         SupplierId = DomainRules.RequiredId(supplierId, nameof(supplierId));
-        CategoryId = DomainRules.RequiredId(categoryId, nameof(categoryId));
+        AccountId = DomainRules.RequiredId(accountId, nameof(accountId));
         Description = DomainRules.RequiredText(description, DescriptionMaxLength, nameof(description));
         VoucherReference = DomainRules.RequiredText(
             voucherReference, VoucherReferenceMaxLength, nameof(voucherReference));
@@ -108,7 +108,7 @@ public sealed class Expense
     public Guid SupplierId { get; private set; }
 
     /// <summary>Categoría de gasto de último nivel.</summary>
-    public Guid CategoryId { get; private set; }
+    public Guid AccountId { get; private set; }
 
     /// <summary>Descripción de la compra.</summary>
     public string Description { get; private set; } = string.Empty;
@@ -201,7 +201,7 @@ public sealed class Expense
     /// </summary>
     public void UpdateHeader(
         Guid supplierId,
-        Guid categoryId,
+        Guid accountId,
         string description,
         string voucherReference,
         DateOnly issueDate,
@@ -219,7 +219,7 @@ public sealed class Expense
         EnsureDraft();
 
         Guid validSupplierId = DomainRules.RequiredId(supplierId, nameof(supplierId));
-        Guid validCategoryId = DomainRules.RequiredId(categoryId, nameof(categoryId));
+        Guid validAccountId = DomainRules.RequiredId(accountId, nameof(accountId));
         string validDescription = DomainRules.RequiredText(description, DescriptionMaxLength, nameof(description));
         string validVoucherReference = DomainRules.RequiredText(
             voucherReference, VoucherReferenceMaxLength, nameof(voucherReference));
@@ -234,7 +234,7 @@ public sealed class Expense
 
         Touch(updatedAtUtc, updatedByUserId);
         SupplierId = validSupplierId;
-        CategoryId = validCategoryId;
+        AccountId = validAccountId;
         Description = validDescription;
         VoucherReference = validVoucherReference;
         IssueDate = validIssueDate;

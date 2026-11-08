@@ -1,4 +1,5 @@
 using System.Text;
+using ClosedXML.Excel;
 using QuestPDF.Fluent;
 using QuestPDF.Infrastructure;
 using SistemaFinanciero.Application.Budgets;
@@ -54,7 +55,7 @@ public sealed class ReportExportTests
             SampleHeader with { ReportName = "Gastos por período y categoría" },
             new DateOnly(2010, 1, 1),
             new DateOnly(2010, 1, 31),
-            CategoryId: null,
+            AccountId: null,
             [new ExpenseByCategoryReportLine("3.1.01", "Alquiler", 2, 1000m, 130m, 1130m)],
             1130m);
 
@@ -88,7 +89,7 @@ public sealed class ReportExportTests
             SampleHeader with { ReportName = "Gastos por período y categoría" },
             new DateOnly(2010, 1, 1),
             new DateOnly(2010, 1, 31),
-            CategoryId: null,
+            AccountId: null,
             [new ExpenseByCategoryReportLine("3.1.01", "Alquiler", 2, 1000m, 130m, 1130m)],
             1130m);
 
@@ -186,10 +187,35 @@ public sealed class ReportExportTests
         ],
         600m);
 
+    private static readonly AgingAmounts SampleAging = new(100m, 150m, 100m, 100m, 50m);
+
     private static readonly PayableBySupplierReportResult SamplePayableBySupplier = new(
         SampleHeader with { ReportName = "Cuentas por pagar por proveedor" },
-        [new PayableBySupplierReportLine(Guid.NewGuid(), "Proveedor de prueba", 2, 500m, new DateOnly(2010, 1, 10))],
-        500m);
+        [
+            new PayableBySupplierReportLine(
+                Guid.NewGuid(), "Proveedor de prueba", 2, 500m, new DateOnly(2010, 1, 10), SampleAging,
+                [
+                    new PayableDetailLine(
+                        "GTO-000001", new DateOnly(2009, 12, 10), new DateOnly(2010, 1, 10), 300m, SampleAging),
+                    new PayableDetailLine(
+                        "GTO-000002", new DateOnly(2010, 1, 10), new DateOnly(2010, 2, 10), 200m, SampleAging),
+                ]),
+        ],
+        500m,
+        SampleAging);
+
+    private static readonly ReceivableByCustomerReportResult SampleReceivableByCustomer = new(
+        SampleHeader with { ReportName = "Cuentas por cobrar por cliente" },
+        [
+            new ReceivableByCustomerReportLine(
+                Guid.NewGuid(), "Cliente de prueba", 2, 500m, new DateOnly(2010, 1, 10), SampleAging,
+                [
+                    new ReceivableDetailLine(1, new DateOnly(2009, 12, 10), new DateOnly(2010, 1, 10), 300m, SampleAging),
+                    new ReceivableDetailLine(2, new DateOnly(2010, 1, 10), new DateOnly(2010, 2, 10), 200m, SampleAging),
+                ]),
+        ],
+        500m,
+        SampleAging);
 
     [Fact]
     public void CustomerStatementReportPdfDocument_WithLines_GeneratesAValidPdf()
@@ -227,6 +253,50 @@ public sealed class ReportExportTests
         Assert.True(excel.Length > 0);
         Assert.Equal((byte)'P', excel[0]);
         Assert.Equal((byte)'K', excel[1]);
+    }
+
+    [Fact]
+    public void ReceivableByCustomerReportPdfDocument_WithLines_GeneratesAValidPdf()
+    {
+        byte[] pdf = new ReceivableByCustomerReportPdfDocument(SampleReceivableByCustomer).GeneratePdf();
+
+        Assert.True(pdf.Length > 0);
+        Assert.Equal("%PDF", Encoding.ASCII.GetString(pdf, 0, 4));
+    }
+
+    [Fact]
+    public void BuildReceivableByCustomerWorkbook_WithLines_GeneratesAValidXlsx()
+    {
+        byte[] excel = ReportExcelExporter.BuildReceivableByCustomerWorkbook(SampleReceivableByCustomer);
+
+        Assert.True(excel.Length > 0);
+        Assert.Equal((byte)'P', excel[0]);
+        Assert.Equal((byte)'K', excel[1]);
+    }
+
+    [Fact]
+    public void BuildPayableBySupplierWorkbook_WithLines_GroupsDetailRowsCollapsedUnderTheSupplier()
+    {
+        byte[] excel = ReportExcelExporter.BuildPayableBySupplierWorkbook(SamplePayableBySupplier);
+
+        using MemoryStream stream = new(excel);
+        using XLWorkbook workbook = new(stream);
+        IXLWorksheet sheet = workbook.Worksheet(1);
+
+        // Fila 1-5: encabezado del reporte; fila 6: títulos de columna; fila 7: proveedor (grupo);
+        // filas 8-9: sus dos cuentas por pagar, agrupadas y colapsadas.
+        IXLRow supplierRow = sheet.Row(7);
+        Assert.Equal(0, supplierRow.OutlineLevel);
+        Assert.Contains("Proveedor de prueba", sheet.Cell(7, 1).GetString());
+
+        IXLRow firstDetailRow = sheet.Row(8);
+        IXLRow secondDetailRow = sheet.Row(9);
+        Assert.Equal(1, firstDetailRow.OutlineLevel);
+        Assert.Equal(1, secondDetailRow.OutlineLevel);
+        Assert.True(firstDetailRow.IsHidden);
+        Assert.True(secondDetailRow.IsHidden);
+        Assert.Contains("GTO-000001", sheet.Cell(8, 1).GetString());
+        Assert.Contains("GTO-000002", sheet.Cell(9, 1).GetString());
     }
 
     private static readonly JournalBookReportResult SampleJournalBook = new(

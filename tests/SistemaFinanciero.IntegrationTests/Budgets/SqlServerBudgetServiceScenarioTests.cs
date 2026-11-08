@@ -34,17 +34,18 @@ public sealed class SqlServerBudgetServiceScenarioTests : IClassFixture<Financia
         return RunInRollbackTransactionAsync(async (services, actorId) =>
         {
             IBudgetService budgets = services.GetRequiredService<IBudgetService>();
-            Guid categoryId = await CreateLeafExpenseCategoryAsync(services, actorId);
+            Guid accountId = await CreateLeafExpenseCategoryAsync(services, actorId);
+            DateOnly period = CurrentMonthStart();
 
             CatalogOperationResult result = await budgets.SetAmountAsync(
-                new SetBudgetAmountCommand(categoryId, 2026, 10, 100_000m),
+                new SetBudgetAmountCommand(accountId, period.Year, period.Month, 100_000m),
                 version: null,
                 actorId);
 
             Assert.True(result.IsSuccess);
 
             FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
-            Budget budget = await context.Budgets.SingleAsync(b => b.CategoryId == categoryId);
+            Budget budget = await context.Budgets.SingleAsync(b => b.AccountId == accountId);
             Assert.Equal(100_000m, budget.Amount);
 
             BudgetChange change = await context.BudgetChanges.SingleAsync(c => c.BudgetId == budget.Id);
@@ -55,26 +56,75 @@ public sealed class SqlServerBudgetServiceScenarioTests : IClassFixture<Financia
 
     [Fact]
     [Trait("Category", "SqlServer")]
+    public Task SetAmount_RejectsPreviousMonth()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IBudgetService budgets = services.GetRequiredService<IBudgetService>();
+            FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+            Guid accountId = await CreateLeafExpenseCategoryAsync(services, actorId);
+            DateOnly previousMonth = CurrentMonthStart().AddMonths(-1);
+
+            CatalogOperationResult result = await budgets.SetAmountAsync(
+                new SetBudgetAmountCommand(accountId, previousMonth.Year, previousMonth.Month, 100_000m),
+                version: null,
+                actorId);
+
+            Assert.Equal(CatalogOperationStatus.Invalid, result.Status);
+            Assert.False(await context.Budgets.AnyAsync(budget =>
+                budget.AccountId == accountId
+                && budget.PeriodYear == previousMonth.Year
+                && budget.PeriodMonth == previousMonth.Month));
+
+            Budget legacyBudget = new(
+                Guid.NewGuid(),
+                accountId,
+                previousMonth.Year,
+                previousMonth.Month,
+                75_000m,
+                DateTimeOffset.UtcNow,
+                actorId);
+            context.Budgets.Add(legacyBudget);
+            await context.SaveChangesAsync();
+
+            BudgetModel historicalBudget = (await budgets.GetAsync(
+                accountId, previousMonth.Year, previousMonth.Month))!;
+            CatalogOperationResult blockedCorrection = await budgets.SetAmountAsync(
+                new SetBudgetAmountCommand(accountId, previousMonth.Year, previousMonth.Month, 90_000m),
+                historicalBudget.Version,
+                actorId);
+
+            Assert.Equal(CatalogOperationStatus.Invalid, blockedCorrection.Status);
+            Assert.Equal(75_000m, (await context.Budgets.SingleAsync(budget =>
+                budget.AccountId == accountId
+                && budget.PeriodYear == previousMonth.Year
+                && budget.PeriodMonth == previousMonth.Month)).Amount);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
     public Task SetAmount_SubsequentCorrection_KeepsThePreviousAmount()
     {
         return RunInRollbackTransactionAsync(async (services, actorId) =>
         {
             IBudgetService budgets = services.GetRequiredService<IBudgetService>();
-            Guid categoryId = await CreateLeafExpenseCategoryAsync(services, actorId);
+            Guid accountId = await CreateLeafExpenseCategoryAsync(services, actorId);
+            DateOnly period = CurrentMonthStart();
 
             await budgets.SetAmountAsync(
-                new SetBudgetAmountCommand(categoryId, 2026, 10, 100_000m), null, actorId);
-            BudgetModel? first = await budgets.GetAsync(categoryId, 2026, 10);
+                new SetBudgetAmountCommand(accountId, period.Year, period.Month, 100_000m), null, actorId);
+            BudgetModel? first = await budgets.GetAsync(accountId, period.Year, period.Month);
 
             CatalogOperationResult result = await budgets.SetAmountAsync(
-                new SetBudgetAmountCommand(categoryId, 2026, 10, 150_000m),
+                new SetBudgetAmountCommand(accountId, period.Year, period.Month, 150_000m),
                 first!.Version,
                 actorId);
 
             Assert.True(result.IsSuccess);
 
             FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
-            Budget budget = await context.Budgets.SingleAsync(b => b.CategoryId == categoryId);
+            Budget budget = await context.Budgets.SingleAsync(b => b.AccountId == accountId);
             Assert.Equal(150_000m, budget.Amount);
 
             BudgetChange latestChange = await context.BudgetChanges
@@ -93,10 +143,11 @@ public sealed class SqlServerBudgetServiceScenarioTests : IClassFixture<Financia
         return RunInRollbackTransactionAsync(async (services, actorId) =>
         {
             IBudgetService budgets = services.GetRequiredService<IBudgetService>();
-            Guid parentCategoryId = await CreateParentExpenseCategoryWithChildAsync(services, actorId);
+            Guid parentAccountId = await CreateParentExpenseCategoryWithChildAsync(services, actorId);
+            DateOnly period = CurrentMonthStart();
 
             CatalogOperationResult result = await budgets.SetAmountAsync(
-                new SetBudgetAmountCommand(parentCategoryId, 2026, 10, 100_000m), null, actorId);
+                new SetBudgetAmountCommand(parentAccountId, period.Year, period.Month, 100_000m), null, actorId);
 
             Assert.Equal(CatalogOperationStatus.Invalid, result.Status);
         });
@@ -110,22 +161,23 @@ public sealed class SqlServerBudgetServiceScenarioTests : IClassFixture<Financia
         {
             IBudgetService budgets = services.GetRequiredService<IBudgetService>();
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
-            Guid categoryId = await CreateLeafExpenseCategoryAsync(services, actorId);
+            Guid accountId = await CreateLeafExpenseCategoryAsync(services, actorId);
             Guid supplierId = await CreateSupplierAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
+            DateOnly period = CurrentMonthStart();
 
             await budgets.SetAmountAsync(
-                new SetBudgetAmountCommand(categoryId, 2026, 10, 1000m), null, actorId);
+                new SetBudgetAmountCommand(accountId, period.Year, period.Month, 1000m), null, actorId);
 
             // Confirmado dentro del mes: cuenta.
             Guid confirmedExpenseId = await CreateAndConfirmCashExpenseAsync(
-                services, expenses, supplierId, categoryId, taxTypeId, new DateOnly(2026, 10, 15), 400m, actorId);
+                services, expenses, supplierId, accountId, taxTypeId, period.AddDays(1), 400m, actorId);
 
             // Borrador: no cuenta.
-            await CreateDraftExpenseAsync(expenses, supplierId, categoryId, taxTypeId, new DateOnly(2026, 10, 16), 9000m, actorId);
+            await CreateDraftExpenseAsync(expenses, supplierId, accountId, taxTypeId, period.AddDays(2), 9000m, actorId);
 
-            IReadOnlyList<BudgetModel> results = await budgets.SearchByPeriodAsync(2026, 10);
-            BudgetModel model = results.Single(m => m.CategoryId == categoryId);
+            IReadOnlyList<BudgetModel> results = await budgets.SearchByPeriodAsync(period.Year, period.Month);
+            BudgetModel model = results.Single(m => m.AccountId == accountId);
 
             Assert.Equal(1000m, model.BudgetedAmount);
             Assert.Equal(400m, model.ExecutedAmount);
@@ -136,8 +188,8 @@ public sealed class SqlServerBudgetServiceScenarioTests : IClassFixture<Financia
             ExpenseModel confirmed = (await expenses.GetAsync(confirmedExpenseId))!;
             await expenses.CancelAsync(confirmedExpenseId, "Error de captura", confirmed.Version, actorId);
 
-            IReadOnlyList<BudgetModel> afterCancel = await budgets.SearchByPeriodAsync(2026, 10);
-            BudgetModel modelAfterCancel = afterCancel.Single(m => m.CategoryId == categoryId);
+            IReadOnlyList<BudgetModel> afterCancel = await budgets.SearchByPeriodAsync(period.Year, period.Month);
+            BudgetModel modelAfterCancel = afterCancel.Single(m => m.AccountId == accountId);
             Assert.Equal(0m, modelAfterCancel.ExecutedAmount);
         });
     }
@@ -149,10 +201,10 @@ public sealed class SqlServerBudgetServiceScenarioTests : IClassFixture<Financia
         return RunInRollbackTransactionAsync(async (services, actorId) =>
         {
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
-            Guid categoryId = await CreateLeafExpenseCategoryAsync(services, actorId);
+            Guid accountId = await CreateLeafExpenseCategoryAsync(services, actorId);
 
             ExpenseBudgetCheck check = await expenses.CheckBudgetAsync(
-                categoryId, new DateOnly(2026, 10, 15), 1_000_000m);
+                accountId, new DateOnly(2026, 10, 15), 1_000_000m);
 
             Assert.False(check.HasBudget);
             Assert.False(check.ExceedsAvailable);
@@ -167,22 +219,23 @@ public sealed class SqlServerBudgetServiceScenarioTests : IClassFixture<Financia
         {
             IBudgetService budgets = services.GetRequiredService<IBudgetService>();
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
-            Guid categoryId = await CreateLeafExpenseCategoryAsync(services, actorId);
+            Guid accountId = await CreateLeafExpenseCategoryAsync(services, actorId);
             Guid supplierId = await CreateSupplierAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
+            DateOnly period = CurrentMonthStart();
 
             await budgets.SetAmountAsync(
-                new SetBudgetAmountCommand(categoryId, 2026, 10, 1000m), null, actorId);
+                new SetBudgetAmountCommand(accountId, period.Year, period.Month, 1000m), null, actorId);
             await CreateAndConfirmCashExpenseAsync(
-                services, expenses, supplierId, categoryId, taxTypeId, new DateOnly(2026, 10, 1), 700m, actorId);
+                services, expenses, supplierId, accountId, taxTypeId, period, 700m, actorId);
 
             ExpenseBudgetCheck withinBudget = await expenses.CheckBudgetAsync(
-                categoryId, new DateOnly(2026, 10, 20), 300m);
+                accountId, period.AddDays(19), 300m);
             Assert.True(withinBudget.HasBudget);
             Assert.False(withinBudget.ExceedsAvailable);
 
             ExpenseBudgetCheck overBudget = await expenses.CheckBudgetAsync(
-                categoryId, new DateOnly(2026, 10, 20), 301m);
+                accountId, period.AddDays(19), 301m);
             Assert.True(overBudget.HasBudget);
             Assert.True(overBudget.ExceedsAvailable);
         });
@@ -192,7 +245,7 @@ public sealed class SqlServerBudgetServiceScenarioTests : IClassFixture<Financia
         IServiceProvider services,
         IExpenseService expenses,
         Guid supplierId,
-        Guid categoryId,
+        Guid accountId,
         Guid taxTypeId,
         DateOnly issueDate,
         decimal netAmount,
@@ -200,7 +253,7 @@ public sealed class SqlServerBudgetServiceScenarioTests : IClassFixture<Financia
     {
         ExpenseCreationResult created = await expenses.CreateAsync(
             new SaveExpenseCommand(
-                supplierId, categoryId, "Gasto de prueba", "VC-0001", issueDate, PaymentTerm.Cash, netAmount, taxTypeId, true, PaymentMethod.Cash),
+                supplierId, accountId, "Gasto de prueba", "VC-0001", issueDate, PaymentTerm.Cash, netAmount, taxTypeId, true, PaymentMethod.Cash),
             actorId);
         Guid expenseId = created.ExpenseId!.Value;
 
@@ -219,7 +272,7 @@ public sealed class SqlServerBudgetServiceScenarioTests : IClassFixture<Financia
     private static async Task<Guid> CreateDraftExpenseAsync(
         IExpenseService expenses,
         Guid supplierId,
-        Guid categoryId,
+        Guid accountId,
         Guid taxTypeId,
         DateOnly issueDate,
         decimal netAmount,
@@ -227,7 +280,7 @@ public sealed class SqlServerBudgetServiceScenarioTests : IClassFixture<Financia
     {
         ExpenseCreationResult created = await expenses.CreateAsync(
             new SaveExpenseCommand(
-                supplierId, categoryId, "Borrador de prueba", "VC-0001", issueDate, PaymentTerm.Cash, netAmount, taxTypeId, true, PaymentMethod.Cash),
+                supplierId, accountId, "Borrador de prueba", "VC-0001", issueDate, PaymentTerm.Cash, netAmount, taxTypeId, true, PaymentMethod.Cash),
             actorId);
         return created.ExpenseId!.Value;
     }
@@ -309,26 +362,20 @@ public sealed class SqlServerBudgetServiceScenarioTests : IClassFixture<Financia
         context.LedgerAccounts.Add(ledgerAccount);
         await context.SaveChangesAsync();
 
-        FinancialCategory category = new(
-            Guid.NewGuid(),
-            $"CAT-{suffix}",
-            "Categoría hoja de pruebas de presupuesto",
-            FinancialCategoryKind.Expense,
-            null,
-            ledgerAccount.Id,
-            null,
-            DateTimeOffset.UtcNow,
-            actorId);
-        context.FinancialCategories.Add(category);
-        await context.SaveChangesAsync();
-        return category.Id;
+        return ledgerAccount.Id;
+    }
+
+    private static DateOnly CurrentMonthStart()
+    {
+        DateOnly today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
+        return new DateOnly(today.Year, today.Month, 1);
     }
 
     private static async Task<Guid> CreateParentExpenseCategoryWithChildAsync(IServiceProvider services, Guid actorId)
     {
         FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
         string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
-        LedgerAccount ledgerAccount = new(
+        LedgerAccount parent = new(
             Guid.NewGuid(),
             $"GASP-{suffix}",
             "Cuenta de gasto superior de pruebas",
@@ -339,33 +386,25 @@ public sealed class SqlServerBudgetServiceScenarioTests : IClassFixture<Financia
             null,
             DateTimeOffset.UtcNow,
             actorId);
-        context.LedgerAccounts.Add(ledgerAccount);
+        context.LedgerAccounts.Add(parent);
         await context.SaveChangesAsync();
 
-        FinancialCategory parent = new(
+        LedgerAccount child = new(
             Guid.NewGuid(),
-            $"CATP-{suffix}",
-            "Categoría superior de pruebas",
-            FinancialCategoryKind.Expense,
-            null,
-            ledgerAccount.Id,
-            null,
-            DateTimeOffset.UtcNow,
-            actorId);
-        context.FinancialCategories.Add(parent);
-        await context.SaveChangesAsync();
-
-        FinancialCategory child = new(
-            Guid.NewGuid(),
-            $"CATH-{suffix}",
-            "Categoría hija de pruebas",
-            FinancialCategoryKind.Expense,
+            $"GASH-{suffix}",
+            "Cuenta hija de pruebas",
+            LedgerAccountType.Expense,
             parent.Id,
-            ledgerAccount.Id,
+            null,
+            null,
             null,
             DateTimeOffset.UtcNow,
             actorId);
-        context.FinancialCategories.Add(child);
+        context.LedgerAccounts.Add(child);
+        await context.SaveChangesAsync();
+
+        // La cuenta superior es acumuladora: no admite presupuesto, solo suma a sus hijas.
+        context.Entry(parent).Property(account => account.IsMovement).CurrentValue = false;
         await context.SaveChangesAsync();
 
         return parent.Id;

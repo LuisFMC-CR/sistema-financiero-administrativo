@@ -15,7 +15,7 @@ namespace SistemaFinanciero.Domain.Catalogs;
 /// Conexiones: lo crea y edita <c>CatalogItemService</c> (Infrastructure/Catalogs/Items); se guarda en
 /// <c>catalogos.ProductosServicios</c> vía <c>CatalogItemConfiguration</c>; lo presenta
 /// <c>CatalogItemsController</c> (Web, ruta <c>/catalogos/productos-servicios</c>).
-/// <see cref="DefaultIncomeCategoryId"/> apunta a una <c>FinancialCategory</c> de tipo Ingreso.
+/// <see cref="DefaultIncomeAccountId"/> apunta a una <c>FinancialCategory</c> de tipo Ingreso.
 /// <see cref="DefaultTaxTypeId"/> apunta a un <c>TaxType</c> (RF-52): la tarifa de IVA que se propondrá
 /// al agregar el artículo a una línea de factura, editable en la línea misma. <see cref="Id"/> es el
 /// valor que <c>InvoiceLine.CatalogItemId</c> apunta cuando la línea viene de este catálogo; una línea
@@ -54,7 +54,7 @@ public sealed class CatalogItem
         string? description,
         UnitOfMeasureCode unitOfMeasure,
         decimal? referencePriceCrc,
-        Guid? defaultIncomeCategoryId,
+        Guid? defaultIncomeAccountId,
         Guid? defaultTaxTypeId,
         DateTimeOffset createdAtUtc,
         Guid createdByUserId)
@@ -70,9 +70,9 @@ public sealed class CatalogItem
             nameof(description));
         UnitOfMeasure = DomainRules.DefinedEnum(unitOfMeasure, nameof(unitOfMeasure));
         ReferencePriceCrc = NormalizeReferencePrice(referencePriceCrc, nameof(referencePriceCrc));
-        DefaultIncomeCategoryId = DomainRules.OptionalId(
-            defaultIncomeCategoryId,
-            nameof(defaultIncomeCategoryId));
+        DefaultIncomeAccountId = DomainRules.OptionalId(
+            defaultIncomeAccountId,
+            nameof(defaultIncomeAccountId));
         DefaultTaxTypeId = DomainRules.OptionalId(defaultTaxTypeId, nameof(defaultTaxTypeId));
         CreatedAtUtc = DomainRules.RequiredUtcTimestamp(createdAtUtc, nameof(createdAtUtc));
         CreatedByUserId = DomainRules.RequiredId(createdByUserId, nameof(createdByUserId));
@@ -111,7 +111,7 @@ public sealed class CatalogItem
     /// <summary>
     /// Obtiene la categoría de ingreso sugerida. Application debe comprobar que sea de ingreso.
     /// </summary>
-    public Guid? DefaultIncomeCategoryId { get; private set; }
+    public Guid? DefaultIncomeAccountId { get; private set; }
 
     /// <summary>
     /// Obtiene la tarifa de IVA que se propone al agregar el artículo a una línea de factura (RF-52);
@@ -147,7 +147,7 @@ public sealed class CatalogItem
         string? description,
         UnitOfMeasureCode unitOfMeasure,
         decimal? referencePriceCrc,
-        Guid? defaultIncomeCategoryId,
+        Guid? defaultIncomeAccountId,
         Guid? defaultTaxTypeId,
         DateTimeOffset updatedAtUtc,
         Guid updatedByUserId)
@@ -162,9 +162,9 @@ public sealed class CatalogItem
         decimal? normalizedReferencePriceCrc = NormalizeReferencePrice(
             referencePriceCrc,
             nameof(referencePriceCrc));
-        Guid? normalizedDefaultIncomeCategoryId = DomainRules.OptionalId(
-            defaultIncomeCategoryId,
-            nameof(defaultIncomeCategoryId));
+        Guid? normalizedDefaultIncomeAccountId = DomainRules.OptionalId(
+            defaultIncomeAccountId,
+            nameof(defaultIncomeAccountId));
         Guid? normalizedDefaultTaxTypeId = DomainRules.OptionalId(defaultTaxTypeId, nameof(defaultTaxTypeId));
         DateTimeOffset normalizedUpdatedAtUtc = ValidateUpdateAudit(updatedAtUtc, updatedByUserId);
 
@@ -173,7 +173,7 @@ public sealed class CatalogItem
         Description = normalizedDescription;
         UnitOfMeasure = normalizedUnitOfMeasure;
         ReferencePriceCrc = normalizedReferencePriceCrc;
-        DefaultIncomeCategoryId = normalizedDefaultIncomeCategoryId;
+        DefaultIncomeAccountId = normalizedDefaultIncomeAccountId;
         DefaultTaxTypeId = normalizedDefaultTaxTypeId;
         Touch(normalizedUpdatedAtUtc, updatedByUserId);
     }

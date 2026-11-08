@@ -40,7 +40,7 @@ public sealed class Income
         IncomeOrigin origin,
         Guid? invoiceId,
         Guid? receivablePaymentId,
-        Guid categoryId,
+        Guid accountId,
         Guid cashAccountId,
         decimal amount,
         DateOnly incomeDate,
@@ -55,7 +55,7 @@ public sealed class Income
         Origin = DomainRules.DefinedEnum(origin, nameof(origin));
         InvoiceId = DomainRules.OptionalId(invoiceId, nameof(invoiceId));
         ReceivablePaymentId = DomainRules.OptionalId(receivablePaymentId, nameof(receivablePaymentId));
-        CategoryId = DomainRules.RequiredId(categoryId, nameof(categoryId));
+        AccountId = DomainRules.RequiredId(accountId, nameof(accountId));
         CashAccountId = DomainRules.RequiredId(cashAccountId, nameof(cashAccountId));
         Amount = ValidatePositiveAmount(amount, nameof(amount));
         IncomeDate = RequireDate(incomeDate, nameof(incomeDate));
@@ -76,7 +76,7 @@ public sealed class Income
         Guid id,
         string code,
         Guid invoiceId,
-        Guid categoryId,
+        Guid accountId,
         Guid cashAccountId,
         decimal amount,
         DateOnly incomeDate,
@@ -90,7 +90,7 @@ public sealed class Income
             IncomeOrigin.InvoiceCash,
             invoiceId,
             receivablePaymentId: null,
-            categoryId,
+            accountId,
             cashAccountId,
             amount,
             incomeDate,
@@ -108,7 +108,7 @@ public sealed class Income
         Guid id,
         string code,
         Guid receivablePaymentId,
-        Guid categoryId,
+        Guid accountId,
         Guid cashAccountId,
         decimal amount,
         DateOnly incomeDate,
@@ -121,7 +121,7 @@ public sealed class Income
             IncomeOrigin.ReceivablePayment,
             invoiceId: null,
             receivablePaymentId,
-            categoryId,
+            accountId,
             cashAccountId,
             amount,
             incomeDate,
@@ -139,7 +139,7 @@ public sealed class Income
     public static Income CreateManual(
         Guid id,
         string code,
-        Guid categoryId,
+        Guid accountId,
         Guid cashAccountId,
         decimal amount,
         DateOnly incomeDate,
@@ -154,7 +154,7 @@ public sealed class Income
             IncomeOrigin.Manual,
             invoiceId: null,
             receivablePaymentId: null,
-            categoryId,
+            accountId,
             cashAccountId,
             amount,
             incomeDate,
@@ -180,7 +180,7 @@ public sealed class Income
     public Guid? ReceivablePaymentId { get; private set; }
 
     /// <summary>Obtiene la categoría de ingreso.</summary>
-    public Guid CategoryId { get; private set; }
+    public Guid AccountId { get; private set; }
 
     /// <summary>Obtiene la cuenta de efectivo de destino.</summary>
     public Guid CashAccountId { get; private set; }

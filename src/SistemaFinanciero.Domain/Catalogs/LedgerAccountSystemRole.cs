@@ -9,8 +9,8 @@ namespace SistemaFinanciero.Domain.Catalogs;
 /// Conexiones: es el valor de <c>LedgerAccount.SystemRole</c>, nulo en las demás cuentas y único
 /// cuando no es nulo. Solo lo asignan las migraciones de siembra, igual que
 /// <c>LedgerAccount.IsProtected</c>; no hay un parámetro de constructor para asignarlo. A diferencia
-/// de una cuenta de grupo protegida, una cuenta de sistema se puede renombrar, pero no inactivar ni
-/// mover (<c>LedgerAccountService</c>).
+/// de una cuenta de grupo protegida, una cuenta de sistema se puede renombrar y desactivar si no
+/// tiene movimientos en el libro mayor. Los asientos automáticos requieren que esté activa.
 /// </remarks>
 public enum LedgerAccountSystemRole
 {

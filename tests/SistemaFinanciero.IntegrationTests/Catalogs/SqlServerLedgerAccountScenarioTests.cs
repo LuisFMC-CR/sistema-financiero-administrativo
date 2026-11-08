@@ -1,10 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
-using SistemaFinanciero.Application.Catalogs.Categories;
 using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Catalogs.LedgerAccounts;
 using SistemaFinanciero.Domain.Catalogs;
+using SistemaFinanciero.Domain.Ledger;
 using SistemaFinanciero.Infrastructure.Identity;
 using SistemaFinanciero.Infrastructure.Persistence;
 
@@ -201,120 +201,11 @@ public sealed class SqlServerLedgerAccountScenarioTests : IClassFixture<Financia
 
     [Fact]
     [Trait("Category", "SqlServer")]
-    public Task CategoryLinkScenario_RequiresAnActiveAccountOfTheSameNatureAndProtectsIt()
-    {
-        return RunInRollbackTransactionAsync(async (context, services, actorId) =>
-        {
-            ILedgerAccountService accounts = services.GetRequiredService<ILedgerAccountService>();
-            IFinancialCategoryService categories = services.GetRequiredService<IFinancialCategoryService>();
-            string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
-            LedgerAccountModel incomeRoot = await GetByCodeAsync(accounts, "4");
-            LedgerAccountModel expenseRoot = await GetByCodeAsync(accounts, "5");
-
-            await CreateAsync(accounts, actorId, Command($"Ingresos uno {suffix}", incomeRoot.Id));
-            await CreateAsync(accounts, actorId, Command($"Ingresos dos {suffix}", incomeRoot.Id));
-            await CreateAsync(accounts, actorId, Command($"Ingresos inactiva {suffix}", incomeRoot.Id));
-            await CreateAsync(accounts, actorId, Command($"Gastos uno {suffix}", expenseRoot.Id));
-            LedgerAccountModel income1 = await GetByNameAsync(accounts, $"Ingresos uno {suffix}");
-            LedgerAccountModel income2 = await GetByNameAsync(accounts, $"Ingresos dos {suffix}");
-            LedgerAccountModel inactiveIncome = await GetByNameAsync(accounts, $"Ingresos inactiva {suffix}");
-            LedgerAccountModel expense1 = await GetByNameAsync(accounts, $"Gastos uno {suffix}");
-            Assert.True((await accounts.SetActiveAsync(
-                inactiveIncome.Id, false, inactiveIncome.Version, actorId)).IsSuccess);
-
-            // Una categoría de ingreso con una cuenta de Ingreso activa es válida y expone la cuenta.
-            Assert.True((await categories.CreateAsync(
-                CategoryCommand($"C1-{suffix}", FinancialCategoryKind.Income, income1.Id), actorId)).IsSuccess);
-            FinancialCategoryModel category = await GetCategoryAsync(categories, $"C1-{suffix}");
-            Assert.Equal(income1.Id, category.LedgerAccountId);
-            Assert.Equal(income1.Code, category.LedgerAccountCode);
-            Assert.Equal($"Ingresos uno {suffix}", category.LedgerAccountName);
-
-            // La cuenta debe existir, estar activa y ser del tipo que corresponde a la naturaleza.
-            AssertInvalid(
-                await categories.CreateAsync(
-                    CategoryCommand($"C2-{suffix}", FinancialCategoryKind.Expense, income1.Id), actorId),
-                "Gasto");
-            AssertInvalid(
-                await categories.CreateAsync(
-                    CategoryCommand($"C3-{suffix}", FinancialCategoryKind.Income, expense1.Id), actorId),
-                "Ingreso");
-            AssertInvalid(
-                await categories.CreateAsync(
-                    CategoryCommand($"C4-{suffix}", FinancialCategoryKind.Income, inactiveIncome.Id), actorId),
-                "inactiva");
-            AssertInvalid(
-                await categories.CreateAsync(
-                    CategoryCommand($"C5-{suffix}", FinancialCategoryKind.Income, Guid.NewGuid()), actorId),
-                "no existe");
-            AssertInvalid(
-                await categories.CreateAsync(
-                    CategoryCommand($"C6-{suffix}", FinancialCategoryKind.Income, Guid.Empty), actorId),
-                "no existe");
-            context.ChangeTracker.Clear();
-
-            // Al editar se puede reasignar a otra cuenta del mismo tipo, pero no a una de otro tipo.
-            Assert.True((await categories.UpdateAsync(
-                category.Id,
-                CategoryCommand(category.Name, FinancialCategoryKind.Income, income2.Id),
-                category.Version,
-                actorId)).IsSuccess);
-            category = (await categories.GetAsync(category.Id))!;
-            Assert.Equal(income2.Id, category.LedgerAccountId);
-            AssertInvalid(
-                await categories.UpdateAsync(
-                    category.Id,
-                    CategoryCommand(category.Name, FinancialCategoryKind.Income, expense1.Id),
-                    category.Version,
-                    actorId),
-                "Ingreso");
-
-            // Una cuenta usada por una categoría activa no se desactiva.
-            income2 = (await accounts.GetAsync(income2.Id))!;
-            CatalogOperationResult blocked = await accounts.SetActiveAsync(
-                income2.Id, false, income2.Version, actorId);
-            Assert.Equal(CatalogOperationStatus.DependencyConflict, blocked.Status);
-
-            // Con la categoría inactiva sí se puede; y entonces la categoría no se reactiva sin cuenta activa.
-            category = (await categories.GetAsync(category.Id))!;
-            Assert.True((await categories.SetActiveAsync(category.Id, false, category.Version, actorId)).IsSuccess);
-            income2 = (await accounts.GetAsync(income2.Id))!;
-            Assert.True((await accounts.SetActiveAsync(income2.Id, false, income2.Version, actorId)).IsSuccess);
-
-            category = (await categories.GetAsync(category.Id))!;
-            AssertInvalid(
-                await categories.SetActiveAsync(category.Id, true, category.Version, actorId),
-                "inactiva");
-
-            income2 = (await accounts.GetAsync(income2.Id))!;
-            Assert.True((await accounts.SetActiveAsync(income2.Id, true, income2.Version, actorId)).IsSuccess);
-            category = (await categories.GetAsync(category.Id))!;
-            Assert.True((await categories.SetActiveAsync(category.Id, true, category.Version, actorId)).IsSuccess);
-
-            // La base también protege el vínculo.
-            await AssertRejectsAsync(
-                context,
-                $"UPDATE catalogos.CategoriasFinancieras SET LedgerAccountId = NULL WHERE Id = '{category.Id}'",
-                "LedgerAccountId");
-            await AssertRejectsAsync(
-                context,
-                $"UPDATE catalogos.CategoriasFinancieras SET LedgerAccountId = NEWID() WHERE Id = '{category.Id}'",
-                "FK_CategoriasFinancieras_CuentasContables");
-            await AssertRejectsAsync(
-                context,
-                $"DELETE FROM catalogos.CuentasContables WHERE Id = '{income2.Id}'",
-                "FK_CategoriasFinancieras_CuentasContables");
-        });
-    }
-
-    [Fact]
-    [Trait("Category", "SqlServer")]
     public Task SystemRoleScenario_ProtectsSystemAccountsAndRestrictsWhereTheUserCanCreate()
     {
         return RunInRollbackTransactionAsync(async (context, services, actorId) =>
         {
             ILedgerAccountService accounts = services.GetRequiredService<ILedgerAccountService>();
-            IFinancialCategoryService categories = services.GetRequiredService<IFinancialCategoryService>();
             string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
 
             LedgerAccountModel assetRoot = await GetByCodeAsync(accounts, "1");
@@ -357,27 +248,54 @@ public sealed class SqlServerLedgerAccountScenarioTests : IClassFixture<Financia
             Assert.True((await accounts.UpdateAsync(
                 receivablesFromCustomers.Id, rename, current.Version, actorId)).IsSuccess);
 
-            // ...pero no se puede desactivar.
-            current = (await accounts.GetAsync(receivablesFromCustomers.Id))!;
-            AssertInvalid(
-                await accounts.SetActiveAsync(current.Id, false, current.Version, actorId),
-                "sistema");
-
             // Las cuentas de sistema no aparecen entre las opciones para elegir en una categoría
             // financiera, y el servicio rechaza asignarlas aunque se envíe el Id directamente.
             Assert.DoesNotContain(
                 await accounts.GetActiveOptionsAsync(LedgerAccountType.Asset),
                 option => option.Id == receivablesFromCustomers.Id);
 
-            // 4.4.01 es una cuenta de sistema de tipo Ingreso: coincide con la naturaleza de la
-            // categoría, así que esta prueba sí llega a la validación de cuenta de sistema (y no se
-            // queda antes, en la de tipo).
-            LedgerAccountModel salesReturns = await GetByCodeAsync(accounts, "4.4.01");
-            AssertInvalid(
-                await categories.CreateAsync(
-                    CategoryCommand($"Categoría de sistema {suffix}", FinancialCategoryKind.Income, salesReturns.Id),
-                    actorId),
-                "sistema");
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task SystemRoleWithJournalMovement_ShowsDeactivationActionButRejectsTheRequest()
+    {
+        return RunInRollbackTransactionAsync(async (context, services, actorId) =>
+        {
+            ILedgerAccountService accounts = services.GetRequiredService<ILedgerAccountService>();
+            LedgerAccountModel receivables = await GetByCodeAsync(accounts, "1.2.01");
+            LedgerAccountModel incomeAccount = await GetByCodeAsync(accounts, "4.1.01");
+
+            context.JournalEntries.Add(new JournalEntry(
+                Guid.NewGuid(),
+                DateTime.UtcNow.Ticks,
+                DateOnly.FromDateTime(DateTime.UtcNow),
+                "Movimiento de prueba para cuenta de sistema",
+                JournalEntrySourceType.Income,
+                Guid.NewGuid(),
+                reversesEntryId: null,
+                [
+                    new JournalEntryLineInput(receivables.Id, 100m, 0m),
+                    new JournalEntryLineInput(incomeAccount.Id, 0m, 100m),
+                ],
+                DateTimeOffset.UtcNow,
+                actorId));
+            await context.SaveChangesAsync();
+
+            LedgerAccountModel current = (await accounts.GetAsync(receivables.Id))!;
+            Assert.True(current.HasTransactions);
+            Assert.True(current.CanDeactivate);
+
+            CatalogOperationResult result = await accounts.SetActiveAsync(
+                current.Id,
+                false,
+                current.Version,
+                actorId);
+
+            Assert.Equal(CatalogOperationStatus.DependencyConflict, result.Status);
+            Assert.Contains("movimientos asociados", result.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.True((await accounts.GetAsync(current.Id))!.IsActive);
         });
     }
 
@@ -451,32 +369,17 @@ public sealed class SqlServerLedgerAccountScenarioTests : IClassFixture<Financia
         Assert.True((await accounts.CreateAsync(command, actorId)).IsSuccess);
     }
 
-    private static SaveFinancialCategoryCommand CategoryCommand(
-        string name,
-        FinancialCategoryKind kind,
-        Guid ledgerAccountId) =>
-        new(name, kind, null, ledgerAccountId, null);
-
-    private static async Task<FinancialCategoryModel> GetCategoryAsync(
-        IFinancialCategoryService categories,
-        string name)
-    {
-        PagedResult<FinancialCategoryModel> page = await categories.SearchAsync(
-            new CatalogQuery(name, CatalogStatusFilter.All));
-        return Assert.Single(page.Items, category => category.Name == name);
-    }
-
     private static async Task<LedgerAccountModel> GetByCodeAsync(ILedgerAccountService accounts, string code)
     {
         PagedResult<LedgerAccountModel> page = await accounts.SearchAsync(
-            new CatalogQuery(code, CatalogStatusFilter.All));
+            new LedgerAccountQuery(code: code));
         return Assert.Single(page.Items, account => account.Code == code);
     }
 
     private static async Task<LedgerAccountModel> GetByNameAsync(ILedgerAccountService accounts, string name)
     {
         PagedResult<LedgerAccountModel> page = await accounts.SearchAsync(
-            new CatalogQuery(name, CatalogStatusFilter.All));
+            new LedgerAccountQuery(name: name));
         return Assert.Single(page.Items, account => account.Name == name);
     }
 

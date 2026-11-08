@@ -33,7 +33,7 @@ public sealed class Invoice
     public Invoice(
         Guid id,
         Guid customerId,
-        Guid incomeCategoryId,
+        Guid incomeAccountId,
         DateOnly issueDate,
         PaymentTerm paymentTerm,
         DateTimeOffset createdAtUtc,
@@ -41,7 +41,7 @@ public sealed class Invoice
     {
         Id = DomainRules.RequiredId(id, nameof(id));
         CustomerId = DomainRules.RequiredId(customerId, nameof(customerId));
-        IncomeCategoryId = DomainRules.RequiredId(incomeCategoryId, nameof(incomeCategoryId));
+        IncomeAccountId = DomainRules.RequiredId(incomeAccountId, nameof(incomeAccountId));
         IssueDate = RequireDate(issueDate, nameof(issueDate));
         PaymentTerm = DomainRules.DefinedEnum(paymentTerm, nameof(paymentTerm));
         DueDate = CalculateDueDate(PaymentTerm, IssueDate);
@@ -64,10 +64,10 @@ public sealed class Invoice
     public Guid CustomerId { get; private set; }
 
     /// <summary>
-    /// Categoría de ingreso de la venta (bloque 2 del paquete de mejoras finales): pertenece a la
-    /// factura, no a cada cobro. El ingreso de contado y los de cada abono la heredan.
+    /// Cuenta de ingreso de la venta: pertenece a la factura, no a cada cobro. El ingreso de contado y
+    /// los de cada abono la heredan.
     /// </summary>
-    public Guid IncomeCategoryId { get; private set; }
+    public Guid IncomeAccountId { get; private set; }
 
     /// <summary>Fecha de negocio de la factura.</summary>
     public DateOnly IssueDate { get; private set; }
@@ -103,12 +103,12 @@ public sealed class Invoice
     public Guid? ConfirmedByUserId { get; private set; }
 
     /// <summary>
-    /// Clave del comprobante electrónico emitido en la plataforma externa (bloque 3, RF-89); se
-    /// registra una sola vez, después de confirmar. El sistema no la emite, firma ni transmite.
+    /// Clave del comprobante electrónico de Hacienda (bloque 3, RF-89), generada por el sistema al
+    /// confirmar. El sistema no la emite, firma ni transmite ante Hacienda.
     /// </summary>
     public string? ElectronicInvoiceKey { get; private set; }
 
-    /// <summary>Consecutivo del comprobante electrónico emitido en la plataforma externa (RF-89).</summary>
+    /// <summary>Consecutivo del comprobante electrónico de Hacienda, generado por el sistema al confirmar (RF-89).</summary>
     public string? ElectronicInvoiceNumber { get; private set; }
 
     /// <summary>Motivo de anulación, cuando corresponde.</summary>
@@ -145,7 +145,7 @@ public sealed class Invoice
     /// </summary>
     public void UpdateHeader(
         Guid customerId,
-        Guid incomeCategoryId,
+        Guid incomeAccountId,
         DateOnly issueDate,
         PaymentTerm paymentTerm,
         DateTimeOffset updatedAtUtc,
@@ -154,13 +154,13 @@ public sealed class Invoice
         EnsureDraft();
 
         Guid validCustomerId = DomainRules.RequiredId(customerId, nameof(customerId));
-        Guid validIncomeCategoryId = DomainRules.RequiredId(incomeCategoryId, nameof(incomeCategoryId));
+        Guid validIncomeAccountId = DomainRules.RequiredId(incomeAccountId, nameof(incomeAccountId));
         DateOnly validIssueDate = RequireDate(issueDate, nameof(issueDate));
         PaymentTerm validPaymentTerm = DomainRules.DefinedEnum(paymentTerm, nameof(paymentTerm));
 
         Touch(updatedAtUtc, updatedByUserId);
         CustomerId = validCustomerId;
-        IncomeCategoryId = validIncomeCategoryId;
+        IncomeAccountId = validIncomeAccountId;
         IssueDate = validIssueDate;
         PaymentTerm = validPaymentTerm;
         DueDate = CalculateDueDate(validPaymentTerm, validIssueDate);
@@ -219,11 +219,18 @@ public sealed class Invoice
     }
 
     /// <summary>
-    /// Confirma el documento y le asigna su consecutivo (RF-34). El número lo calcula quien llama
-    /// (una secuencia de SQL Server, regla 12) porque el dominio no conoce la base de datos; este
-    /// método solo exige que sea positivo y nunca lo vuelve a cambiar.
+    /// Confirma el documento y le asigna su consecutivo (RF-34) y la clave y el consecutivo de su
+    /// comprobante electrónico de Hacienda (bloque 3). El número y la clave los calcula quien llama
+    /// (una secuencia de SQL Server y <see cref="SistemaFinanciero.Domain.Common.ElectronicDocumentKeyBuilder"/>,
+    /// regla 12) porque el dominio no conoce la base de datos; este método solo valida y asigna, y
+    /// nunca los vuelve a cambiar. El sistema no emite, firma ni transmite nada ante Hacienda.
     /// </summary>
-    public void Confirm(DateTimeOffset confirmedAtUtc, Guid confirmedByUserId, long number)
+    public void Confirm(
+        DateTimeOffset confirmedAtUtc,
+        Guid confirmedByUserId,
+        long number,
+        string electronicInvoiceKey,
+        string electronicInvoiceNumber)
     {
         EnsureDraft();
 
@@ -237,50 +244,20 @@ public sealed class Invoice
             throw new ArgumentOutOfRangeException(nameof(number), number, "El número de factura debe ser mayor que cero.");
         }
 
+        // Todo se valida antes de asignar: si algún dato es inválido, la factura queda sin cambios.
+        string validKey = DomainRules.RequiredDigits(
+            electronicInvoiceKey, ElectronicInvoiceKeyLength, nameof(electronicInvoiceKey));
+        string validNumber = DomainRules.RequiredDigits(
+            electronicInvoiceNumber, ElectronicInvoiceNumberLength, nameof(electronicInvoiceNumber));
+
         Touch(confirmedAtUtc, confirmedByUserId);
 
         Number = number;
         ConfirmedByUserId = confirmedByUserId;
         ConfirmedAtUtc = confirmedAtUtc;
-        Status = InvoiceStatus.Confirmed;
-    }
-
-    /// <summary>
-    /// Registra la clave y el consecutivo del comprobante electrónico emitido en la plataforma
-    /// externa (bloque 3, RF-89): solo se permite una vez, sobre una factura ya confirmada. No emite,
-    /// firma ni transmite nada; solo guarda los datos para el traslado manual.
-    /// </summary>
-    public void RegisterElectronicInvoiceDetails(
-        string electronicInvoiceKey,
-        string electronicInvoiceNumber,
-        DateTimeOffset updatedAtUtc,
-        Guid updatedByUserId)
-    {
-        if (Status != InvoiceStatus.Confirmed)
-        {
-            throw new InvalidOperationException(
-                "Solo se puede registrar la clave del comprobante electrónico en una factura confirmada.");
-        }
-
-        if (ElectronicInvoiceKey is not null)
-        {
-            throw new InvalidOperationException(
-                "La factura ya tiene registrada la clave de su comprobante electrónico.");
-        }
-
-        // Todo se valida antes de asignar: si algún dato es inválido, la factura queda sin cambios.
-        string validKey = DomainRules.RequiredDigits(
-            electronicInvoiceKey,
-            ElectronicInvoiceKeyLength,
-            nameof(electronicInvoiceKey));
-        string validNumber = DomainRules.RequiredDigits(
-            electronicInvoiceNumber,
-            ElectronicInvoiceNumberLength,
-            nameof(electronicInvoiceNumber));
-        Touch(updatedAtUtc, updatedByUserId);
-
         ElectronicInvoiceKey = validKey;
         ElectronicInvoiceNumber = validNumber;
+        Status = InvoiceStatus.Confirmed;
     }
 
     /// <summary>Anula una factura confirmada sin eliminar su historia.</summary>

@@ -18,11 +18,14 @@ public static class SystemPolicies
     public const string ManageBusinessContacts = "Terceros.Administrar";
     public const string ManageBusinessCatalogs = "Catalogos.Administrar";
     public const string ViewFinancialTransactions = "Movimientos.Ver";
+    public const string ViewReceivablesAndPayables = "Cuentas.Ver";
     public const string CreateFinancialDrafts = "Movimientos.CrearBorrador";
+    public const string RegisterManualIncome = "Ingresos.RegistrarManual";
     public const string ConfirmFinancialTransactions = "Movimientos.Confirmar";
     public const string VoidFinancialTransactions = "Movimientos.Anular";
     public const string AdjustFinancialBalances = "Movimientos.Ajustar";
     public const string ViewFinancialReports = "Reportes.Ver";
     public const string ViewAuditTrail = "Auditoria.Ver";
     public const string ManageSystemParameters = "Parametros.Administrar";
+    public const string ManageAccountingPeriods = "Parametros.PeriodosContables";
 }

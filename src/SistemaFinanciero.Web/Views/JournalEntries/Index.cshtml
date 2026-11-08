@@ -1,26 +1,125 @@
+@using SistemaFinanciero.Application.Ledger
+@using SistemaFinanciero.Web.Models.Ledger
+@model JournalEntriesIndexViewModel
 @{
     ViewData["Title"] = "Asientos contables";
+    DateOnly period = new(Model.PeriodYear, Model.PeriodMonth, 1);
+    DateOnly previousPeriod = period.AddMonths(-1);
+    DateOnly nextPeriod = period.AddMonths(1);
+    string periodLabel = period.ToString("MMMM yyyy");
 }
 
-<div class="mb-3">
+<div class="mb-4">
     <h1 class="h2 mb-1">Asientos contables</h1>
-    <p class="text-body-secondary mb-0">
-        Partida doble automática. Cada factura, gasto, abono, pago, ingreso manual y
-        ajuste de saldo genera su asiento en la misma transacción en que se confirma, anula o
-        registra; el enlace "Ver asiento" de cada documento muestra el suyo.
-    </p>
+    <p class="text-body-secondary mb-0">Consulta general de movimientos contables.</p>
 </div>
 
-<div class="card card-body">
-    <h2 class="h5">Generar asientos de documentos existentes</h2>
-    <p class="text-body-secondary">
-        Genera los asientos de los documentos confirmados que todavía no tienen uno y las
-        reversiones de los anulados que todavía no tienen la suya, en orden cronológico. Es un
-        comando explícito: no se ejecuta al iniciar el sistema. Puede ejecutarse varias veces sin
-        riesgo: no duplica asientos ya generados.
-    </p>
-    <form asp-action="Backfill" method="post" class="d-inline js-confirm-form"
-          data-confirm-message="¿Confirma que desea generar los asientos pendientes de los documentos existentes?">
-        <button type="submit" class="btn btn-primary">Generar asientos pendientes</button>
-    </form>
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card card-body h-100">
+            <div class="display-6 fw-semibold">@Model.Result.EntriesCount</div>
+            <div class="text-body-secondary">Asientos registrados</div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card card-body h-100">
+            <div class="display-6 fw-semibold">₡@Model.Result.TotalMovements.ToString("N2")</div>
+            <div class="text-body-secondary">Movimientos del período</div>
+        </div>
+    </div>
+</div>
+
+<form method="get" asp-action="Index" class="row gy-2 gx-3 align-items-end mb-3">
+    <input type="hidden" name="periodYear" value="@Model.PeriodYear" />
+    <input type="hidden" name="periodMonth" value="@Model.PeriodMonth" />
+    <div class="col-auto">
+        <label class="form-label small mb-0">Período</label>
+        <div class="d-flex align-items-center gap-2">
+            <a class="btn btn-outline-secondary btn-sm" asp-action="Index"
+               asp-route-periodYear="@previousPeriod.Year" asp-route-periodMonth="@previousPeriod.Month"
+               asp-route-state="@((int)Model.State)" asp-route-entryNumber="@Model.EntryNumber" aria-label="Mes anterior">«</a>
+            <span class="fw-semibold text-capitalize text-nowrap">@periodLabel</span>
+            <a class="btn btn-outline-secondary btn-sm" asp-action="Index"
+               asp-route-periodYear="@nextPeriod.Year" asp-route-periodMonth="@nextPeriod.Month"
+               asp-route-state="@((int)Model.State)" asp-route-entryNumber="@Model.EntryNumber" aria-label="Mes siguiente">»</a>
+        </div>
+    </div>
+    <div class="col-auto">
+        <label class="form-label small mb-0" for="state">Estado</label>
+        <select class="form-select form-select-sm" id="state" name="state">
+            <option value="@((int)JournalEntryStateFilter.All)" selected="@(Model.State == JournalEntryStateFilter.All)">Todos</option>
+            <option value="@((int)JournalEntryStateFilter.Posted)" selected="@(Model.State == JournalEntryStateFilter.Posted)">Contabilizado</option>
+            <option value="@((int)JournalEntryStateFilter.Reversal)" selected="@(Model.State == JournalEntryStateFilter.Reversal)">Reversión</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <label class="form-label small mb-0" for="entryNumber">Número de asiento (sin ASI-)</label>
+        <input class="form-control form-control-sm" id="entryNumber" name="entryNumber" type="number" min="1" value="@Model.EntryNumber" placeholder="Ej. 123" />
+    </div>
+    <div class="col-auto d-flex gap-1">
+        <button type="submit" class="btn btn-sm btn-primary" aria-label="Buscar asientos" title="Buscar">
+            <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5" /><path d="m10.5 10.5 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+        </button>
+        <a asp-action="Index" asp-route-periodYear="@Model.PeriodYear" asp-route-periodMonth="@Model.PeriodMonth" asp-route-state="@((int)Model.State)"
+           class="btn btn-sm btn-outline-secondary" aria-label="Limpiar búsqueda" title="Limpiar">
+            <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 4h10M6 4V2.5h4V4m2 0-.6 9H4.6L4 4m2.5 2v4.5m3-4.5v4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        </a>
+    </div>
+</form>
+
+<h2 class="h5 mb-2">Asientos contables</h2>
+
+<div class="bg-white border rounded">
+    @if (Model.Result.Entries.Count == 0)
+    {
+        <p class="text-body-secondary text-center py-4 mb-0">No hay asientos contables para el período y el estado indicados.</p>
+    }
+    else
+    {
+        @foreach (JournalEntryListItem entry in Model.Result.Entries)
+        {
+            <details class="asiento-entry">
+                <summary class="d-flex justify-content-between align-items-start gap-3 px-3 py-3">
+                    <div>
+                        <div class="fw-semibold">@("ASI-" + entry.Number.ToString("000000"))</div>
+                        <div class="text-body-secondary small">@entry.EntryDate.ToString("dd/MM/yyyy") · @entry.Description</div>
+                    </div>
+                    <div class="text-end">
+                        <div class="fw-semibold">₡@entry.TotalAmount.ToString("N2")</div>
+                        <span class="badge @(entry.ReversesEntryId is null ? "text-bg-success" : "text-bg-warning")">@(entry.ReversesEntryId is null ? "Contabilizado" : "Reversión")</span>
+                    </div>
+                </summary>
+                <div class="px-3 pb-3">
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th scope="col">Cuenta</th>
+                                    <th scope="col" class="text-end">Débito</th>
+                                    <th scope="col" class="text-end">Crédito</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (JournalEntryListLine line in entry.Lines)
+                                {
+                                    <tr>
+                                        <td>@line.AccountCode — @line.AccountName</td>
+                                        <td class="text-end">@(line.Debit > 0 ? $"₡{line.Debit:N2}" : "—")</td>
+                                        <td class="text-end">@(line.Credit > 0 ? $"₡{line.Credit:N2}" : "—")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot>
+                                <tr class="fw-semibold">
+                                    <td>Total</td>
+                                    <td class="text-end">₡@entry.Lines.Sum(line => line.Debit).ToString("N2")</td>
+                                    <td class="text-end">₡@entry.Lines.Sum(line => line.Credit).ToString("N2")</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </details>
+        }
+    }
 </div>

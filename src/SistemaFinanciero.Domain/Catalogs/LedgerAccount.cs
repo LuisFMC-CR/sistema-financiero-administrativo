@@ -70,6 +70,7 @@ public sealed class LedgerAccount
         UpdatedByUserId = CreatedByUserId;
         IsActive = true;
         IsProtected = false;
+        IsMovement = true;
     }
 
     /// <summary>Obtiene el identificador técnico estable.</summary>
@@ -111,10 +112,19 @@ public sealed class LedgerAccount
     public bool IsProtected { get; private set; }
 
     /// <summary>
+    /// Indica si es una cuenta de movimiento (admite facturar y registrar asientos directamente) o una
+    /// cuenta acumuladora/título (solo suma los saldos de sus cuentas hijas). Las raíces y los grupos
+    /// son acumuladores; las cuentas de detalle son de movimiento. Solo lo asignan las migraciones de
+    /// siembra; una cuenta nueva es de movimiento.
+    /// </summary>
+    public bool IsMovement { get; private set; }
+
+    /// <summary>
     /// Obtiene el rol fijo de cuenta de sistema (bloque 4 del paquete de mejoras finales), nulo en
     /// las demás cuentas. Solo lo asignan las migraciones de siembra, igual que
     /// <see cref="IsProtected"/>; a diferencia de una cuenta de grupo, una cuenta de sistema admite
-    /// renombrarse pero no desactivarse (<c>LedgerAccountService</c>).
+    /// renombrarse y desactivarse solo si no tiene movimientos en el libro mayor
+    /// (<c>LedgerAccountService</c>).
     /// </summary>
     public LedgerAccountSystemRole? SystemRole { get; private set; }
 

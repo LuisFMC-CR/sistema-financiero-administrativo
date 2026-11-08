@@ -9,7 +9,8 @@ namespace SistemaFinanciero.IntegrationTests.Payables;
 /// <summary>
 /// Verifica, sin tocar SQL Server, que las rutas de <c>PayablesController</c> y
 /// <c>SupplierPaymentsController</c> exigen exactamente las políticas de la matriz de perfiles:
-/// Gerencia y Finanzas consultan cuentas por pagar y registran pagos; solo Gerencia los anula. Sigue
+/// Gerencia, Finanzas y Asistente consultan cuentas por pagar; Asistente no registra pagos y solo
+/// Gerencia los anula. Sigue
 /// el mismo patrón que <c>ReceivablesAuthorizationTests</c>.
 /// </summary>
 public sealed class PayablesAuthorizationTests : IClassFixture<FinancialWebApplicationFactory>
@@ -39,7 +40,7 @@ public sealed class PayablesAuthorizationTests : IClassFixture<FinancialWebAppli
     }
 
     [Fact]
-    public void PayablesEndpoints_RequireViewFinancialReports()
+    public void PayablesEndpoints_RequireViewReceivablesAndPayables()
     {
         RouteEndpoint[] endpoints = GetEndpointsStartingWith("cuentas-por-pagar")
             .Where(endpoint => !endpoint.RoutePattern.RawText!.Contains("pagos", StringComparison.Ordinal)
@@ -51,7 +52,7 @@ public sealed class PayablesAuthorizationTests : IClassFixture<FinancialWebAppli
             endpoints,
             endpoint => Assert.Contains(
                 endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>(),
-                data => data.Policy == SystemPolicies.ViewFinancialReports));
+                data => data.Policy == SystemPolicies.ViewReceivablesAndPayables));
     }
 
     [Fact]

@@ -1,44 +1,51 @@
 @model UserFilterViewModel
 
 <tr class="table-filter-row">
-    <th colspan="100" class="p-2">
-        <form method="get" class="d-flex flex-wrap gap-2 align-items-center" role="search">
-            <input name="search"
-                   value="@Model.Search"
-                   maxlength="100"
-                   class="form-control form-control-sm flex-grow-1"
-                   style="min-width: 220px;"
-                   placeholder="Nombre o correo electrónico"
-                   aria-label="Buscar" />
-            <select name="status" class="form-select form-select-sm" style="max-width: 160px;" aria-label="Estado">
-                @foreach (UserStatusFilter status in Enum.GetValues<UserStatusFilter>())
-                {
-                    if (status == Model.Status)
-                    {
-                        <option value="@status" selected>@status.ToDisplayName()</option>
-                    }
-                    else
-                    {
-                        <option value="@status">@status.ToDisplayName()</option>
-                    }
-                }
-            </select>
-            <select name="role" class="form-select form-select-sm" style="max-width: 180px;" aria-label="Rol">
-                <option value="">Todos los roles</option>
-                @foreach (string role in Model.Roles)
-                {
-                    if (string.Equals(role, Model.Role, StringComparison.Ordinal))
-                    {
-                        <option value="@role" selected>@role</option>
-                    }
-                    else
-                    {
-                        <option value="@role">@role</option>
-                    }
-                }
-            </select>
-            <button type="submit" class="btn btn-sm btn-primary">Aplicar</button>
-            <a asp-action="Index" class="btn btn-sm btn-outline-secondary">Limpiar</a>
-        </form>
+    <th class="p-2">
+        <input form="user-filters" name="fullName" value="@Model.FullName" maxlength="150" class="form-control form-control-sm" placeholder="Nombre" aria-label="Filtrar por nombre" />
+    </th>
+    <th class="p-2">
+        <input form="user-filters" name="email" type="email" value="@Model.Email" maxlength="254" class="form-control form-control-sm" placeholder="Correo" aria-label="Filtrar por correo electrónico" />
+    </th>
+    <th class="p-2">
+        <select form="user-filters" name="role" class="form-select form-select-sm" aria-label="Filtrar por rol">
+            <option value="">Todos</option>
+            @foreach (string role in Model.Roles)
+            {
+                <option value="@role" selected="@(string.Equals(role, Model.Role, StringComparison.Ordinal))">@role</option>
+            }
+        </select>
+    </th>
+    <th class="p-2">
+        <select form="user-filters" name="access" class="form-select form-select-sm" aria-label="Filtrar por acceso">
+            <option value="@UserAccessFilter.All" selected="@(Model.Access == UserAccessFilter.All)">Todos</option>
+            <option value="@UserAccessFilter.LockedOut" selected="@(Model.Access == UserAccessFilter.LockedOut)">Bloqueo temporal</option>
+            <option value="@UserAccessFilter.PasswordChangeRequired" selected="@(Model.Access == UserAccessFilter.PasswordChangeRequired)">Cambio de contraseña pendiente</option>
+            <option value="@UserAccessFilter.Available" selected="@(Model.Access == UserAccessFilter.Available)">Disponible</option>
+        </select>
+    </th>
+    <th class="p-2">
+        <select form="user-filters" name="status" class="form-select form-select-sm" aria-label="Filtrar por estado">
+            @foreach (UserStatusFilter status in Enum.GetValues<UserStatusFilter>())
+            {
+                <option value="@status" selected="@(status == Model.Status)">@status.ToDisplayName()</option>
+            }
+        </select>
+    </th>
+    <th class="p-2"></th>
+</tr>
+<tr>
+    <th colspan="6" class="p-2 text-end">
+        <button form="user-filters" type="submit" class="btn btn-sm btn-primary" aria-label="Buscar usuarios" title="Buscar">
+            <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5" />
+                <path d="m10.5 10.5 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+            </svg>
+        </button>
+        <a asp-action="Index" class="btn btn-sm btn-outline-secondary" aria-label="Limpiar filtros" title="Limpiar">
+            <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M3 4h10M6 4V2.5h4V4m2 0-.6 9H4.6L4 4m2.5 2v4.5m3-4.5v4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+        </a>
     </th>
 </tr>

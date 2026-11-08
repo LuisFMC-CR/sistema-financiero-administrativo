@@ -31,6 +31,12 @@ internal sealed class CompanyDataChangeConfiguration : IEntityTypeConfiguration<
                 table.HasCheckConstraint(
                     "CK_ParametrosEmpresaHistorial_CompanyDistrictCode",
                     "[CompanyDistrictCode] IS NULL OR LEN([CompanyDistrictCode]) = 2");
+                table.HasCheckConstraint(
+                    "CK_ParametrosEmpresaHistorial_CompanyBranchCode",
+                    "[CompanyBranchCode] IS NULL OR LEN([CompanyBranchCode]) = 3");
+                table.HasCheckConstraint(
+                    "CK_ParametrosEmpresaHistorial_CompanyTerminalCode",
+                    "[CompanyTerminalCode] IS NULL OR LEN([CompanyTerminalCode]) = 5");
             });
 
         builder.HasKey(change => change.Id);
@@ -49,6 +55,10 @@ internal sealed class CompanyDataChangeConfiguration : IEntityTypeConfiguration<
             .HasMaxLength(SystemParameters.CompanyCantonCodeLength);
         builder.Property(change => change.CompanyDistrictCode)
             .HasMaxLength(SystemParameters.CompanyDistrictCodeLength);
+        builder.Property(change => change.CompanyBranchCode)
+            .HasMaxLength(SystemParameters.CompanyBranchCodeLength);
+        builder.Property(change => change.CompanyTerminalCode)
+            .HasMaxLength(SystemParameters.CompanyTerminalCodeLength);
         builder.Property(change => change.ChangedAtUtc).IsRequired();
 
         builder.HasIndex(change => change.ChangedAtUtc)

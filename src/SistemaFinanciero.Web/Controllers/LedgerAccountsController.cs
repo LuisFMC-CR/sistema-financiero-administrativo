@@ -8,13 +8,14 @@ using SistemaFinanciero.Web.Models.Catalogs;
 
 namespace SistemaFinanciero.Web.Controllers;
 
-/// <summary>Presenta el catálogo de cuentas contables, incluidas las cajas y los bancos.</summary>
+/// <summary>Presenta el catálogo contable jerárquico, tabular y editable.</summary>
 /// <remarks>
-/// Conexiones: usa <c>ILedgerAccountService</c> (Application). El usuario solo agrega cuentas de
-/// detalle dentro de los grupos del catálogo base (regla 13): por eso <c>Create</c> exige elegir una
-/// cuenta superior y nunca pide código ni tipo (el servicio los calcula). <c>Edit</c> solo permite
-/// cambiar nombre, referencia y descripción (regla 12); código, tipo y cuenta superior se muestran de
-/// solo lectura.
+/// Conexiones: usa <c>ILedgerAccountService</c> (Application). El usuario solo modifica cuentas de
+/// movimiento (último nivel): las raíces y los grupos son acumuladores protegidos. <c>Create</c>
+/// exige elegir una cuenta superior y nunca pide código ni tipo (el servicio los calcula). <c>Edit</c>
+/// solo permite cambiar nombre, referencia y descripción (regla 12); código, tipo y cuenta superior se
+/// muestran de solo lectura. <c>SetActive</c> bloquea la desactivación cuando la cuenta tiene
+/// transacciones en el libro mayor o documentos asociados.
 /// </remarks>
 [Authorize(Policy = SystemPolicies.ViewBusinessCatalogs)]
 [Route("catalogos/cuentas-contables")]
@@ -24,15 +25,26 @@ public sealed class LedgerAccountsController(ILedgerAccountService service) : Ca
 
     [HttpGet("")]
     public async Task<IActionResult> Index(
-        string? search,
-        CatalogStatusFilter status = CatalogStatusFilter.Active,
+        string? code,
+        string? name,
+        LedgerAccountType? type,
+        bool? isMovement,
+        bool? isActive,
         int page = 1,
         CancellationToken cancellationToken = default)
     {
-        CatalogQuery query = new(NormalizeSearch(search), NormalizeStatus(status), page);
+        LedgerAccountQuery query = new(code, name, type, isMovement, isActive, page);
         PagedResult<LedgerAccountModel> results = await service.SearchAsync(query, cancellationToken);
 
-        return View(new CatalogIndexViewModel<LedgerAccountModel>(results, query.Search, query.Status));
+        return View(new LedgerAccountIndexViewModel
+        {
+            Results = results,
+            Code = query.Code,
+            Name = query.Name,
+            Type = query.Type,
+            IsMovement = query.IsMovement,
+            IsActive = query.IsActive,
+        });
     }
 
     [Authorize(Policy = SystemPolicies.ManageBusinessCatalogs)]

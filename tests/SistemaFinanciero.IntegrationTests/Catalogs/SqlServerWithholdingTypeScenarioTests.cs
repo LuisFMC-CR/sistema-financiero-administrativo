@@ -52,6 +52,11 @@ public sealed class SqlServerWithholdingTypeScenarioTests : IClassFixture<Financ
                 new CatalogQuery("integración", CatalogStatusFilter.Active))).Items, item => item.Id == created.Id);
             Assert.Single((await withholdingTypes.SearchAsync(
                 new CatalogQuery("original", CatalogStatusFilter.Active))).Items, item => item.Id == created.Id);
+            Assert.Single((await withholdingTypes.SearchAsync(new CatalogQuery(
+                status: CatalogStatusFilter.Active,
+                code: code,
+                name: "Retención de integración",
+                rate: 2m))).Items, item => item.Id == created.Id);
 
             UpdateWithholdingTypeCommand update = new(code, "Retención actualizada", 4m, null, null);
             Assert.True((await withholdingTypes.UpdateAsync(created.Id, update, created.Version, actorId)).IsSuccess);

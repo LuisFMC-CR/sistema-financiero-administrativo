@@ -54,7 +54,7 @@ public class CatalogItemInputViewModel
     public decimal? ReferencePriceCrc { get; set; }
 
     [Display(Name = "Categoría de ingreso predeterminada")]
-    public Guid? DefaultIncomeCategoryId { get; set; }
+    public Guid? DefaultIncomeAccountId { get; set; }
 
     [ValidateNever]
     public IReadOnlyList<SelectListItem> IncomeCategoryOptions { get; set; } = [];

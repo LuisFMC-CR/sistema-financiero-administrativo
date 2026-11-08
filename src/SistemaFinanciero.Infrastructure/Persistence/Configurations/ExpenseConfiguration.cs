@@ -78,7 +78,7 @@ internal sealed class ExpenseConfiguration : IEntityTypeConfiguration<Expense>
 
         builder.HasOne<Supplier>().WithMany().HasForeignKey(expense => expense.SupplierId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_Gastos_Proveedores");
-        builder.HasOne<FinancialCategory>().WithMany().HasForeignKey(expense => expense.CategoryId)
+        builder.HasOne<LedgerAccount>().WithMany().HasForeignKey(expense => expense.AccountId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_Gastos_CategoriasFinancieras");
         builder.HasOne<TaxType>().WithMany().HasForeignKey(expense => expense.TaxTypeId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_Gastos_TiposImpuesto");

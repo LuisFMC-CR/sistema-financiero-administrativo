@@ -67,8 +67,10 @@ if (categoryKind instanceof HTMLSelectElement && categoryParent instanceof HTMLS
     filterParentCategories();
 }
 
-// Formulario de cuentas contables: el tipo lo hereda la cuenta superior elegida, así que los campos
-// de efectivo (subtipo) solo se habilitan cuando esa cuenta superior es de tipo Activo. El servidor
+// Formulario de cuentas contables: el tipo lo hereda la cuenta superior elegida. Una cuenta nueva
+// dentro de Efectivo (único grupo de Activo permitido como cuenta superior, regla de creación de
+// cuentas contables del bloque 3 del paquete v7) siempre es de efectivo, así que la casilla queda
+// marcada y bloqueada en ese caso; en cualquier otro grupo, queda desmarcada y bloqueada. El servidor
 // valida la misma regla; esto solo evita que el usuario elija combinaciones inválidas.
 const ledgerParent = document.getElementById("ledger-account-parent");
 const ledgerIsCash = document.getElementById("ledger-account-is-cash");
@@ -77,18 +79,18 @@ const ledgerCashFields = document.getElementById("ledger-account-cash-fields");
 if (ledgerParent instanceof HTMLSelectElement) {
     const refreshLedgerForm = () => {
         const selectedOption = ledgerParent.options[ledgerParent.selectedIndex];
-        const canBeCash = selectedOption?.dataset.accountType === "Asset";
+        const isCashGroup = selectedOption?.dataset.accountType === "Asset";
 
         if (ledgerIsCash instanceof HTMLInputElement) {
-            ledgerIsCash.disabled = !canBeCash;
-
-            if (!canBeCash) {
-                ledgerIsCash.checked = false;
-            }
+            // Un campo deshabilitado no se envía al servidor: solo se deshabilita cuando debe quedar
+            // en falso (grupo distinto de Efectivo). Dentro de Efectivo queda marcado y habilitado,
+            // porque el valor "true" sí debe llegar al servidor.
+            ledgerIsCash.checked = isCashGroup;
+            ledgerIsCash.disabled = !isCashGroup;
         }
 
         if (ledgerCashFields instanceof HTMLElement) {
-            ledgerCashFields.hidden = !(ledgerIsCash instanceof HTMLInputElement && ledgerIsCash.checked);
+            ledgerCashFields.hidden = !isCashGroup;
         }
     };
 

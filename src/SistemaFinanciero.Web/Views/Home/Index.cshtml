@@ -1,7 +1,7 @@
-﻿@using SistemaFinanciero.Web.Models.Overdue
+@using SistemaFinanciero.Web.Models.Overdue
 @model HomeIndicatorsViewModel?
 @{
-    ViewData["Title"] = "Inicio";
+    ViewData["Title"] = "Dashboard";
 }
 
 <div class="py-4">
@@ -12,11 +12,17 @@
 
     @if (Model is not null)
     {
-        <div class="mt-3">
-            <partial name="_OverdueIndicator" model="Model.Overdue" />
-        </div>
-        <div class="mt-3">
-            <partial name="_BudgetExceededIndicator" model="Model" />
-        </div>
+        @if (Model.Overdue is not null)
+        {
+            <div class="mt-3">
+                <partial name="_OverdueIndicator" model="Model.Overdue" />
+            </div>
+        }
+        @if (Model.Budget is not null)
+        {
+            <div class="mt-3">
+                <partial name="_BudgetExceededIndicator" model="Model.Budget" />
+            </div>
+        }
     }
 </div>

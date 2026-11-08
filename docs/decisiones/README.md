@@ -30,21 +30,36 @@ reescribe para ocultar el historial: una decisión posterior lo reemplaza median
 | [ADR-0023](ADR-0023-cuentas-por-cobrar-ingresos-y-bitacora.md) | Cuentas por cobrar, ingresos y bitácora de operaciones | Aceptado |
 | [ADR-0024](ADR-0024-abonos-y-retenciones.md) | Abonos a varias facturas y retenciones | Aceptado |
 | [ADR-0025](ADR-0025-ingreso-manual.md) | Ingreso manual | Aceptado |
-| [ADR-0026](ADR-0026-pantallas-de-cuentas-por-cobrar-abonos-e-ingresos.md) | Pantallas de cuentas por cobrar, abonos e ingresos | Aceptado |
+| [ADR-0026](ADR-0026-pantallas-de-cuentas-por-cobrar-abonos-e-ingresos.md) | Pantallas de cuentas por cobrar, abonos e ingresos | Flujo de abonos reemplazado por ADR-0056; permisos por ADR-0050 |
 | [ADR-0027](ADR-0027-gastos-cuentas-por-pagar-y-codigo-de-ingresos.md) | Gastos, cuentas por pagar y código automático de ingresos | Aceptado |
 | [ADR-0028](ADR-0028-pagos-a-proveedores.md) | Pagos a proveedores | Aceptado |
 | [ADR-0029](ADR-0029-pantallas-de-gastos-cuentas-por-pagar-y-pagos.md) | Pantallas de gastos, cuentas por pagar y pagos | Aceptado |
 | [ADR-0030](ADR-0030-presupuesto-mensual.md) | Presupuesto mensual por categoría de gasto | Aceptado |
 | [ADR-0031](ADR-0031-pantalla-de-presupuesto-y-alerta-al-confirmar-un-gasto.md) | Pantalla de presupuesto y alerta al confirmar un gasto | Aceptado |
-| [ADR-0032](ADR-0032-indicador-de-cuentas-vencidas.md) | Indicador de cuentas vencidas | Aceptado |
-| [ADR-0033](ADR-0033-pantalla-de-consultas.md) | Pantalla de Consultas | Aceptado |
+| [ADR-0032](ADR-0032-indicador-de-cuentas-vencidas.md) | Indicador de cuentas vencidas | Permisos actualizados por ADR-0051 |
+| [ADR-0033](ADR-0033-pantalla-de-consultas.md) | Pantalla de Consultas | Sustituido por ADR-0049 |
 | [ADR-0034](ADR-0034-infraestructura-de-reportes-ingresos-y-gastos.md) | Infraestructura de reportes, y reportes de ingresos y de gastos por categoría | Aceptado |
 | [ADR-0035](ADR-0035-reportes-presupuesto-y-comparativo-mensual.md) | Reportes de presupuesto contra lo ejecutado y comparativo mensual | Aceptado |
 | [ADR-0036](ADR-0036-reportes-estado-de-cuenta-y-cuentas-por-pagar-por-proveedor.md) | Reportes de estado de cuenta de cliente y cuentas por pagar por proveedor | Aceptado |
-| [ADR-0037](ADR-0037-ajustes-manuales-de-saldo.md) | Ajustes manuales de saldo | Aceptado |
-| [ADR-0038](ADR-0038-fecha-de-cierre.md) | Parámetro de fecha de cierre | Aceptado |
-| [ADR-0039](ADR-0039-validacion-de-fecha-de-cierre.md) | Validación de la fecha de cierre en las operaciones existentes | Aceptado |
+| [ADR-0037](ADR-0037-ajustes-manuales-de-saldo.md) | Ajustes manuales de saldo | Permisos actualizados por ADR-0057 |
+| [ADR-0038](ADR-0038-fecha-de-cierre.md) | Parámetro de fecha de cierre | Reemplazado por ADR-0054 |
+| [ADR-0039](ADR-0039-validacion-de-fecha-de-cierre.md) | Validación de la fecha de cierre en las operaciones existentes | Reemplazado por ADR-0054 |
+| [ADR-0053](ADR-0053-presupuestos-sin-periodos-pasados-y-reloj-comun.md) | Bloqueo de presupuestos en períodos pasados y uso de reloj común | Aceptado |
 | [ADR-0040](ADR-0040-pantalla-de-perfiles-y-permisos.md) | Pantalla de perfiles y permisos | Aceptado |
 | [ADR-0041](ADR-0041-datos-de-la-empresa-y-factura-en-pdf.md) | Datos de la empresa y factura interna en PDF | Aceptado |
 | [ADR-0042](ADR-0042-advertencia-de-referencia-repetida-completa.md) | Advertencia de referencia repetida completa (ingreso manual y factura de contado) | Aceptado |
 | [ADR-0043](ADR-0043-linea-de-factura-exige-articulo-del-catalogo.md) | La línea de factura exige un artículo del catálogo | Aceptado |
+| [ADR-0044](ADR-0044-limite-de-credito-por-cliente.md) | Límite de crédito por cliente | Aceptado |
+| [ADR-0045](ADR-0045-filtro-de-facturas-por-fecha-de-emision-y-plazo.md) | Filtro de facturas por fecha de emisión y plazo de pago | Aceptado |
+| [ADR-0046](ADR-0046-bloque-1-iva-y-retenciones-paquete-v7.md) | Bloque 1 del paquete v7: IVA y retenciones pendientes | Aceptado |
+| [ADR-0047](ADR-0047-bloque-2-datos-formato-44-paquete-v7.md) | Bloque 2 del paquete v7: datos del formato 4.4 | Aceptado |
+| [ADR-0048](ADR-0048-consulta-general-de-asientos.md) | Consulta general de asientos contables y retiro del relleno manual | Aceptado |
+| [ADR-0049](ADR-0049-reorganizacion-del-menu-y-permisos-de-parametros.md) | Reorganización del menú lateral y permisos de parámetros | Aceptado |
+| [ADR-0050](ADR-0050-acceso-operativo-del-asistente.md) | Acceso operativo ampliado del Asistente | Aceptado |
+| [ADR-0051](ADR-0051-indicadores-de-vencimientos-para-asistente.md) | Indicadores de vencimientos para Asistente | Aceptado |
+| [ADR-0052](ADR-0052-consulta-de-facturas-y-gastos-por-asistente.md) | Consulta de facturas y gastos de todos los usuarios por Asistente | Aceptado |
+| [ADR-0054](ADR-0054-cierres-mensuales-y-periodo-fiscal.md) | Cierres mensuales automáticos y período fiscal anual | Aceptado |
+| [ADR-0055](ADR-0055-desactivacion-de-cuentas-contables-con-movimientos.md) | Desactivación lógica de cuentas contables con movimientos históricos | Aceptado |
+| [ADR-0056](ADR-0056-flujos-de-abono-individual-y-reparto-desde-ingresos.md) | Abono individual desde cuentas por cobrar y reparto múltiple desde Ingresos | Aceptado |
+| [ADR-0057](ADR-0057-permiso-de-ajustes-de-saldo-para-finanzas.md) | Acceso de Finanzas a los ajustes de saldo | Aceptado |
+| [ADR-0058](ADR-0058-nota-de-credito-como-flujo-de-anulacion-de-facturas.md) | Nota de crédito como flujo de anulación de facturas | Aceptado |

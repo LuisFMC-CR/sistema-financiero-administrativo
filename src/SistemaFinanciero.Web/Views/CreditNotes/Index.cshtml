@@ -1,0 +1,120 @@
+@using SistemaFinanciero.Domain.CreditNotes
+@model SistemaFinanciero.Web.Models.CreditNotes.CreditNoteIndexViewModel
+@{
+    ViewData["Title"] = "Notas de crédito";
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+    <div>
+        <h1 class="h2 mb-1">Notas de crédito</h1>
+        <p class="text-body-secondary mb-0">Seleccione una factura confirmada para emitir una nota total.</p>
+    </div>
+</div>
+
+<form asp-action="Index" method="get" class="row g-2 align-items-end mb-4">
+    <div class="col-md-6">
+        <label for="search" class="form-label">Número de factura o cliente</label>
+        <input id="search" name="search" value="@Model.Search" class="form-control" maxlength="100" />
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary">Buscar</button>
+        <a asp-action="Index" class="btn btn-outline-secondary">Limpiar</a>
+    </div>
+</form>
+
+<h2 class="h5">Facturas confirmadas</h2>
+<div class="table-responsive bg-white border rounded mb-4">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th>N.º</th>
+                <th>Cliente</th>
+                <th>Fecha</th>
+                <th>Tipo</th>
+                <th class="text-end">Total</th>
+                <th class="text-end">Saldo</th>
+                <th class="text-end">Cobrado</th>
+                <th>Acción</th>
+            </tr>
+        </thead>
+        <tbody>
+        @if (Model.EligibleInvoices.Items.Count == 0)
+        {
+            <tr><td colspan="8" class="text-center text-body-secondary py-4">No hay facturas confirmadas con esos criterios.</td></tr>
+        }
+        @foreach (var invoice in Model.EligibleInvoices.Items)
+        {
+            <tr>
+                <td>@invoice.InvoiceNumber</td>
+                <td>@invoice.CustomerName</td>
+                <td>@invoice.IssueDate.ToString("dd/MM/yyyy")</td>
+                <td>@(invoice.IsCashInvoice ? "Contado" : "Crédito")</td>
+                <td class="text-end">₡@invoice.InvoiceTotal.ToString("N2")</td>
+                <td class="text-end">₡@invoice.ReceivableBalance.ToString("N2")</td>
+                <td class="text-end">₡@invoice.CashReceived.ToString("N2")</td>
+                <td class="text-nowrap">
+                    @if (invoice.HasBalanceAdjustments)
+                    {
+                        <span class="text-warning-emphasis" title="La cuenta por cobrar tiene historial de ajustes; debe conciliarse antes de emitir la nota">Revisar ajustes</span>
+                    }
+                    else
+                    {
+                        <a asp-action="Register" asp-route-invoiceId="@invoice.InvoiceId" class="btn btn-sm btn-outline-danger">Emitir nota</a>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>
+@if (Model.EligibleInvoices.TotalPages > 1)
+{
+    <nav aria-label="Paginación de facturas" class="mb-4">
+        <ul class="pagination">
+            <li class="page-item @(Model.EligibleInvoices.HasPreviousPage ? "" : "disabled")">
+                <a class="page-link" asp-action="Index" asp-route-search="@Model.Search" asp-route-page="@(Model.EligibleInvoices.Page - 1)">Anterior</a>
+            </li>
+            <li class="page-item disabled"><span class="page-link">Página @Model.EligibleInvoices.Page de @Model.EligibleInvoices.TotalPages</span></li>
+            <li class="page-item @(Model.EligibleInvoices.HasNextPage ? "" : "disabled")">
+                <a class="page-link" asp-action="Index" asp-route-search="@Model.Search" asp-route-page="@(Model.EligibleInvoices.Page + 1)">Siguiente</a>
+            </li>
+        </ul>
+    </nav>
+}
+
+<h2 class="h5">Notas registradas</h2>
+<div class="table-responsive bg-white border rounded">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th>Código</th>
+                <th>Factura</th>
+                <th>Cliente</th>
+                <th>Fecha</th>
+                <th class="text-end">Total</th>
+                <th class="text-end">Devolución</th>
+                <th>Estado</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        @if (Model.CreditNotes.Items.Count == 0)
+        {
+            <tr><td colspan="8" class="text-center text-body-secondary py-4">No hay notas de crédito registradas.</td></tr>
+        }
+        @foreach (var note in Model.CreditNotes.Items)
+        {
+            <tr>
+                <td>@note.Code</td>
+                <td>@note.InvoiceNumber</td>
+                <td>@note.CustomerName</td>
+                <td>@note.IssueDate.ToString("dd/MM/yyyy")</td>
+                <td class="text-end">₡@note.TotalAmount.ToString("N2")</td>
+                <td class="text-end">₡@note.RefundedAmount.ToString("N2")</td>
+                <td>@(note.Status == CreditNoteStatus.Active ? "Vigente" : "Anulada")</td>
+                <td><a asp-action="Details" asp-route-id="@note.Id" class="btn btn-sm btn-outline-primary">Ver</a></td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>

@@ -11,6 +11,8 @@ public sealed class InvoiceDraftEditingTests
     private static readonly DateOnly IssueDate = new(2026, 9, 10);
     private static readonly Guid CreatorId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid EditorId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+    private const string SampleKey = "12345678901234567890123456789012345678901234567890";
+    private const string SampleConsecutivo = "12345678901234567890";
 
     [Fact]
     public void UpdateHeader_ChangesTheHeaderAndRecalculatesTheDueDate()
@@ -21,7 +23,7 @@ public sealed class InvoiceDraftEditingTests
 
         invoice.UpdateHeader(
             newCustomerId,
-            invoice.IncomeCategoryId,
+            invoice.IncomeAccountId,
             newIssueDate,
             PaymentTerm.Credit30,
             EditedAtUtc,
@@ -43,7 +45,7 @@ public sealed class InvoiceDraftEditingTests
 
         invoice.UpdateHeader(
             invoice.CustomerId,
-            invoice.IncomeCategoryId,
+            invoice.IncomeAccountId,
             IssueDate,
             PaymentTerm.Cash,
             EditedAtUtc,
@@ -61,7 +63,7 @@ public sealed class InvoiceDraftEditingTests
 
         invoice.UpdateHeader(
             invoice.CustomerId,
-            invoice.IncomeCategoryId,
+            invoice.IncomeAccountId,
             newIssueDate,
             PaymentTerm.Credit30,
             EditedAtUtc,
@@ -80,7 +82,7 @@ public sealed class InvoiceDraftEditingTests
         Assert.Throws<ArgumentException>(() =>
             invoice.UpdateHeader(
                 Guid.Empty,
-                invoice.IncomeCategoryId,
+                invoice.IncomeAccountId,
                 IssueDate.AddDays(1),
                 PaymentTerm.Credit30,
                 EditedAtUtc,
@@ -102,7 +104,7 @@ public sealed class InvoiceDraftEditingTests
 
         invoice.UpdateHeader(
             invoice.CustomerId,
-            invoice.IncomeCategoryId,
+            invoice.IncomeAccountId,
             newIssueDate,
             PaymentTerm.Cash,
             EditedAtUtc.AddMinutes(1),
@@ -193,7 +195,7 @@ public sealed class InvoiceDraftEditingTests
         Assert.Empty(invoice.Lines);
         Assert.Equal(0m, invoice.TotalAmount);
         Assert.Throws<InvalidOperationException>(() =>
-            invoice.Confirm(EditedAtUtc.AddMinutes(2), EditorId, 1L));
+            invoice.Confirm(EditedAtUtc.AddMinutes(2), EditorId, 1L, SampleKey, SampleConsecutivo));
     }
 
     [Fact]
@@ -225,13 +227,13 @@ public sealed class InvoiceDraftEditingTests
         Invoice invoice = CreateInvoice();
         InvoiceLine line = CreateLine(quantity: 1m, unitPrice: 100m);
         invoice.AddLine(line, EditedAtUtc, CreatorId);
-        invoice.Confirm(EditedAtUtc.AddMinutes(1), CreatorId, 1L);
+        invoice.Confirm(EditedAtUtc.AddMinutes(1), CreatorId, 1L, SampleKey, SampleConsecutivo);
         DateTimeOffset later = EditedAtUtc.AddMinutes(2);
 
         Assert.Throws<InvalidOperationException>(() =>
             invoice.UpdateHeader(
                 invoice.CustomerId,
-                invoice.IncomeCategoryId,
+                invoice.IncomeAccountId,
                 IssueDate,
                 PaymentTerm.Cash,
                 later,
@@ -253,7 +255,7 @@ public sealed class InvoiceDraftEditingTests
         Invoice invoice = CreateInvoice();
         InvoiceLine line = CreateLine(quantity: 1m, unitPrice: 100m);
         invoice.AddLine(line, EditedAtUtc, CreatorId);
-        invoice.Confirm(EditedAtUtc.AddMinutes(1), CreatorId, 1L);
+        invoice.Confirm(EditedAtUtc.AddMinutes(1), CreatorId, 1L, SampleKey, SampleConsecutivo);
         invoice.Cancel("Error de digitación", EditedAtUtc.AddMinutes(2), CreatorId);
 
         Assert.Throws<InvalidOperationException>(() =>

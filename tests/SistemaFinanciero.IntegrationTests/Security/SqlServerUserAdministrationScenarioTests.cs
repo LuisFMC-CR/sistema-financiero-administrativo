@@ -67,6 +67,13 @@ public sealed class SqlServerUserAdministrationScenarioTests
             Assert.Equal(
                 [SystemRoles.Finance],
                 await setup.UserManager.GetRolesAsync(created));
+            PagedResult<UserModel> matchingUserColumns = await service.SearchAsync(new UserQuery(
+                status: UserStatusFilter.Active,
+                role: SystemRoles.Finance,
+                fullName: "Persona de Finanzas",
+                email: email,
+                access: UserAccessFilter.PasswordChangeRequired));
+            Assert.Collection(matchingUserColumns.Items, user => Assert.Equal(created.Id, user.Id));
 
             SecurityAuditEvent createdEvent = await dbContext.SecurityAuditEvents
                 .AsNoTracking()

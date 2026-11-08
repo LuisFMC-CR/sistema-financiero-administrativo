@@ -4,7 +4,7 @@ namespace SistemaFinanciero.Application.Budgets;
 
 /// <summary>Datos para crear o corregir el monto presupuestado de una categoría y un mes (regla 6).</summary>
 public sealed record SetBudgetAmountCommand(
-    Guid CategoryId,
+    Guid AccountId,
     int PeriodYear,
     int PeriodMonth,
     decimal Amount);
@@ -77,9 +77,9 @@ public static class BudgetExecutionStatusCalculator
 /// </remarks>
 public sealed record BudgetModel(
     Guid? BudgetId,
-    Guid CategoryId,
-    string CategoryCode,
-    string CategoryName,
+    Guid AccountId,
+    string AccountCode,
+    string AccountName,
     int PeriodYear,
     int PeriodMonth,
     decimal? BudgetedAmount,
@@ -122,7 +122,7 @@ public interface IBudgetService
 
     /// <summary>Obtiene el presupuesto de una categoría y un mes, exista o no todavía.</summary>
     public Task<BudgetModel?> GetAsync(
-        Guid categoryId,
+        Guid accountId,
         int periodYear,
         int periodMonth,
         CancellationToken cancellationToken = default);

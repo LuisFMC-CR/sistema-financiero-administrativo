@@ -46,6 +46,26 @@ internal sealed class WithholdingTypeService(
                 (withholding.Description != null && withholding.Description.Contains(search)));
         }
 
+        if (query.Code is not null)
+        {
+            withholdingTypes = withholdingTypes.Where(withholding => withholding.Code.Contains(query.Code));
+        }
+
+        if (query.Name is not null)
+        {
+            withholdingTypes = withholdingTypes.Where(withholding => withholding.Name.Contains(query.Name));
+        }
+
+        if (query.Rate is decimal rate)
+        {
+            withholdingTypes = withholdingTypes.Where(withholding => withholding.Rate == rate);
+        }
+
+        if (query.MinimumBase is decimal minimumBase)
+        {
+            withholdingTypes = withholdingTypes.Where(withholding => withholding.MinimumBase == minimumBase);
+        }
+
         PagedResult<WithholdingType> page = await CatalogPersistence.ToPageAsync(
             withholdingTypes
                 .OrderBy(withholding => withholding.Name)

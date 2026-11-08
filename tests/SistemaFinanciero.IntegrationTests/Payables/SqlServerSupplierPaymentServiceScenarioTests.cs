@@ -251,7 +251,8 @@ public sealed class SqlServerSupplierPaymentServiceScenarioTests : IClassFixture
             context.SystemParameters.Add(parameters);
         }
 
-        parameters.ChangeClosingDate(closingDate, closingDate, reason: null, DateTimeOffset.UtcNow, actorId);
+        context.AccountingPeriodOverrides.Add(new AccountingPeriodOverride(
+            closingDate.Year, closingDate.Month, "Período cerrado para la prueba", DateTimeOffset.UtcNow, actorId));
         await context.SaveChangesAsync();
     }
 
@@ -262,13 +263,13 @@ public sealed class SqlServerSupplierPaymentServiceScenarioTests : IClassFixture
         Guid actorId,
         decimal amount)
     {
-        Guid categoryId = await CreateExpenseCategoryAsync(services, actorId);
+        Guid accountId = await CreateExpenseCategoryAsync(services, actorId);
         Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
 
         ExpenseCreationResult created = await expenses.CreateAsync(
             new SaveExpenseCommand(
                 supplierId,
-                categoryId,
+                accountId,
                 "Compra a crédito de pruebas de pago",
                 "VC-0001",
                 DateOnly.FromDateTime(DateTime.UtcNow),
@@ -369,19 +370,7 @@ public sealed class SqlServerSupplierPaymentServiceScenarioTests : IClassFixture
         context.LedgerAccounts.Add(ledgerAccount);
         await context.SaveChangesAsync();
 
-        FinancialCategory category = new(
-            Guid.NewGuid(),
-            $"CAT-{suffix}",
-            "Categoría de gasto de pruebas de pagos",
-            FinancialCategoryKind.Expense,
-            null,
-            ledgerAccount.Id,
-            null,
-            DateTimeOffset.UtcNow,
-            actorId);
-        context.FinancialCategories.Add(category);
-        await context.SaveChangesAsync();
-        return category.Id;
+        return ledgerAccount.Id;
     }
 
     private static async Task SetAuthorizationLimitAsync(IServiceProvider services, Guid actorId, decimal limit)

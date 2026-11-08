@@ -53,6 +53,12 @@ public sealed class SqlServerTaxTypeScenarioTests : IClassFixture<FinancialWebAp
                 new CatalogQuery("integración", CatalogStatusFilter.Active))).Items, item => item.Id == created.Id);
             Assert.Single((await taxTypes.SearchAsync(
                 new CatalogQuery("original", CatalogStatusFilter.Active))).Items, item => item.Id == created.Id);
+            Assert.Single((await taxTypes.SearchAsync(new CatalogQuery(
+                status: CatalogStatusFilter.Active,
+                code: code,
+                name: "Impuesto de integración",
+                haciendaRateCode: "08",
+                rate: 8.5m))).Items, item => item.Id == created.Id);
 
             UpdateTaxTypeCommand update = new(code, "Impuesto actualizado", 9m, "08", null);
             Assert.True((await taxTypes.UpdateAsync(created.Id, update, created.Version, actorId)).IsSuccess);

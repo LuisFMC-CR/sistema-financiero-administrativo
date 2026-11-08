@@ -35,22 +35,22 @@ public sealed class SqlServerPayableServiceScenarioTests : IClassFixture<Financi
             IPayableService payables = services.GetRequiredService<IPayableService>();
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
             Guid supplierId = await CreateSupplierAsync(services, actorId);
-            Guid categoryId = await CreateExpenseCategoryAsync(services, actorId);
+            Guid accountId = await CreateExpenseCategoryAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId);
 
             DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
 
             // Crédito 30 días emitido hace 35 días: vence hace 5 días (vencida).
             await CreateConfirmedCreditExpenseAsync(
-                expenses, supplierId, categoryId, taxTypeId, today.AddDays(-35), 100m, actorId);
+                expenses, supplierId, accountId, taxTypeId, today.AddDays(-35), 100m, actorId);
 
             // Crédito 30 días emitido hace 25 días: vence en 5 días (próxima, dentro de 7 días).
             await CreateConfirmedCreditExpenseAsync(
-                expenses, supplierId, categoryId, taxTypeId, today.AddDays(-25), 200m, actorId);
+                expenses, supplierId, accountId, taxTypeId, today.AddDays(-25), 200m, actorId);
 
             // Crédito 30 días emitido hoy: vence en 30 días (ni vencida ni próxima con alerta de 7).
             await CreateConfirmedCreditExpenseAsync(
-                expenses, supplierId, categoryId, taxTypeId, today, 300m, actorId);
+                expenses, supplierId, accountId, taxTypeId, today, 300m, actorId);
 
             OverdueSummary summary = await payables.GetOverdueSummaryAsync(7);
 
@@ -64,7 +64,7 @@ public sealed class SqlServerPayableServiceScenarioTests : IClassFixture<Financi
     private static async Task<Guid> CreateConfirmedCreditExpenseAsync(
         IExpenseService expenses,
         Guid supplierId,
-        Guid categoryId,
+        Guid accountId,
         Guid taxTypeId,
         DateOnly issueDate,
         decimal netAmount,
@@ -72,7 +72,7 @@ public sealed class SqlServerPayableServiceScenarioTests : IClassFixture<Financi
     {
         ExpenseCreationResult created = await expenses.CreateAsync(
             new SaveExpenseCommand(
-                supplierId, categoryId, "Compra a crédito de pruebas de vencidas", "VC-0001", issueDate,
+                supplierId, accountId, "Compra a crédito de pruebas de vencidas", "VC-0001", issueDate,
                 PaymentTerm.Credit30, netAmount, taxTypeId, true, PaymentMethod.Cash),
             actorId);
         Guid expenseId = created.ExpenseId!.Value;
@@ -145,19 +145,7 @@ public sealed class SqlServerPayableServiceScenarioTests : IClassFixture<Financi
         context.LedgerAccounts.Add(ledgerAccount);
         await context.SaveChangesAsync();
 
-        FinancialCategory category = new(
-            Guid.NewGuid(),
-            $"CAT-{suffix}",
-            "Categoría de gasto de pruebas de vencidas",
-            FinancialCategoryKind.Expense,
-            null,
-            ledgerAccount.Id,
-            null,
-            DateTimeOffset.UtcNow,
-            actorId);
-        context.FinancialCategories.Add(category);
-        await context.SaveChangesAsync();
-        return category.Id;
+        return ledgerAccount.Id;
     }
 
     private static async Task<Guid> CreateUserAsync(IServiceProvider services)

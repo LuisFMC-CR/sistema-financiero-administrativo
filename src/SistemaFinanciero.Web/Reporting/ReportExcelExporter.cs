@@ -31,7 +31,7 @@ public static class ReportExcelExporter
             sheet.Cell(row, 1).Value = line.Code;
             sheet.Cell(row, 2).Value = line.IncomeDate.ToDateTime(TimeOnly.MinValue);
             sheet.Cell(row, 2).Style.DateFormat.Format = "dd/mm/yyyy";
-            sheet.Cell(row, 3).Value = line.CategoryName;
+            sheet.Cell(row, 3).Value = line.AccountName;
             sheet.Cell(row, 4).Value = line.CashAccountName;
             sheet.Cell(row, 5).Value = line.Origin.ToDisplayName();
             sheet.Cell(row, 6).Value = line.Reference ?? string.Empty;
@@ -62,8 +62,8 @@ public static class ReportExcelExporter
 
         foreach (ExpenseByCategoryReportLine line in result.Lines)
         {
-            sheet.Cell(row, 1).Value = line.CategoryCode;
-            sheet.Cell(row, 2).Value = line.CategoryName;
+            sheet.Cell(row, 1).Value = line.AccountCode;
+            sheet.Cell(row, 2).Value = line.AccountName;
             sheet.Cell(row, 3).Value = line.Count;
             sheet.Cell(row, 4).Value = line.NetAmount;
             sheet.Cell(row, 4).Style.NumberFormat.Format = "#,##0.00";
@@ -96,8 +96,8 @@ public static class ReportExcelExporter
 
         foreach (BudgetModel line in result.Lines)
         {
-            sheet.Cell(row, 1).Value = line.CategoryCode;
-            sheet.Cell(row, 2).Value = line.CategoryName;
+            sheet.Cell(row, 1).Value = line.AccountCode;
+            sheet.Cell(row, 2).Value = line.AccountName;
 
             if (line.BudgetedAmount is decimal budgeted)
             {
@@ -219,7 +219,11 @@ public static class ReportExcelExporter
 
         int row = WriteHeader(sheet, result.Header);
 
-        string[] columns = ["Proveedor", "Cantidad", "Saldo total", "Vence más próximo"];
+        string[] columns =
+        [
+            "Proveedor", "Cantidad", "Vence más próximo", "Al día", "1-30 días", "31-60 días",
+            "61-90 días", "Más de 90 días", "Saldo total",
+        ];
         WriteColumnHeaders(sheet, row, columns);
         row++;
 
@@ -227,20 +231,108 @@ public static class ReportExcelExporter
         {
             sheet.Cell(row, 1).Value = line.SupplierName;
             sheet.Cell(row, 2).Value = line.PayableCount;
-            sheet.Cell(row, 3).Value = line.TotalBalance;
-            sheet.Cell(row, 3).Style.NumberFormat.Format = "#,##0.00";
-            sheet.Cell(row, 4).Value = line.EarliestDueDate.ToDateTime(TimeOnly.MinValue);
-            sheet.Cell(row, 4).Style.DateFormat.Format = "dd/mm/yyyy";
+            sheet.Cell(row, 3).Value = line.EarliestDueDate.ToDateTime(TimeOnly.MinValue);
+            sheet.Cell(row, 3).Style.DateFormat.Format = "dd/mm/yyyy";
+            WriteAgingCells(sheet, row, 4, line.Aging);
+            sheet.Cell(row, 9).Value = line.TotalBalance;
+            sheet.Cell(row, 9).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Row(row).Style.Font.SetBold();
             row++;
+
+            int firstDetailRow = row;
+            foreach (PayableDetailLine detail in line.Details)
+            {
+                sheet.Cell(row, 1).Value = $"    {detail.ExpenseCode} — emitido {detail.IssueDate:dd/MM/yyyy}";
+                sheet.Cell(row, 3).Value = detail.DueDate.ToDateTime(TimeOnly.MinValue);
+                sheet.Cell(row, 3).Style.DateFormat.Format = "dd/mm/yyyy";
+                WriteAgingCells(sheet, row, 4, detail.Aging);
+                sheet.Cell(row, 9).Value = detail.Balance;
+                sheet.Cell(row, 9).Style.NumberFormat.Format = "#,##0.00";
+                row++;
+            }
+
+            IXLRows detailRows = sheet.Rows(firstDetailRow, row - 1);
+            detailRows.Group(collapse: true);
+            detailRows.Collapse();
         }
 
         sheet.Cell(row, 2).Value = "Total";
-        sheet.Cell(row, 3).Value = result.GrandTotalBalance;
-        sheet.Cell(row, 3).Style.NumberFormat.Format = "#,##0.00";
+        WriteAgingCells(sheet, row, 4, result.GrandTotalAging);
+        sheet.Cell(row, 9).Value = result.GrandTotalBalance;
+        sheet.Cell(row, 9).Style.NumberFormat.Format = "#,##0.00";
         sheet.Row(row).Style.Font.SetBold();
 
         sheet.Columns().AdjustToContents();
         return ToBytes(workbook);
+    }
+
+    public static byte[] BuildReceivableByCustomerWorkbook(ReceivableByCustomerReportResult result)
+    {
+        using XLWorkbook workbook = new();
+        IXLWorksheet sheet = workbook.Worksheets.Add("Cuentas por cobrar");
+
+        int row = WriteHeader(sheet, result.Header);
+
+        string[] columns =
+        [
+            "Cliente", "Cantidad", "Vence más próximo", "Al día", "1-30 días", "31-60 días",
+            "61-90 días", "Más de 90 días", "Saldo total",
+        ];
+        WriteColumnHeaders(sheet, row, columns);
+        row++;
+
+        foreach (ReceivableByCustomerReportLine line in result.Lines)
+        {
+            sheet.Cell(row, 1).Value = line.CustomerName;
+            sheet.Cell(row, 2).Value = line.ReceivableCount;
+            sheet.Cell(row, 3).Value = line.EarliestDueDate.ToDateTime(TimeOnly.MinValue);
+            sheet.Cell(row, 3).Style.DateFormat.Format = "dd/mm/yyyy";
+            WriteAgingCells(sheet, row, 4, line.Aging);
+            sheet.Cell(row, 9).Value = line.TotalBalance;
+            sheet.Cell(row, 9).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Row(row).Style.Font.SetBold();
+            row++;
+
+            int firstDetailRow = row;
+            foreach (ReceivableDetailLine detail in line.Details)
+            {
+                string invoiceLabel = detail.InvoiceNumber is long number
+                    ? $"Factura N° {number}"
+                    : "Factura";
+                sheet.Cell(row, 1).Value = $"    {invoiceLabel} — emitida {detail.IssueDate:dd/MM/yyyy}";
+                sheet.Cell(row, 3).Value = detail.DueDate.ToDateTime(TimeOnly.MinValue);
+                sheet.Cell(row, 3).Style.DateFormat.Format = "dd/mm/yyyy";
+                WriteAgingCells(sheet, row, 4, detail.Aging);
+                sheet.Cell(row, 9).Value = detail.Balance;
+                sheet.Cell(row, 9).Style.NumberFormat.Format = "#,##0.00";
+                row++;
+            }
+
+            IXLRows detailRows = sheet.Rows(firstDetailRow, row - 1);
+            detailRows.Group(collapse: true);
+            detailRows.Collapse();
+        }
+
+        sheet.Cell(row, 2).Value = "Total";
+        WriteAgingCells(sheet, row, 4, result.GrandTotalAging);
+        sheet.Cell(row, 9).Value = result.GrandTotalBalance;
+        sheet.Cell(row, 9).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Row(row).Style.Font.SetBold();
+
+        sheet.Columns().AdjustToContents();
+        return ToBytes(workbook);
+    }
+
+    /// <summary>Escribe los cinco rangos de antigüedad a partir de <paramref name="firstColumn"/>, como números.</summary>
+    private static void WriteAgingCells(IXLWorksheet sheet, int row, int firstColumn, AgingAmounts aging)
+    {
+        decimal[] amounts =
+            [aging.Current, aging.Overdue1To30, aging.Overdue31To60, aging.Overdue61To90, aging.OverdueOver90];
+        for (int offset = 0; offset < amounts.Length; offset++)
+        {
+            sheet.Cell(row, firstColumn + offset).Value = amounts[offset];
+            sheet.Cell(row, firstColumn + offset).Style.NumberFormat.Format = "#,##0.00";
+        }
     }
 
     public static byte[] BuildJournalBookWorkbook(JournalBookReportResult result)
@@ -470,8 +562,8 @@ public static class ReportExcelExporter
 
         foreach (AnnualBudgetReportLine line in result.Lines)
         {
-            sheet.Cell(row, 1).Value = line.CategoryCode;
-            sheet.Cell(row, 2).Value = line.CategoryName;
+            sheet.Cell(row, 1).Value = line.AccountCode;
+            sheet.Cell(row, 2).Value = line.AccountName;
             sheet.Cell(row, 3).Value = line.AccumulatedBudgeted;
             sheet.Cell(row, 3).Style.NumberFormat.Format = "#,##0.00";
             sheet.Cell(row, 4).Value = line.AccumulatedExecuted;

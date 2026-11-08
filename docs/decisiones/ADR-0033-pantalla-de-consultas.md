@@ -1,7 +1,10 @@
 # ADR-0033: Pantalla de Consultas
 
 - **Fecha:** 2026-10-25
-- **Estado:** Aceptado
+- **Estado:** Sustituido por ADR-0049
+
+> La pantalla y su módulo se retiraron (ADR-0049): cada listado conserva sus propios filtros. Este
+> documento se conserva como registro histórico de la decisión original.
 
 ## Contexto
 

@@ -44,6 +44,28 @@ internal sealed class SupplierCatalogService(
                 (supplier.Email != null && supplier.Email.Contains(search)));
         }
 
+        if (query.Code is not null)
+        {
+            suppliers = suppliers.Where(supplier => supplier.Code.Contains(query.Code));
+        }
+
+        if (query.Name is not null)
+        {
+            suppliers = suppliers.Where(supplier => supplier.Name.Contains(query.Name));
+        }
+
+        if (query.Identification is not null)
+        {
+            suppliers = suppliers.Where(supplier => supplier.Identification.Contains(query.Identification));
+        }
+
+        if (query.Contact is not null)
+        {
+            suppliers = suppliers.Where(supplier =>
+                (supplier.Email != null && supplier.Email.Contains(query.Contact)) ||
+                (supplier.Phone != null && supplier.Phone.Contains(query.Contact)));
+        }
+
         PagedResult<Supplier> page = await CatalogPersistence.ToPageAsync(
             suppliers.OrderBy(supplier => supplier.Name).ThenBy(supplier => supplier.Code),
             query.Page,

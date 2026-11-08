@@ -7,6 +7,7 @@
 @{
     ViewData["Title"] = "Detalle de cuenta por cobrar";
     ReceivableModel receivable = Model.Receivable;
+    bool canViewJournal = (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ViewFinancialReports)).Succeeded;
 }
 
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
@@ -17,7 +18,7 @@
     <div class="d-flex gap-2">
         @if (Model.CanRegisterPayment && receivable.Status is ReceivableStatus.Pending or ReceivableStatus.PartiallyPaid)
         {
-            <a asp-controller="ReceivablePayments" asp-action="Start" asp-route-clienteId="@receivable.CustomerId" class="btn btn-success">Registrar abono</a>
+            <a asp-controller="ReceivablePayments" asp-action="RegisterSingle" asp-route-id="@receivable.Id" class="btn btn-success">Registrar abono</a>
         }
         @if (Model.CanAdjust && receivable.Status != ReceivableStatus.Cancelled)
         {
@@ -57,13 +58,16 @@
                 <th scope="col" class="text-end">Retención</th>
                 <th scope="col" class="text-end">Saldo resultante</th>
                 <th scope="col">Estado</th>
-                <th scope="col" class="text-end">Acciones</th>
+                @if (Model.CanCancelPayment || canViewJournal)
+                {
+                    <th scope="col" class="text-end">Acciones</th>
+                }
             </tr>
         </thead>
         <tbody>
             @if (Model.Payments.Count == 0)
             {
-                <tr><td colspan="10" class="text-center text-body-secondary py-4">Esta cuenta por cobrar no tiene abonos.</td></tr>
+                <tr><td colspan="@(Model.CanCancelPayment || canViewJournal ? 10 : 9)" class="text-center text-body-secondary py-4">Esta cuenta por cobrar no tiene abonos.</td></tr>
             }
             @{
                 int receivablePaymentSourceType = (int)JournalEntrySourceType.ReceivablePayment;
@@ -106,15 +110,21 @@
                             <br /><small class="text-body-secondary">@payment.CancellationReason</small>
                         }
                     </td>
-                    <td class="text-end text-nowrap">
-                        @if (Model.CanCancelPayment && payment.Status == ReceivablePaymentStatus.Active)
-                        {
-                            <a asp-controller="ReceivablePayments" asp-action="Cancel" asp-route-id="@payment.Id" class="btn btn-sm btn-outline-danger">Anular</a>
-                        }
-                        <a asp-controller="JournalEntries" asp-action="Trace"
-                           asp-route-sourceType="@receivablePaymentSourceType" asp-route-sourceId="@payment.Id"
-                           class="btn btn-sm btn-outline-secondary">Ver asiento</a>
-                    </td>
+                    @if (Model.CanCancelPayment || canViewJournal)
+                    {
+                        <td class="text-end text-nowrap">
+                            @if (Model.CanCancelPayment && payment.Status == ReceivablePaymentStatus.Active)
+                            {
+                                <a asp-controller="ReceivablePayments" asp-action="Cancel" asp-route-id="@payment.Id" class="btn btn-sm btn-outline-danger">Anular</a>
+                            }
+                            @if (canViewJournal)
+                            {
+                                <a asp-controller="JournalEntries" asp-action="Trace"
+                                   asp-route-sourceType="@receivablePaymentSourceType" asp-route-sourceId="@payment.Id"
+                                   class="btn btn-sm btn-outline-secondary">Ver asiento</a>
+                            }
+                        </td>
+                    }
                 </tr>
             }
         </tbody>
@@ -131,13 +141,16 @@
                 <th scope="col" class="text-end">Monto</th>
                 <th scope="col">Motivo</th>
                 <th scope="col">Usuario</th>
-                <th scope="col" class="text-end">Acciones</th>
+                @if (canViewJournal)
+                {
+                    <th scope="col" class="text-end">Acciones</th>
+                }
             </tr>
         </thead>
         <tbody>
             @if (Model.Adjustments.Count == 0)
             {
-                <tr><td colspan="6" class="text-center text-body-secondary py-4">Esta cuenta por cobrar no tiene ajustes de saldo.</td></tr>
+                <tr><td colspan="@(canViewJournal ? 6 : 5)" class="text-center text-body-secondary py-4">Esta cuenta por cobrar no tiene ajustes de saldo.</td></tr>
             }
             @foreach (BalanceAdjustmentModel adjustment in Model.Adjustments)
             {
@@ -147,11 +160,14 @@
                     <td class="text-end">₡@adjustment.Amount.ToString("N2")</td>
                     <td>@adjustment.Reason</td>
                     <td>@adjustment.CreatedByUserName</td>
-                    <td class="text-end">
-                        <a asp-controller="JournalEntries" asp-action="Trace"
-                           asp-route-sourceType="@((int)JournalEntrySourceType.BalanceAdjustment)" asp-route-sourceId="@adjustment.Id"
-                           class="btn btn-sm btn-outline-secondary">Ver asiento</a>
-                    </td>
+                    @if (canViewJournal)
+                    {
+                        <td class="text-end">
+                            <a asp-controller="JournalEntries" asp-action="Trace"
+                               asp-route-sourceType="@((int)JournalEntrySourceType.BalanceAdjustment)" asp-route-sourceId="@adjustment.Id"
+                               class="btn btn-sm btn-outline-secondary">Ver asiento</a>
+                        </td>
+                    }
                 </tr>
             }
         </tbody>

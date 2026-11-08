@@ -35,21 +35,21 @@ public sealed class SqlServerReceivableServiceScenarioTests : IClassFixture<Fina
             IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
             Guid customerId = await CreateCustomerAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId);
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
 
             DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
 
             // Crédito 30 días emitida hace 35 días: vence hace 5 días (vencida).
             await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, taxTypeId, incomeCategoryId, actorId, today.AddDays(-35), 100m);
+                services, invoices, customerId, taxTypeId, incomeAccountId, actorId, today.AddDays(-35), 100m);
 
             // Crédito 30 días emitida hace 25 días: vence en 5 días (próxima, dentro de 7 días).
             await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, taxTypeId, incomeCategoryId, actorId, today.AddDays(-25), 200m);
+                services, invoices, customerId, taxTypeId, incomeAccountId, actorId, today.AddDays(-25), 200m);
 
             // Crédito 30 días emitida hoy: vence en 30 días (ni vencida ni próxima con alerta de 7).
             await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, taxTypeId, incomeCategoryId, actorId, today, 300m);
+                services, invoices, customerId, taxTypeId, incomeAccountId, actorId, today, 300m);
 
             OverdueSummary summary = await receivables.GetOverdueSummaryAsync(7);
 
@@ -62,7 +62,7 @@ public sealed class SqlServerReceivableServiceScenarioTests : IClassFixture<Fina
 
     [Fact]
     [Trait("Category", "SqlServer")]
-    public Task GetAsync_ExposesTheInvoiceElectronicKeyOnceRegistered()
+    public Task GetAsync_ExposesTheInvoiceElectronicKeyGeneratedAtConfirm()
     {
         return RunInRollbackTransactionAsync(async (services, actorId) =>
         {
@@ -70,26 +70,18 @@ public sealed class SqlServerReceivableServiceScenarioTests : IClassFixture<Fina
             IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
             Guid customerId = await CreateCustomerAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId);
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
             DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
 
             Guid receivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, taxTypeId, incomeCategoryId, actorId, today, 500m);
+                services, invoices, customerId, taxTypeId, incomeAccountId, actorId, today, 500m);
 
-            ReceivableModel beforeRegistering = (await receivables.GetAsync(receivableId))!;
-            Assert.Null(beforeRegistering.InvoiceElectronicKey);
+            ReceivableModel receivable = (await receivables.GetAsync(receivableId))!;
+            InvoiceModel invoice = (await invoices.GetAsync(receivable.InvoiceId))!;
 
-            InvoiceModel invoice = (await invoices.GetAsync(beforeRegistering.InvoiceId))!;
-            string key = new string('5', 50);
-            string number = new string('1', 20);
-            Assert.True((await invoices.RegisterElectronicInvoiceAsync(
-                beforeRegistering.InvoiceId,
-                new RegisterElectronicInvoiceCommand(key, number),
-                invoice.Version,
-                actorId)).IsSuccess);
-
-            ReceivableModel afterRegistering = (await receivables.GetAsync(receivableId))!;
-            Assert.Equal(key, afterRegistering.InvoiceElectronicKey);
+            Assert.Equal(invoice.ElectronicInvoiceKey, receivable.InvoiceElectronicKey);
+            Assert.NotNull(receivable.InvoiceElectronicKey);
+            Assert.Equal(50, receivable.InvoiceElectronicKey!.Length);
         });
     }
 
@@ -98,13 +90,13 @@ public sealed class SqlServerReceivableServiceScenarioTests : IClassFixture<Fina
         IInvoiceService invoices,
         Guid customerId,
         Guid taxTypeId,
-        Guid incomeCategoryId,
+        Guid incomeAccountId,
         Guid actorId,
         DateOnly issueDate,
         decimal amount)
     {
         InvoiceCreationResult created = await invoices.CreateAsync(
-            new CreateInvoiceCommand(customerId, incomeCategoryId, issueDate, PaymentTerm.Credit30),
+            new CreateInvoiceCommand(customerId, incomeAccountId, issueDate, PaymentTerm.Credit30),
             actorId);
         Guid invoiceId = created.InvoiceId!.Value;
 
@@ -138,12 +130,7 @@ public sealed class SqlServerReceivableServiceScenarioTests : IClassFixture<Fina
             LedgerAccountType.Income, null, null, null, null, now, actorId);
         context.LedgerAccounts.Add(ledgerAccount);
 
-        FinancialCategory category = new(
-            Guid.NewGuid(), $"CATI-{suffix}", "Categoría de ingreso de pruebas de cuentas vencidas",
-            FinancialCategoryKind.Income, null, ledgerAccount.Id, null, now, actorId);
-        context.FinancialCategories.Add(category);
-        await context.SaveChangesAsync();
-        return category.Id;
+        return ledgerAccount.Id;
     }
 
     private static async Task<Guid> CreateCustomerAsync(IServiceProvider services, Guid actorId)

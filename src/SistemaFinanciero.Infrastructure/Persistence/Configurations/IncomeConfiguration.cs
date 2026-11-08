@@ -46,7 +46,7 @@ internal sealed class IncomeConfiguration : IEntityTypeConfiguration<Income>
         builder.HasKey(income => income.Id);
         builder.Property(income => income.Code).HasMaxLength(Income.CodeMaxLength).IsRequired();
         builder.Property(income => income.Origin).IsRequired();
-        builder.Property(income => income.CategoryId).IsRequired();
+        builder.Property(income => income.AccountId).IsRequired();
         builder.Property(income => income.CashAccountId).IsRequired();
         builder.Property(income => income.Amount).HasPrecision(18, 2).IsRequired();
         builder.Property(income => income.IncomeDate).HasColumnType("date").IsRequired();
@@ -76,7 +76,7 @@ internal sealed class IncomeConfiguration : IEntityTypeConfiguration<Income>
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_Ingresos_Facturas");
         builder.HasOne<ReceivablePayment>().WithMany().HasForeignKey(income => income.ReceivablePaymentId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_Ingresos_Abonos");
-        builder.HasOne<FinancialCategory>().WithMany().HasForeignKey(income => income.CategoryId)
+        builder.HasOne<LedgerAccount>().WithMany().HasForeignKey(income => income.AccountId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_Ingresos_CategoriasFinancieras");
         builder.HasOne<LedgerAccount>().WithMany().HasForeignKey(income => income.CashAccountId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_Ingresos_CuentasContables");

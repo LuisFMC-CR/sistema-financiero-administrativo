@@ -9,22 +9,28 @@
             <li class="page-item @(!Model.HasPreviousPage ? "disabled" : null)">
                 <a class="page-link"
                    asp-action="Index"
-                   asp-route-search="@Model.Search"
-                   asp-route-status="@Model.Status"
-                   asp-route-issueDateFrom="@Model.IssueDateFrom?.ToString("yyyy-MM-dd")"
-                   asp-route-issueDateTo="@Model.IssueDateTo?.ToString("yyyy-MM-dd")"
+                   asp-route-number="@Model.Number"
+                   asp-route-customerName="@Model.CustomerName"
+                   asp-route-issueDate="@Model.IssueDate?.ToString("yyyy-MM-dd")"
                    asp-route-paymentTerm="@Model.PaymentTerm"
+                   asp-route-dueDate="@Model.DueDate?.ToString("yyyy-MM-dd")"
+                   asp-route-status="@Model.Status"
+                   asp-route-totalAmount="@Model.TotalAmount"
+                   asp-route-createdByUserName="@Model.CreatedByUserName"
                    asp-route-page="@(Model.CurrentPage - 1)"
                    aria-disabled="@(!Model.HasPreviousPage)">Anterior</a>
             </li>
             <li class="page-item @(!Model.HasNextPage ? "disabled" : null)">
                 <a class="page-link"
                    asp-action="Index"
-                   asp-route-search="@Model.Search"
-                   asp-route-status="@Model.Status"
-                   asp-route-issueDateFrom="@Model.IssueDateFrom?.ToString("yyyy-MM-dd")"
-                   asp-route-issueDateTo="@Model.IssueDateTo?.ToString("yyyy-MM-dd")"
+                   asp-route-number="@Model.Number"
+                   asp-route-customerName="@Model.CustomerName"
+                   asp-route-issueDate="@Model.IssueDate?.ToString("yyyy-MM-dd")"
                    asp-route-paymentTerm="@Model.PaymentTerm"
+                   asp-route-dueDate="@Model.DueDate?.ToString("yyyy-MM-dd")"
+                   asp-route-status="@Model.Status"
+                   asp-route-totalAmount="@Model.TotalAmount"
+                   asp-route-createdByUserName="@Model.CreatedByUserName"
                    asp-route-page="@(Model.CurrentPage + 1)"
                    aria-disabled="@(!Model.HasNextPage)">Siguiente</a>
             </li>

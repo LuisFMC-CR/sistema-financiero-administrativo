@@ -33,6 +33,8 @@ public sealed class CompanyDataChange
         string? companyProvinceCode,
         string? companyCantonCode,
         string? companyDistrictCode,
+        string? companyBranchCode,
+        string? companyTerminalCode,
         DateTimeOffset changedAtUtc,
         Guid changedByUserId)
     {
@@ -56,6 +58,10 @@ public sealed class CompanyDataChange
             companyCantonCode, SystemParameters.CompanyCantonCodeLength, nameof(companyCantonCode));
         CompanyDistrictCode = DomainRules.OptionalDigits(
             companyDistrictCode, SystemParameters.CompanyDistrictCodeLength, nameof(companyDistrictCode));
+        CompanyBranchCode = DomainRules.OptionalDigits(
+            companyBranchCode, SystemParameters.CompanyBranchCodeLength, nameof(companyBranchCode));
+        CompanyTerminalCode = DomainRules.OptionalDigits(
+            companyTerminalCode, SystemParameters.CompanyTerminalCodeLength, nameof(companyTerminalCode));
         ChangedAtUtc = DomainRules.RequiredUtcTimestamp(changedAtUtc, nameof(changedAtUtc));
         ChangedByUserId = DomainRules.RequiredId(changedByUserId, nameof(changedByUserId));
     }
@@ -92,6 +98,12 @@ public sealed class CompanyDataChange
 
     /// <summary>Obtiene el código de distrito vigente desde este cambio.</summary>
     public string? CompanyDistrictCode { get; private set; }
+
+    /// <summary>Obtiene el código de sucursal vigente desde este cambio.</summary>
+    public string? CompanyBranchCode { get; private set; }
+
+    /// <summary>Obtiene el código de terminal vigente desde este cambio.</summary>
+    public string? CompanyTerminalCode { get; private set; }
 
     /// <summary>Obtiene el instante UTC del cambio.</summary>
     public DateTimeOffset ChangedAtUtc { get; private set; }

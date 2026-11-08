@@ -119,99 +119,86 @@ public sealed class SqlServerSystemParametersScenarioTests : IClassFixture<Finan
 
     [Fact]
     [Trait("Category", "SqlServer")]
-    public Task ChangeClosingDateAsync_AdvancingClosesThePeriodWithoutARequiredReason()
+    public Task UpdateFiscalPeriodAsync_RequiresExactlyTwelveMonthsAndKeepsHistory()
     {
         return RunInRollbackTransactionAsync(async (context, services, actorId) =>
         {
             ISystemParametersService parameters = services.GetRequiredService<ISystemParametersService>();
             await parameters.CreateAsync(new SaveSystemParametersCommand(500_000m, 7), actorId);
             SystemParametersModel created = (await parameters.GetAsync())!;
-            Assert.Equal(DateOnly.MinValue, created.ClosingDate);
+            CatalogOperationResult invalid = await parameters.UpdateFiscalPeriodAsync(
+                new DateOnly(2026, 1, 1),
+                new DateOnly(2026, 11, 30),
+                null,
+                created.Version,
+                actorId);
+            Assert.Equal(CatalogOperationStatus.Invalid, invalid.Status);
 
-            DateOnly newClosingDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1);
-            CatalogOperationResult result = await parameters.ChangeClosingDateAsync(
-                newClosingDate, reason: null, created.Version, actorId);
-
-            Assert.True(result.IsSuccess);
             SystemParametersModel current = (await parameters.GetAsync())!;
-            Assert.Equal(newClosingDate, current.ClosingDate);
+            CatalogOperationResult valid = await parameters.UpdateFiscalPeriodAsync(
+                new DateOnly(2026, 1, 1),
+                new DateOnly(2026, 12, 31),
+                "Período inicial",
+                current.Version,
+                actorId);
+            Assert.True(valid.IsSuccess);
 
-            ClosingDateChange logEntry = await context.Set<ClosingDateChange>()
+            FiscalPeriodChange history = await context.FiscalPeriodChanges
                 .SingleAsync(change => change.ChangedByUserId == actorId);
-            Assert.Equal(DateOnly.MinValue, logEntry.PreviousClosingDate);
-            Assert.Equal(newClosingDate, logEntry.NewClosingDate);
-            Assert.Null(logEntry.Reason);
+            Assert.Null(history.PreviousStartDate);
+            Assert.Equal(new DateOnly(2026, 1, 1), history.NewStartDate);
+            Assert.Equal(new DateOnly(2026, 12, 31), history.NewEndDate);
         });
     }
 
     [Fact]
     [Trait("Category", "SqlServer")]
-    public Task ChangeClosingDateAsync_RejectsGoingBackwardsWithoutAReason()
+    public Task ReopenAndCloseAccountingPeriod_KeepCurrentStateAndAppendHistory()
     {
         return RunInRollbackTransactionAsync(async (context, services, actorId) =>
         {
             ISystemParametersService parameters = services.GetRequiredService<ISystemParametersService>();
-            await parameters.CreateAsync(new SaveSystemParametersCommand(500_000m, 7), actorId);
-            SystemParametersModel created = (await parameters.GetAsync())!;
+            DateOnly currentMonth = DateOnly.FromDateTime(DateTime.Now);
+            DateOnly previousMonth = currentMonth.AddMonths(-1);
 
-            DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
-            await parameters.ChangeClosingDateAsync(today.AddDays(-10), reason: null, created.Version, actorId);
-            SystemParametersModel closed = (await parameters.GetAsync())!;
+            CatalogOperationResult reopened = await parameters.ReopenAccountingPeriodAsync(
+                previousMonth.Year, previousMonth.Month, "Corrección solicitada por Gerencia", actorId);
+            Assert.True(reopened.IsSuccess);
 
-            CatalogOperationResult result = await parameters.ChangeClosingDateAsync(
-                today.AddDays(-20), reason: null, closed.Version, actorId);
+            IReadOnlyList<ReopenedAccountingPeriodModel> active =
+                await parameters.GetReopenedAccountingPeriodsAsync();
+            ReopenedAccountingPeriodModel openPeriod = Assert.Single(active);
+            Assert.Equal(previousMonth.Year, openPeriod.Year);
+            Assert.Equal(previousMonth.Month, openPeriod.Month);
+
+            CatalogOperationResult closed = await parameters.CloseAccountingPeriodAsync(
+                openPeriod.Year, openPeriod.Month, openPeriod.Version, actorId);
+            Assert.True(closed.IsSuccess);
+            Assert.Empty(await parameters.GetReopenedAccountingPeriodsAsync());
+
+            List<AccountingPeriodChange> history = await context.AccountingPeriodChanges
+                .Where(change => change.ChangedByUserId == actorId)
+                .OrderBy(change => change.ChangedAtUtc)
+                .ToListAsync();
+            Assert.Equal(2, history.Count);
+            Assert.True(history[0].IsOpen);
+            Assert.False(history[1].IsOpen);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task ReopenAccountingPeriodAsync_RejectsCurrentMonth()
+    {
+        return RunInRollbackTransactionAsync(async (_, services, actorId) =>
+        {
+            ISystemParametersService parameters = services.GetRequiredService<ISystemParametersService>();
+            DateOnly currentMonth = DateOnly.FromDateTime(DateTime.Now);
+
+            CatalogOperationResult result = await parameters.ReopenAccountingPeriodAsync(
+                currentMonth.Year, currentMonth.Month, "No debe permitirse", actorId);
 
             Assert.Equal(CatalogOperationStatus.Invalid, result.Status);
-            SystemParametersModel unchanged = (await parameters.GetAsync())!;
-            Assert.Equal(today.AddDays(-10), unchanged.ClosingDate);
-
-            _ = context;
-        });
-    }
-
-    [Fact]
-    [Trait("Category", "SqlServer")]
-    public Task ChangeClosingDateAsync_GoingBackwardsWithAReasonReopensAndLogsIt()
-    {
-        return RunInRollbackTransactionAsync(async (context, services, actorId) =>
-        {
-            ISystemParametersService parameters = services.GetRequiredService<ISystemParametersService>();
-            await parameters.CreateAsync(new SaveSystemParametersCommand(500_000m, 7), actorId);
-            SystemParametersModel created = (await parameters.GetAsync())!;
-
-            DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
-            await parameters.ChangeClosingDateAsync(today.AddDays(-10), reason: null, created.Version, actorId);
-            SystemParametersModel closed = (await parameters.GetAsync())!;
-
-            CatalogOperationResult result = await parameters.ChangeClosingDateAsync(
-                today.AddDays(-20), "Reapertura para corregir un gasto registrado por error", closed.Version, actorId);
-
-            Assert.True(result.IsSuccess);
-            SystemParametersModel reopened = (await parameters.GetAsync())!;
-            Assert.Equal(today.AddDays(-20), reopened.ClosingDate);
-
-            ClosingDateChange reopenEntry = await context.Set<ClosingDateChange>()
-                .SingleAsync(change => change.NewClosingDate == today.AddDays(-20));
-            Assert.Equal(today.AddDays(-10), reopenEntry.PreviousClosingDate);
-            Assert.Equal("Reapertura para corregir un gasto registrado por error", reopenEntry.Reason);
-        });
-    }
-
-    [Fact]
-    [Trait("Category", "SqlServer")]
-    public Task ChangeClosingDateAsync_RejectsADateLaterThanToday()
-    {
-        return RunInRollbackTransactionAsync(async (context, services, actorId) =>
-        {
-            ISystemParametersService parameters = services.GetRequiredService<ISystemParametersService>();
-            await parameters.CreateAsync(new SaveSystemParametersCommand(500_000m, 7), actorId);
-            SystemParametersModel created = (await parameters.GetAsync())!;
-
-            CatalogOperationResult result = await parameters.ChangeClosingDateAsync(
-                DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1), reason: null, created.Version, actorId);
-
-            Assert.Equal(CatalogOperationStatus.Invalid, result.Status);
-            _ = context;
         });
     }
 
@@ -229,7 +216,7 @@ public sealed class SqlServerSystemParametersScenarioTests : IClassFixture<Finan
             CatalogOperationResult first = await parameters.UpdateCompanyAsync(
                 new SaveCompanyDataCommand(
                     "Soporte Experto", "3-101-123456", "San José", "2222-2222", "info@soportexperto.cr",
-                    "620301", "Soporte Experto CR", "1", "01", "02"),
+                    "620301", "Soporte Experto CR", "1", "01", "02", "001", "00001"),
                 created.Version,
                 actorId);
             Assert.True(first.IsSuccess);
@@ -242,9 +229,12 @@ public sealed class SqlServerSystemParametersScenarioTests : IClassFixture<Finan
             Assert.Equal("1", current.CompanyProvinceCode);
             Assert.Equal("01", current.CompanyCantonCode);
             Assert.Equal("02", current.CompanyDistrictCode);
+            Assert.Equal("001", current.CompanyBranchCode);
+            Assert.Equal("00001", current.CompanyTerminalCode);
 
             CatalogOperationResult second = await parameters.UpdateCompanyAsync(
-                new SaveCompanyDataCommand("Soporte Experto S.A.", "3-101-123456", null, null, null, null, null, null, null, null),
+                new SaveCompanyDataCommand(
+                    "Soporte Experto S.A.", "3-101-123456", null, null, null, null, null, null, null, null, null, null),
                 current.Version,
                 actorId);
             Assert.True(second.IsSuccess);
@@ -274,7 +264,8 @@ public sealed class SqlServerSystemParametersScenarioTests : IClassFixture<Finan
             SystemParametersModel created = (await parameters.GetAsync())!;
 
             CatalogOperationResult result = await parameters.UpdateCompanyAsync(
-                new SaveCompanyDataCommand("Soporte Experto", "", null, null, null, null, null, null, null, null),
+                new SaveCompanyDataCommand(
+                    "Soporte Experto", "", null, null, null, null, null, null, null, null, null, null),
                 created.Version,
                 actorId);
 
@@ -294,7 +285,8 @@ public sealed class SqlServerSystemParametersScenarioTests : IClassFixture<Finan
             SystemParametersModel created = (await parameters.GetAsync())!;
 
             CatalogOperationResult result = await parameters.UpdateCompanyAsync(
-                new SaveCompanyDataCommand("Soporte Experto", "3-101-123456", null, null, null, null, null, "9", null, null),
+                new SaveCompanyDataCommand(
+                    "Soporte Experto", "3-101-123456", null, null, null, null, null, "9", null, null, null, null),
                 created.Version,
                 actorId);
 

@@ -246,7 +246,7 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_BitacoraOperaciones_Action", "[Action] BETWEEN 1 AND 3");
 
-                            t.HasCheckConstraint("CK_BitacoraOperaciones_EntityType", "[EntityType] BETWEEN 1 AND 7");
+                            t.HasCheckConstraint("CK_BitacoraOperaciones_EntityType", "[EntityType] BETWEEN 1 AND 8");
                         });
                 });
 
@@ -256,12 +256,12 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<decimal>("Amount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
-
-                    b.Property<Guid>("CategoryId")
-                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("datetimeoffset");
@@ -293,9 +293,9 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("UpdatedByUserId");
 
-                    b.HasIndex("CategoryId", "PeriodYear", "PeriodMonth")
+                    b.HasIndex("AccountId", "PeriodYear", "PeriodMonth")
                         .IsUnique()
-                        .HasDatabaseName("UX_Presupuestos_CategoryId_Period");
+                        .HasDatabaseName("UX_Presupuestos_AccountId_Period");
 
                     b.ToTable("Presupuestos", "finanzas", t =>
                         {
@@ -368,7 +368,7 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("CreatedByUserId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("DefaultIncomeCategoryId")
+                    b.Property<Guid?>("DefaultIncomeAccountId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid?>("DefaultTaxTypeId")
@@ -418,7 +418,7 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CreatedByUserId");
 
-                    b.HasIndex("DefaultIncomeCategoryId");
+                    b.HasIndex("DefaultIncomeAccountId");
 
                     b.HasIndex("DefaultTaxTypeId");
 
@@ -547,85 +547,6 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("SistemaFinanciero.Domain.Catalogs.FinancialCategory", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid>("CreatedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
-
-                    b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(true);
-
-                    b.Property<int>("Kind")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("LedgerAccountId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("nvarchar(120)");
-
-                    b.Property<Guid?>("ParentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion");
-
-                    b.Property<DateTimeOffset>("UpdatedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid>("UpdatedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Code")
-                        .IsUnique()
-                        .HasDatabaseName("UX_CategoriasFinancieras_Code");
-
-                    b.HasIndex("CreatedByUserId");
-
-                    b.HasIndex("LedgerAccountId");
-
-                    b.HasIndex("ParentId");
-
-                    b.HasIndex("UpdatedByUserId");
-
-                    b.HasIndex("IsActive", "Kind", "Name")
-                        .HasDatabaseName("IX_CategoriasFinancieras_IsActive_Kind_Name");
-
-                    b.ToTable("CategoriasFinancieras", "catalogos", t =>
-                        {
-                            t.HasCheckConstraint("CK_CategoriasFinancieras_Codigo_NoVacio", "LEN(LTRIM(RTRIM([Code]))) > 0");
-
-                            t.HasCheckConstraint("CK_CategoriasFinancieras_Kind", "[Kind] IN (1, 2)");
-
-                            t.HasCheckConstraint("CK_CategoriasFinancieras_Parent", "[ParentId] IS NULL OR [ParentId] <> [Id]");
-                        });
-                });
-
             modelBuilder.Entity("SistemaFinanciero.Domain.Catalogs.LedgerAccount", b =>
                 {
                     b.Property<Guid>("Id")
@@ -651,6 +572,11 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(300)");
 
                     b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("IsMovement")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
@@ -982,10 +908,177 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SistemaFinanciero.Domain.CreditNotes.CreditNote", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("AppliedToBalance")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid?>("CashAccountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ElectronicCreditNoteKey")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("ElectronicCreditNoteNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("IssueDate")
+                        .HasColumnType("date");
+
+                    b.Property<decimal>("NetAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("RefundReference")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal>("RefundedAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("TaxAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("UpdatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("WithholdingReversedAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CashAccountId");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("UX_NotasCredito_Code");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("ElectronicCreditNoteKey")
+                        .IsUnique()
+                        .HasDatabaseName("UX_NotasCredito_ElectronicCreditNoteKey")
+                        .HasFilter("[ElectronicCreditNoteKey] IS NOT NULL");
+
+                    b.HasIndex("InvoiceId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_NotasCredito_InvoiceId");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.HasIndex("Status", "IssueDate")
+                        .HasDatabaseName("IX_NotasCredito_Status_IssueDate");
+
+                    b.ToTable("NotasCredito", "finanzas", t =>
+                        {
+                            t.HasCheckConstraint("CK_NotasCredito_ElectronicCreditNoteKey", "[ElectronicCreditNoteKey] IS NULL OR LEN([ElectronicCreditNoteKey]) = 50");
+
+                            t.HasCheckConstraint("CK_NotasCredito_ElectronicCreditNoteNumber", "[ElectronicCreditNoteNumber] IS NULL OR LEN([ElectronicCreditNoteNumber]) = 20");
+
+                            t.HasCheckConstraint("CK_NotasCredito_NonNegativeAmounts", "[NetAmount] >= 0 AND [TaxAmount] >= 0 AND [TotalAmount] > 0 AND [AppliedToBalance] >= 0 AND [RefundedAmount] >= 0 AND [WithholdingReversedAmount] >= 0");
+
+                            t.HasCheckConstraint("CK_NotasCredito_Refund", "([RefundedAmount] = 0 AND [CashAccountId] IS NULL AND [RefundReference] IS NULL) OR ([RefundedAmount] > 0 AND [CashAccountId] IS NOT NULL AND [RefundReference] IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_NotasCredito_Status", "[Status] = 1");
+
+                            t.HasCheckConstraint("CK_NotasCredito_Totals", "[TotalAmount] = [AppliedToBalance] + [RefundedAmount] + [WithholdingReversedAmount]");
+                        });
+                });
+
+            modelBuilder.Entity("SistemaFinanciero.Domain.CreditNotes.CreditNoteLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CreditNoteId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("InvoiceLineId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("NetAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TaxAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TaxRate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvoiceLineId");
+
+                    b.HasIndex("CreditNoteId", "InvoiceLineId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_NotaCreditoLineas_CreditNoteId_InvoiceLineId");
+
+                    b.ToTable("NotaCreditoLineas", "finanzas", t =>
+                        {
+                            t.HasCheckConstraint("CK_NotaCreditoLineas_Amounts", "[NetAmount] >= 0 AND [TaxRate] >= 0 AND [TaxAmount] >= 0 AND [TotalAmount] = [NetAmount] + [TaxAmount]");
+                        });
+                });
+
             modelBuilder.Entity("SistemaFinanciero.Domain.Expenses.Expense", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AccountId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("CancellationReason")
@@ -999,9 +1092,6 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid?>("CashAccountId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("CategoryId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Code")
@@ -1101,11 +1191,11 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("AccountId");
+
                     b.HasIndex("CancelledByUserId");
 
                     b.HasIndex("CashAccountId");
-
-                    b.HasIndex("CategoryId");
 
                     b.HasIndex("Code")
                         .IsUnique()
@@ -1147,6 +1237,9 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<decimal>("Amount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -1162,9 +1255,6 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("CashAccountId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("CategoryId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Code")
@@ -1218,11 +1308,11 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("AccountId");
+
                     b.HasIndex("CancelledByUserId");
 
                     b.HasIndex("CashAccountId");
-
-                    b.HasIndex("CategoryId");
 
                     b.HasIndex("Code")
                         .IsUnique()
@@ -1311,7 +1401,7 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<Guid>("IncomeCategoryId")
+                    b.Property<Guid>("IncomeAccountId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateOnly>("IssueDate")
@@ -1363,7 +1453,7 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("UX_Facturas_ElectronicInvoiceKey")
                         .HasFilter("[ElectronicInvoiceKey] IS NOT NULL");
 
-                    b.HasIndex("IncomeCategoryId");
+                    b.HasIndex("IncomeAccountId");
 
                     b.HasIndex("Number")
                         .IsUnique()
@@ -1527,7 +1617,7 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_Asientos_Number", "[Number] > 0");
 
-                            t.HasCheckConstraint("CK_Asientos_SourceType", "[SourceType] BETWEEN 1 AND 6");
+                            t.HasCheckConstraint("CK_Asientos_SourceType", "[SourceType] BETWEEN 1 AND 7");
                         });
                 });
 
@@ -1570,6 +1660,93 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_AsientoLineas_DebitCredit", "[Debit] >= 0 AND [Credit] >= 0 AND (([Debit] > 0 AND [Credit] = 0) OR ([Debit] = 0 AND [Credit] > 0))");
 
                             t.HasCheckConstraint("CK_AsientoLineas_Position", "[LineNumber] > 0");
+                        });
+                });
+
+            modelBuilder.Entity("SistemaFinanciero.Domain.Parameters.AccountingPeriodChange", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("ChangedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("ChangedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsOpen")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<bool>("WasOpen")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChangedByUserId");
+
+                    b.HasIndex("Year", "Month", "ChangedAtUtc")
+                        .HasDatabaseName("IX_PeriodosContablesHistorial_Periodo_ChangedAtUtc");
+
+                    b.ToTable("PeriodosContablesHistorial", "finanzas", t =>
+                        {
+                            t.HasCheckConstraint("CK_PeriodosContablesHistorial_Month", "[Month] BETWEEN 1 AND 12");
+
+                            t.HasCheckConstraint("CK_PeriodosContablesHistorial_StateChanged", "[WasOpen] <> [IsOpen]");
+                        });
+                });
+
+            modelBuilder.Entity("SistemaFinanciero.Domain.Parameters.AccountingPeriodOverride", b =>
+                {
+                    b.Property<int>("Year")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsOpen")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("UpdatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Year", "Month");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.ToTable("PeriodosContablesReabiertos", "finanzas", t =>
+                        {
+                            t.HasCheckConstraint("CK_PeriodosContablesReabiertos_Month", "[Month] BETWEEN 1 AND 12 AND [Year] BETWEEN 1 AND 9998");
                         });
                 });
 
@@ -1625,6 +1802,10 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
+                    b.Property<string>("CompanyBranchCode")
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
                     b.Property<string>("CompanyCantonCode")
                         .HasMaxLength(2)
                         .HasColumnType("nvarchar(2)");
@@ -1655,6 +1836,10 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .HasMaxLength(1)
                         .HasColumnType("nvarchar(1)");
 
+                    b.Property<string>("CompanyTerminalCode")
+                        .HasMaxLength(5)
+                        .HasColumnType("nvarchar(5)");
+
                     b.Property<string>("CompanyTradeName")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -1668,11 +1853,55 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
 
                     b.ToTable("ParametrosEmpresaHistorial", "finanzas", t =>
                         {
+                            t.HasCheckConstraint("CK_ParametrosEmpresaHistorial_CompanyBranchCode", "[CompanyBranchCode] IS NULL OR LEN([CompanyBranchCode]) = 3");
+
                             t.HasCheckConstraint("CK_ParametrosEmpresaHistorial_CompanyCantonCode", "[CompanyCantonCode] IS NULL OR LEN([CompanyCantonCode]) = 2");
 
                             t.HasCheckConstraint("CK_ParametrosEmpresaHistorial_CompanyDistrictCode", "[CompanyDistrictCode] IS NULL OR LEN([CompanyDistrictCode]) = 2");
 
                             t.HasCheckConstraint("CK_ParametrosEmpresaHistorial_CompanyProvinceCode", "[CompanyProvinceCode] IS NULL OR LEN([CompanyProvinceCode]) = 1");
+
+                            t.HasCheckConstraint("CK_ParametrosEmpresaHistorial_CompanyTerminalCode", "[CompanyTerminalCode] IS NULL OR LEN([CompanyTerminalCode]) = 5");
+                        });
+                });
+
+            modelBuilder.Entity("SistemaFinanciero.Domain.Parameters.FiscalPeriodChange", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("ChangedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("ChangedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("NewEndDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("NewStartDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("PreviousEndDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("PreviousStartDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChangedAtUtc")
+                        .HasDatabaseName("IX_PeriodoFiscalHistorial_ChangedAtUtc");
+
+                    b.HasIndex("ChangedByUserId");
+
+                    b.ToTable("PeriodoFiscalHistorial", "finanzas", t =>
+                        {
+                            t.HasCheckConstraint("CK_PeriodoFiscalHistorial_Range", "([PreviousStartDate] IS NULL AND [PreviousEndDate] IS NULL OR [PreviousStartDate] IS NOT NULL AND DAY([PreviousStartDate]) = 1 AND [PreviousEndDate] = DATEADD(day, -1, DATEADD(year, 1, [PreviousStartDate]))) AND DAY([NewStartDate]) = 1 AND [NewEndDate] = DATEADD(day, -1, DATEADD(year, 1, [NewStartDate]))");
                         });
                 });
 
@@ -1741,6 +1970,10 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
+                    b.Property<string>("CompanyBranchCode")
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
                     b.Property<string>("CompanyCantonCode")
                         .HasMaxLength(2)
                         .HasColumnType("nvarchar(2)");
@@ -1769,6 +2002,10 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .HasMaxLength(1)
                         .HasColumnType("nvarchar(1)");
 
+                    b.Property<string>("CompanyTerminalCode")
+                        .HasMaxLength(5)
+                        .HasColumnType("nvarchar(5)");
+
                     b.Property<string>("CompanyTradeName")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -1778,6 +2015,12 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("CreatedByUserId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly?>("FiscalPeriodEndDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("FiscalPeriodStartDate")
+                        .HasColumnType("date");
 
                     b.Property<int>("OverdueAlertDays")
                         .HasColumnType("int");
@@ -1804,11 +2047,17 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_ParametrosSistema_AuthorizationLimit", "[AuthorizationLimitCrc] >= 0");
 
+                            t.HasCheckConstraint("CK_ParametrosSistema_CompanyBranchCode", "[CompanyBranchCode] IS NULL OR LEN([CompanyBranchCode]) = 3");
+
                             t.HasCheckConstraint("CK_ParametrosSistema_CompanyCantonCode", "[CompanyCantonCode] IS NULL OR LEN([CompanyCantonCode]) = 2");
 
                             t.HasCheckConstraint("CK_ParametrosSistema_CompanyDistrictCode", "[CompanyDistrictCode] IS NULL OR LEN([CompanyDistrictCode]) = 2");
 
                             t.HasCheckConstraint("CK_ParametrosSistema_CompanyProvinceCode", "[CompanyProvinceCode] IS NULL OR LEN([CompanyProvinceCode]) = 1");
+
+                            t.HasCheckConstraint("CK_ParametrosSistema_CompanyTerminalCode", "[CompanyTerminalCode] IS NULL OR LEN([CompanyTerminalCode]) = 5");
+
+                            t.HasCheckConstraint("CK_ParametrosSistema_FiscalPeriod", "([FiscalPeriodStartDate] IS NULL AND [FiscalPeriodEndDate] IS NULL) OR ([FiscalPeriodStartDate] IS NOT NULL AND DAY([FiscalPeriodStartDate]) = 1 AND [FiscalPeriodEndDate] = DATEADD(day, -1, DATEADD(year, 1, [FiscalPeriodStartDate])))");
 
                             t.HasCheckConstraint("CK_ParametrosSistema_OverdueAlertDays", "[OverdueAlertDays] > 0");
                         });
@@ -2427,9 +2676,9 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("SistemaFinanciero.Domain.Budgets.Budget", b =>
                 {
-                    b.HasOne("SistemaFinanciero.Domain.Catalogs.FinancialCategory", null)
+                    b.HasOne("SistemaFinanciero.Domain.Catalogs.LedgerAccount", null)
                         .WithMany()
-                        .HasForeignKey("CategoryId")
+                        .HasForeignKey("AccountId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("FK_Presupuestos_CategoriasFinancieras");
@@ -2475,9 +2724,9 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasConstraintName("FK_ProductosServicios_Usuarios_CreatedBy");
 
-                    b.HasOne("SistemaFinanciero.Domain.Catalogs.FinancialCategory", null)
+                    b.HasOne("SistemaFinanciero.Domain.Catalogs.LedgerAccount", null)
                         .WithMany()
-                        .HasForeignKey("DefaultIncomeCategoryId")
+                        .HasForeignKey("DefaultIncomeAccountId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("FK_ProductosServicios_CategoriasFinancieras");
 
@@ -2510,36 +2759,6 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("FK_Clientes_Usuarios_UpdatedBy");
-                });
-
-            modelBuilder.Entity("SistemaFinanciero.Domain.Catalogs.FinancialCategory", b =>
-                {
-                    b.HasOne("SistemaFinanciero.Infrastructure.Identity.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("CreatedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("FK_CategoriasFinancieras_Usuarios_CreatedBy");
-
-                    b.HasOne("SistemaFinanciero.Domain.Catalogs.LedgerAccount", null)
-                        .WithMany()
-                        .HasForeignKey("LedgerAccountId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("FK_CategoriasFinancieras_CuentasContables");
-
-                    b.HasOne("SistemaFinanciero.Domain.Catalogs.FinancialCategory", null)
-                        .WithMany()
-                        .HasForeignKey("ParentId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("FK_CategoriasFinancieras_Parent");
-
-                    b.HasOne("SistemaFinanciero.Infrastructure.Identity.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("UpdatedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("FK_CategoriasFinancieras_Usuarios_UpdatedBy");
                 });
 
             modelBuilder.Entity("SistemaFinanciero.Domain.Catalogs.LedgerAccount", b =>
@@ -2616,8 +2835,62 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .HasConstraintName("FK_TiposRetencion_Usuarios_UpdatedBy");
                 });
 
+            modelBuilder.Entity("SistemaFinanciero.Domain.CreditNotes.CreditNote", b =>
+                {
+                    b.HasOne("SistemaFinanciero.Domain.Catalogs.LedgerAccount", null)
+                        .WithMany()
+                        .HasForeignKey("CashAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_NotasCredito_CuentasContables_CashAccount");
+
+                    b.HasOne("SistemaFinanciero.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_NotasCredito_Usuarios_CreatedBy");
+
+                    b.HasOne("SistemaFinanciero.Domain.Invoices.Invoice", null)
+                        .WithMany()
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_NotasCredito_Facturas");
+
+                    b.HasOne("SistemaFinanciero.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_NotasCredito_Usuarios_UpdatedBy");
+                });
+
+            modelBuilder.Entity("SistemaFinanciero.Domain.CreditNotes.CreditNoteLine", b =>
+                {
+                    b.HasOne("SistemaFinanciero.Domain.CreditNotes.CreditNote", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("CreditNoteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_NotaCreditoLineas_NotasCredito");
+
+                    b.HasOne("SistemaFinanciero.Domain.Invoices.InvoiceLine", null)
+                        .WithMany()
+                        .HasForeignKey("InvoiceLineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_NotaCreditoLineas_FacturaLineas");
+                });
+
             modelBuilder.Entity("SistemaFinanciero.Domain.Expenses.Expense", b =>
                 {
+                    b.HasOne("SistemaFinanciero.Domain.Catalogs.LedgerAccount", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_Gastos_CategoriasFinancieras");
+
                     b.HasOne("SistemaFinanciero.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("CancelledByUserId")
@@ -2629,13 +2902,6 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .HasForeignKey("CashAccountId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("FK_Gastos_CuentasContables");
-
-                    b.HasOne("SistemaFinanciero.Domain.Catalogs.FinancialCategory", null)
-                        .WithMany()
-                        .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("FK_Gastos_CategoriasFinancieras");
 
                     b.HasOne("SistemaFinanciero.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()
@@ -2673,6 +2939,13 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("SistemaFinanciero.Domain.Incomes.Income", b =>
                 {
+                    b.HasOne("SistemaFinanciero.Domain.Catalogs.LedgerAccount", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_Ingresos_CategoriasFinancieras");
+
                     b.HasOne("SistemaFinanciero.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("CancelledByUserId")
@@ -2685,13 +2958,6 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("FK_Ingresos_CuentasContables");
-
-                    b.HasOne("SistemaFinanciero.Domain.Catalogs.FinancialCategory", null)
-                        .WithMany()
-                        .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("FK_Ingresos_CategoriasFinancieras");
 
                     b.HasOne("SistemaFinanciero.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()
@@ -2748,9 +3014,9 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasConstraintName("FK_Facturas_Clientes");
 
-                    b.HasOne("SistemaFinanciero.Domain.Catalogs.FinancialCategory", null)
+                    b.HasOne("SistemaFinanciero.Domain.Catalogs.LedgerAccount", null)
                         .WithMany()
-                        .HasForeignKey("IncomeCategoryId")
+                        .HasForeignKey("IncomeAccountId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("FK_Facturas_CategoriasFinancieras");
@@ -2872,6 +3138,33 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .HasConstraintName("FK_AsientoLineas_Asientos");
                 });
 
+            modelBuilder.Entity("SistemaFinanciero.Domain.Parameters.AccountingPeriodChange", b =>
+                {
+                    b.HasOne("SistemaFinanciero.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ChangedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_PeriodosContablesHistorial_Usuarios_ChangedBy");
+                });
+
+            modelBuilder.Entity("SistemaFinanciero.Domain.Parameters.AccountingPeriodOverride", b =>
+                {
+                    b.HasOne("SistemaFinanciero.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_PeriodosContablesReabiertos_Usuarios_CreatedBy");
+
+                    b.HasOne("SistemaFinanciero.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_PeriodosContablesReabiertos_Usuarios_UpdatedBy");
+                });
+
             modelBuilder.Entity("SistemaFinanciero.Domain.Parameters.ClosingDateChange", b =>
                 {
                     b.HasOne("SistemaFinanciero.Infrastructure.Identity.ApplicationUser", null)
@@ -2890,6 +3183,16 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("FK_ParametrosEmpresaHistorial_Usuarios_ChangedBy");
+                });
+
+            modelBuilder.Entity("SistemaFinanciero.Domain.Parameters.FiscalPeriodChange", b =>
+                {
+                    b.HasOne("SistemaFinanciero.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ChangedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_PeriodoFiscalHistorial_Usuarios_ChangedBy");
                 });
 
             modelBuilder.Entity("SistemaFinanciero.Domain.Parameters.SystemParameterChange", b =>
@@ -3105,6 +3408,11 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("FK_EventosSeguridad_Usuarios_Target");
+                });
+
+            modelBuilder.Entity("SistemaFinanciero.Domain.CreditNotes.CreditNote", b =>
+                {
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("SistemaFinanciero.Domain.Invoices.Invoice", b =>

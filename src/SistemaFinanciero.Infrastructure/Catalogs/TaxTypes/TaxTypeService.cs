@@ -46,6 +46,27 @@ internal sealed class TaxTypeService(
                 (taxType.Description != null && taxType.Description.Contains(search)));
         }
 
+        if (query.Code is not null)
+        {
+            taxTypes = taxTypes.Where(taxType => taxType.Code.Contains(query.Code));
+        }
+
+        if (query.Name is not null)
+        {
+            taxTypes = taxTypes.Where(taxType => taxType.Name.Contains(query.Name));
+        }
+
+        if (query.HaciendaRateCode is not null)
+        {
+            taxTypes = taxTypes.Where(taxType => taxType.HaciendaRateCode != null &&
+                taxType.HaciendaRateCode.Contains(query.HaciendaRateCode));
+        }
+
+        if (query.Rate is decimal rate)
+        {
+            taxTypes = taxTypes.Where(taxType => taxType.Rate == rate);
+        }
+
         PagedResult<TaxType> page = await CatalogPersistence.ToPageAsync(
             taxTypes
                 .OrderBy(taxType => taxType.Name)

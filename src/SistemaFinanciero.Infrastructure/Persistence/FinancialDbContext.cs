@@ -5,6 +5,7 @@ using SistemaFinanciero.Domain.Adjustments;
 using SistemaFinanciero.Domain.Audit;
 using SistemaFinanciero.Domain.Budgets;
 using SistemaFinanciero.Domain.Catalogs;
+using SistemaFinanciero.Domain.CreditNotes;
 using SistemaFinanciero.Domain.Expenses;
 using SistemaFinanciero.Domain.Incomes;
 using SistemaFinanciero.Domain.Invoices;
@@ -39,9 +40,6 @@ public sealed class FinancialDbContext(
 
     /// <summary>Catálogo unificado de productos y servicios.</summary>
     public DbSet<CatalogItem> CatalogItems => Set<CatalogItem>();
-
-    /// <summary>Categorías jerárquicas de ingreso y gasto.</summary>
-    public DbSet<FinancialCategory> FinancialCategories => Set<FinancialCategory>();
 
     /// <summary>Catálogo de cuentas contables, incluidas las cajas y los bancos.</summary>
     public DbSet<LedgerAccount> LedgerAccounts => Set<LedgerAccount>();
@@ -88,6 +86,15 @@ public sealed class FinancialDbContext(
     /// <summary>Bitácora inmutable de cambios en la fecha de cierre.</summary>
     public DbSet<ClosingDateChange> ClosingDateChanges => Set<ClosingDateChange>();
 
+    /// <summary>Excepciones actuales de meses reabiertos por Gerencia.</summary>
+    public DbSet<AccountingPeriodOverride> AccountingPeriodOverrides => Set<AccountingPeriodOverride>();
+
+    /// <summary>Bitácora inmutable de reaperturas y cierres explícitos de meses.</summary>
+    public DbSet<AccountingPeriodChange> AccountingPeriodChanges => Set<AccountingPeriodChange>();
+
+    /// <summary>Bitácora inmutable de cambios del período fiscal anual.</summary>
+    public DbSet<FiscalPeriodChange> FiscalPeriodChanges => Set<FiscalPeriodChange>();
+
     /// <summary>Bitácora inmutable de cambios en los datos de la empresa.</summary>
     public DbSet<CompanyDataChange> CompanyDataChanges => Set<CompanyDataChange>();
 
@@ -105,6 +112,9 @@ public sealed class FinancialDbContext(
 
     /// <summary>Asientos contables automáticos de partida doble (bloque 5 del paquete de mejoras finales).</summary>
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
+
+    /// <summary>Notas de crédito internas que anulan facturas y conservan sus líneas.</summary>
+    public DbSet<CreditNote> CreditNotes => Set<CreditNote>();
 
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder builder)
@@ -237,6 +247,17 @@ public sealed class FinancialDbContext(
                 "Los ajustes de saldo son inmutables y solo admiten nuevos registros.");
         }
 
+        bool creditNotesMutated = ChangeTracker.Entries<CreditNote>()
+            .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted)
+            || ChangeTracker.Entries<CreditNoteLine>()
+                .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted);
+
+        if (creditNotesMutated)
+        {
+            throw new InvalidOperationException(
+                "Las notas de crédito son inmutables y no se anulan después de aplicarse.");
+        }
+
         bool closingDateHistoryMutated = ChangeTracker.Entries<ClosingDateChange>()
             .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted);
 
@@ -244,6 +265,24 @@ public sealed class FinancialDbContext(
         {
             throw new InvalidOperationException(
                 "El historial de la fecha de cierre es inmutable y solo admite nuevos registros.");
+        }
+
+        bool accountingPeriodHistoryMutated = ChangeTracker.Entries<AccountingPeriodChange>()
+            .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted);
+
+        if (accountingPeriodHistoryMutated)
+        {
+            throw new InvalidOperationException(
+                "El historial de períodos contables es inmutable y solo admite nuevos registros.");
+        }
+
+        bool fiscalPeriodHistoryMutated = ChangeTracker.Entries<FiscalPeriodChange>()
+            .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted);
+
+        if (fiscalPeriodHistoryMutated)
+        {
+            throw new InvalidOperationException(
+                "El historial del período fiscal es inmutable y solo admite nuevos registros.");
         }
 
         bool companyDataHistoryMutated = ChangeTracker.Entries<CompanyDataChange>()

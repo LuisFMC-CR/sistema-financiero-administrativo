@@ -5,7 +5,7 @@
 
 <div class="catalog-form">
     <h1 class="h2">Nueva cuenta contable</h1>
-    <p class="text-body-secondary">El código y el tipo los asigna el sistema a partir de la cuenta superior elegida; el subtipo de efectivo queda fijo después de crear la cuenta.</p>
+    <p class="text-body-secondary">El código y el tipo los asigna el sistema a partir de la cuenta superior elegida; el subtipo de efectivo queda fijo después de crear la cuenta. Solo se crean cuentas dentro de Efectivo, Ingresos o Gastos, siempre de tercer nivel.</p>
     <form asp-action="Create" method="post" class="card card-body">
         <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
         <div class="row g-3">
@@ -32,7 +32,7 @@
                     <label asp-for="IsCash" class="form-check-label"></label>
                 </div>
                 <span asp-validation-for="IsCash" class="text-danger"></span>
-                <div class="form-text">Solo las cuentas de tipo Activo pueden ser de efectivo.</div>
+                <div class="form-text">Una cuenta nueva dentro de Efectivo siempre es de efectivo; en los demás grupos, nunca lo es.</div>
             </div>
             <div class="col-12" id="ledger-account-cash-fields">
                 <div class="row g-3">

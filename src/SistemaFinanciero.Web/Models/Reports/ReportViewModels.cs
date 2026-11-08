@@ -13,7 +13,7 @@ public sealed record IncomeReportViewModel(
 public sealed record ExpenseByCategoryReportViewModel(
     DateOnly PeriodFrom,
     DateOnly PeriodTo,
-    Guid? CategoryId,
+    Guid? AccountId,
     IReadOnlyList<SelectListItem> CategoryOptions,
     ExpenseByCategoryReportResult? Result);
 
@@ -39,6 +39,9 @@ public sealed record CustomerStatementReportViewModel(
 
 /// <summary>Resultado del reporte de cuentas por pagar por proveedor; sin parámetros.</summary>
 public sealed record PayableBySupplierReportViewModel(PayableBySupplierReportResult Result);
+
+/// <summary>Resultado del reporte de cuentas por cobrar por cliente con antigüedad; sin parámetros.</summary>
+public sealed record ReceivableByCustomerReportViewModel(ReceivableByCustomerReportResult Result);
 
 /// <summary>Parámetros y resultado, si ya se consultó, del libro diario.</summary>
 public sealed record JournalBookReportViewModel(
@@ -69,7 +72,9 @@ public sealed record IncomeStatementReportViewModel(
 public sealed record AnnualBudgetReportViewModel(
     int PeriodYear,
     int UpToMonth,
-    AnnualBudgetReportResult? Result);
+    AnnualBudgetReportResult? Result,
+    DateOnly? FiscalPeriodStartDate = null,
+    DateOnly? FiscalPeriodEndDate = null);
 
 /// <summary>Parámetros, cuentas de efectivo disponibles y resultado del flujo de efectivo mensual.</summary>
 public sealed record CashFlowReportViewModel(

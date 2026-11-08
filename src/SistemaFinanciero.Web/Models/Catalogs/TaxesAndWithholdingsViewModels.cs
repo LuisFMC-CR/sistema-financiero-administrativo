@@ -13,11 +13,9 @@ namespace SistemaFinanciero.Web.Models.Catalogs;
 /// </summary>
 public sealed record TaxesAndWithholdingsIndexViewModel(
     PagedResult<TaxTypeModel> TaxTypes,
-    string? TaxSearch,
-    CatalogStatusFilter TaxStatus,
+    CatalogQuery TaxQuery,
     PagedResult<WithholdingTypeModel> WithholdingTypes,
-    string? WithholdingSearch,
-    CatalogStatusFilter WithholdingStatus,
+    CatalogQuery WithholdingQuery,
     bool CanManage,
     bool CanAdd);
 

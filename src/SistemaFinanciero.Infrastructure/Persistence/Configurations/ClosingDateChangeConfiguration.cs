@@ -6,12 +6,11 @@ using SistemaFinanciero.Infrastructure.Identity;
 namespace SistemaFinanciero.Infrastructure.Persistence.Configurations;
 
 /// <summary>
-/// Configura la bitácora, de solo inserción, de cambios en la fecha de cierre.
+/// Configura la bitácora histórica, de solo inserción, de cambios en la fecha de cierre manual.
 /// </summary>
 /// <remarks>
-/// Conexiones: <c>FinancialDbContext.OnModelCreating</c> la aplica por convención. Solo
-/// <c>SystemParametersService.ChangeClosingDateAsync</c> le agrega filas; nadie las modifica,
-/// protegido por <c>FinancialDbContext.EnsureAppendOnlyLogsAreNotMutated</c>.
+/// Conexiones: <c>FinancialDbContext.OnModelCreating</c> la aplica por convención. Se conserva para
+/// consultar auditoría anterior; los cambios mensuales actuales se guardan en otra tabla.
 /// </remarks>
 internal sealed class ClosingDateChangeConfiguration : IEntityTypeConfiguration<ClosingDateChange>
 {

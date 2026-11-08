@@ -8,8 +8,8 @@ namespace SistemaFinanciero.IntegrationTests.Incomes;
 
 /// <summary>
 /// Verifica, sin tocar SQL Server, que las rutas de <c>IncomesController</c> exigen exactamente las
-/// políticas de la matriz de perfiles: Gerencia y Finanzas consultan y registran ingresos manuales;
-/// solo Gerencia los anula. Sigue el mismo patrón que <c>InvoiceAuthorizationTests</c>.
+/// políticas de la matriz de perfiles: los tres perfiles operativos consultan y registran ingresos
+/// manuales; solo Gerencia los anula.
 /// </summary>
 public sealed class IncomesAuthorizationTests : IClassFixture<FinancialWebApplicationFactory>
 {
@@ -36,23 +36,23 @@ public sealed class IncomesAuthorizationTests : IClassFixture<FinancialWebApplic
     }
 
     [Fact]
-    public void IndexEndpoint_RequiresOnlyViewFinancialReports()
+    public void IndexEndpoint_RequiresOnlyViewFinancialTransactions()
     {
         RouteEndpoint index = Assert.Single(
             GetEndpoints(),
             endpoint => endpoint.RoutePattern.RawText == "ingresos");
 
         IAuthorizeData[] metadata = index.Metadata.GetOrderedMetadata<IAuthorizeData>().ToArray();
-        Assert.Contains(metadata, data => data.Policy == SystemPolicies.ViewFinancialReports);
+        Assert.Contains(metadata, data => data.Policy == SystemPolicies.ViewFinancialTransactions);
         Assert.DoesNotContain(metadata, data => data.Policy == SystemPolicies.ConfirmFinancialTransactions);
         Assert.DoesNotContain(metadata, data => data.Policy == SystemPolicies.VoidFinancialTransactions);
     }
 
     [Fact]
-    public void CreateEndpoints_RequireConfirmFinancialTransactionsNotVoid()
+    public void CreateEndpoints_RequireRegisterManualIncomeNotVoid()
     {
         RouteEndpoint[] createEndpoints = GetEndpoints()
-            .Where(endpoint => endpoint.RoutePattern.RawText!.EndsWith("nuevo", StringComparison.Ordinal))
+            .Where(endpoint => endpoint.RoutePattern.RawText!.StartsWith("ingresos/nuevo", StringComparison.Ordinal))
             .ToArray();
 
         Assert.NotEmpty(createEndpoints);
@@ -60,7 +60,7 @@ public sealed class IncomesAuthorizationTests : IClassFixture<FinancialWebApplic
             createEndpoints,
             endpoint => Assert.Contains(
                 endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>(),
-                data => data.Policy == SystemPolicies.ConfirmFinancialTransactions));
+                data => data.Policy == SystemPolicies.RegisterManualIncome));
         Assert.All(
             createEndpoints,
             endpoint => Assert.DoesNotContain(
@@ -85,7 +85,7 @@ public sealed class IncomesAuthorizationTests : IClassFixture<FinancialWebApplic
             cancelEndpoints,
             endpoint => Assert.DoesNotContain(
                 endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>(),
-                data => data.Policy == SystemPolicies.ConfirmFinancialTransactions));
+                data => data.Policy == SystemPolicies.RegisterManualIncome));
     }
 
     private RouteEndpoint[] GetEndpoints()

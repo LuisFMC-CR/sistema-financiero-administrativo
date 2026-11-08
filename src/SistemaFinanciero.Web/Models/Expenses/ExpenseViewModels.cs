@@ -27,7 +27,7 @@ public class ExpenseCreateViewModel
 
     [Required(ErrorMessage = "La categoría es obligatoria.")]
     [Display(Name = "Categoría")]
-    public Guid? CategoryId { get; set; }
+    public Guid? AccountId { get; set; }
 
     [ValidateNever]
     public IReadOnlyList<SelectListItem> CategoryOptions { get; set; } = [];

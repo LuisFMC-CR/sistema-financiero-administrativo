@@ -9,17 +9,14 @@ namespace SistemaFinanciero.Web.Controllers;
 
 /// <summary>
 /// Presenta los parámetros únicos del sistema: el límite de autorización, los días de alerta de
-/// vencimiento, la fecha de cierre y los datos de la empresa. Consultan Gerencia y Finanzas; solo
-/// Gerencia los define.
+/// vencimiento, el período fiscal y los datos de la empresa. El período fiscal y las reaperturas
+/// mensuales son exclusivos de Gerencia.
 /// </summary>
 /// <remarks>
-/// La fecha de cierre (regla 16) y los datos de la empresa (RF-55) tienen cada uno su propio
-/// formulario y su propia acción (<see cref="ChangeClosingDate"/>, <see cref="UpdateCompany"/>),
-/// separados de <see cref="Save"/> (límite y días): adelantar la fecha de cierre no exige motivo,
-/// retrocederla (reapertura) sí, y ese motivo no tiene sentido en los otros dos formularios; los
-/// datos de la empresa no comparten nada con el límite, los días ni la fecha de cierre.
+/// El período fiscal, las reaperturas mensuales y los datos de la empresa tienen formularios separados
+/// de <see cref="Save"/> (límite y días). Configurar el período y reabrir/cerrar meses exige Gerencia.
 /// </remarks>
-[Authorize(Policy = SystemPolicies.ViewFinancialReports)]
+[Authorize(Policy = SystemPolicies.ManageSystemParameters)]
 [Route("parametros")]
 public sealed class SystemParametersController(ISystemParametersService service) : CatalogControllerBase
 {
@@ -27,22 +24,21 @@ public sealed class SystemParametersController(ISystemParametersService service)
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
     {
         SystemParametersModel? current = await service.GetAsync(cancellationToken);
-        return View(ToPageViewModel(current));
+        return View(await ToPageViewModelAsync(current, cancellationToken));
     }
 
     [Authorize(Policy = SystemPolicies.ManageSystemParameters)]
     [HttpPost("")]
-    public async Task<IActionResult> Save(SystemParametersViewModel model, CancellationToken cancellationToken)
+    public async Task<IActionResult> Save(
+        [Bind(Prefix = "Parameters")] SystemParametersViewModel model,
+        CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid)
         {
             SystemParametersModel? current = await service.GetAsync(cancellationToken);
-            return View(nameof(Index), new SystemParametersPageViewModel
-            {
-                Parameters = model,
-                ClosingDateForm = ToClosingDateViewModel(current),
-                CompanyDataForm = ToCompanyDataViewModel(current),
-            });
+            SystemParametersPageViewModel page = await ToPageViewModelAsync(current, cancellationToken);
+            page.Parameters = model;
+            return View(nameof(Index), page);
         }
 
         if (!TryGetActorId(out Guid actorId))
@@ -73,32 +69,23 @@ public sealed class SystemParametersController(ISystemParametersService service)
             ModelState.Remove(nameof(model.Version));
         }
 
-        return FormFailure(
-            result,
-            new SystemParametersPageViewModel
-            {
-                Parameters = latestModel,
-                ClosingDateForm = ToClosingDateViewModel(latest),
-                CompanyDataForm = ToCompanyDataViewModel(latest),
-            },
-            nameof(Index));
+        SystemParametersPageViewModel errorPage = await ToPageViewModelAsync(latest, cancellationToken);
+        errorPage.Parameters = latestModel;
+        return FormFailure(result, errorPage, nameof(Index));
     }
 
-    [Authorize(Policy = SystemPolicies.ManageSystemParameters)]
-    [HttpPost("fecha-cierre")]
-    public async Task<IActionResult> ChangeClosingDate(
-        ChangeClosingDateViewModel model,
+    [Authorize(Policy = SystemPolicies.ManageAccountingPeriods)]
+    [HttpPost("periodo-fiscal")]
+    public async Task<IActionResult> UpdateFiscalPeriod(
+        FiscalPeriodViewModel model,
         CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid)
         {
             SystemParametersModel? current = await service.GetAsync(cancellationToken);
-            return View(nameof(Index), new SystemParametersPageViewModel
-            {
-                Parameters = ToViewModel(current),
-                ClosingDateForm = model,
-                CompanyDataForm = ToCompanyDataViewModel(current),
-            });
+            SystemParametersPageViewModel page = await ToPageViewModelAsync(current, cancellationToken);
+            page.FiscalPeriodForm = model;
+            return View(nameof(Index), page);
         }
 
         if (!TryGetActorId(out Guid actorId))
@@ -106,12 +93,17 @@ public sealed class SystemParametersController(ISystemParametersService service)
             return Forbid();
         }
 
-        CatalogOperationResult result = await service.ChangeClosingDateAsync(
-            model.NewClosingDate, model.Reason, model.Version, actorId, cancellationToken);
+        CatalogOperationResult result = await service.UpdateFiscalPeriodAsync(
+            model.StartDate!.Value,
+            model.EndDate!.Value,
+            model.Reason,
+            model.Version,
+            actorId,
+            cancellationToken);
 
         if (result.IsSuccess)
         {
-            SetSuccessMessage("La fecha de cierre se actualizó correctamente.");
+            SetSuccessMessage("El período fiscal se actualizó correctamente.");
             return RedirectToAction(nameof(Index));
         }
 
@@ -123,15 +115,73 @@ public sealed class SystemParametersController(ISystemParametersService service)
             ModelState.Remove(nameof(model.Version));
         }
 
-        return FormFailure(
-            result,
-            new SystemParametersPageViewModel
-            {
-                Parameters = ToViewModel(latest),
-                ClosingDateForm = model,
-                CompanyDataForm = ToCompanyDataViewModel(latest),
-            },
-            nameof(Index));
+        SystemParametersPageViewModel errorPage = await ToPageViewModelAsync(latest, cancellationToken);
+        errorPage.FiscalPeriodForm = model;
+        return FormFailure(result, errorPage, nameof(Index));
+    }
+
+    [Authorize(Policy = SystemPolicies.ManageAccountingPeriods)]
+    [HttpPost("periodos/reabrir")]
+    public async Task<IActionResult> ReopenAccountingPeriod(
+        ReopenAccountingPeriodViewModel model,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            SystemParametersPageViewModel page = await ToPageViewModelAsync(
+                await service.GetAsync(cancellationToken), cancellationToken);
+            page.ReopenAccountingPeriodForm = model;
+            return View(nameof(Index), page);
+        }
+
+        if (!TryGetActorId(out Guid actorId))
+        {
+            return Forbid();
+        }
+
+        CatalogOperationResult result = await service.ReopenAccountingPeriodAsync(
+            model.Year, model.Month, model.Reason, actorId, cancellationToken);
+        if (result.IsSuccess)
+        {
+            SetSuccessMessage("El mes se reabrió correctamente y permanecerá abierto hasta que Gerencia lo cierre.");
+            return RedirectToAction(nameof(Index));
+        }
+
+        SystemParametersPageViewModel errorPage = await ToPageViewModelAsync(
+            await service.GetAsync(cancellationToken), cancellationToken);
+        errorPage.ReopenAccountingPeriodForm = model;
+        return FormFailure(result, errorPage, nameof(Index));
+    }
+
+    [Authorize(Policy = SystemPolicies.ManageAccountingPeriods)]
+    [HttpPost("periodos/cerrar")]
+    public async Task<IActionResult> CloseAccountingPeriod(
+        CloseAccountingPeriodViewModel model,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            SystemParametersPageViewModel page = await ToPageViewModelAsync(
+                await service.GetAsync(cancellationToken), cancellationToken);
+            return View(nameof(Index), page);
+        }
+
+        if (!TryGetActorId(out Guid actorId))
+        {
+            return Forbid();
+        }
+
+        CatalogOperationResult result = await service.CloseAccountingPeriodAsync(
+            model.Year, model.Month, model.Version, actorId, cancellationToken);
+        if (result.IsSuccess)
+        {
+            SetSuccessMessage("El mes se cerró nuevamente.");
+            return RedirectToAction(nameof(Index));
+        }
+
+        SystemParametersPageViewModel errorPage = await ToPageViewModelAsync(
+            await service.GetAsync(cancellationToken), cancellationToken);
+        return FormFailure(result, errorPage, nameof(Index));
     }
 
     [Authorize(Policy = SystemPolicies.ManageSystemParameters)]
@@ -143,12 +193,9 @@ public sealed class SystemParametersController(ISystemParametersService service)
         if (!ModelState.IsValid)
         {
             SystemParametersModel? current = await service.GetAsync(cancellationToken);
-            return View(nameof(Index), new SystemParametersPageViewModel
-            {
-                Parameters = ToViewModel(current),
-                ClosingDateForm = ToClosingDateViewModel(current),
-                CompanyDataForm = model,
-            });
+            SystemParametersPageViewModel page = await ToPageViewModelAsync(current, cancellationToken);
+            page.CompanyDataForm = model;
+            return View(nameof(Index), page);
         }
 
         if (!TryGetActorId(out Guid actorId))
@@ -167,7 +214,9 @@ public sealed class SystemParametersController(ISystemParametersService service)
                 model.TradeName,
                 model.ProvinceCode,
                 model.CantonCode,
-                model.DistrictCode),
+                model.DistrictCode,
+                model.BranchCode,
+                model.TerminalCode),
             model.Version,
             actorId,
             cancellationToken);
@@ -186,21 +235,19 @@ public sealed class SystemParametersController(ISystemParametersService service)
             ModelState.Remove(nameof(model.Version));
         }
 
-        return FormFailure(
-            result,
-            new SystemParametersPageViewModel
-            {
-                Parameters = ToViewModel(latest),
-                ClosingDateForm = ToClosingDateViewModel(latest),
-                CompanyDataForm = model,
-            },
-            nameof(Index));
+        SystemParametersPageViewModel errorPage = await ToPageViewModelAsync(latest, cancellationToken);
+        errorPage.CompanyDataForm = model;
+        return FormFailure(result, errorPage, nameof(Index));
     }
 
-    private static SystemParametersPageViewModel ToPageViewModel(SystemParametersModel? current) => new()
+    private async Task<SystemParametersPageViewModel> ToPageViewModelAsync(
+        SystemParametersModel? current,
+        CancellationToken cancellationToken) => new()
     {
+        CurrentConfiguration = current,
         Parameters = ToViewModel(current),
-        ClosingDateForm = ToClosingDateViewModel(current),
+        FiscalPeriodForm = ToFiscalPeriodViewModel(current),
+        ReopenedAccountingPeriods = await service.GetReopenedAccountingPeriodsAsync(cancellationToken),
         CompanyDataForm = ToCompanyDataViewModel(current),
     };
 
@@ -212,20 +259,20 @@ public sealed class SystemParametersController(ISystemParametersService service)
             {
                 AuthorizationLimitCrc = current.AuthorizationLimitCrc,
                 OverdueAlertDays = current.OverdueAlertDays,
-                ClosingDate = current.ClosingDate,
                 Version = current.Version,
                 UpdatedAtUtc = current.UpdatedAtUtc,
                 UpdatedByUserName = current.UpdatedByUserName,
             };
     }
 
-    private static ChangeClosingDateViewModel ToClosingDateViewModel(SystemParametersModel? current)
+    private static FiscalPeriodViewModel ToFiscalPeriodViewModel(SystemParametersModel? current)
     {
         return current is null
-            ? new ChangeClosingDateViewModel()
-            : new ChangeClosingDateViewModel
+            ? new FiscalPeriodViewModel()
+            : new FiscalPeriodViewModel
             {
-                NewClosingDate = current.ClosingDate,
+                StartDate = current.FiscalPeriodStartDate,
+                EndDate = current.FiscalPeriodEndDate,
                 Version = current.Version,
             };
     }
@@ -246,6 +293,8 @@ public sealed class SystemParametersController(ISystemParametersService service)
                 ProvinceCode = current.CompanyProvinceCode,
                 CantonCode = current.CompanyCantonCode,
                 DistrictCode = current.CompanyDistrictCode,
+                BranchCode = current.CompanyBranchCode ?? "001",
+                TerminalCode = current.CompanyTerminalCode ?? "00001",
                 Version = current.Version,
             };
     }

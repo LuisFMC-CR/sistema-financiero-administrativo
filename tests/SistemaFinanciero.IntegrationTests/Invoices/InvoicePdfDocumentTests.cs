@@ -25,7 +25,7 @@ public sealed class InvoicePdfDocumentTests
     private static readonly SystemParametersModel SampleCompanyData = new(
         500_000m, 7, DateOnly.MinValue,
         "Soporte Experto", "3-101-123456", "San José, Costa Rica", "2222-2222", "info@soportexperto.cr", "620301",
-        "Soporte Experto CR", "1", "01", "02",
+        "Soporte Experto CR", "1", "01", "02", "001", "00001",
         DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "v1");
 
     private static readonly InvoiceLineModel SampleLine = new(

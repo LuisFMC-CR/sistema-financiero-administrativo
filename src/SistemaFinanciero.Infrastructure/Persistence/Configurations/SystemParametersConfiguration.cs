@@ -36,6 +36,18 @@ internal sealed class SystemParametersConfiguration : IEntityTypeConfiguration<S
                 table.HasCheckConstraint(
                     "CK_ParametrosSistema_CompanyDistrictCode",
                     "[CompanyDistrictCode] IS NULL OR LEN([CompanyDistrictCode]) = 2");
+                table.HasCheckConstraint(
+                    "CK_ParametrosSistema_CompanyBranchCode",
+                    "[CompanyBranchCode] IS NULL OR LEN([CompanyBranchCode]) = 3");
+                table.HasCheckConstraint(
+                    "CK_ParametrosSistema_CompanyTerminalCode",
+                    "[CompanyTerminalCode] IS NULL OR LEN([CompanyTerminalCode]) = 5");
+                table.HasCheckConstraint(
+                    "CK_ParametrosSistema_FiscalPeriod",
+                    "([FiscalPeriodStartDate] IS NULL AND [FiscalPeriodEndDate] IS NULL) OR "
+                    + "([FiscalPeriodStartDate] IS NOT NULL AND DAY([FiscalPeriodStartDate]) = 1 "
+                    + "AND [FiscalPeriodEndDate] = "
+                    + "DATEADD(day, -1, DATEADD(year, 1, [FiscalPeriodStartDate])))");
             });
 
         builder.HasKey(parameters => parameters.Id);
@@ -45,6 +57,8 @@ internal sealed class SystemParametersConfiguration : IEntityTypeConfiguration<S
             .IsRequired();
         builder.Property(parameters => parameters.OverdueAlertDays).IsRequired();
         builder.Property(parameters => parameters.ClosingDate).HasColumnType("date").IsRequired();
+        builder.Property(parameters => parameters.FiscalPeriodStartDate).HasColumnType("date");
+        builder.Property(parameters => parameters.FiscalPeriodEndDate).HasColumnType("date");
         builder.Property(parameters => parameters.CompanyName).HasMaxLength(SystemParameters.CompanyNameMaxLength);
         builder.Property(parameters => parameters.CompanyLegalId).HasMaxLength(SystemParameters.CompanyLegalIdMaxLength);
         builder.Property(parameters => parameters.CompanyAddress).HasMaxLength(SystemParameters.CompanyAddressMaxLength);
@@ -60,6 +74,10 @@ internal sealed class SystemParametersConfiguration : IEntityTypeConfiguration<S
             .HasMaxLength(SystemParameters.CompanyCantonCodeLength);
         builder.Property(parameters => parameters.CompanyDistrictCode)
             .HasMaxLength(SystemParameters.CompanyDistrictCodeLength);
+        builder.Property(parameters => parameters.CompanyBranchCode)
+            .HasMaxLength(SystemParameters.CompanyBranchCodeLength);
+        builder.Property(parameters => parameters.CompanyTerminalCode)
+            .HasMaxLength(SystemParameters.CompanyTerminalCodeLength);
         builder.Property(parameters => parameters.CreatedAtUtc).IsRequired();
         builder.Property(parameters => parameters.UpdatedAtUtc).IsRequired();
         builder.Property(parameters => parameters.RowVersion).IsRowVersion();

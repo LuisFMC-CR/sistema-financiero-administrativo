@@ -30,27 +30,71 @@ public sealed record JournalEntryModel(
 /// </summary>
 public sealed record JournalEntryTraceModel(JournalEntryModel Entry, JournalEntryModel? Reversal);
 
-/// <summary>Resultado del comando de generación de asientos para documentos ya existentes.</summary>
-public sealed record JournalEntryBackfillResult(int EntriesCreated, int ReversalsCreated);
+/// <summary>
+/// Estado por el que se puede filtrar la consulta general de asientos: todos, solo los contabilizados
+/// (asientos originales) o solo las reversiones generadas al anular un documento.
+/// </summary>
+public enum JournalEntryStateFilter
+{
+    /// <summary>Asientos originales y reversiones.</summary>
+    All = 1,
+
+    /// <summary>Solo asientos originales (documentos vigentes).</summary>
+    Posted = 2,
+
+    /// <summary>Solo asientos de reversión (documentos anulados).</summary>
+    Reversal = 3,
+}
+
+/// <summary>Una línea de un asiento dentro de la consulta general de asientos.</summary>
+public sealed record JournalEntryListLine(
+    int LineNumber,
+    string AccountCode,
+    string AccountName,
+    decimal Debit,
+    decimal Credit);
 
 /// <summary>
-/// Consulta de solo lectura de los asientos contables automáticos (RF-78/RF-79) y comando explícito de
-/// generación para los documentos que ya existían antes de este bloque.
+/// Un asiento dentro de la consulta general de asientos: sus datos de cabecera, el total del
+/// movimiento (la suma de sus débitos) y sus líneas, para mostrar en pantalla sin abrir otro documento.
+/// </summary>
+public sealed record JournalEntryListItem(
+    Guid Id,
+    long Number,
+    DateOnly EntryDate,
+    string Description,
+    JournalEntrySourceType SourceType,
+    Guid SourceId,
+    Guid? ReversesEntryId,
+    decimal TotalAmount,
+    IReadOnlyList<JournalEntryListLine> Lines);
+
+/// <summary>
+/// Resultado de la consulta general de asientos: el conteo, el total de movimientos (la suma de los
+/// débitos de los asientos listados) y el detalle de cada asiento, tras aplicar los filtros vigentes.
+/// </summary>
+public sealed record JournalEntryListResult(
+    int EntriesCount,
+    decimal TotalMovements,
+    IReadOnlyList<JournalEntryListItem> Entries);
+
+/// <summary>
+/// Consulta de solo lectura de los asientos contables automáticos (RF-78/RF-79), que se generan
+/// dentro de la transacción de cada operación y nunca se editan ni se borran.
 /// </summary>
 /// <remarks>
 /// Conexiones: la implementa <c>JournalEntryService</c> (Infrastructure/Ledger) sobre
 /// <c>JournalEntry</c>/<c>JournalEntryLine</c>, que <c>JournalPostingService</c> genera dentro de la
 /// transacción de cada operación. La consume <c>JournalEntriesController</c> (Web, ruta
-/// <c>/contabilidad/asientos</c>): <see cref="GetTraceAsync"/> tras <c>SystemPolicies.ViewFinancialReports</c>
-/// ("Ver asiento" en el detalle de cada documento) y <see cref="BackfillAsync"/> tras
-/// <c>SystemPolicies.ManageSystemParameters</c> (exclusivo de Gerencia; comando explícito, nunca se
-/// ejecuta al arrancar).
+/// <c>/contabilidad/asientos</c>): <see cref="SearchAsync"/> alimenta la consulta general del período y
+/// <see cref="GetTraceAsync"/> el enlace "Ver asiento" del detalle de cada documento. Ambas exigen
+/// <c>SystemPolicies.ViewFinancialReports</c> (Gerencia y Finanzas).
 /// </remarks>
 public interface IJournalEntryService
 {
     /// <summary>
     /// Obtiene el asiento de un documento y, si existe, su reversión. Nulo si el documento no tiene
-    /// asiento todavía (por ejemplo, un borrador, o uno anterior a este bloque sin generar).
+    /// asiento todavía (por ejemplo, un borrador).
     /// </summary>
     Task<JournalEntryTraceModel?> GetTraceAsync(
         JournalEntrySourceType sourceType,
@@ -58,9 +102,13 @@ public interface IJournalEntryService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Genera los asientos de los documentos confirmados que todavía no tienen uno y las reversiones
-    /// de los anulados que todavía no tienen la suya, en orden cronológico. Es idempotente: una
-    /// segunda ejecución no duplica nada.
+    /// Lista los asientos del mes <paramref name="periodYear"/>/<paramref name="periodMonth"/>,
+    /// filtrados por estado y número opcional, del más reciente al más antiguo.
     /// </summary>
-    Task<JournalEntryBackfillResult> BackfillAsync(CancellationToken cancellationToken = default);
+    Task<JournalEntryListResult> SearchAsync(
+        int periodYear,
+        int periodMonth,
+        JournalEntryStateFilter state,
+        long? entryNumber = null,
+        CancellationToken cancellationToken = default);
 }

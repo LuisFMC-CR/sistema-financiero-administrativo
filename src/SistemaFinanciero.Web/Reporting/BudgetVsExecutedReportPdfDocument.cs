@@ -54,7 +54,7 @@ public sealed class BudgetVsExecutedReportPdfDocument(BudgetVsExecutedReportResu
 
                     foreach (BudgetModel line in result.Lines)
                     {
-                        table.Cell().Element(ReportDocumentStyles.BodyCellStyle).Text($"{line.CategoryCode} - {line.CategoryName}");
+                        table.Cell().Element(ReportDocumentStyles.BodyCellStyle).Text($"{line.AccountCode} - {line.AccountName}");
                         table.Cell().Element(ReportDocumentStyles.BodyCellStyle).AlignRight()
                             .Text(line.BudgetedAmount is decimal budgeted ? ReportDocumentStyles.FormatCrc(budgeted) : "Sin presupuesto");
                         table.Cell().Element(ReportDocumentStyles.BodyCellStyle).AlignRight()

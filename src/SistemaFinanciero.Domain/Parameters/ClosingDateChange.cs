@@ -3,17 +3,12 @@ using SistemaFinanciero.Domain.Common;
 namespace SistemaFinanciero.Domain.Parameters;
 
 /// <summary>
-/// Registro inmutable de un cambio en la fecha de cierre: conserva la fecha anterior y la nueva, el
-/// motivo (obligatorio solo al retroceder, es decir, al reabrir) y quién lo hizo y cuándo (regla de
-/// negocio 16). Es la bitácora de ese cambio, separada de <see cref="SystemParameterChange"/> porque
-/// es una operación propia (<c>SystemSettings.ChangeClosingDate</c>, distinta de
-/// <c>UpdateLimits</c>).
+/// Registro inmutable legado de un cambio en la fecha de cierre manual. Los cierres automáticos y
+/// reaperturas actuales se guardan en <see cref="AccountingPeriodChange"/>.
 /// </summary>
 /// <remarks>
-/// Conexiones: la crea <c>SystemParametersService.ChangeClosingDateAsync</c> (Infrastructure); se
-/// guarda en <c>finanzas.ParametrosFechaCierreHistorial</c> vía <c>ClosingDateChangeConfiguration</c>.
-/// <c>FinancialDbContext.EnsureAppendOnlyLogsAreNotMutated</c> impide modificarla o borrarla. No tiene
-/// pantalla propia de consulta todavía.
+/// Conexiones: se conserva en <c>finanzas.ParametrosFechaCierreHistorial</c> vía
+/// <c>ClosingDateChangeConfiguration</c>; <c>FinancialDbContext</c> impide modificarla o borrarla.
 /// </remarks>
 public sealed class ClosingDateChange
 {

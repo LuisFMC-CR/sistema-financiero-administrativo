@@ -25,9 +25,11 @@ public sealed class UsersController(IUserAdministrationService service) : Contro
     /// <summary>Muestra usuarios filtrados y paginados del lado del servidor.</summary>
     [HttpGet("")]
     public async Task<IActionResult> Index(
-        string? search,
+        string? fullName,
+        string? email,
         UserStatusFilter status = UserStatusFilter.Active,
         string? role = null,
+        UserAccessFilter access = UserAccessFilter.All,
         int page = 1,
         CancellationToken cancellationToken = default)
     {
@@ -37,17 +39,21 @@ public sealed class UsersController(IUserAdministrationService service) : Contro
         }
 
         UserQuery query = new(
-            NormalizeSearch(search),
-            NormalizeStatus(status),
-            NormalizeRole(role),
-            page);
+            status: NormalizeStatus(status),
+            role: NormalizeRole(role),
+            page: page,
+            fullName: NormalizeSearch(fullName, 150),
+            email: NormalizeSearch(email, 254),
+            access: access);
         PagedResult<UserModel> results = await service.SearchAsync(query, cancellationToken);
 
         return View(new UserIndexViewModel(
             results,
-            query.Search,
+            query.FullName,
+            query.Email,
             query.Status,
             query.Role,
+            query.Access,
             SystemRoles.All,
             actorId));
     }
@@ -391,7 +397,7 @@ public sealed class UsersController(IUserAdministrationService service) : Contro
         return Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out actorId);
     }
 
-    private static string? NormalizeSearch(string? search)
+    private static string? NormalizeSearch(string? search, int maximumLength = SearchMaxLength)
     {
         if (string.IsNullOrWhiteSpace(search))
         {
@@ -399,9 +405,9 @@ public sealed class UsersController(IUserAdministrationService service) : Contro
         }
 
         string normalized = search.Trim();
-        return normalized.Length <= SearchMaxLength
+        return normalized.Length <= maximumLength
             ? normalized
-            : normalized[..SearchMaxLength];
+            : normalized[..maximumLength];
     }
 
     private static UserStatusFilter NormalizeStatus(UserStatusFilter status)

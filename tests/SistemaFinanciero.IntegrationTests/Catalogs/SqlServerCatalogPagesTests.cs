@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using SistemaFinanciero.Application.Catalogs.LedgerAccounts;
 using SistemaFinanciero.Application.Security;
 using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Infrastructure.Persistence;
@@ -155,6 +156,38 @@ public sealed class SqlServerCatalogPagesTests : IClassFixture<FinancialWebAppli
 
     [Fact]
     [Trait("Category", "SqlServer")]
+    public async Task FinanceUser_DeactivationFormPostsAnExplicitFalseValue()
+    {
+        if (!IsEnabled())
+        {
+            return;
+        }
+
+        LedgerAccountModel? account;
+        using (IServiceScope scope = factory.Services.CreateScope())
+        {
+            ILedgerAccountService service = scope.ServiceProvider.GetRequiredService<ILedgerAccountService>();
+            account = (await service.SearchAsync(new LedgerAccountQuery(isActive: true)))
+                .Items
+                .FirstOrDefault(candidate => candidate.CanDeactivate);
+        }
+
+        if (account is null)
+        {
+            return;
+        }
+
+        using HttpClient client = CreateFinanceClient();
+        using HttpResponseMessage response = await client.GetAsync(
+            $"/catalogos/cuentas-contables?code={Uri.EscapeDataString(account.Code)}");
+        string body = await response.Content.ReadAsStringAsync();
+
+        Assert.True(response.IsSuccessStatusCode, body);
+        Assert.Contains("name=\"IsActive\" value=\"false\"", body);
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
     public async Task FinanceUser_CanRenderTheEditPageOfACashLedgerAccount()
     {
         if (!IsEnabled())
@@ -178,43 +211,6 @@ public sealed class SqlServerCatalogPagesTests : IClassFixture<FinancialWebAppli
         Assert.Contains("Subtipo de efectivo", body);
         Assert.Contains(System.Net.WebUtility.HtmlEncode(account.Code), body);
         Assert.DoesNotContain("ledger-account-is-cash", body);
-    }
-
-    [Fact]
-    [Trait("Category", "SqlServer")]
-    public async Task FinanceUser_SeesTheLedgerAccountOfEachCategoryAndCanEditIt()
-    {
-        if (!IsEnabled())
-        {
-            return;
-        }
-
-        FinancialCategory? category = await FindAnyAsync<FinancialCategory>(_ => true);
-        if (category is null)
-        {
-            return;
-        }
-
-        LedgerAccount account = (await FindAnyAsync<LedgerAccount>(candidate => candidate.Id == category.LedgerAccountId))!;
-        using HttpClient client = CreateFinanceClient();
-
-        // Con el catálogo base ya hay varias categorías reales: se filtra por código para que la
-        // encontrada no quede fuera de la primera página.
-        using HttpResponseMessage list = await client.GetAsync(
-            $"/catalogos/categorias-financieras?status=All&search={Uri.EscapeDataString(category.Code)}");
-        string listBody = await list.Content.ReadAsStringAsync();
-        Assert.True(list.IsSuccessStatusCode, listBody);
-        Assert.Contains("Cuenta contable", listBody);
-        // El nombre puede llevar tildes: Razor las codifica con HtmlEncoder.Default (referencias
-        // numéricas hexadecimales, p. ej. &#xE9;), distinto de WebUtility.HtmlEncode (decimales).
-        string encodedLabel = $"{account.Code} - {HtmlEncoder.Default.Encode(account.Name)}";
-        Assert.Contains(encodedLabel, listBody);
-
-        using HttpResponseMessage edit = await client.GetAsync($"/catalogos/categorias-financieras/editar/{category.Id}");
-        string editBody = await edit.Content.ReadAsStringAsync();
-        Assert.True(edit.IsSuccessStatusCode, editBody);
-        Assert.Contains("financial-category-ledger-account", editBody);
-        Assert.Contains(encodedLabel, editBody);
     }
 
     [Fact]

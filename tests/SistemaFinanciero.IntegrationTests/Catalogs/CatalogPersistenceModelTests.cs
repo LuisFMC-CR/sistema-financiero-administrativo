@@ -24,7 +24,6 @@ public sealed class CatalogPersistenceModelTests : IClassFixture<FinancialWebApp
         AssertTable<Customer>(context, "catalogos", "Clientes");
         AssertTable<Supplier>(context, "catalogos", "Proveedores");
         AssertTable<CatalogItem>(context, "catalogos", "ProductosServicios");
-        AssertTable<FinancialCategory>(context, "catalogos", "CategoriasFinancieras");
         AssertTable<TaxType>(context, "catalogos", "TiposImpuesto");
         AssertTable<LedgerAccount>(context, "catalogos", "CuentasContables");
         AssertTable<WithholdingType>(context, "catalogos", "TiposRetencion");
@@ -46,7 +45,6 @@ public sealed class CatalogPersistenceModelTests : IClassFixture<FinancialWebApp
             typeof(Customer),
             typeof(Supplier),
             typeof(CatalogItem),
-            typeof(FinancialCategory),
             typeof(TaxType),
             typeof(LedgerAccount),
             typeof(WithholdingType),
@@ -93,7 +91,6 @@ public sealed class CatalogPersistenceModelTests : IClassFixture<FinancialWebApp
             typeof(Customer),
             typeof(Supplier),
             typeof(CatalogItem),
-            typeof(FinancialCategory),
             typeof(TaxType),
             typeof(LedgerAccount),
             typeof(WithholdingType),
@@ -117,7 +114,6 @@ public sealed class CatalogPersistenceModelTests : IClassFixture<FinancialWebApp
         AssertUniqueIndex<Customer>(context, nameof(Customer.Code));
         AssertUniqueIndex<Supplier>(context, nameof(Supplier.Code));
         AssertUniqueIndex<CatalogItem>(context, nameof(CatalogItem.Code));
-        AssertUniqueIndex<FinancialCategory>(context, nameof(FinancialCategory.Code));
         AssertUniqueIndex<TaxType>(context, nameof(TaxType.Code));
         AssertUniqueIndex<LedgerAccount>(context, nameof(LedgerAccount.Code));
         AssertUniqueIndex<WithholdingType>(context, nameof(WithholdingType.Code));

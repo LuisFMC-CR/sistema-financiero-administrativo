@@ -41,16 +41,17 @@ public sealed class UsersControllerInputTests
         string longSearch = new('x', 150);
 
         IActionResult action = await controller.Index(
-            longSearch,
-            (UserStatusFilter)999,
-            "Superusuario",
+            fullName: longSearch,
+            email: null,
+            status: (UserStatusFilter)999,
+            role: "Superusuario",
             page: -10,
-            CancellationToken.None);
+            cancellationToken: CancellationToken.None);
 
         ViewResult result = Assert.IsType<ViewResult>(action);
         Assert.IsType<UserIndexViewModel>(result.Model);
         Assert.NotNull(service.LastQuery);
-        Assert.Equal(new string('x', 100), service.LastQuery.Search);
+        Assert.Equal(new string('x', 150), service.LastQuery.FullName);
         Assert.Equal(UserStatusFilter.Active, service.LastQuery.Status);
         Assert.Null(service.LastQuery.Role);
         Assert.Equal(1, service.LastQuery.Page);

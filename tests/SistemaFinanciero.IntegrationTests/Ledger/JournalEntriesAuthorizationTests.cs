@@ -7,11 +7,9 @@ using SistemaFinanciero.Application.Security;
 namespace SistemaFinanciero.IntegrationTests.Ledger;
 
 /// <summary>
-/// Verifica, sin tocar SQL Server, que "Ver asiento" (<c>Trace</c>) exige
-/// <c>Reportes.Ver</c> (Gerencia y Finanzas, igual que los reportes contables que también muestran
-/// cuentas y saldos) y que el comando de generación (<c>Index</c>/<c>Backfill</c>) es exclusivo de
-/// Gerencia vía <c>Parametros.Administrar</c>, porque nunca se ejecuta al arrancar y solo Gerencia
-/// debe poder dispararlo (bloque 5 del paquete de mejoras finales).
+/// Verifica, sin tocar SQL Server, que la consulta general de asientos (<c>Index</c>) y "Ver asiento"
+/// (<c>Trace</c>) exigen <c>Reportes.Ver</c> (Gerencia y Finanzas, igual que los reportes contables que
+/// también muestran cuentas y saldos).
 /// </summary>
 public sealed class JournalEntriesAuthorizationTests : IClassFixture<FinancialWebApplicationFactory>
 {
@@ -39,8 +37,7 @@ public sealed class JournalEntriesAuthorizationTests : IClassFixture<FinancialWe
     }
 
     [Theory]
-    [InlineData("contabilidad/asientos", SystemPolicies.ManageSystemParameters)]
-    [InlineData("contabilidad/asientos/generar-pendientes", SystemPolicies.ManageSystemParameters)]
+    [InlineData("contabilidad/asientos", SystemPolicies.ViewFinancialReports)]
     [InlineData("contabilidad/asientos/por-origen/{sourceType:int}/{sourceId:guid}", SystemPolicies.ViewFinancialReports)]
     public void JournalEntriesEndpoint_RequiresTheExpectedPolicy(string routeTemplate, string expectedPolicy)
     {

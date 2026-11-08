@@ -1,0 +1,67 @@
+@using SistemaFinanciero.Application.Catalogs.Common
+@using SistemaFinanciero.Domain.Catalogs
+@using SistemaFinanciero.Web.Models.Catalogs
+@model CatalogItemFilterViewModel
+
+<tr class="table-filter-row">
+    <th class="p-2">
+        <input form="catalog-filters" name="code" value="@Model.Query.Code" maxlength="30" class="form-control form-control-sm" placeholder="Código" aria-label="Filtrar por código" />
+    </th>
+    <th class="p-2">
+        <input form="catalog-filters" name="name" value="@Model.Query.Name" maxlength="150" class="form-control form-control-sm" placeholder="Nombre" aria-label="Filtrar por nombre" />
+    </th>
+    <th class="p-2">
+        <select form="catalog-filters" name="itemType" class="form-select form-select-sm" aria-label="Filtrar por tipo">
+            <option value="">Todos</option>
+            @foreach (CatalogItemType type in Enum.GetValues<CatalogItemType>())
+            {
+                <option value="@type" selected="@(type == Model.Query.ItemType)">@type.ToDisplayName()</option>
+            }
+        </select>
+    </th>
+    <th class="p-2">
+        <input form="catalog-filters" name="cabysCode" value="@Model.Query.CabysCode" maxlength="20" class="form-control form-control-sm" placeholder="CABYS" aria-label="Filtrar por CABYS" />
+    </th>
+    <th class="p-2">
+        <select form="catalog-filters" name="unitOfMeasure" class="form-select form-select-sm" aria-label="Filtrar por unidad">
+            <option value="">Todas</option>
+            @foreach (UnitOfMeasureCode unit in Enum.GetValues<UnitOfMeasureCode>())
+            {
+                <option value="@unit" selected="@(unit == Model.Query.UnitOfMeasure)">@unit.ToLabel()</option>
+            }
+        </select>
+    </th>
+    <th class="p-2">
+        <input form="catalog-filters" name="referencePrice" type="number" min="0" step="0.0001" value="@Model.Query.ReferencePrice?.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)" class="form-control form-control-sm text-end" placeholder="₡" aria-label="Filtrar por precio de referencia" />
+    </th>
+    <th class="p-2">
+        <input form="catalog-filters" name="taxTypeName" value="@Model.Query.TaxTypeName" maxlength="120" class="form-control form-control-sm" placeholder="Tarifa" aria-label="Filtrar por IVA predeterminado" />
+    </th>
+    <th class="p-2">
+        <select form="catalog-filters" name="status" class="form-select form-select-sm" aria-label="Filtrar por estado">
+            @foreach (CatalogStatusFilter status in Enum.GetValues<CatalogStatusFilter>())
+            {
+                <option value="@status" selected="@(status == Model.Query.Status)">@status.ToDisplayName()</option>
+            }
+        </select>
+    </th>
+    @if (Model.CanManage)
+    {
+        <th class="p-2"></th>
+    }
+</tr>
+<tr>
+    <th colspan="@(Model.CanManage ? 9 : 8)" class="p-2 text-end">
+        <button form="catalog-filters" type="submit" class="btn btn-sm btn-primary" aria-label="Buscar" title="Buscar">
+            <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5" />
+                <path d="m10.5 10.5 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+            </svg>
+        </button>
+        <a asp-action="Index" class="btn btn-sm btn-outline-secondary" aria-label="Limpiar filtros" title="Limpiar">
+            <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M3 4h10M6 4V2.5h4V4m2 0-.6 9H4.6L4 4m2.5 2v4.5m3-4.5v4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+        </a>
+    </th>
+</tr>

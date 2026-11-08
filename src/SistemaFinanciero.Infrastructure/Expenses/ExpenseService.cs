@@ -72,11 +72,11 @@ internal sealed class ExpenseService(
                 supplier.Id == expense.SupplierId && supplier.Name.Contains(supplierName)));
         }
 
-        if (query.CategoryName is not null)
+        if (query.AccountName is not null)
         {
-            string categoryName = query.CategoryName;
-            expenses = expenses.Where(expense => dbContext.Set<FinancialCategory>().Any(category =>
-                category.Id == expense.CategoryId && category.Name.Contains(categoryName)));
+            string accountName = query.AccountName;
+            expenses = expenses.Where(expense => dbContext.Set<LedgerAccount>().Any(account =>
+                account.Id == expense.AccountId && account.Name.Contains(accountName)));
         }
 
         if (query.IssueDateFrom is DateOnly issueDateFrom)
@@ -154,7 +154,7 @@ internal sealed class ExpenseService(
         }
 
         string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
-            dbContext, command.IssueDate, cancellationToken);
+            dbContext, command.IssueDate, timeProvider, cancellationToken);
 
         if (closingDateViolation is not null)
         {
@@ -174,7 +174,7 @@ internal sealed class ExpenseService(
                 Guid.NewGuid(),
                 code,
                 command.SupplierId,
-                command.CategoryId,
+                command.AccountId,
                 command.Description,
                 command.VoucherReference,
                 command.IssueDate,
@@ -250,7 +250,7 @@ internal sealed class ExpenseService(
         {
             expense.UpdateHeader(
                 command.SupplierId,
-                command.CategoryId,
+                command.AccountId,
                 command.Description,
                 command.VoucherReference,
                 command.IssueDate,
@@ -306,7 +306,7 @@ internal sealed class ExpenseService(
         }
 
         string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
-            dbContext, expense.IssueDate, cancellationToken);
+            dbContext, expense.IssueDate, timeProvider, cancellationToken);
 
         if (closingDateViolation is not null)
         {
@@ -422,7 +422,7 @@ internal sealed class ExpenseService(
         }
 
         string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
-            dbContext, expense.IssueDate, cancellationToken);
+            dbContext, expense.IssueDate, timeProvider, cancellationToken);
 
         if (closingDateViolation is not null)
         {
@@ -491,7 +491,7 @@ internal sealed class ExpenseService(
     }
 
     public async Task<ExpenseBudgetCheck> CheckBudgetAsync(
-        Guid categoryId,
+        Guid accountId,
         DateOnly issueDate,
         decimal netAmount,
         CancellationToken cancellationToken = default)
@@ -499,7 +499,7 @@ internal sealed class ExpenseService(
         Budget? budget = await dbContext.Set<Budget>()
             .AsNoTracking()
             .SingleOrDefaultAsync(
-                candidate => candidate.CategoryId == categoryId
+                candidate => candidate.AccountId == accountId
                     && candidate.PeriodYear == issueDate.Year
                     && candidate.PeriodMonth == issueDate.Month,
                 cancellationToken);
@@ -514,7 +514,7 @@ internal sealed class ExpenseService(
 
         decimal executedAmount = await dbContext.Set<Expense>()
             .AsNoTracking()
-            .Where(expense => expense.CategoryId == categoryId
+            .Where(expense => expense.AccountId == accountId
                 && expense.Status == ExpenseStatus.Confirmed
                 && expense.IssueDate >= periodStart
                 && expense.IssueDate <= periodEnd)
@@ -587,17 +587,19 @@ internal sealed class ExpenseService(
             return CatalogOperationResult.Invalid("El proveedor seleccionado no existe o está inactivo.");
         }
 
-        bool isValidCategory = await dbContext.Set<FinancialCategory>()
+        bool isValidAccount = await dbContext.Set<LedgerAccount>()
             .AsNoTracking()
             .AnyAsync(
-                category => category.Id == command.CategoryId
-                    && category.IsActive
-                    && category.Kind == FinancialCategoryKind.Expense,
+                account => account.Id == command.AccountId
+                    && account.IsActive
+                    && account.Type == LedgerAccountType.Expense
+                    && account.IsMovement,
                 cancellationToken);
 
-        if (!isValidCategory)
+        if (!isValidAccount)
         {
-            return CatalogOperationResult.Invalid("La categoría seleccionada no existe, está inactiva o no es de gasto.");
+            return CatalogOperationResult.Invalid(
+                "La cuenta de gasto seleccionada no existe, está inactiva, no es de gasto o no es de movimiento.");
         }
 
         return null;
@@ -634,11 +636,11 @@ internal sealed class ExpenseService(
             .Where(supplier => supplierIds.Contains(supplier.Id))
             .ToDictionaryAsync(supplier => supplier.Id, supplier => supplier.Name, cancellationToken);
 
-        Guid[] categoryIds = expenses.Select(expense => expense.CategoryId).Distinct().ToArray();
-        IReadOnlyDictionary<Guid, string> categoryNames = await dbContext.Set<FinancialCategory>()
+        Guid[] accountIds = expenses.Select(expense => expense.AccountId).Distinct().ToArray();
+        IReadOnlyDictionary<Guid, string> accountNames = await dbContext.Set<LedgerAccount>()
             .AsNoTracking()
-            .Where(category => categoryIds.Contains(category.Id))
-            .ToDictionaryAsync(category => category.Id, category => category.Name, cancellationToken);
+            .Where(account => accountIds.Contains(account.Id))
+            .ToDictionaryAsync(account => account.Id, account => account.Name, cancellationToken);
 
         Guid[] cashAccountIds = expenses
             .Where(expense => expense.CashAccountId is not null)
@@ -664,8 +666,8 @@ internal sealed class ExpenseService(
                 expense.Code,
                 expense.SupplierId,
                 supplierNames.GetValueOrDefault(expense.SupplierId, "—"),
-                expense.CategoryId,
-                categoryNames.GetValueOrDefault(expense.CategoryId, "—"),
+                expense.AccountId,
+                accountNames.GetValueOrDefault(expense.AccountId, "—"),
                 expense.Description,
                 expense.VoucherReference,
                 expense.IssueDate,

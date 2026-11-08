@@ -32,7 +32,8 @@
         {
             <a asp-action="Cancel" asp-route-id="@expense.Id" class="btn btn-danger">Anular</a>
         }
-        @if (expense.Status != ExpenseStatus.Draft)
+        @if (expense.Status != ExpenseStatus.Draft &&
+            (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ViewFinancialReports)).Succeeded)
         {
             <a asp-controller="JournalEntries" asp-action="Trace"
                asp-route-sourceType="@((int)JournalEntrySourceType.Expense)" asp-route-sourceId="@expense.Id"
@@ -47,7 +48,7 @@
             <h2 class="h5">Proveedor</h2>
             <p class="mb-1">@expense.SupplierName</p>
             <h2 class="h5 mt-3">Categoría</h2>
-            <p class="mb-1">@expense.CategoryName</p>
+            <p class="mb-1">@expense.AccountName</p>
             <h2 class="h5 mt-3">Condiciones</h2>
             <p class="mb-1">Descripción: @expense.Description</p>
             <p class="mb-1">Referencia del comprobante del proveedor: @expense.VoucherReference</p>

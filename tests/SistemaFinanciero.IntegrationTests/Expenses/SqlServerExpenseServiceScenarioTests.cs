@@ -31,19 +31,60 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
 
     [Fact]
     [Trait("Category", "SqlServer")]
+    public Task AssistantCanReadAnotherUsersExpense_ButCannotEditIt()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IExpenseService expenses = services.GetRequiredService<IExpenseService>();
+            Guid otherUserId = await CreateUserAsync(services);
+            Guid supplierId = await CreateSupplierAsync(services, actorId);
+            Guid accountId = await CreateExpenseCategoryAsync(services, actorId);
+            Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "13");
+            Guid foreignExpenseId = await CreateDraftExpenseAsync(
+                expenses, supplierId, accountId, taxTypeId, PaymentTerm.Credit30, 1000m, otherUserId);
+
+            ExpenseModel foreignExpense = (await expenses.GetAsync(foreignExpenseId))!;
+            Assert.NotNull(foreignExpense);
+            Assert.Null(await expenses.GetAsync(foreignExpenseId, restrictToOwnerUserId: actorId));
+
+            PagedResult<ExpenseModel> allExpenses = await expenses.SearchAsync(new ExpenseQuery());
+            Assert.Contains(allExpenses.Items, expense => expense.Id == foreignExpenseId);
+
+            CatalogOperationResult blockedUpdate = await expenses.UpdateHeaderAsync(
+                foreignExpenseId,
+                new SaveExpenseCommand(
+                    foreignExpense.SupplierId,
+                    foreignExpense.AccountId,
+                    foreignExpense.Description,
+                    foreignExpense.VoucherReference,
+                    foreignExpense.IssueDate,
+                    foreignExpense.PaymentTerm,
+                    foreignExpense.NetAmount,
+                    foreignExpense.TaxTypeId!.Value,
+                    foreignExpense.VatCreditable,
+                    foreignExpense.PaymentMethod),
+                foreignExpense.Version,
+                actorId,
+                restrictToOwnerUserId: actorId);
+            Assert.Equal(CatalogOperationStatus.NotFound, blockedUpdate.Status);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
     public Task Confirm_CashWithinTheLimit_SavesTheCashAccountAndReferenceWithoutAPayable()
     {
         return RunInRollbackTransactionAsync(async (services, actorId) =>
         {
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
             Guid supplierId = await CreateSupplierAsync(services, actorId);
-            Guid categoryId = await CreateExpenseCategoryAsync(services, actorId);
+            Guid accountId = await CreateExpenseCategoryAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "13");
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
             Guid expenseId = await CreateDraftExpenseAsync(
-                expenses, supplierId, categoryId, taxTypeId, PaymentTerm.Cash, 1000m, actorId);
+                expenses, supplierId, accountId, taxTypeId, PaymentTerm.Cash, 1000m, actorId);
             ExpenseModel draft = (await expenses.GetAsync(expenseId))!;
 
             CatalogOperationResult result = await expenses.ConfirmAsync(
@@ -73,11 +114,11 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
         {
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
             Guid supplierId = await CreateSupplierAsync(services, actorId);
-            Guid categoryId = await CreateExpenseCategoryAsync(services, actorId);
+            Guid accountId = await CreateExpenseCategoryAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "13");
 
             Guid expenseId = await CreateDraftExpenseAsync(
-                expenses, supplierId, categoryId, taxTypeId, PaymentTerm.Credit30, 1000m, actorId);
+                expenses, supplierId, accountId, taxTypeId, PaymentTerm.Credit30, 1000m, actorId);
             ExpenseModel draft = (await expenses.GetAsync(expenseId))!;
 
             CatalogOperationResult result = await expenses.ConfirmAsync(
@@ -107,13 +148,13 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
         {
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
             Guid supplierId = await CreateSupplierAsync(services, actorId);
-            Guid categoryId = await CreateExpenseCategoryAsync(services, actorId);
+            Guid accountId = await CreateExpenseCategoryAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
             await SetAuthorizationLimitAsync(services, actorId, 50m);
 
             Guid expenseId = await CreateDraftExpenseAsync(
-                expenses, supplierId, categoryId, taxTypeId, PaymentTerm.Cash, 100m, actorId);
+                expenses, supplierId, accountId, taxTypeId, PaymentTerm.Cash, 100m, actorId);
             ExpenseModel draft = (await expenses.GetAsync(expenseId))!;
 
             ConfirmExpenseCommand command = new(cashAccountId, "REC-0002");
@@ -140,11 +181,11 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
         {
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
             Guid supplierId = await CreateSupplierAsync(services, actorId);
-            Guid categoryId = await CreateExpenseCategoryAsync(services, actorId);
+            Guid accountId = await CreateExpenseCategoryAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "13");
 
             Guid expenseId = await CreateDraftExpenseAsync(
-                expenses, supplierId, categoryId, taxTypeId, PaymentTerm.Credit30, 1000m, actorId);
+                expenses, supplierId, accountId, taxTypeId, PaymentTerm.Credit30, 1000m, actorId);
             ExpenseModel draft = (await expenses.GetAsync(expenseId))!;
             await expenses.ConfirmAsync(
                 expenseId, new ConfirmExpenseCommand(null, null), draft.Version, actorId, actorIsManagement: false);
@@ -172,11 +213,11 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
         {
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
             Guid supplierId = await CreateSupplierAsync(services, actorId);
-            Guid categoryId = await CreateExpenseCategoryAsync(services, actorId);
+            Guid accountId = await CreateExpenseCategoryAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "13");
 
             Guid expenseId = await CreateDraftExpenseAsync(
-                expenses, supplierId, categoryId, taxTypeId, PaymentTerm.Credit30, 1000m, actorId);
+                expenses, supplierId, accountId, taxTypeId, PaymentTerm.Credit30, 1000m, actorId);
             ExpenseModel draft = (await expenses.GetAsync(expenseId))!;
             await expenses.ConfirmAsync(
                 expenseId, new ConfirmExpenseCommand(null, null), draft.Version, actorId, actorIsManagement: false);
@@ -210,7 +251,7 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
         return RunInRollbackTransactionAsync(async (services, actorId) =>
         {
             Guid supplierId = await CreateSupplierAsync(services, actorId);
-            Guid categoryId = await CreateExpenseCategoryAsync(services, actorId);
+            Guid accountId = await CreateExpenseCategoryAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
             DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
             await SetClosingDateAsync(services, actorId, today);
@@ -218,13 +259,13 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
             ExpenseCreationResult closed = await expenses.CreateAsync(
                 new SaveExpenseCommand(
-                    supplierId, categoryId, "Compra de prueba", "VC-0001", today, PaymentTerm.Cash, 1000m, taxTypeId, true, PaymentMethod.Cash),
+                    supplierId, accountId, "Compra de prueba", "VC-0001", today, PaymentTerm.Cash, 1000m, taxTypeId, true, PaymentMethod.Cash),
                 actorId);
             Assert.Equal(CatalogOperationStatus.Invalid, closed.Operation.Status);
 
             ExpenseCreationResult open = await expenses.CreateAsync(
                 new SaveExpenseCommand(
-                    supplierId, categoryId, "Compra de prueba", "VC-0001", today.AddDays(1), PaymentTerm.Cash, 1000m, taxTypeId, true, PaymentMethod.Cash),
+                    supplierId, accountId, "Compra de prueba", "VC-0001", today.AddDays(1), PaymentTerm.Cash, 1000m, taxTypeId, true, PaymentMethod.Cash),
                 actorId);
             Assert.True(open.Operation.IsSuccess);
         });
@@ -238,13 +279,13 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
         {
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
             Guid supplierId = await CreateSupplierAsync(services, actorId);
-            Guid categoryId = await CreateExpenseCategoryAsync(services, actorId);
+            Guid accountId = await CreateExpenseCategoryAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
             DateOnly issueDate = new(2026, 1, 15);
 
             ExpenseCreationResult created = await expenses.CreateAsync(
                 new SaveExpenseCommand(
-                    supplierId, categoryId, "Compra de prueba", "VC-0001", issueDate, PaymentTerm.Credit30, 1000m, taxTypeId, true, PaymentMethod.Cash),
+                    supplierId, accountId, "Compra de prueba", "VC-0001", issueDate, PaymentTerm.Credit30, 1000m, taxTypeId, true, PaymentMethod.Cash),
                 actorId);
             Guid expenseId = created.ExpenseId!.Value;
             ExpenseModel draft = (await expenses.GetAsync(expenseId))!;
@@ -269,13 +310,13 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
         {
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
             Guid supplierId = await CreateSupplierAsync(services, actorId);
-            Guid categoryId = await CreateExpenseCategoryAsync(services, actorId);
+            Guid accountId = await CreateExpenseCategoryAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
             DateOnly issueDate = new(2026, 1, 15);
 
             ExpenseCreationResult created = await expenses.CreateAsync(
                 new SaveExpenseCommand(
-                    supplierId, categoryId, "Compra de prueba", "VC-0001", issueDate, PaymentTerm.Credit30, 1000m, taxTypeId, true, PaymentMethod.Cash),
+                    supplierId, accountId, "Compra de prueba", "VC-0001", issueDate, PaymentTerm.Credit30, 1000m, taxTypeId, true, PaymentMethod.Cash),
                 actorId);
             Guid expenseId = created.ExpenseId!.Value;
             ExpenseModel draft = (await expenses.GetAsync(expenseId))!;
@@ -308,14 +349,15 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
             context.SystemParameters.Add(parameters);
         }
 
-        parameters.ChangeClosingDate(closingDate, closingDate, reason: null, DateTimeOffset.UtcNow, actorId);
+        context.AccountingPeriodOverrides.Add(new AccountingPeriodOverride(
+            closingDate.Year, closingDate.Month, "Período cerrado para la prueba", DateTimeOffset.UtcNow, actorId));
         await context.SaveChangesAsync();
     }
 
     private static async Task<Guid> CreateDraftExpenseAsync(
         IExpenseService expenses,
         Guid supplierId,
-        Guid categoryId,
+        Guid accountId,
         Guid taxTypeId,
         PaymentTerm paymentTerm,
         decimal netAmount,
@@ -324,7 +366,7 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
         ExpenseCreationResult created = await expenses.CreateAsync(
             new SaveExpenseCommand(
                 supplierId,
-                categoryId,
+                accountId,
                 "Compra de prueba",
                 "VC-0001",
                 DateOnly.FromDateTime(DateTime.UtcNow),
@@ -416,19 +458,7 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
         context.LedgerAccounts.Add(ledgerAccount);
         await context.SaveChangesAsync();
 
-        FinancialCategory category = new(
-            Guid.NewGuid(),
-            $"CAT-{suffix}",
-            "Categoría de gasto de pruebas",
-            FinancialCategoryKind.Expense,
-            null,
-            ledgerAccount.Id,
-            null,
-            DateTimeOffset.UtcNow,
-            actorId);
-        context.FinancialCategories.Add(category);
-        await context.SaveChangesAsync();
-        return category.Id;
+        return ledgerAccount.Id;
     }
 
     private static async Task SetAuthorizationLimitAsync(IServiceProvider services, Guid actorId, decimal limit)

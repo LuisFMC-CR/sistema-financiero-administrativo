@@ -1,0 +1,75 @@
+@using SistemaFinanciero.Domain.Ledger
+@model SistemaFinanciero.Application.CreditNotes.CreditNoteModel
+@{
+    ViewData["Title"] = "Detalle de nota de crédito";
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+    <div>
+        <h1 class="h2 mb-1">Nota de crédito @Model.Code</h1>
+        <p class="text-body-secondary mb-0">Vigente — factura @Model.InvoiceNumber</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="Index" class="btn btn-outline-secondary">Volver a notas de crédito</a>
+        <a asp-action="Pdf" asp-route-id="@Model.Id" class="btn btn-outline-primary">Exportar PDF</a>
+        <a asp-controller="Invoices" asp-action="Details" asp-route-id="@Model.InvoiceId" class="btn btn-outline-secondary">Ver factura</a>
+        <a asp-controller="JournalEntries" asp-action="Trace"
+           asp-route-sourceType="@((int)JournalEntrySourceType.CreditNote)" asp-route-sourceId="@Model.Id"
+           class="btn btn-outline-secondary">Ver asiento</a>
+    </div>
+</div>
+
+<div class="card card-body mb-3">
+    <div class="row g-3">
+        <div class="col-md-4"><strong>Cliente:</strong> @Model.CustomerName</div>
+        <div class="col-md-4"><strong>Fecha:</strong> @Model.IssueDate.ToString("dd/MM/yyyy")</div>
+        <div class="col-md-4"><strong>Registrada por:</strong> @Model.CreatedByFullName</div>
+        <div class="col-12"><strong>Motivo:</strong> @Model.Reason</div>
+        @if (!string.IsNullOrWhiteSpace(Model.ElectronicCreditNoteKey))
+        {
+            <div class="col-12">
+                <strong>Clave electrónica:</strong> @Model.ElectronicCreditNoteKey
+                <br />
+                <strong>Consecutivo:</strong> @Model.ElectronicCreditNoteNumber
+            </div>
+        }
+    </div>
+</div>
+
+<div class="table-responsive bg-white border rounded mb-3">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr><th>#</th><th>Descripción</th><th>Unidad</th><th class="text-end">Cantidad</th><th class="text-end">Neto</th><th class="text-end">IVA (%)</th><th class="text-end">Monto IVA</th><th class="text-end">Total</th></tr>
+        </thead>
+        <tbody>
+        @foreach (var line in Model.Lines)
+        {
+            <tr>
+                <td>@line.Position</td>
+                <td>@line.Description</td>
+                <td>@line.UnitOfMeasure</td>
+                <td class="text-end">@line.Quantity.ToString("N4")</td>
+                <td class="text-end">₡@line.NetAmount.ToString("N2")</td>
+                <td class="text-end">@line.TaxRate.ToString("N2")%</td>
+                <td class="text-end">₡@line.TaxAmount.ToString("N2")</td>
+                <td class="text-end">₡@line.TotalAmount.ToString("N2")</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>
+
+<div class="card card-body ms-auto" style="max-width: 420px">
+    <p class="mb-1">Neto: ₡@Model.NetAmount.ToString("N2")</p>
+    <p class="mb-1">IVA: ₡@Model.TaxAmount.ToString("N2")</p>
+    <p class="mb-1 fw-semibold">Total acreditado: ₡@Model.TotalAmount.ToString("N2")</p>
+    <p class="mb-1">Aplicado al saldo: ₡@Model.AppliedToBalance.ToString("N2")</p>
+    <p class="mb-1">Retenciones revertidas: ₡@Model.WithholdingReversedAmount.ToString("N2")</p>
+    <p class="mb-0">Devuelto en efectivo: ₡@Model.RefundedAmount.ToString("N2")</p>
+    @if (Model.RefundedAmount > 0m)
+    {
+        <hr />
+        <p class="mb-1">Cuenta: @Model.CashAccountName</p>
+        <p class="mb-0">Referencia: @Model.RefundReference</p>
+    }
+</div>

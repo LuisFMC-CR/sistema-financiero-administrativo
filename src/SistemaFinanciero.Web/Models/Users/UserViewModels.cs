@@ -13,17 +13,21 @@ namespace SistemaFinanciero.Web.Models.Users;
 /// </remarks>
 public sealed record UserIndexViewModel(
     PagedResult<UserModel> Results,
-    string? Search,
+    string? FullName,
+    string? Email,
     UserStatusFilter Status,
     string? Role,
+    UserAccessFilter Access,
     IReadOnlyCollection<string> Roles,
     Guid CurrentUserId);
 
 /// <summary>Datos del formulario de filtros del listado de usuarios.</summary>
 public sealed record UserFilterViewModel(
-    string? Search,
+    string? FullName,
+    string? Email,
     UserStatusFilter Status,
     string? Role,
+    UserAccessFilter Access,
     IReadOnlyCollection<string> Roles);
 
 /// <summary>Datos para conservar los filtros al cambiar de página.</summary>
@@ -32,9 +36,11 @@ public sealed record UserPaginationViewModel(
     int TotalPages,
     bool HasPreviousPage,
     bool HasNextPage,
-    string? Search,
+    string? FullName,
+    string? Email,
     UserStatusFilter Status,
-    string? Role);
+    string? Role,
+    UserAccessFilter Access);
 
 /// <summary>Campos administrativos comunes para crear o editar una cuenta interna.</summary>
 public abstract class UserInputViewModel

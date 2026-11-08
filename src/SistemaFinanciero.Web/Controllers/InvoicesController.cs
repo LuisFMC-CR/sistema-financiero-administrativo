@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using QuestPDF.Fluent;
-using SistemaFinanciero.Application.Catalogs.Categories;
 using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Catalogs.Customers;
 using SistemaFinanciero.Application.Catalogs.Items;
@@ -19,17 +18,18 @@ using SistemaFinanciero.Web.Reporting;
 
 namespace SistemaFinanciero.Web.Controllers;
 
-/// <summary>Presenta el ciclo de vida de la factura administrativa: borrador, confirmación y anulación.</summary>
+/// <summary>Presenta el ciclo de vida de la factura administrativa y su confirmación.</summary>
 /// <remarks>
 /// Conexiones: usa <c>IInvoiceService</c> (Application) para la factura, <c>ICustomerCatalogService</c>
 /// para el selector de cliente, <c>ICatalogItemService</c> para el selector de artículo de una línea,
-/// <c>ITaxTypeService</c> para el selector de tarifa de IVA, y <c>ILedgerAccountService</c> /
-/// <c>IFinancialCategoryService</c> para los selectores de cuenta de efectivo y categoría que pide
-/// confirmar una factura de contado (regla 10). Un Asistente solo ve y edita las facturas que él mismo
-/// creó (<see cref="OwnerRestriction"/>); Finanzas y Gerencia ven y, según su política, editan o
-/// resuelven cualquiera. Las políticas de <c>SystemPolicies</c> a nivel de acción son siempre un
-/// subconjunto de la política de clase (<c>ViewFinancialTransactions</c>), así que combinarlas con
-/// <c>[Authorize]</c> adicional en cada acción restringe correctamente sin contradicciones.
+/// <c>ITaxTypeService</c> para el selector de tarifa de IVA, y <c>ILedgerAccountService</c> para los
+/// selectores de cuenta de efectivo y cuenta de ingreso que pide
+/// confirmar una factura de contado (regla 10). Un Asistente consulta facturas de cualquier usuario,
+/// pero solo edita sus propios borradores (<see cref="OwnerRestriction"/>); Finanzas y Gerencia ven
+/// y, según su política, editan o resuelven cualquiera. Las políticas de <c>SystemPolicies</c> a
+/// nivel de acción son siempre un subconjunto de la política de clase
+/// (<c>ViewFinancialTransactions</c>), así que combinarlas con <c>[Authorize]</c> adicional en cada
+/// acción restringe correctamente sin contradicciones.
 /// </remarks>
 [Authorize(Policy = SystemPolicies.ViewFinancialTransactions)]
 [Route("facturacion/facturas")]
@@ -39,37 +39,45 @@ public sealed class InvoicesController(
     ICatalogItemService catalogItemService,
     ITaxTypeService taxTypeService,
     ILedgerAccountService ledgerAccountService,
-    IFinancialCategoryService financialCategoryService,
     IAuthorizationService authorizationService,
     ISystemParametersService systemParametersService) : CatalogControllerBase
 {
     [HttpGet("")]
     public async Task<IActionResult> Index(
-        string? search,
+        long? number,
+        string? customerName,
+        DateOnly? issueDate,
+        PaymentTerm? paymentTerm,
+        DateOnly? dueDate,
         InvoiceStatusFilter status = InvoiceStatusFilter.All,
-        DateOnly? issueDateFrom = null,
-        DateOnly? issueDateTo = null,
-        PaymentTerm? paymentTerm = null,
+        decimal? totalAmount = null,
+        string? createdByUserName = null,
         int page = 1,
         CancellationToken cancellationToken = default)
     {
         InvoiceQuery query = new(
-            NormalizeSearch(search),
-            NormalizeStatus(status),
-            OwnerRestriction(),
-            issueDateFrom,
-            issueDateTo,
-            paymentTerm,
-            page: page);
+            status: NormalizeStatus(status),
+            createdByUserId: null,
+            paymentTerm: paymentTerm,
+            page: page,
+            number: number,
+            customerName: customerName,
+            issueDate: issueDate,
+            dueDate: dueDate,
+            totalAmount: totalAmount,
+            createdByUserName: createdByUserName);
         PagedResult<InvoiceSummaryModel> results = await service.SearchAsync(query, cancellationToken);
 
         return View(new InvoiceIndexViewModel(
             results,
-            query.Search,
+            query.Number,
+            query.CustomerName,
+            query.IssueDate,
+            query.PaymentTerm,
+            query.DueDate,
             query.Status,
-            query.IssueDateFrom,
-            query.IssueDateTo,
-            query.PaymentTerm));
+            query.TotalAmount,
+            query.CreatedByUserName));
     }
 
     [Authorize(Policy = SystemPolicies.CreateFinancialDrafts)]
@@ -99,7 +107,7 @@ public sealed class InvoicesController(
         }
 
         InvoiceCreationResult result = await service.CreateAsync(
-            new CreateInvoiceCommand(model.CustomerId!.Value, model.IncomeCategoryId!.Value, model.IssueDate, model.PaymentTerm),
+            new CreateInvoiceCommand(model.CustomerId!.Value, model.IncomeAccountId!.Value, model.IssueDate, model.PaymentTerm),
             actorId,
             cancellationToken);
 
@@ -121,7 +129,7 @@ public sealed class InvoicesController(
             return Forbid();
         }
 
-        InvoiceModel? invoice = await service.GetAsync(id, OwnerRestriction(), cancellationToken);
+        InvoiceModel? invoice = await service.GetAsync(id, restrictToOwnerUserId: null, cancellationToken);
 
         if (invoice is null)
         {
@@ -135,10 +143,6 @@ public sealed class InvoicesController(
         bool canConfirm = (await authorizationService.AuthorizeAsync(
             User,
             SystemPolicies.ConfirmFinancialTransactions)).Succeeded;
-        bool canCancel = (await authorizationService.AuthorizeAsync(
-            User,
-            SystemPolicies.VoidFinancialTransactions)).Succeeded;
-
         bool isDraft = invoice.Status == InvoiceStatus.Draft;
         bool canEditDraft = isDraft && canManageDrafts && (!User.IsInRole(SystemRoles.Assistant) || isOwnDraft);
 
@@ -146,8 +150,7 @@ public sealed class InvoicesController(
             invoice,
             canEditDraft,
             canConfirm && isDraft,
-            canCancel && invoice.Status == InvoiceStatus.Confirmed,
-            canConfirm && invoice.Status == InvoiceStatus.Confirmed && invoice.ElectronicInvoiceKey is null));
+            canConfirm && invoice.Status == InvoiceStatus.Confirmed));
     }
 
     /// <summary>
@@ -157,7 +160,7 @@ public sealed class InvoicesController(
     [HttpGet("{id:guid}/pdf")]
     public async Task<IActionResult> Pdf(Guid id, CancellationToken cancellationToken)
     {
-        InvoiceModel? invoice = await service.GetAsync(id, OwnerRestriction(), cancellationToken);
+        InvoiceModel? invoice = await service.GetAsync(id, restrictToOwnerUserId: null, cancellationToken);
 
         if (invoice is null)
         {
@@ -185,7 +188,7 @@ public sealed class InvoicesController(
     [HttpGet("{id:guid}/exportar-datos")]
     public async Task<IActionResult> ExportData(Guid id, CancellationToken cancellationToken)
     {
-        InvoiceModel? invoice = await service.GetAsync(id, OwnerRestriction(), cancellationToken);
+        InvoiceModel? invoice = await service.GetAsync(id, restrictToOwnerUserId: null, cancellationToken);
 
         if (invoice is null)
         {
@@ -265,7 +268,7 @@ public sealed class InvoicesController(
         InvoiceHeaderEditViewModel model = new()
         {
             CustomerId = invoice.CustomerId,
-            IncomeCategoryId = await ProposeIncomeCategoryIdAsync(invoice, cancellationToken),
+            IncomeAccountId = await ProposeIncomeAccountIdAsync(invoice, cancellationToken),
             IssueDate = invoice.IssueDate,
             PaymentTerm = invoice.PaymentTerm,
             Version = invoice.Version,
@@ -294,7 +297,7 @@ public sealed class InvoicesController(
 
         CatalogOperationResult result = await service.UpdateHeaderAsync(
             id,
-            new UpdateInvoiceHeaderCommand(model.CustomerId!.Value, model.IncomeCategoryId!.Value, model.IssueDate, model.PaymentTerm),
+            new UpdateInvoiceHeaderCommand(model.CustomerId!.Value, model.IncomeAccountId!.Value, model.IssueDate, model.PaymentTerm),
             model.Version,
             actorId,
             OwnerRestriction(),
@@ -582,124 +585,6 @@ public sealed class InvoicesController(
         return FormFailure(result, model, nameof(Confirm));
     }
 
-    [Authorize(Policy = SystemPolicies.VoidFinancialTransactions)]
-    [HttpGet("{id:guid}/anular")]
-    public async Task<IActionResult> Cancel(Guid id, CancellationToken cancellationToken)
-    {
-        InvoiceModel? invoice = await service.GetAsync(id, restrictToOwnerUserId: null, cancellationToken);
-
-        if (invoice is null)
-        {
-            return NotFound();
-        }
-
-        return View(new InvoiceCancelViewModel { Version = invoice.Version });
-    }
-
-    [Authorize(Policy = SystemPolicies.VoidFinancialTransactions)]
-    [HttpPost("{id:guid}/anular")]
-    public async Task<IActionResult> Cancel(
-        Guid id,
-        InvoiceCancelViewModel model,
-        CancellationToken cancellationToken)
-    {
-        if (!ModelState.IsValid)
-        {
-            return View(model);
-        }
-
-        if (!TryGetActorId(out Guid actorId))
-        {
-            return Forbid();
-        }
-
-        CatalogOperationResult result = await service.CancelAsync(
-            id,
-            model.Reason,
-            model.Version,
-            actorId,
-            cancellationToken);
-
-        if (result.IsSuccess)
-        {
-            SetSuccessMessage("La factura fue anulada.");
-            return RedirectToAction(nameof(Details), new { id });
-        }
-
-        if (result.Status == CatalogOperationStatus.ConcurrencyConflict)
-        {
-            InvoiceModel? latest = await service.GetAsync(id, restrictToOwnerUserId: null, cancellationToken);
-            if (latest is null)
-            {
-                return NotFound();
-            }
-
-            model.Version = latest.Version;
-            ModelState.Remove(nameof(model.Version));
-        }
-
-        return FormFailure(result, model, nameof(Cancel));
-    }
-
-    [Authorize(Policy = SystemPolicies.ConfirmFinancialTransactions)]
-    [HttpGet("{id:guid}/clave-electronica")]
-    public async Task<IActionResult> RegisterElectronicInvoice(Guid id, CancellationToken cancellationToken)
-    {
-        InvoiceModel? invoice = await service.GetAsync(id, restrictToOwnerUserId: null, cancellationToken);
-
-        if (invoice is null)
-        {
-            return NotFound();
-        }
-
-        return View(new InvoiceElectronicInvoiceViewModel { Version = invoice.Version });
-    }
-
-    [Authorize(Policy = SystemPolicies.ConfirmFinancialTransactions)]
-    [HttpPost("{id:guid}/clave-electronica")]
-    public async Task<IActionResult> RegisterElectronicInvoice(
-        Guid id,
-        InvoiceElectronicInvoiceViewModel model,
-        CancellationToken cancellationToken)
-    {
-        if (!ModelState.IsValid)
-        {
-            return View(model);
-        }
-
-        if (!TryGetActorId(out Guid actorId))
-        {
-            return Forbid();
-        }
-
-        CatalogOperationResult result = await service.RegisterElectronicInvoiceAsync(
-            id,
-            new RegisterElectronicInvoiceCommand(model.ElectronicInvoiceKey, model.ElectronicInvoiceNumber),
-            model.Version,
-            actorId,
-            cancellationToken);
-
-        if (result.IsSuccess)
-        {
-            SetSuccessMessage("La clave del comprobante electrónico fue registrada.");
-            return RedirectToAction(nameof(Details), new { id });
-        }
-
-        if (result.Status == CatalogOperationStatus.ConcurrencyConflict)
-        {
-            InvoiceModel? latest = await service.GetAsync(id, restrictToOwnerUserId: null, cancellationToken);
-            if (latest is null)
-            {
-                return NotFound();
-            }
-
-            model.Version = latest.Version;
-            ModelState.Remove(nameof(model.Version));
-        }
-
-        return FormFailure(result, model, nameof(RegisterElectronicInvoice));
-    }
-
     private static InvoiceLineInputCommand ToLineCommand(InvoiceLineInputViewModel model) => new(
         model.CatalogItemId!.Value,
         model.Quantity,
@@ -732,22 +617,22 @@ public sealed class InvoicesController(
 
     /// <summary>
     /// Propone la categoría de ingreso al editar el encabezado: si la factura tiene una sola línea
-    /// (la primera) tomada de un producto o servicio con <c>DefaultIncomeCategoryId</c>, la propone en
+    /// (la primera) tomada de un producto o servicio con <c>DefaultIncomeAccountId</c>, la propone en
     /// vez del valor ya guardado (bloque 2 del paquete de mejoras finales); la persona puede
     /// cambiarla antes de guardar.
     /// </summary>
-    private async Task<Guid> ProposeIncomeCategoryIdAsync(InvoiceModel invoice, CancellationToken cancellationToken)
+    private async Task<Guid> ProposeIncomeAccountIdAsync(InvoiceModel invoice, CancellationToken cancellationToken)
     {
         if (invoice.Lines.Count == 1 && invoice.Lines[0].CatalogItemId is Guid catalogItemId)
         {
             CatalogItemModel? catalogItem = await catalogItemService.GetAsync(catalogItemId, cancellationToken);
-            if (catalogItem?.DefaultIncomeCategoryId is Guid defaultCategoryId)
+            if (catalogItem?.DefaultIncomeAccountId is Guid defaultAccountId)
             {
-                return defaultCategoryId;
+                return defaultAccountId;
             }
         }
 
-        return invoice.IncomeCategoryId;
+        return invoice.IncomeAccountId;
     }
 
     private async Task PopulateCustomerOptionsAsync(
@@ -763,14 +648,14 @@ public sealed class InvoicesController(
                 option.Id == model.CustomerId))
             .ToList();
 
-        IReadOnlyList<FinancialCategoryOption> categories = await financialCategoryService.GetActiveOptionsAsync(
-            FinancialCategoryKind.Income,
+        IReadOnlyList<LedgerAccountOption> categories = await ledgerAccountService.GetActiveOptionsAsync(
+            LedgerAccountType.Income,
             cancellationToken: cancellationToken);
         model.IncomeCategoryOptions = categories
             .Select(option => new SelectListItem(
                 $"{option.Code} - {option.Name}",
                 option.Id.ToString(),
-                option.Id == model.IncomeCategoryId))
+                option.Id == model.IncomeAccountId))
             .ToList();
     }
 

@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using SistemaFinanciero.Application.Catalogs.Categories;
 using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Catalogs.Items;
+using SistemaFinanciero.Application.Catalogs.LedgerAccounts;
 using SistemaFinanciero.Application.Catalogs.TaxTypes;
 using SistemaFinanciero.Application.Security;
 using SistemaFinanciero.Domain.Catalogs;
@@ -14,7 +14,7 @@ namespace SistemaFinanciero.Web.Controllers;
 /// <summary>Presenta el catálogo unificado de productos y servicios facturables.</summary>
 /// <remarks>
 /// Conexiones: usa <c>ICatalogItemService</c> (Application) para el elemento en sí,
-/// <c>IFinancialCategoryService</c> para armar el selector de categoría de ingreso predeterminada
+/// <c>ILedgerAccountService</c> para armar el selector de cuenta de ingreso predeterminada
 /// (<see cref="PopulateCategoryOptionsAsync"/>) e <c>ITaxTypeService</c> para el selector de tarifa de
 /// IVA predeterminada (RF-52, <see cref="PopulateTaxTypeOptionsAsync"/>). Solo Finanzas mantiene
 /// (<c>ManageBusinessCatalogs</c>). Alimentará el selector de artículos que necesitará la futura
@@ -24,20 +24,35 @@ namespace SistemaFinanciero.Web.Controllers;
 [Route("catalogos/productos-servicios")]
 public sealed class CatalogItemsController(
     ICatalogItemService service,
-    IFinancialCategoryService categoryService,
+    ILedgerAccountService ledgerAccountService,
     ITaxTypeService taxTypeService) : CatalogControllerBase
 {
     [HttpGet("")]
     public async Task<IActionResult> Index(
-        string? search,
+        string? code,
+        string? name,
+        CatalogItemType? itemType,
+        string? cabysCode,
+        UnitOfMeasureCode? unitOfMeasure,
+        decimal? referencePrice,
+        string? taxTypeName,
         CatalogStatusFilter status = CatalogStatusFilter.Active,
         int page = 1,
         CancellationToken cancellationToken = default)
     {
-        CatalogQuery query = new(NormalizeSearch(search), NormalizeStatus(status), page);
+        CatalogQuery query = new(
+            status: NormalizeStatus(status),
+            page: page,
+            code: code,
+            name: name,
+            itemType: itemType,
+            cabysCode: cabysCode,
+            unitOfMeasure: unitOfMeasure,
+            referencePrice: referencePrice,
+            taxTypeName: taxTypeName);
         PagedResult<CatalogItemModel> results = await service.SearchAsync(query, cancellationToken);
 
-        return View(new CatalogIndexViewModel<CatalogItemModel>(results, query.Search, query.Status));
+        return View(new CatalogIndexViewModel<CatalogItemModel>(results, query));
     }
 
     [Authorize(Policy = SystemPolicies.ManageBusinessCatalogs)]
@@ -95,7 +110,7 @@ public sealed class CatalogItemsController(
         }
 
         CatalogItemEditViewModel model = ToEditModel(item);
-        await PopulateCategoryOptionsAsync(model, item.DefaultIncomeCategoryName, cancellationToken);
+        await PopulateCategoryOptionsAsync(model, item.DefaultIncomeAccountName, cancellationToken);
         await PopulateTaxTypeOptionsAsync(model, item.DefaultTaxTypeName, cancellationToken);
         return View(model);
     }
@@ -132,7 +147,7 @@ public sealed class CatalogItemsController(
             return RedirectToAction(nameof(Index));
         }
 
-        string? selectedCategoryName = null;
+        string? selectedAccountName = null;
         string? selectedTaxTypeName = null;
         if (result.Status == CatalogOperationStatus.ConcurrencyConflict)
         {
@@ -143,8 +158,8 @@ public sealed class CatalogItemsController(
             }
 
             model.Version = current.Version;
-            selectedCategoryName = current.DefaultIncomeCategoryId == model.DefaultIncomeCategoryId
-                ? current.DefaultIncomeCategoryName
+            selectedAccountName = current.DefaultIncomeAccountId == model.DefaultIncomeAccountId
+                ? current.DefaultIncomeAccountName
                 : null;
             selectedTaxTypeName = current.DefaultTaxTypeId == model.DefaultTaxTypeId
                 ? current.DefaultTaxTypeName
@@ -152,7 +167,7 @@ public sealed class CatalogItemsController(
             ModelState.Remove(nameof(model.Version));
         }
 
-        await PopulateCategoryOptionsAsync(model, selectedCategoryName, cancellationToken);
+        await PopulateCategoryOptionsAsync(model, selectedAccountName, cancellationToken);
         await PopulateTaxTypeOptionsAsync(model, selectedTaxTypeName, cancellationToken);
         return FormFailure(result, model, nameof(Edit));
     }
@@ -202,7 +217,7 @@ public sealed class CatalogItemsController(
             model.Description,
             model.UnitOfMeasure,
             model.ReferencePriceCrc,
-            model.DefaultIncomeCategoryId,
+            model.DefaultIncomeAccountId,
             model.DefaultTaxTypeId);
     }
 
@@ -214,7 +229,7 @@ public sealed class CatalogItemsController(
             model.Description,
             model.UnitOfMeasure,
             model.ReferencePriceCrc,
-            model.DefaultIncomeCategoryId,
+            model.DefaultIncomeAccountId,
             model.DefaultTaxTypeId);
     }
 
@@ -229,7 +244,7 @@ public sealed class CatalogItemsController(
             Description = item.Description,
             UnitOfMeasure = item.UnitOfMeasure,
             ReferencePriceCrc = item.ReferencePriceCrc,
-            DefaultIncomeCategoryId = item.DefaultIncomeCategoryId,
+            DefaultIncomeAccountId = item.DefaultIncomeAccountId,
             DefaultTaxTypeId = item.DefaultTaxTypeId,
             Version = item.Version,
         };
@@ -237,25 +252,25 @@ public sealed class CatalogItemsController(
 
     private async Task PopulateCategoryOptionsAsync(
         CatalogItemInputViewModel model,
-        string? selectedCategoryName,
+        string? selectedAccountName,
         CancellationToken cancellationToken)
     {
-        IReadOnlyList<FinancialCategoryOption> options = await categoryService.GetActiveOptionsAsync(
-            FinancialCategoryKind.Income,
+        IReadOnlyList<LedgerAccountOption> options = await ledgerAccountService.GetActiveOptionsAsync(
+            LedgerAccountType.Income,
             cancellationToken: cancellationToken);
 
         List<SelectListItem> selectItems = options
             .Select(option => new SelectListItem(
                 $"{option.Code} - {option.Name}",
                 option.Id.ToString(),
-                option.Id == model.DefaultIncomeCategoryId))
+                option.Id == model.DefaultIncomeAccountId))
             .ToList();
 
-        if (model.DefaultIncomeCategoryId is Guid selectedId &&
+        if (model.DefaultIncomeAccountId is Guid selectedId &&
             selectItems.All(option => option.Value != selectedId.ToString()))
         {
             selectItems.Add(new SelectListItem(
-                selectedCategoryName ?? "Categoría seleccionada no disponible",
+                selectedAccountName ?? "Categoría seleccionada no disponible",
                 selectedId.ToString(),
                 true));
         }

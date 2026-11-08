@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Incomes;
 using SistemaFinanciero.Application.Invoices;
+using SistemaFinanciero.Application.Parameters;
 using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Common;
 using SistemaFinanciero.Domain.Incomes;
@@ -37,11 +38,11 @@ public sealed class SqlServerIncomeServiceScenarioTests : IClassFixture<Financia
         {
             IIncomeService incomes = services.GetRequiredService<IIncomeService>();
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
 
             IncomeCreationResult created = await incomes.CreateManualAsync(
                 new CreateManualIncomeCommand(
-                    incomeCategoryId,
+                    incomeAccountId,
                     cashAccountId,
                     15_000m,
                     DateOnly.FromDateTime(DateTime.UtcNow),
@@ -81,11 +82,11 @@ public sealed class SqlServerIncomeServiceScenarioTests : IClassFixture<Financia
         return RunInRollbackTransactionAsync(async (services, actorId) =>
         {
             IIncomeService incomes = services.GetRequiredService<IIncomeService>();
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
 
             IncomeCreationResult created = await incomes.CreateManualAsync(
                 new CreateManualIncomeCommand(
-                    incomeCategoryId,
+                    incomeAccountId,
                     Guid.NewGuid(),
                     15_000m,
                     DateOnly.FromDateTime(DateTime.UtcNow),
@@ -110,10 +111,10 @@ public sealed class SqlServerIncomeServiceScenarioTests : IClassFixture<Financia
             Guid customerId = await CreateCustomerAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
 
             InvoiceCreationResult createdInvoice = await invoices.CreateAsync(
-                new CreateInvoiceCommand(customerId, incomeCategoryId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Cash),
+                new CreateInvoiceCommand(customerId, incomeAccountId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Cash),
                 actorId);
             Guid invoiceId = createdInvoice.InvoiceId!.Value;
 
@@ -157,18 +158,84 @@ public sealed class SqlServerIncomeServiceScenarioTests : IClassFixture<Financia
         {
             IIncomeService incomes = services.GetRequiredService<IIncomeService>();
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
 
             DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
             await SetClosingDateAsync(services, actorId, today);
 
             IncomeCreationResult closed = await incomes.CreateManualAsync(
                 new CreateManualIncomeCommand(
-                    incomeCategoryId, cashAccountId, 15_000m, today,
+                    incomeAccountId, cashAccountId, 15_000m, today,
                     PaymentMethod.BankTransfer, "DEP-CIERRE", "Reintegro"),
                 actorId);
 
             Assert.Equal(CatalogOperationStatus.Invalid, closed.Operation.Status);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task FiscalPeriodAndMonthlyClosure_AllowOnlyReopenedMonthsInsideTheFiscalRange()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            ISystemParametersService settings = services.GetRequiredService<ISystemParametersService>();
+            SaveSystemParametersCommand parametersCommand = new(500_000m, 7);
+            SystemParametersModel? existingSettings = await settings.GetAsync();
+            CatalogOperationResult parametersResult = existingSettings is null
+                ? await settings.CreateAsync(parametersCommand, actorId)
+                : await settings.UpdateAsync(parametersCommand, existingSettings.Version, actorId);
+            Assert.True(parametersResult.IsSuccess);
+
+            DateOnly currentMonth = DateOnly.FromDateTime(
+                services.GetRequiredService<TimeProvider>().GetLocalNow().DateTime);
+            DateOnly previousMonthStart = new DateOnly(currentMonth.Year, currentMonth.Month, 1).AddMonths(-1);
+            DateOnly fiscalEnd = previousMonthStart.AddYears(1).AddDays(-1);
+            SystemParametersModel currentSettings = (await settings.GetAsync())!;
+            Assert.True((await settings.UpdateFiscalPeriodAsync(
+                previousMonthStart,
+                fiscalEnd,
+                reason: null,
+                currentSettings.Version,
+                actorId)).IsSuccess);
+
+            Assert.True((await settings.ReopenAccountingPeriodAsync(
+                previousMonthStart.Year,
+                previousMonthStart.Month,
+                "Corrección de cierre",
+                actorId)).IsSuccess);
+
+            IIncomeService incomes = services.GetRequiredService<IIncomeService>();
+            Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
+            CreateManualIncomeCommand CreateCommand(DateOnly date, string reference) => new(
+                incomeAccountId,
+                cashAccountId,
+                100m,
+                date,
+                PaymentMethod.Cash,
+                reference,
+                "Ingreso de prueba");
+
+            IncomeCreationResult reopenedMonth = await incomes.CreateManualAsync(
+                CreateCommand(previousMonthStart, "PERIODO-ABIERTO"),
+                actorId);
+            Assert.True(reopenedMonth.Operation.IsSuccess);
+
+            ReopenedAccountingPeriodModel reopened = Assert.Single(
+                await settings.GetReopenedAccountingPeriodsAsync());
+            Assert.True((await settings.CloseAccountingPeriodAsync(
+                reopened.Year, reopened.Month, reopened.Version, actorId)).IsSuccess);
+
+            IncomeCreationResult closedMonth = await incomes.CreateManualAsync(
+                CreateCommand(previousMonthStart, "PERIODO-CERRADO"),
+                actorId);
+            Assert.Equal(CatalogOperationStatus.Invalid, closedMonth.Operation.Status);
+
+            IncomeCreationResult outsideFiscalPeriod = await incomes.CreateManualAsync(
+                CreateCommand(fiscalEnd.AddDays(1), "FUERA-FISCAL"),
+                actorId);
+            Assert.Equal(CatalogOperationStatus.Invalid, outsideFiscalPeriod.Operation.Status);
         });
     }
 
@@ -180,12 +247,12 @@ public sealed class SqlServerIncomeServiceScenarioTests : IClassFixture<Financia
         {
             IIncomeService incomes = services.GetRequiredService<IIncomeService>();
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
             DateOnly incomeDate = new(2026, 1, 15);
 
             IncomeCreationResult created = await incomes.CreateManualAsync(
                 new CreateManualIncomeCommand(
-                    incomeCategoryId, cashAccountId, 15_000m, incomeDate,
+                    incomeAccountId, cashAccountId, 15_000m, incomeDate,
                     PaymentMethod.BankTransfer, "DEP-0099", "Reintegro"),
                 actorId);
             IncomeModel income = (await incomes.GetAsync(created.IncomeId!.Value))!;
@@ -212,7 +279,8 @@ public sealed class SqlServerIncomeServiceScenarioTests : IClassFixture<Financia
             context.SystemParameters.Add(parameters);
         }
 
-        parameters.ChangeClosingDate(closingDate, closingDate, reason: null, DateTimeOffset.UtcNow, actorId);
+        context.AccountingPeriodOverrides.Add(new AccountingPeriodOverride(
+            closingDate.Year, closingDate.Month, "Período cerrado para la prueba", DateTimeOffset.UtcNow, actorId));
         await context.SaveChangesAsync();
     }
 
@@ -224,11 +292,11 @@ public sealed class SqlServerIncomeServiceScenarioTests : IClassFixture<Financia
         {
             IIncomeService incomes = services.GetRequiredService<IIncomeService>();
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
 
             IncomeCreationResult first = await incomes.CreateManualAsync(
                 new CreateManualIncomeCommand(
-                    incomeCategoryId, cashAccountId, 5_000m, DateOnly.FromDateTime(DateTime.UtcNow),
+                    incomeAccountId, cashAccountId, 5_000m, DateOnly.FromDateTime(DateTime.UtcNow),
                     PaymentMethod.BankTransfer, "DEP-REPETIDO", "Primer reintegro"),
                 actorId);
             Assert.True(first.Operation.IsSuccess);
@@ -236,7 +304,7 @@ public sealed class SqlServerIncomeServiceScenarioTests : IClassFixture<Financia
 
             IncomeCreationResult second = await incomes.CreateManualAsync(
                 new CreateManualIncomeCommand(
-                    incomeCategoryId, cashAccountId, 3_000m, DateOnly.FromDateTime(DateTime.UtcNow),
+                    incomeAccountId, cashAccountId, 3_000m, DateOnly.FromDateTime(DateTime.UtcNow),
                     PaymentMethod.BankTransfer, "DEP-REPETIDO", "Segundo reintegro"),
                 actorId);
 
@@ -347,19 +415,7 @@ public sealed class SqlServerIncomeServiceScenarioTests : IClassFixture<Financia
         context.LedgerAccounts.Add(ledgerAccount);
         await context.SaveChangesAsync();
 
-        FinancialCategory category = new(
-            Guid.NewGuid(),
-            $"CAT-{suffix}",
-            "Categoría de ingreso de pruebas de ingresos",
-            FinancialCategoryKind.Income,
-            null,
-            ledgerAccount.Id,
-            null,
-            DateTimeOffset.UtcNow,
-            actorId);
-        context.FinancialCategories.Add(category);
-        await context.SaveChangesAsync();
-        return category.Id;
+        return ledgerAccount.Id;
     }
 
     private static async Task<Guid> CreateUserAsync(IServiceProvider services)

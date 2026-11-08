@@ -7,6 +7,7 @@ using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Common;
 using SistemaFinanciero.Domain.Incomes;
 using SistemaFinanciero.Domain.Invoices;
+using SistemaFinanciero.Domain.Parameters;
 using SistemaFinanciero.Domain.Receivables;
 using SistemaFinanciero.Domain.Ledger;
 using SistemaFinanciero.Infrastructure.Catalogs;
@@ -72,9 +73,26 @@ internal sealed class InvoiceService(
                     customer.Id == invoice.CustomerId && customer.Name.Contains(search)));
         }
 
+        if (query.Number is long number)
+        {
+            invoices = invoices.Where(invoice => invoice.Number == number);
+        }
+
+        if (query.CustomerName is string customerName)
+        {
+            invoices = invoices.Where(invoice =>
+                dbContext.Set<Customer>().Any(customer =>
+                    customer.Id == invoice.CustomerId && customer.Name.Contains(customerName)));
+        }
+
         if (query.IssueDateFrom is DateOnly issueDateFrom)
         {
             invoices = invoices.Where(invoice => invoice.IssueDate >= issueDateFrom);
+        }
+
+        if (query.IssueDate is DateOnly issueDate)
+        {
+            invoices = invoices.Where(invoice => invoice.IssueDate == issueDate);
         }
 
         if (query.IssueDateTo is DateOnly issueDateTo)
@@ -82,9 +100,26 @@ internal sealed class InvoiceService(
             invoices = invoices.Where(invoice => invoice.IssueDate <= issueDateTo);
         }
 
+        if (query.DueDate is DateOnly dueDate)
+        {
+            invoices = invoices.Where(invoice => invoice.DueDate == dueDate);
+        }
+
         if (query.PaymentTerm is PaymentTerm paymentTerm)
         {
             invoices = invoices.Where(invoice => invoice.PaymentTerm == paymentTerm);
+        }
+
+        if (query.TotalAmount is decimal totalAmount)
+        {
+            invoices = invoices.Where(invoice => invoice.TotalAmount == totalAmount);
+        }
+
+        if (query.CreatedByUserName is string createdByUserName)
+        {
+            invoices = invoices.Where(invoice =>
+                dbContext.Users.Any(user =>
+                    user.Id == invoice.CreatedByUserId && user.FullName.Contains(createdByUserName)));
         }
 
         PagedResult<Invoice> page = await CatalogPersistence.ToPageAsync(
@@ -132,7 +167,7 @@ internal sealed class InvoiceService(
         }
 
         CustomerContact? customer = await GetCustomerContactAsync(invoice.CustomerId, cancellationToken);
-        string categoryName = await GetCategoryNameAsync(invoice.IncomeCategoryId, cancellationToken);
+        string accountName = await GetAccountNameAsync(invoice.IncomeAccountId, cancellationToken);
         IReadOnlyDictionary<Guid, string> userNames = await GetUserNamesAsync(
             [invoice.CreatedByUserId],
             cancellationToken);
@@ -156,18 +191,18 @@ internal sealed class InvoiceService(
             customer?.Phone,
             customer?.VatCondition ?? VatCondition.Normal,
             customer?.ActivityCode,
-            categoryName,
+            accountName,
             userNames.GetValueOrDefault(invoice.CreatedByUserId, "—"),
             catalogItemInfo,
             paymentMethod);
     }
 
-    private async Task<string> GetCategoryNameAsync(Guid categoryId, CancellationToken cancellationToken)
+    private async Task<string> GetAccountNameAsync(Guid accountId, CancellationToken cancellationToken)
     {
-        return await dbContext.Set<FinancialCategory>()
+        return await dbContext.Set<LedgerAccount>()
             .AsNoTracking()
-            .Where(category => category.Id == categoryId)
-            .Select(category => category.Name)
+            .Where(account => account.Id == accountId)
+            .Select(account => account.Name)
             .SingleOrDefaultAsync(cancellationToken) ?? "—";
     }
 
@@ -187,8 +222,8 @@ internal sealed class InvoiceService(
             return new InvoiceCreationResult(customerValidation, null);
         }
 
-        CatalogOperationResult? categoryValidation = await ValidateIncomeCategoryAsync(
-            command.IncomeCategoryId,
+        CatalogOperationResult? categoryValidation = await ValidateIncomeAccountAsync(
+            command.IncomeAccountId,
             cancellationToken);
 
         if (categoryValidation is not null)
@@ -197,7 +232,7 @@ internal sealed class InvoiceService(
         }
 
         string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
-            dbContext, command.IssueDate, cancellationToken);
+            dbContext, command.IssueDate, timeProvider, cancellationToken);
 
         if (closingDateViolation is not null)
         {
@@ -209,7 +244,7 @@ internal sealed class InvoiceService(
             Invoice invoice = new(
                 Guid.NewGuid(),
                 command.CustomerId,
-                command.IncomeCategoryId,
+                command.IncomeAccountId,
                 command.IssueDate,
                 command.PaymentTerm,
                 timeProvider.GetUtcNow(),
@@ -265,8 +300,8 @@ internal sealed class InvoiceService(
             return customerValidation;
         }
 
-        CatalogOperationResult? categoryValidation = await ValidateIncomeCategoryAsync(
-            command.IncomeCategoryId,
+        CatalogOperationResult? categoryValidation = await ValidateIncomeAccountAsync(
+            command.IncomeAccountId,
             cancellationToken);
 
         if (categoryValidation is not null)
@@ -281,7 +316,7 @@ internal sealed class InvoiceService(
         {
             invoice.UpdateHeader(
                 command.CustomerId,
-                command.IncomeCategoryId,
+                command.IncomeAccountId,
                 command.IssueDate,
                 command.PaymentTerm,
                 timeProvider.GetUtcNow(),
@@ -587,7 +622,7 @@ internal sealed class InvoiceService(
         }
 
         string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
-            dbContext, invoice.IssueDate, cancellationToken);
+            dbContext, invoice.IssueDate, timeProvider, cancellationToken);
 
         if (closingDateViolation is not null)
         {
@@ -608,6 +643,19 @@ internal sealed class InvoiceService(
             }
         }
 
+        SystemParameters? parameters = await dbContext.SystemParameters.AsNoTracking()
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(parameters?.CompanyLegalId)
+            || string.IsNullOrWhiteSpace(parameters.CompanyBranchCode)
+            || string.IsNullOrWhiteSpace(parameters.CompanyTerminalCode))
+        {
+            dbContext.ChangeTracker.Clear();
+            return CatalogOperationResult.Invalid(
+                "Configure la cédula jurídica, la sucursal y la terminal de la empresa en Parámetros "
+                + "antes de confirmar facturas.");
+        }
+
         IDbContextTransaction? transaction = await CatalogPersistence.BeginTransactionIfNeededAsync(
             dbContext,
             cancellationToken);
@@ -619,8 +667,23 @@ internal sealed class InvoiceService(
                 "finanzas.Seq_FacturaNumero",
                 cancellationToken);
 
+            long claveSequential = await CatalogPersistence.GetNextSequenceValueAsync(
+                dbContext,
+                "finanzas.Seq_FacturaClaveConsecutivo",
+                cancellationToken);
+
+            string consecutivo = ElectronicDocumentKeyBuilder.BuildConsecutivo(
+                ElectronicDocumentKeyBuilder.InvoiceDocumentTypeCode,
+                parameters.CompanyBranchCode,
+                parameters.CompanyTerminalCode,
+                claveSequential);
+
+            string issuerId = ElectronicDocumentKeyBuilder.PadIssuerId(parameters.CompanyLegalId);
+            string electronicInvoiceKey = ElectronicDocumentKeyBuilder.BuildKey(
+                invoice.IssueDate, issuerId, consecutivo, ElectronicDocumentKeyBuilder.GenerateSecurityCode());
+
             DateTimeOffset confirmedAtUtc = timeProvider.GetUtcNow();
-            invoice.Confirm(confirmedAtUtc, actorId, number);
+            invoice.Confirm(confirmedAtUtc, actorId, number, electronicInvoiceKey, consecutivo);
 
             if (isCash)
             {
@@ -635,7 +698,7 @@ internal sealed class InvoiceService(
                     Guid.NewGuid(),
                     incomeCode,
                     invoice.Id,
-                    invoice.IncomeCategoryId,
+                    invoice.IncomeAccountId,
                     command.CashAccountId!.Value,
                     invoice.TotalAmount,
                     DateOnly.FromDateTime(confirmedAtUtc.UtcDateTime),
@@ -701,146 +764,6 @@ internal sealed class InvoiceService(
             {
                 await transaction.DisposeAsync();
             }
-        }
-    }
-
-    public async Task<CatalogOperationResult> CancelAsync(
-        Guid id,
-        string reason,
-        string version,
-        Guid actorId,
-        CancellationToken cancellationToken = default)
-    {
-        Invoice? invoice = await LoadTrackedAsync(id, includeLines: false, restrictToOwnerUserId: null, cancellationToken);
-
-        if (invoice is null)
-        {
-            return CatalogOperationResult.Missing();
-        }
-
-        if (!CatalogPersistence.TrySetOriginalVersion(dbContext, invoice, version))
-        {
-            return CatalogOperationResult.Invalid("El token de concurrencia no es válido.");
-        }
-
-        string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
-            dbContext, invoice.IssueDate, cancellationToken);
-
-        if (closingDateViolation is not null)
-        {
-            dbContext.ChangeTracker.Clear();
-            return CatalogOperationResult.Invalid(closingDateViolation);
-        }
-
-        IDbContextTransaction? transaction = await CatalogPersistence.BeginTransactionIfNeededAsync(
-            dbContext,
-            cancellationToken);
-
-        try
-        {
-            DateTimeOffset cancelledAtUtc = timeProvider.GetUtcNow();
-            bool isCash = invoice.PaymentTerm == PaymentTerm.Cash;
-            invoice.Cancel(reason, cancelledAtUtc, actorId);
-
-            if (isCash)
-            {
-                Income? income = await dbContext.Set<Income>()
-                    .SingleOrDefaultAsync(candidate => candidate.InvoiceId == invoice.Id, cancellationToken);
-                income?.Cancel(reason, cancelledAtUtc, actorId);
-            }
-            else
-            {
-                Receivable? receivable = await dbContext.Set<Receivable>()
-                    .SingleOrDefaultAsync(candidate => candidate.InvoiceId == invoice.Id, cancellationToken);
-                receivable?.Cancel(cancelledAtUtc, actorId);
-            }
-
-            await JournalPostingService.ReverseAsync(
-                dbContext, JournalEntrySourceType.Invoice, invoice.Id, cancelledAtUtc, actorId, cancellationToken);
-
-            dbContext.Add(new OperationLogEntry(
-                Guid.NewGuid(),
-                OperationLogEntityType.Invoice,
-                invoice.Id,
-                OperationLogAction.Cancelled,
-                reason,
-                cancelledAtUtc,
-                actorId));
-
-            CatalogOperationResult result = await CatalogPersistence.SaveChangesAsync(
-                dbContext,
-                "No fue posible anular la factura.",
-                cancellationToken);
-
-            if (result.IsSuccess && transaction is not null)
-            {
-                await transaction.CommitAsync(cancellationToken);
-            }
-
-            return result;
-        }
-        catch (ArgumentException exception)
-        {
-            dbContext.ChangeTracker.Clear();
-            return CatalogOperationResult.Invalid(exception.Message);
-        }
-        catch (InvalidOperationException exception)
-        {
-            dbContext.ChangeTracker.Clear();
-            return CatalogOperationResult.Invalid(exception.Message);
-        }
-        finally
-        {
-            if (transaction is not null)
-            {
-                await transaction.DisposeAsync();
-            }
-        }
-    }
-
-    public async Task<CatalogOperationResult> RegisterElectronicInvoiceAsync(
-        Guid id,
-        RegisterElectronicInvoiceCommand command,
-        string version,
-        Guid actorId,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(command);
-
-        Invoice? invoice = await LoadTrackedAsync(id, includeLines: false, restrictToOwnerUserId: null, cancellationToken);
-
-        if (invoice is null)
-        {
-            return CatalogOperationResult.Missing();
-        }
-
-        if (!CatalogPersistence.TrySetOriginalVersion(dbContext, invoice, version))
-        {
-            return CatalogOperationResult.Invalid("El token de concurrencia no es válido.");
-        }
-
-        try
-        {
-            invoice.RegisterElectronicInvoiceDetails(
-                command.ElectronicInvoiceKey,
-                command.ElectronicInvoiceNumber,
-                timeProvider.GetUtcNow(),
-                actorId);
-
-            return await CatalogPersistence.SaveChangesAsync(
-                dbContext,
-                "Ya existe una factura con la misma clave de comprobante electrónico.",
-                cancellationToken);
-        }
-        catch (ArgumentException exception)
-        {
-            dbContext.ChangeTracker.Clear();
-            return CatalogOperationResult.Invalid(exception.Message);
-        }
-        catch (InvalidOperationException exception)
-        {
-            dbContext.ChangeTracker.Clear();
-            return CatalogOperationResult.Invalid(exception.Message);
         }
     }
 
@@ -940,25 +863,26 @@ internal sealed class InvoiceService(
     }
 
     /// <summary>
-    /// Valida la categoría de ingreso de la venta (bloque 2 del paquete de mejoras finales): pertenece
-    /// al encabezado de la factura, no a cada cobro, así que se valida aquí en vez de al confirmar o
-    /// al registrar cada abono.
+    /// Valida la cuenta de ingreso de la venta: pertenece al encabezado de la factura, no a cada cobro,
+    /// así que se valida aquí en vez de al confirmar o al registrar cada abono.
     /// </summary>
-    private async Task<CatalogOperationResult?> ValidateIncomeCategoryAsync(
-        Guid incomeCategoryId,
+    private async Task<CatalogOperationResult?> ValidateIncomeAccountAsync(
+        Guid incomeAccountId,
         CancellationToken cancellationToken)
     {
-        bool isValid = await dbContext.Set<FinancialCategory>()
+        bool isValid = await dbContext.Set<LedgerAccount>()
             .AsNoTracking()
             .AnyAsync(
-                category => category.Id == incomeCategoryId
-                    && category.IsActive
-                    && category.Kind == FinancialCategoryKind.Income,
+                account => account.Id == incomeAccountId
+                    && account.IsActive
+                    && account.Type == LedgerAccountType.Income
+                    && account.IsMovement,
                 cancellationToken);
 
         return isValid
             ? null
-            : CatalogOperationResult.Invalid("La categoría de ingreso seleccionada no existe, está inactiva o no es de ingreso.");
+            : CatalogOperationResult.Invalid(
+                "La cuenta de ingreso seleccionada no existe, está inactiva, no es de ingreso o no es de movimiento.");
     }
 
     /// <summary>
@@ -1190,7 +1114,7 @@ internal sealed class InvoiceService(
         string? customerPhone,
         VatCondition customerVatCondition,
         string? customerActivityCode,
-        string categoryName,
+        string accountName,
         string createdByUserName,
         IReadOnlyDictionary<Guid, CatalogItemInfo> catalogItemInfo,
         PaymentMethod? paymentMethod = null)
@@ -1206,8 +1130,8 @@ internal sealed class InvoiceService(
             customerPhone,
             customerVatCondition,
             customerActivityCode,
-            invoice.IncomeCategoryId,
-            categoryName,
+            invoice.IncomeAccountId,
+            accountName,
             invoice.IssueDate,
             invoice.PaymentTerm,
             invoice.DueDate,

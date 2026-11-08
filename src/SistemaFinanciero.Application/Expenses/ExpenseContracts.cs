@@ -23,14 +23,14 @@ public enum ExpenseStatusFilter
 
 /// <summary>
 /// Define los filtros, uno por columna del listado, y la paginación de los gastos. Admite restringir
-/// el resultado a los gastos de un usuario (Asistente "ve solo los suyos", igual que con facturas).
+/// el resultado a los gastos de un usuario cuando una consulta requiere ese alcance.
 /// </summary>
 public sealed record ExpenseQuery
 {
     public ExpenseQuery(
         string? code = null,
         string? supplierName = null,
-        string? categoryName = null,
+        string? accountName = null,
         DateOnly? issueDateFrom = null,
         DateOnly? issueDateTo = null,
         decimal? amountMin = null,
@@ -42,7 +42,7 @@ public sealed record ExpenseQuery
     {
         Code = string.IsNullOrWhiteSpace(code) ? null : code.Trim();
         SupplierName = string.IsNullOrWhiteSpace(supplierName) ? null : supplierName.Trim();
-        CategoryName = string.IsNullOrWhiteSpace(categoryName) ? null : categoryName.Trim();
+        AccountName = string.IsNullOrWhiteSpace(accountName) ? null : accountName.Trim();
         IssueDateFrom = issueDateFrom;
         IssueDateTo = issueDateTo;
         AmountMin = amountMin;
@@ -60,7 +60,7 @@ public sealed record ExpenseQuery
     public string? SupplierName { get; }
 
     /// <summary>Texto opcional buscado en el nombre de la categoría.</summary>
-    public string? CategoryName { get; }
+    public string? AccountName { get; }
 
     /// <summary>Fecha de emisión mínima opcional.</summary>
     public DateOnly? IssueDateFrom { get; }
@@ -95,7 +95,7 @@ public sealed record ExpenseQuery
 /// </summary>
 public sealed record SaveExpenseCommand(
     Guid SupplierId,
-    Guid CategoryId,
+    Guid AccountId,
     string Description,
     string VoucherReference,
     DateOnly IssueDate,
@@ -137,8 +137,8 @@ public sealed record ExpenseModel(
     string Code,
     Guid SupplierId,
     string SupplierName,
-    Guid CategoryId,
-    string CategoryName,
+    Guid AccountId,
+    string AccountName,
     string Description,
     string VoucherReference,
     DateOnly IssueDate,
@@ -177,10 +177,10 @@ public sealed record ExpenseModel(
 /// referencia en el propio gasto, sin generar ningún otro documento (regla 2/7). Anular lo anula en
 /// cascada, siempre que la cuenta por pagar no tenga pagos vigentes. Confirmar de contado sobre el
 /// límite de autorización se rechaza salvo que quien confirma sea Gerencia (<c>actorIsManagement</c>
-/// de <see cref="ConfirmAsync"/>, regla 7). El parámetro <c>restrictToOwnerUserId</c> que reciben la
-/// lectura y la edición de borrador aplica la regla de perfiles «Asistente ve solo los suyos», igual
-/// criterio que <c>IInvoiceService</c>; confirmar y anular no lo reciben porque son exclusivos de
-/// Finanzas y Gerencia respectivamente.
+/// de <see cref="ConfirmAsync"/>, regla 7). El parámetro <c>restrictToOwnerUserId</c> permite limitar
+/// la lectura y la edición de borrador. Asistente consulta gastos de todos los usuarios, pero el
+/// controlador aplica este límite al editar borradores; confirmar y anular no lo reciben porque son
+/// exclusivos de Finanzas y Gerencia.
 /// </remarks>
 public interface IExpenseService
 {
@@ -240,7 +240,7 @@ public interface IExpenseService
     /// mejoras finales, punto 1): el IVA de las compras va a IVA acreditable, no al presupuesto.
     /// </summary>
     public Task<ExpenseBudgetCheck> CheckBudgetAsync(
-        Guid categoryId,
+        Guid accountId,
         DateOnly issueDate,
         decimal netAmount,
         CancellationToken cancellationToken = default);

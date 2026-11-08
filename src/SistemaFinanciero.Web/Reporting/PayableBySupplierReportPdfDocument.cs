@@ -18,7 +18,7 @@ public sealed class PayableBySupplierReportPdfDocument(PayableBySupplierReportRe
     {
         container.Page(page =>
         {
-            page.Size(PageSizes.A4);
+            page.Size(PageSizes.A4.Landscape());
             page.Margin(30);
             page.DefaultTextStyle(style => style.FontSize(9));
 
@@ -31,28 +31,46 @@ public sealed class PayableBySupplierReportPdfDocument(PayableBySupplierReportRe
                     table.ColumnsDefinition(columns =>
                     {
                         columns.RelativeColumn(4);
-                        columns.RelativeColumn(2);
-                        columns.RelativeColumn(2);
-                        columns.RelativeColumn(2);
+                        columns.RelativeColumn(1.2f);
+                        columns.RelativeColumn(1.6f);
+                        columns.RelativeColumn(1.6f);
+                        columns.RelativeColumn(1.6f);
+                        columns.RelativeColumn(1.6f);
+                        columns.RelativeColumn(1.6f);
+                        columns.RelativeColumn(1.8f);
                     });
 
                     table.Header(header =>
                     {
                         header.Cell().Element(ReportDocumentStyles.HeaderCellStyle).Text("Proveedor");
                         header.Cell().Element(ReportDocumentStyles.HeaderCellStyle).AlignRight().Text("Cantidad");
+                        header.Cell().Element(ReportDocumentStyles.HeaderCellStyle).AlignRight().Text("Al día");
+                        header.Cell().Element(ReportDocumentStyles.HeaderCellStyle).AlignRight().Text("1-30 días");
+                        header.Cell().Element(ReportDocumentStyles.HeaderCellStyle).AlignRight().Text("31-60 días");
+                        header.Cell().Element(ReportDocumentStyles.HeaderCellStyle).AlignRight().Text("61-90 días");
+                        header.Cell().Element(ReportDocumentStyles.HeaderCellStyle).AlignRight().Text("Más de 90 días");
                         header.Cell().Element(ReportDocumentStyles.HeaderCellStyle).AlignRight().Text("Saldo total");
-                        header.Cell().Element(ReportDocumentStyles.HeaderCellStyle).AlignRight().Text("Vence más próximo");
                     });
 
                     foreach (PayableBySupplierReportLine line in result.Lines)
                     {
-                        table.Cell().Element(ReportDocumentStyles.BodyCellStyle).Text(line.SupplierName);
-                        table.Cell().Element(ReportDocumentStyles.BodyCellStyle).AlignRight()
+                        table.Cell().Element(GroupCellStyle).Text(line.SupplierName);
+                        table.Cell().Element(GroupCellStyle).AlignRight()
                             .Text(line.PayableCount.ToString(CultureInfo.InvariantCulture));
-                        table.Cell().Element(ReportDocumentStyles.BodyCellStyle).AlignRight()
+                        table.Cell().Element(GroupCellStyle).AlignRight()
+                            .Text(ReportDocumentStyles.FormatCrc(line.Aging.Current));
+                        table.Cell().Element(GroupCellStyle).AlignRight()
+                            .Text(ReportDocumentStyles.FormatCrc(line.Aging.Overdue1To30));
+                        table.Cell().Element(GroupCellStyle).AlignRight()
+                            .Text(ReportDocumentStyles.FormatCrc(line.Aging.Overdue31To60));
+                        table.Cell().Element(GroupCellStyle).AlignRight()
+                            .Text(ReportDocumentStyles.FormatCrc(line.Aging.Overdue61To90));
+                        table.Cell().Element(GroupCellStyle).AlignRight()
+                            .Text(ReportDocumentStyles.FormatCrc(line.Aging.OverdueOver90));
+                        table.Cell().Element(GroupCellStyle).AlignRight()
                             .Text(ReportDocumentStyles.FormatCrc(line.TotalBalance));
-                        table.Cell().Element(ReportDocumentStyles.BodyCellStyle).AlignRight()
-                            .Text(line.EarliestDueDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture));
+
+                        table.Cell().ColumnSpan(8).Element(container => ComposeDetails(container, line.Details));
                     }
                 });
 
@@ -64,4 +82,56 @@ public sealed class PayableBySupplierReportPdfDocument(PayableBySupplierReportRe
             page.Footer().Element(ReportDocumentStyles.ComposeFooter);
         });
     }
+
+    /// <summary>Desglose de las cuentas por pagar individuales que forman el saldo de un proveedor.</summary>
+    private static void ComposeDetails(IContainer container, IReadOnlyList<PayableDetailLine> details)
+    {
+        container.PaddingLeft(14).PaddingVertical(2).Table(table =>
+        {
+            table.ColumnsDefinition(columns =>
+            {
+                columns.RelativeColumn(4);
+                columns.RelativeColumn(2);
+                columns.RelativeColumn(2);
+                columns.RelativeColumn(2);
+            });
+
+            table.Header(header =>
+            {
+                header.Cell().Element(DetailHeaderCellStyle).Text("Gasto");
+                header.Cell().Element(DetailHeaderCellStyle).AlignRight().Text("Emisión");
+                header.Cell().Element(DetailHeaderCellStyle).AlignRight().Text("Vencimiento");
+                header.Cell().Element(DetailHeaderCellStyle).AlignRight().Text("Saldo");
+            });
+
+            foreach (PayableDetailLine detail in details)
+            {
+                table.Cell().Element(DetailBodyCellStyle).Text(detail.ExpenseCode);
+                table.Cell().Element(DetailBodyCellStyle).AlignRight()
+                    .Text(detail.IssueDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture));
+                table.Cell().Element(DetailBodyCellStyle).AlignRight()
+                    .Text(detail.DueDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture));
+                table.Cell().Element(DetailBodyCellStyle).AlignRight()
+                    .Text(ReportDocumentStyles.FormatCrc(detail.Balance));
+            }
+        });
+    }
+
+    private static IContainer GroupCellStyle(IContainer container) =>
+        container
+            .DefaultTextStyle(style => style.SemiBold().FontSize(9))
+            .Background(Colors.Grey.Lighten3)
+            .PaddingVertical(4);
+
+    private static IContainer DetailHeaderCellStyle(IContainer container) =>
+        container
+            .DefaultTextStyle(style => style.SemiBold().FontSize(8).FontColor(Colors.Grey.Darken1))
+            .PaddingVertical(2);
+
+    private static IContainer DetailBodyCellStyle(IContainer container) =>
+        container
+            .DefaultTextStyle(style => style.FontSize(8))
+            .PaddingVertical(2)
+            .BorderBottom(0.5f)
+            .BorderColor(Colors.Grey.Lighten3);
 }

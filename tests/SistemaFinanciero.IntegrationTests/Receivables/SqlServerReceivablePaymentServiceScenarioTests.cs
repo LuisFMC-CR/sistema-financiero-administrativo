@@ -38,12 +38,12 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
             IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
             IReceivablePaymentService payments = services.GetRequiredService<IReceivablePaymentService>();
             Guid customerId = await CreateCustomerAsync(services, actorId);
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
             Guid receivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, incomeCategoryId, actorId, amount: 100m);
+                services, invoices, customerId, incomeAccountId, actorId, amount: 100m);
 
             RegisterReceivablePaymentResult result = await payments.RegisterAsync(
                 new RegisterReceivablePaymentCommand(
@@ -87,13 +87,13 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
             IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
             IReceivablePaymentService payments = services.GetRequiredService<IReceivablePaymentService>();
             Guid customerId = await CreateCustomerAsync(services, actorId, appliesStateWithholding: true);
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
             Guid withholdingTypeId = await CreateWithholdingTypeAsync(services, actorId, rate: 2m);
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
             Guid receivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, incomeCategoryId, actorId, amount: 1000m);
+                services, invoices, customerId, incomeAccountId, actorId, amount: 1000m);
 
             RegisterReceivablePaymentResult result = await payments.RegisterAsync(
                 new RegisterReceivablePaymentCommand(
@@ -138,13 +138,13 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
             IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
             IReceivablePaymentService payments = services.GetRequiredService<IReceivablePaymentService>();
             Guid customerId = await CreateCustomerAsync(services, actorId, appliesStateWithholding: false);
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
             Guid withholdingTypeId = await CreateWithholdingTypeAsync(services, actorId, rate: 2m);
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
             Guid receivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, incomeCategoryId, actorId, amount: 1000m);
+                services, invoices, customerId, incomeAccountId, actorId, amount: 1000m);
 
             RegisterReceivablePaymentResult result = await payments.RegisterAsync(
                 new RegisterReceivablePaymentCommand(
@@ -177,7 +177,7 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
             IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
             IReceivablePaymentService payments = services.GetRequiredService<IReceivablePaymentService>();
             Guid customerId = await CreateCustomerAsync(services, actorId, appliesStateWithholding: true);
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
             Guid withholdingTypeId = await CreateWithholdingTypeAsync(
                 services, actorId, rate: 2m, minimumBase: 462_200m);
@@ -185,7 +185,7 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
 
             // El neto de la factura (1000) no supera la base mínima (462 200).
             Guid receivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, incomeCategoryId, actorId, amount: 1000m);
+                services, invoices, customerId, incomeAccountId, actorId, amount: 1000m);
 
             RegisterReceivablePaymentResult result = await payments.RegisterAsync(
                 new RegisterReceivablePaymentCommand(
@@ -213,14 +213,14 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
             IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
             IReceivablePaymentService payments = services.GetRequiredService<IReceivablePaymentService>();
             Guid customerId = await CreateCustomerAsync(services, actorId);
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
             Guid firstReceivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, incomeCategoryId, actorId, amount: 100m);
+                services, invoices, customerId, incomeAccountId, actorId, amount: 100m);
             Guid secondReceivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, incomeCategoryId, actorId, amount: 100m);
+                services, invoices, customerId, incomeAccountId, actorId, amount: 100m);
 
             RegisterReceivablePaymentResult result = await payments.RegisterAsync(
                 new RegisterReceivablePaymentCommand(
@@ -280,12 +280,12 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
             IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
             IReceivablePaymentService payments = services.GetRequiredService<IReceivablePaymentService>();
             Guid customerId = await CreateCustomerAsync(services, actorId);
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
             await SetAuthorizationLimitAsync(services, actorId, 50m);
 
             Guid receivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, incomeCategoryId, actorId, amount: 100m);
+                services, invoices, customerId, incomeAccountId, actorId, amount: 100m);
 
             RegisterReceivablePaymentCommand command = new(
                 customerId,
@@ -321,14 +321,14 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
             IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
             IReceivablePaymentService payments = services.GetRequiredService<IReceivablePaymentService>();
             Guid customerId = await CreateCustomerAsync(services, actorId);
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
             Guid firstReceivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, incomeCategoryId, actorId, amount: 100m);
+                services, invoices, customerId, incomeAccountId, actorId, amount: 100m);
             Guid secondReceivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, incomeCategoryId, actorId, amount: 100m);
+                services, invoices, customerId, incomeAccountId, actorId, amount: 100m);
 
             RegisterReceivablePaymentResult first = await payments.RegisterAsync(
                 new RegisterReceivablePaymentCommand(
@@ -366,12 +366,12 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
             IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
             IReceivablePaymentService payments = services.GetRequiredService<IReceivablePaymentService>();
             Guid customerId = await CreateCustomerAsync(services, actorId);
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
             Guid receivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, incomeCategoryId, actorId, amount: 100m);
+                services, invoices, customerId, incomeAccountId, actorId, amount: 100m);
 
             DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
             await SetClosingDateAsync(services, actorId, today);
@@ -400,12 +400,12 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
             IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
             IReceivablePaymentService payments = services.GetRequiredService<IReceivablePaymentService>();
             Guid customerId = await CreateCustomerAsync(services, actorId);
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
             Guid receivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, incomeCategoryId, actorId, amount: 100m);
+                services, invoices, customerId, incomeAccountId, actorId, amount: 100m);
 
             DateOnly paymentDate = new(2026, 1, 15);
             RegisterReceivablePaymentResult registered = await payments.RegisterAsync(
@@ -440,7 +440,8 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
             context.SystemParameters.Add(parameters);
         }
 
-        parameters.ChangeClosingDate(closingDate, closingDate, reason: null, DateTimeOffset.UtcNow, actorId);
+        context.AccountingPeriodOverrides.Add(new AccountingPeriodOverride(
+            closingDate.Year, closingDate.Month, "Período cerrado para la prueba", DateTimeOffset.UtcNow, actorId));
         await context.SaveChangesAsync();
     }
 
@@ -448,14 +449,14 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
         IServiceProvider services,
         IInvoiceService invoices,
         Guid customerId,
-        Guid incomeCategoryId,
+        Guid incomeAccountId,
         Guid actorId,
         decimal amount)
     {
         Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
 
         InvoiceCreationResult created = await invoices.CreateAsync(
-            new CreateInvoiceCommand(customerId, incomeCategoryId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Credit30),
+            new CreateInvoiceCommand(customerId, incomeAccountId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Credit30),
             actorId);
         Guid invoiceId = created.InvoiceId!.Value;
 
@@ -583,19 +584,7 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
         context.LedgerAccounts.Add(ledgerAccount);
         await context.SaveChangesAsync();
 
-        FinancialCategory category = new(
-            Guid.NewGuid(),
-            $"CAT-{suffix}",
-            "Categoría de ingreso de pruebas de abonos",
-            FinancialCategoryKind.Income,
-            null,
-            ledgerAccount.Id,
-            null,
-            DateTimeOffset.UtcNow,
-            actorId);
-        context.FinancialCategories.Add(category);
-        await context.SaveChangesAsync();
-        return category.Id;
+        return ledgerAccount.Id;
     }
 
     private static async Task<Guid> CreateWithholdingTypeAsync(

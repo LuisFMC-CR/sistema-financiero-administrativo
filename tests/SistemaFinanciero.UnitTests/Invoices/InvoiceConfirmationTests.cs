@@ -10,15 +10,17 @@ public sealed class InvoiceConfirmationTests
     private static readonly DateTimeOffset ConfirmedAtUtc = CreatedAtUtc.AddMinutes(5);
     private static readonly Guid CreatorId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid ConfirmerId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+    private const string SampleKey = "12345678901234567890123456789012345678901234567890";
+    private const string SampleConsecutivo = "12345678901234567890";
 
     [Fact]
-    public void Confirm_FixesTheStatusAuditAndNumber()
+    public void Confirm_FixesTheStatusAuditNumberAndElectronicKey()
     {
         Invoice invoice = CreateInvoiceWithLine();
 
         Assert.Null(invoice.Number);
 
-        invoice.Confirm(ConfirmedAtUtc, ConfirmerId, 42L);
+        invoice.Confirm(ConfirmedAtUtc, ConfirmerId, 42L, SampleKey, SampleConsecutivo);
 
         Assert.Equal(InvoiceStatus.Confirmed, invoice.Status);
         Assert.Equal(42L, invoice.Number);
@@ -26,6 +28,34 @@ public sealed class InvoiceConfirmationTests
         Assert.Equal(ConfirmerId, invoice.ConfirmedByUserId);
         Assert.Equal(ConfirmedAtUtc, invoice.UpdatedAtUtc);
         Assert.Equal(ConfirmerId, invoice.UpdatedByUserId);
+        Assert.Equal(SampleKey, invoice.ElectronicInvoiceKey);
+        Assert.Equal(SampleConsecutivo, invoice.ElectronicInvoiceNumber);
+    }
+
+    [Theory]
+    [InlineData("123")]
+    [InlineData("abc")]
+    public void Confirm_LeavesTheInvoiceAsDraftWhenTheElectronicKeyIsNotFiftyDigits(string invalidKey)
+    {
+        Invoice invoice = CreateInvoiceWithLine();
+
+        Assert.Throws<ArgumentException>(() =>
+            invoice.Confirm(ConfirmedAtUtc, ConfirmerId, 1L, invalidKey, SampleConsecutivo));
+
+        AssertStillDraft(invoice);
+    }
+
+    [Theory]
+    [InlineData("123")]
+    [InlineData("abc")]
+    public void Confirm_LeavesTheInvoiceAsDraftWhenTheElectronicNumberIsNotTwentyDigits(string invalidNumber)
+    {
+        Invoice invoice = CreateInvoiceWithLine();
+
+        Assert.Throws<ArgumentException>(() =>
+            invoice.Confirm(ConfirmedAtUtc, ConfirmerId, 1L, SampleKey, invalidNumber));
+
+        AssertStillDraft(invoice);
     }
 
     [Fact]
@@ -41,7 +71,7 @@ public sealed class InvoiceConfirmationTests
             CreatorId);
 
         Assert.Throws<InvalidOperationException>(() =>
-            invoice.Confirm(ConfirmedAtUtc, ConfirmerId, 1L));
+            invoice.Confirm(ConfirmedAtUtc, ConfirmerId, 1L, SampleKey, SampleConsecutivo));
     }
 
     [Theory]
@@ -52,7 +82,7 @@ public sealed class InvoiceConfirmationTests
         Invoice invoice = CreateInvoiceWithLine();
 
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            invoice.Confirm(ConfirmedAtUtc, ConfirmerId, number));
+            invoice.Confirm(ConfirmedAtUtc, ConfirmerId, number, SampleKey, SampleConsecutivo));
 
         AssertStillDraft(invoice);
         Assert.Null(invoice.Number);
@@ -64,7 +94,7 @@ public sealed class InvoiceConfirmationTests
         Invoice invoice = CreateInvoiceWithLine();
 
         Assert.Throws<ArgumentException>(() =>
-            invoice.Confirm(ConfirmedAtUtc, Guid.Empty, 1L));
+            invoice.Confirm(ConfirmedAtUtc, Guid.Empty, 1L, SampleKey, SampleConsecutivo));
 
         AssertStillDraft(invoice);
     }
@@ -75,7 +105,7 @@ public sealed class InvoiceConfirmationTests
         Invoice invoice = CreateInvoiceWithLine();
 
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            invoice.Confirm(CreatedAtUtc.AddMinutes(-1), ConfirmerId, 1L));
+            invoice.Confirm(CreatedAtUtc.AddMinutes(-1), ConfirmerId, 1L, SampleKey, SampleConsecutivo));
 
         AssertStillDraft(invoice);
     }
@@ -87,7 +117,7 @@ public sealed class InvoiceConfirmationTests
         DateTimeOffset notUtc = new(2026, 9, 10, 12, 30, 0, TimeSpan.FromHours(-6));
 
         Assert.Throws<ArgumentException>(() =>
-            invoice.Confirm(notUtc, ConfirmerId, 1L));
+            invoice.Confirm(notUtc, ConfirmerId, 1L, SampleKey, SampleConsecutivo));
 
         AssertStillDraft(invoice);
     }
@@ -96,17 +126,17 @@ public sealed class InvoiceConfirmationTests
     public void Confirm_RejectsAnInvoiceThatIsNotADraft()
     {
         Invoice invoice = CreateInvoiceWithLine();
-        invoice.Confirm(ConfirmedAtUtc, ConfirmerId, 1L);
+        invoice.Confirm(ConfirmedAtUtc, ConfirmerId, 1L, SampleKey, SampleConsecutivo);
 
         Assert.Throws<InvalidOperationException>(() =>
-            invoice.Confirm(ConfirmedAtUtc.AddMinutes(1), ConfirmerId, 2L));
+            invoice.Confirm(ConfirmedAtUtc.AddMinutes(1), ConfirmerId, 2L, SampleKey, SampleConsecutivo));
     }
 
     [Fact]
     public void Cancel_KeepsTheReasonAndTheAuditOfAConfirmedInvoice()
     {
         Invoice invoice = CreateInvoiceWithLine();
-        invoice.Confirm(ConfirmedAtUtc, ConfirmerId, 1L);
+        invoice.Confirm(ConfirmedAtUtc, ConfirmerId, 1L, SampleKey, SampleConsecutivo);
         DateTimeOffset cancelledAtUtc = ConfirmedAtUtc.AddHours(1);
 
         invoice.Cancel("  Error de digitación  ", cancelledAtUtc, ConfirmerId);
@@ -133,7 +163,7 @@ public sealed class InvoiceConfirmationTests
     public void Cancel_LeavesTheInvoiceConfirmedWhenTheReasonIsMissing(string reason)
     {
         Invoice invoice = CreateInvoiceWithLine();
-        invoice.Confirm(ConfirmedAtUtc, ConfirmerId, 1L);
+        invoice.Confirm(ConfirmedAtUtc, ConfirmerId, 1L, SampleKey, SampleConsecutivo);
 
         Assert.Throws<ArgumentException>(() =>
             invoice.Cancel(reason, ConfirmedAtUtc.AddHours(1), ConfirmerId));
@@ -145,65 +175,12 @@ public sealed class InvoiceConfirmationTests
     public void Cancel_LeavesTheInvoiceConfirmedWhenTheUserIsEmpty()
     {
         Invoice invoice = CreateInvoiceWithLine();
-        invoice.Confirm(ConfirmedAtUtc, ConfirmerId, 1L);
+        invoice.Confirm(ConfirmedAtUtc, ConfirmerId, 1L, SampleKey, SampleConsecutivo);
 
         Assert.Throws<ArgumentException>(() =>
             invoice.Cancel("Motivo válido", ConfirmedAtUtc.AddHours(1), Guid.Empty));
 
         AssertStillConfirmed(invoice);
-    }
-
-    [Fact]
-    public void RegisterElectronicInvoiceDetails_SetsTheKeyAndNumberOnAConfirmedInvoice()
-    {
-        Invoice invoice = CreateInvoiceWithLine();
-        invoice.Confirm(ConfirmedAtUtc, ConfirmerId, 42L);
-        string key = new('1', Invoice.ElectronicInvoiceKeyLength);
-        string number = new('2', Invoice.ElectronicInvoiceNumberLength);
-        DateTimeOffset registeredAtUtc = ConfirmedAtUtc.AddMinutes(1);
-
-        invoice.RegisterElectronicInvoiceDetails(key, number, registeredAtUtc, ConfirmerId);
-
-        Assert.Equal(key, invoice.ElectronicInvoiceKey);
-        Assert.Equal(number, invoice.ElectronicInvoiceNumber);
-        Assert.Equal(registeredAtUtc, invoice.UpdatedAtUtc);
-    }
-
-    [Fact]
-    public void RegisterElectronicInvoiceDetails_RejectsADraftInvoice()
-    {
-        Invoice invoice = CreateInvoiceWithLine();
-        string key = new('1', Invoice.ElectronicInvoiceKeyLength);
-        string number = new('2', Invoice.ElectronicInvoiceNumberLength);
-
-        Assert.Throws<InvalidOperationException>(() =>
-            invoice.RegisterElectronicInvoiceDetails(key, number, CreatedAtUtc.AddMinutes(1), CreatorId));
-    }
-
-    [Fact]
-    public void RegisterElectronicInvoiceDetails_RejectsRegisteringASecondTime()
-    {
-        Invoice invoice = CreateInvoiceWithLine();
-        invoice.Confirm(ConfirmedAtUtc, ConfirmerId, 42L);
-        string key = new('1', Invoice.ElectronicInvoiceKeyLength);
-        string number = new('2', Invoice.ElectronicInvoiceNumberLength);
-        invoice.RegisterElectronicInvoiceDetails(key, number, ConfirmedAtUtc.AddMinutes(1), ConfirmerId);
-
-        Assert.Throws<InvalidOperationException>(() =>
-            invoice.RegisterElectronicInvoiceDetails(key, number, ConfirmedAtUtc.AddMinutes(2), ConfirmerId));
-    }
-
-    [Theory]
-    [InlineData("123")]
-    [InlineData("abc")]
-    public void RegisterElectronicInvoiceDetails_RejectsAKeyThatIsNotFiftyDigits(string invalidKey)
-    {
-        Invoice invoice = CreateInvoiceWithLine();
-        invoice.Confirm(ConfirmedAtUtc, ConfirmerId, 42L);
-        string number = new('2', Invoice.ElectronicInvoiceNumberLength);
-
-        Assert.Throws<ArgumentException>(() =>
-            invoice.RegisterElectronicInvoiceDetails(invalidKey, number, ConfirmedAtUtc.AddMinutes(1), ConfirmerId));
     }
 
     private static void AssertStillDraft(Invoice invoice)

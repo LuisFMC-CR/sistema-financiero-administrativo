@@ -58,6 +58,9 @@ internal sealed class LedgerAccountConfiguration : IEntityTypeConfiguration<Ledg
             .HasDefaultValue(true);
         builder.Property(account => account.IsProtected)
             .HasDefaultValue(false);
+        builder.Property(account => account.IsMovement)
+            .HasDefaultValue(true)
+            .IsRequired();
         builder.Property(account => account.SystemRole);
         builder.Property(account => account.CreatedAtUtc).IsRequired();
         builder.Property(account => account.UpdatedAtUtc).IsRequired();

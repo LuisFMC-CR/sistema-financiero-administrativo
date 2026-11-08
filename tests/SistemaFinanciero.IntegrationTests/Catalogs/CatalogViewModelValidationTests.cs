@@ -200,28 +200,6 @@ public sealed class CatalogViewModelValidationTests
     }
 
     [Fact]
-    public void FinancialCategory_RequiresALedgerAccount()
-    {
-        FinancialCategoryInputViewModel withoutAccount = new()
-        {
-            Name = "Ingresos",
-            Kind = FinancialCategoryKind.Income,
-            LedgerAccountId = null,
-        };
-        FinancialCategoryInputViewModel withAccount = new()
-        {
-            Name = "Ingresos",
-            Kind = FinancialCategoryKind.Income,
-            LedgerAccountId = Guid.NewGuid(),
-        };
-
-        Assert.Contains(
-            Validate(withoutAccount),
-            result => result.MemberNames.Contains(nameof(withoutAccount.LedgerAccountId)));
-        Assert.Empty(Validate(withAccount));
-    }
-
-    [Fact]
     public void LedgerAccountEdit_RequiresTheVersionToken()
     {
         LedgerAccountEditViewModel model = new() { Code = "A", Name = "A", Version = string.Empty };

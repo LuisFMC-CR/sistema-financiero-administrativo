@@ -3,43 +3,42 @@ using Microsoft.AspNetCore.Mvc;
 using SistemaFinanciero.Application.Ledger;
 using SistemaFinanciero.Application.Security;
 using SistemaFinanciero.Domain.Ledger;
+using SistemaFinanciero.Web.Models.Ledger;
 
 namespace SistemaFinanciero.Web.Controllers;
 
 /// <summary>
-/// Trazabilidad de los asientos contables automáticos ("Ver asiento", RF-78/RF-79) y comando explícito
-/// de generación para los documentos que ya existían antes del bloque 5 del paquete de mejoras
-/// finales.
+/// Consulta general de los asientos contables automáticos y trazabilidad "Ver asiento"
+/// (RF-78/RF-79).
 /// </summary>
 /// <remarks>
-/// Conexiones: usa <c>IJournalEntryService</c>. <see cref="Trace"/> es la pantalla a la que enlaza el
-/// botón "Ver asiento" de cada documento (facturas, gastos, abonos, pagos, ingresos manuales y
-/// ajustes de saldo); su política es <c>SystemPolicies.ViewFinancialReports</c> porque muestra
-/// cuentas y saldos contables, igual que los reportes. <see cref="Index"/> y
-/// <see cref="Backfill"/> son exclusivos de Gerencia (<c>SystemPolicies.ManageSystemParameters</c>): el
-/// comando nunca se ejecuta al arrancar, solo cuando Gerencia lo pide expresamente aquí.
+/// Conexiones: usa <c>IJournalEntryService</c>. <see cref="Index"/> es la consulta del período, con
+/// filtros de mes, estado y número de asiento; <see cref="Trace"/> es la pantalla a la que enlaza el botón "Ver asiento"
+/// de cada documento (facturas, gastos, abonos, pagos, ingresos manuales y ajustes de saldo). Ambos
+/// exigen <c>SystemPolicies.ViewFinancialReports</c> (Gerencia y Finanzas), porque muestran cuentas y
+/// saldos contables, igual que los reportes. Los asientos nunca se generan desde aquí: cada operación
+/// los crea en su propia transacción.
 /// </remarks>
+[Authorize(Policy = SystemPolicies.ViewFinancialReports)]
 [Route("contabilidad/asientos")]
 public sealed class JournalEntriesController(IJournalEntryService service) : Controller
 {
-    [Authorize(Policy = SystemPolicies.ManageSystemParameters)]
     [HttpGet("")]
-    public IActionResult Index() => View();
-
-    [Authorize(Policy = SystemPolicies.ManageSystemParameters)]
-    [HttpPost("generar-pendientes")]
-    public async Task<IActionResult> Backfill(CancellationToken cancellationToken)
+    public async Task<IActionResult> Index(
+        int? periodYear,
+        int? periodMonth,
+        JournalEntryStateFilter? state,
+        long? entryNumber,
+        CancellationToken cancellationToken)
     {
-        JournalEntryBackfillResult result = await service.BackfillAsync(cancellationToken);
+        (int year, int month) = NormalizeMonth(periodYear, periodMonth);
+        JournalEntryStateFilter filter = state ?? JournalEntryStateFilter.All;
 
-        TempData["SuccessMessage"] = result.EntriesCreated == 0 && result.ReversalsCreated == 0
-            ? "No había asientos pendientes de generar."
-            : $"Se generaron {result.EntriesCreated} asiento(s) y {result.ReversalsCreated} reversión(es).";
+        JournalEntryListResult result = await service.SearchAsync(year, month, filter, entryNumber, cancellationToken);
 
-        return RedirectToAction(nameof(Index));
+        return View(new JournalEntriesIndexViewModel(year, month, filter, entryNumber, result));
     }
 
-    [Authorize(Policy = SystemPolicies.ViewFinancialReports)]
     [HttpGet("por-origen/{sourceType:int}/{sourceId:guid}")]
     public async Task<IActionResult> Trace(int sourceType, Guid sourceId, CancellationToken cancellationToken)
     {
@@ -57,5 +56,11 @@ public sealed class JournalEntriesController(IJournalEntryService service) : Con
         }
 
         return View(trace);
+    }
+
+    private static (int Year, int Month) NormalizeMonth(int? periodYear, int? periodMonth)
+    {
+        DateOnly today = DateOnly.FromDateTime(DateTime.Now);
+        return (periodYear ?? today.Year, periodMonth ?? today.Month);
     }
 }

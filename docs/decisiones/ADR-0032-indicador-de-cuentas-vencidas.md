@@ -1,7 +1,7 @@
 # ADR-0032: Indicador de cuentas vencidas
 
 - **Fecha:** 2026-10-25
-- **Estado:** Aceptado
+- **Estado:** Permisos de visualización actualizados por ADR-0051
 
 ## Contexto
 

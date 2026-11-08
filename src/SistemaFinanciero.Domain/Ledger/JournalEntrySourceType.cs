@@ -28,4 +28,7 @@ public enum JournalEntrySourceType
 
     /// <summary>Ajuste manual de saldo de una cuenta por cobrar o por pagar.</summary>
     BalanceAdjustment = 6,
+
+    /// <summary>Nota de crédito interna.</summary>
+    CreditNote = 7,
 }

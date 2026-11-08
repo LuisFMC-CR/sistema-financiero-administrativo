@@ -364,6 +364,42 @@ y, al ser restrictiva, impide eliminar un tipo que ya se usó. La línea es inmu
 hace reemplazándola por otra con un identificador nuevo, que ocupa la misma posición. Al quitar una
 línea se renumeran las siguientes para que las posiciones sigan siendo consecutivas.
 
+### `finanzas.NotasCredito` y `finanzas.NotaCreditoLineas`
+
+Una nota de crédito interna acredita el total de una factura confirmada y la anula sin borrar la
+historia. Se genera en la misma transacción que la liquidación de la cuenta por cobrar o la devolución
+de efectivo, su asiento contable y la bitácora de operaciones (ADR-0058).
+
+| Tabla | Propósito |
+|---|---|
+| `finanzas.NotasCredito` | Encabezado inmutable de la nota, su reparto entre saldo, devolución y retención revertida. |
+| `finanzas.NotaCreditoLineas` | Copia inmutable de cada línea de la factura acreditada, incluidos importes y tarifa de IVA. |
+
+| Campo (`NotasCredito`) | Tipo SQL | Nulo | Restricción | Descripción |
+|---|---|---:|---|---|
+| `Id` | `uniqueidentifier` | No | PK | Identificador estable. |
+| `Code` | `nvarchar(30)` | No | Único (`UX_NotasCredito_Code`) | Consecutivo visible `NCR-000001`, generado con `finanzas.Seq_NotaCreditoCodigo`. |
+| `InvoiceId` | `uniqueidentifier` | No | Único (`UX_NotasCredito_InvoiceId`); FK restrictiva | Factura anulada por la nota; asegura solo una nota por factura. |
+| `IssueDate` | `date` | No | — | Fecha de negocio de la nota. |
+| `Reason` | `nvarchar(300)` | No | No vacío | Motivo documentado de la acreditación. |
+| `NetAmount`, `TaxAmount`, `TotalAmount` | `decimal(18,2)` | No | Importes no negativos; total mayor que cero | Totales copiados de las líneas acreditadas. |
+| `AppliedToBalance` | `decimal(18,2)` | No | No negativo | Parte que liquida la cuenta por cobrar. |
+| `RefundedAmount` | `decimal(18,2)` | No | No negativo | Efectivo devuelto al cliente. |
+| `WithholdingReversedAmount` | `decimal(18,2)` | No | No negativo | Retenciones vigentes que se revierten en su activo. |
+| `CashAccountId`, `RefundReference` | `uniqueidentifier`, `nvarchar(100)` | Sí | Ambos nulos sin devolución; ambos obligatorios si la hay | Cuenta de efectivo y referencia de la devolución. |
+| `ElectronicCreditNoteKey` | `nvarchar(50)` | Sí | — | Referencia opcional a la nota electrónica externa. |
+| `Status` | `int` | No | Siempre 1 = vigente | La nota es inmutable y no se anula después de aplicarse. |
+| Auditoría y `RowVersion` | Como los campos comunes | No | FK restrictivas y concurrencia | Trazabilidad técnica del registro. |
+
+`CK_NotasCredito_Totals` exige que `TotalAmount` sea exactamente la suma de lo aplicado al saldo,
+lo devuelto y las retenciones revertidas. `CK_NotasCredito_Refund` exige cuenta y referencia solo para
+una devolución. La tabla tiene además el índice `IX_NotasCredito_Status_IssueDate` para sus consultas.
+
+Cada fila de `NotaCreditoLineas` tiene su clave `Id`, las FK restrictivas a la nota y a
+`FacturaLineas`, y `NetAmount`, `TaxRate`, `TaxAmount` y `TotalAmount` (`decimal(18,2)`, salvo la
+tarifa `decimal(5,2)`). El `CHECK` exige `TotalAmount = NetAmount + TaxAmount`; el índice único
+`UX_NotaCreditoLineas_CreditNoteId_InvoiceLineId` impide copiar una misma línea dos veces.
+
 ### `catalogos.TiposImpuesto`
 
 Catálogo de tarifas de IVA (ADR-0011). Solo el IVA, siempre porcentual: no existe un método de cálculo

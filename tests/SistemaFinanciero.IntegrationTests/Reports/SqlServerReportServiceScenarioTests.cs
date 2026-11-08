@@ -2,9 +2,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using SistemaFinanciero.Application.Budgets;
+using SistemaFinanciero.Application.CreditNotes;
 using SistemaFinanciero.Application.Expenses;
 using SistemaFinanciero.Application.Incomes;
 using SistemaFinanciero.Application.Invoices;
+using SistemaFinanciero.Application.Parameters;
 using SistemaFinanciero.Application.Payables;
 using SistemaFinanciero.Application.Receivables;
 using SistemaFinanciero.Application.Reports;
@@ -40,7 +42,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
         return RunInRollbackTransactionAsync(async (services, actorId) =>
         {
             IIncomeService incomes = services.GetRequiredService<IIncomeService>();
-            Guid categoryId = await CreateCategoryAsync(services, actorId, FinancialCategoryKind.Income);
+            Guid accountId = await CreateCategoryAsync(services, actorId, LedgerAccountType.Income);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
 
             // Período lejano en el pasado para no coincidir con datos reales o de ejemplo de la base
@@ -48,19 +50,19 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             // su categoría ni su cuenta de efectivo.
             IncomeCreationResult insidePeriod = await incomes.CreateManualAsync(
                 new CreateManualIncomeCommand(
-                    categoryId, cashAccountId, 500m, new DateOnly(2010, 1, 10),
+                    accountId, cashAccountId, 500m, new DateOnly(2010, 1, 10),
                     PaymentMethod.Cash, "REC-1", "Reintegro de prueba"),
                 actorId);
 
             IncomeCreationResult outsidePeriod = await incomes.CreateManualAsync(
                 new CreateManualIncomeCommand(
-                    categoryId, cashAccountId, 900m, new DateOnly(2009, 12, 30),
+                    accountId, cashAccountId, 900m, new DateOnly(2009, 12, 30),
                     PaymentMethod.Cash, "REC-2", "Fuera del período"),
                 actorId);
 
             IncomeCreationResult toBeCancelled = await incomes.CreateManualAsync(
                 new CreateManualIncomeCommand(
-                    categoryId, cashAccountId, 300m, new DateOnly(2010, 1, 12),
+                    accountId, cashAccountId, 300m, new DateOnly(2010, 1, 12),
                     PaymentMethod.Cash, "REC-3", "Será anulado"),
                 actorId);
             IncomeModel cancelledDraft = (await incomes.GetAsync(toBeCancelled.IncomeId!.Value))!;
@@ -105,7 +107,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
         return RunInRollbackTransactionAsync(async (services, actorId) =>
         {
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
-            Guid categoryId = await CreateCategoryAsync(services, actorId, FinancialCategoryKind.Expense);
+            Guid accountId = await CreateCategoryAsync(services, actorId, LedgerAccountType.Expense);
             Guid supplierId = await CreateSupplierAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
@@ -113,21 +115,21 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             // Período lejano en el pasado, además de limitar el reporte a la categoría recién creada,
             // para no coincidir con datos reales o de ejemplo de la base de desarrollo.
             await CreateAndConfirmCashExpenseAsync(
-                expenses, supplierId, categoryId, taxTypeId, cashAccountId, new DateOnly(2010, 1, 5), 1000m, actorId);
+                expenses, supplierId, accountId, taxTypeId, cashAccountId, new DateOnly(2010, 1, 5), 1000m, actorId);
             await CreateAndConfirmCashExpenseAsync(
-                expenses, supplierId, categoryId, taxTypeId, cashAccountId, new DateOnly(2010, 1, 20), 500m, actorId);
+                expenses, supplierId, accountId, taxTypeId, cashAccountId, new DateOnly(2010, 1, 20), 500m, actorId);
 
             Guid draftExpenseId = await CreateDraftExpenseAsync(
-                expenses, supplierId, categoryId, taxTypeId, new DateOnly(2010, 1, 8), 9999m, actorId);
+                expenses, supplierId, accountId, taxTypeId, new DateOnly(2010, 1, 8), 9999m, actorId);
 
             Guid cancelledExpenseId = await CreateAndConfirmCashExpenseAsync(
-                expenses, supplierId, categoryId, taxTypeId, cashAccountId, new DateOnly(2010, 1, 9), 7777m, actorId);
+                expenses, supplierId, accountId, taxTypeId, cashAccountId, new DateOnly(2010, 1, 9), 7777m, actorId);
             ExpenseModel confirmed = (await expenses.GetAsync(cancelledExpenseId))!;
             await expenses.CancelAsync(cancelledExpenseId, "Error de captura", confirmed.Version, actorId);
 
             IReportService reports = services.GetRequiredService<IReportService>();
             ExpenseByCategoryReportResult result = await reports.GetExpenseByCategoryReportAsync(
-                new DateOnly(2010, 1, 1), new DateOnly(2010, 1, 31), categoryId, "Usuario de prueba");
+                new DateOnly(2010, 1, 1), new DateOnly(2010, 1, 31), accountId, "Usuario de prueba");
 
             ExpenseByCategoryReportLine line = Assert.Single(result.Lines);
             Assert.Equal(2, line.Count);
@@ -146,7 +148,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
         {
             IReportService reports = services.GetRequiredService<IReportService>();
             ExpenseByCategoryReportResult result = await reports.GetExpenseByCategoryReportAsync(
-                new DateOnly(2010, 1, 1), new DateOnly(2010, 1, 31), categoryId: null, "Usuario de prueba");
+                new DateOnly(2010, 1, 1), new DateOnly(2010, 1, 31), accountId: null, "Usuario de prueba");
 
             Assert.Empty(result.Lines);
             Assert.Equal(0m, result.GrandTotal);
@@ -161,21 +163,21 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
         {
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
             IBudgetService budgets = services.GetRequiredService<IBudgetService>();
-            Guid categoryId = await CreateCategoryAsync(services, actorId, FinancialCategoryKind.Expense);
+            Guid accountId = await CreateCategoryAsync(services, actorId, LedgerAccountType.Expense);
             Guid supplierId = await CreateSupplierAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
 
             await budgets.SetAmountAsync(
-                new SetBudgetAmountCommand(categoryId, 2010, 1, 1000m), version: null, actorId);
+                new SetBudgetAmountCommand(accountId, 2010, 1, 1000m), version: null, actorId);
             await CreateAndConfirmCashExpenseAsync(
-                expenses, supplierId, categoryId, taxTypeId, cashAccountId, new DateOnly(2010, 1, 5), 600m, actorId);
+                expenses, supplierId, accountId, taxTypeId, cashAccountId, new DateOnly(2010, 1, 5), 600m, actorId);
 
             IReportService reports = services.GetRequiredService<IReportService>();
             BudgetVsExecutedReportResult result = await reports.GetBudgetVsExecutedReportAsync(
                 2010, 1, "Usuario de prueba");
 
-            BudgetModel line = result.Lines.Single(l => l.CategoryId == categoryId);
+            BudgetModel line = result.Lines.Single(l => l.AccountId == accountId);
             Assert.Equal(1000m, line.BudgetedAmount);
             Assert.Equal(600m, line.ExecutedAmount); // IVA 0% en CreateTaxTypeAsync: ejecutado = neto.
             Assert.Equal(400m, line.AvailableAmount);
@@ -191,19 +193,19 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
         {
             IIncomeService incomes = services.GetRequiredService<IIncomeService>();
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
-            Guid incomeCategoryId = await CreateCategoryAsync(services, actorId, FinancialCategoryKind.Income);
-            Guid expenseCategoryId = await CreateCategoryAsync(services, actorId, FinancialCategoryKind.Expense);
+            Guid incomeAccountId = await CreateCategoryAsync(services, actorId, LedgerAccountType.Income);
+            Guid expenseAccountId = await CreateCategoryAsync(services, actorId, LedgerAccountType.Expense);
             Guid supplierId = await CreateSupplierAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
 
             await incomes.CreateManualAsync(
                 new CreateManualIncomeCommand(
-                    incomeCategoryId, cashAccountId, 400m, new DateOnly(2010, 1, 10),
+                    incomeAccountId, cashAccountId, 400m, new DateOnly(2010, 1, 10),
                     PaymentMethod.Cash, "REC-1", "Ingreso de enero"),
                 actorId);
             await CreateAndConfirmCashExpenseAsync(
-                expenses, supplierId, expenseCategoryId, taxTypeId, cashAccountId, new DateOnly(2010, 3, 15), 250m, actorId);
+                expenses, supplierId, expenseAccountId, taxTypeId, cashAccountId, new DateOnly(2010, 3, 15), 250m, actorId);
 
             IReportService reports = services.GetRequiredService<IReportService>();
             MonthlyComparisonReportResult result = await reports.GetMonthlyComparisonReportAsync(
@@ -244,7 +246,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
             IReceivablePaymentService payments = services.GetRequiredService<IReceivablePaymentService>();
             Guid customerId = await CreateCustomerAsync(services, actorId);
-            Guid incomeCategoryId = await CreateCategoryAsync(services, actorId, FinancialCategoryKind.Income);
+            Guid incomeAccountId = await CreateCategoryAsync(services, actorId, LedgerAccountType.Income);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
 
             FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
@@ -257,7 +259,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             DateOnly collectionDate = new(2027, 2, 20);
 
             InvoiceCreationResult created = await invoices.CreateAsync(
-                new CreateInvoiceCommand(customerId, incomeCategoryId, saleDate, PaymentTerm.Credit30),
+                new CreateInvoiceCommand(customerId, incomeAccountId, saleDate, PaymentTerm.Credit30),
                 actorId);
             Guid invoiceId = created.InvoiceId!.Value;
             InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
@@ -303,12 +305,12 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
             IReceivablePaymentService payments = services.GetRequiredService<IReceivablePaymentService>();
             Guid customerId = await CreateCustomerAsync(services, actorId);
-            Guid incomeCategoryId = await CreateCategoryAsync(services, actorId, FinancialCategoryKind.Income);
+            Guid incomeAccountId = await CreateCategoryAsync(services, actorId, LedgerAccountType.Income);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
             Guid receivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, incomeCategoryId, actorId, amount: 1000m);
+                services, invoices, customerId, incomeAccountId, actorId, amount: 1000m);
 
             await payments.RegisterAsync(
                 new RegisterReceivablePaymentCommand(
@@ -341,23 +343,43 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
         return RunInRollbackTransactionAsync(async (services, actorId) =>
         {
             IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            ICreditNoteService creditNotes = services.GetRequiredService<ICreditNoteService>();
             Guid customerId = await CreateCustomerAsync(services, actorId);
-            Guid incomeCategoryId = await CreateCategoryAsync(services, actorId, FinancialCategoryKind.Income);
+            Guid incomeAccountId = await CreateCategoryAsync(services, actorId, LedgerAccountType.Income);
 
             Guid receivableId = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, incomeCategoryId, actorId, amount: 500m);
+                services, invoices, customerId, incomeAccountId, actorId, amount: 500m);
 
             FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
             Receivable receivable = await context.Receivables.SingleAsync(r => r.Id == receivableId);
             InvoiceModel invoiceModel = (await invoices.GetAsync(receivable.InvoiceId))!;
-            await invoices.CancelAsync(receivable.InvoiceId, "Factura registrada por error", invoiceModel.Version, actorId);
+            CreditNoteInvoiceOption eligible = (await creditNotes.GetInvoiceAsync(receivable.InvoiceId))!;
+            CreditNoteRegistrationResult registration = await creditNotes.RegisterAsync(
+                new RegisterCreditNoteCommand(
+                    receivable.InvoiceId,
+                    invoiceModel.IssueDate,
+                    "Factura registrada por error",
+                    null,
+                    null,
+                    eligible.InvoiceVersion),
+                actorId,
+                actorIsManagement: true);
+            Assert.True(registration.Operation.IsSuccess);
 
             IReportService reports = services.GetRequiredService<IReportService>();
             CustomerStatementReportResult result = await reports.GetCustomerStatementReportAsync(
                 customerId, "Usuario de prueba");
 
-            CustomerStatementLine line = Assert.Single(result.Lines);
-            Assert.True(line.IsCancelled);
+            Assert.Equal(2, result.Lines.Count);
+            CustomerStatementLine invoiceLine = Assert.Single(
+                result.Lines,
+                line => line.MovementType == "Factura a crédito");
+            Assert.True(invoiceLine.IsCancelled);
+            CustomerStatementLine creditNoteLine = Assert.Single(
+                result.Lines,
+                line => line.MovementType == "Nota de crédito");
+            Assert.Equal(500m, creditNoteLine.Amount);
+            Assert.False(creditNoteLine.IsCancelled);
             Assert.Equal(0m, result.CurrentBalance);
         });
     }
@@ -415,6 +437,21 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             Assert.Equal(new DateOnly(2010, 2, 9), line.EarliestDueDate); // Vencimiento = emisión + 30 días (Crédito 30).
             Assert.Equal(500m, result.GrandTotalBalance);
 
+            // Vencimientos de 2010: a la fecha de ejecución de la prueba, ambas caen en "más de 90 días".
+            Assert.Equal(0m, line.Aging.Current);
+            Assert.Equal(0m, line.Aging.Overdue1To30);
+            Assert.Equal(0m, line.Aging.Overdue31To60);
+            Assert.Equal(0m, line.Aging.Overdue61To90);
+            Assert.Equal(500m, line.Aging.OverdueOver90);
+            Assert.Equal(500m, result.GrandTotalAging.OverdueOver90);
+
+            Assert.Equal(2, line.Details.Count);
+            Assert.Equal(new DateOnly(2010, 2, 9), line.Details[0].DueDate); // La más antigua primero.
+            Assert.Equal(300m, line.Details[0].Balance);
+            Assert.Equal(new DateOnly(2010, 3, 12), line.Details[1].DueDate);
+            Assert.Equal(200m, line.Details[1].Balance);
+            Assert.All(line.Details, detail => Assert.NotEmpty(detail.ExpenseCode));
+
             _ = earlierPayableId;
             _ = laterPayableId;
         });
@@ -436,35 +473,106 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
 
     [Fact]
     [Trait("Category", "SqlServer")]
+    public Task GetReceivableByCustomerReportAsync_GroupsVigentReceivablesByCustomerAndExcludesPaidOnes()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            IReceivablePaymentService receivablePayments = services.GetRequiredService<IReceivablePaymentService>();
+            Guid customerId = await CreateCustomerAsync(services, actorId);
+            Guid incomeAccountId = await CreateCategoryAsync(services, actorId, LedgerAccountType.Income);
+            Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
+            await SetAuthorizationLimitAsync(services, actorId, 10_000m);
+
+            Guid earlierReceivableId = await CreateConfirmedCreditReceivableAsync(
+                services, invoices, customerId, incomeAccountId, actorId, 300m, new DateOnly(2010, 1, 10));
+            Guid laterReceivableId = await CreateConfirmedCreditReceivableAsync(
+                services, invoices, customerId, incomeAccountId, actorId, 200m, new DateOnly(2010, 2, 10));
+            Guid toBePaidReceivableId = await CreateConfirmedCreditReceivableAsync(
+                services, invoices, customerId, incomeAccountId, actorId, 150m, new DateOnly(2010, 3, 10));
+
+            await receivablePayments.RegisterAsync(
+                new RegisterReceivablePaymentCommand(
+                    customerId, cashAccountId, "ABONO-ESTADO-1", DateOnly.FromDateTime(DateTime.UtcNow),
+                    [new ReceivablePaymentAllocationCommand(toBePaidReceivableId, 150m, null)]),
+                actorId,
+                actorIsManagement: false);
+
+            IReportService reports = services.GetRequiredService<IReportService>();
+            ReceivableByCustomerReportResult result = await reports.GetReceivableByCustomerReportAsync("Usuario de prueba");
+
+            ReceivableByCustomerReportLine line = Assert.Single(result.Lines);
+            Assert.Equal(customerId, line.CustomerId);
+            Assert.Equal(2, line.ReceivableCount);
+            Assert.Equal(500m, line.TotalBalance);
+            Assert.Equal(new DateOnly(2010, 2, 9), line.EarliestDueDate); // Vencimiento = emisión + 30 días (Crédito 30).
+            Assert.Equal(500m, result.GrandTotalBalance);
+
+            // Vencimientos de 2010: a la fecha de ejecución de la prueba, ambas caen en "más de 90 días".
+            Assert.Equal(0m, line.Aging.Current);
+            Assert.Equal(0m, line.Aging.Overdue1To30);
+            Assert.Equal(0m, line.Aging.Overdue31To60);
+            Assert.Equal(0m, line.Aging.Overdue61To90);
+            Assert.Equal(500m, line.Aging.OverdueOver90);
+            Assert.Equal(500m, result.GrandTotalAging.OverdueOver90);
+
+            Assert.Equal(2, line.Details.Count);
+            Assert.Equal(new DateOnly(2010, 2, 9), line.Details[0].DueDate); // La más antigua primero.
+            Assert.Equal(300m, line.Details[0].Balance);
+            Assert.Equal(new DateOnly(2010, 3, 12), line.Details[1].DueDate);
+            Assert.Equal(200m, line.Details[1].Balance);
+            Assert.All(line.Details, detail => Assert.NotNull(detail.InvoiceNumber));
+
+            _ = earlierReceivableId;
+            _ = laterReceivableId;
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task GetReceivableByCustomerReportAsync_WithNoReceivables_ReturnsAnEmptyResult()
+    {
+        return RunInRollbackTransactionAsync(async (services, _) =>
+        {
+            IReportService reports = services.GetRequiredService<IReportService>();
+            ReceivableByCustomerReportResult result = await reports.GetReceivableByCustomerReportAsync("Usuario de prueba");
+
+            Assert.Empty(result.Lines);
+            Assert.Equal(0m, result.GrandTotalBalance);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
     public Task GetAnnualBudgetReportAsync_AccumulatesUpToTheGivenMonthAndKeepsTheAnnualReference()
     {
         return RunInRollbackTransactionAsync(async (services, actorId) =>
         {
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
             IBudgetService budgets = services.GetRequiredService<IBudgetService>();
-            Guid categoryId = await CreateCategoryAsync(services, actorId, FinancialCategoryKind.Expense);
+            Guid accountId = await CreateCategoryAsync(services, actorId, LedgerAccountType.Expense);
             Guid supplierId = await CreateSupplierAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
 
             const int year = 2011;
-            await budgets.SetAmountAsync(new SetBudgetAmountCommand(categoryId, year, 1, 500m), version: null, actorId);
-            await budgets.SetAmountAsync(new SetBudgetAmountCommand(categoryId, year, 2, 500m), version: null, actorId);
+            await budgets.SetAmountAsync(new SetBudgetAmountCommand(accountId, year, 1, 500m), version: null, actorId);
+            await budgets.SetAmountAsync(new SetBudgetAmountCommand(accountId, year, 2, 500m), version: null, actorId);
             // Marzo es posterior a upToMonth (2): solo debe contar para el presupuesto anual de referencia.
-            await budgets.SetAmountAsync(new SetBudgetAmountCommand(categoryId, year, 3, 1000m), version: null, actorId);
+            await budgets.SetAmountAsync(new SetBudgetAmountCommand(accountId, year, 3, 1000m), version: null, actorId);
 
             await CreateAndConfirmCashExpenseAsync(
-                expenses, supplierId, categoryId, taxTypeId, cashAccountId, new DateOnly(year, 1, 5), 600m, actorId);
+                expenses, supplierId, accountId, taxTypeId, cashAccountId, new DateOnly(year, 1, 5), 600m, actorId);
             await CreateAndConfirmCashExpenseAsync(
-                expenses, supplierId, categoryId, taxTypeId, cashAccountId, new DateOnly(year, 2, 5), 900m, actorId);
+                expenses, supplierId, accountId, taxTypeId, cashAccountId, new DateOnly(year, 2, 5), 900m, actorId);
 
             FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
-            string categoryCode = (await context.FinancialCategories.AsNoTracking().SingleAsync(c => c.Id == categoryId)).Code;
+            string accountCode = (await context.Set<LedgerAccount>().AsNoTracking().SingleAsync(c => c.Id == accountId)).Code;
 
             IReportService reports = services.GetRequiredService<IReportService>();
             AnnualBudgetReportResult result = await reports.GetAnnualBudgetReportAsync(year, 2, "Usuario de prueba");
 
-            AnnualBudgetReportLine line = result.Lines.Single(l => l.CategoryCode == categoryCode);
+            AnnualBudgetReportLine line = result.Lines.Single(l => l.AccountCode == accountCode);
             Assert.Equal(1000m, line.AccumulatedBudgeted); // enero + febrero.
             Assert.Equal(1500m, line.AccumulatedExecuted); // 600 + 900, IVA 0%.
             Assert.Equal(2000m, line.AnnualBudgeted); // enero + febrero + marzo.
@@ -478,14 +586,59 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
 
     [Fact]
     [Trait("Category", "SqlServer")]
+    public Task GetAnnualBudgetReportAsync_UsesConfiguredFiscalMonths()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            DateOnly today = DateOnly.FromDateTime(
+                services.GetRequiredService<TimeProvider>().GetLocalNow().DateTime);
+            DateOnly fiscalStart = new(today.Year, today.Month, 1);
+            DateOnly fiscalEnd = fiscalStart.AddYears(1).AddDays(-1);
+            DateOnly secondFiscalMonth = fiscalStart.AddMonths(1);
+
+            ISystemParametersService settings = services.GetRequiredService<ISystemParametersService>();
+            Assert.True((await settings.CreateAsync(
+                new SaveSystemParametersCommand(500_000m, 7), actorId)).IsSuccess);
+            SystemParametersModel configured = (await settings.GetAsync())!;
+            Assert.True((await settings.UpdateFiscalPeriodAsync(
+                fiscalStart, fiscalEnd, null, configured.Version, actorId)).IsSuccess);
+
+            IBudgetService budgets = services.GetRequiredService<IBudgetService>();
+            Guid accountId = await CreateCategoryAsync(
+                services, actorId, LedgerAccountType.Expense);
+            Assert.True((await budgets.SetAmountAsync(
+                new SetBudgetAmountCommand(accountId, fiscalStart.Year, fiscalStart.Month, 1_000m),
+                version: null,
+                actorId)).IsSuccess);
+            Assert.True((await budgets.SetAmountAsync(
+                new SetBudgetAmountCommand(accountId, secondFiscalMonth.Year, secondFiscalMonth.Month, 2_000m),
+                version: null,
+                actorId)).IsSuccess);
+
+            IReportService reports = services.GetRequiredService<IReportService>();
+            AnnualBudgetReportResult result = await reports.GetAnnualBudgetReportAsync(
+                fiscalStart.Year, 1, "Usuario de prueba");
+
+            AnnualBudgetReportLine line = Assert.Single(result.Lines);
+            Assert.Equal(1_000m, line.AccumulatedBudgeted);
+            Assert.Equal(3_000m, line.AnnualBudgeted);
+            Assert.Contains(
+                $"{fiscalStart:dd/MM/yyyy}–{fiscalEnd:dd/MM/yyyy}",
+                result.Header.ParametersDescription,
+                StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
     public Task GetCashFlowReportAsync_SumsInflowsAndOutflowsPerMonthAndFiltersByCashAccount()
     {
         return RunInRollbackTransactionAsync(async (services, actorId) =>
         {
             IIncomeService incomes = services.GetRequiredService<IIncomeService>();
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
-            Guid incomeCategoryId = await CreateCategoryAsync(services, actorId, FinancialCategoryKind.Income);
-            Guid expenseCategoryId = await CreateCategoryAsync(services, actorId, FinancialCategoryKind.Expense);
+            Guid incomeAccountId = await CreateCategoryAsync(services, actorId, LedgerAccountType.Income);
+            Guid expenseAccountId = await CreateCategoryAsync(services, actorId, LedgerAccountType.Expense);
             Guid supplierId = await CreateSupplierAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
@@ -493,11 +646,11 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
 
             await incomes.CreateManualAsync(
                 new CreateManualIncomeCommand(
-                    incomeCategoryId, cashAccountId, 500m, new DateOnly(2012, 1, 10),
+                    incomeAccountId, cashAccountId, 500m, new DateOnly(2012, 1, 10),
                     PaymentMethod.Cash, "REC-CF-1", "Entrada de prueba de flujo de efectivo"),
                 actorId);
             await CreateAndConfirmCashExpenseAsync(
-                expenses, supplierId, expenseCategoryId, taxTypeId, cashAccountId, new DateOnly(2012, 1, 20), 300m, actorId);
+                expenses, supplierId, expenseAccountId, taxTypeId, cashAccountId, new DateOnly(2012, 1, 20), 300m, actorId);
 
             IReportService reports = services.GetRequiredService<IReportService>();
 
@@ -530,8 +683,8 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
             Guid customerId = await CreateCustomerAsync(services, actorId);
-            Guid incomeCategoryId = await CreateCategoryAsync(services, actorId, FinancialCategoryKind.Income);
-            Guid expenseCategoryId = await CreateCategoryAsync(services, actorId, FinancialCategoryKind.Expense);
+            Guid incomeAccountId = await CreateCategoryAsync(services, actorId, LedgerAccountType.Income);
+            Guid expenseAccountId = await CreateCategoryAsync(services, actorId, LedgerAccountType.Expense);
             Guid supplierId = await CreateSupplierAsync(services, actorId);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
 
@@ -546,7 +699,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
 
             // Factura confirmada de contado: neto 1000, IVA 130.
             InvoiceCreationResult createdInvoice = await invoices.CreateAsync(
-                new CreateInvoiceCommand(customerId, incomeCategoryId, entryDate, PaymentTerm.Cash), actorId);
+                new CreateInvoiceCommand(customerId, incomeAccountId, entryDate, PaymentTerm.Cash), actorId);
             Guid invoiceId = createdInvoice.InvoiceId!.Value;
             InvoiceModel invoiceDraft = (await invoices.GetAsync(invoiceId))!;
             Guid catalogItemId = await CreateCatalogItemAsync(services, actorId, "Servicio con IVA de prueba de IVA del período");
@@ -558,7 +711,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
 
             // Factura en borrador con la misma tarifa: no debe aparecer.
             InvoiceCreationResult draftOnlyInvoice = await invoices.CreateAsync(
-                new CreateInvoiceCommand(customerId, incomeCategoryId, entryDate, PaymentTerm.Cash), actorId);
+                new CreateInvoiceCommand(customerId, incomeAccountId, entryDate, PaymentTerm.Cash), actorId);
             InvoiceModel draftOnlyModel = (await invoices.GetAsync(draftOnlyInvoice.InvoiceId!.Value))!;
             await invoices.AddLineAsync(
                 draftOnlyInvoice.InvoiceId!.Value,
@@ -569,7 +722,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             // Gasto confirmado: neto 400, IVA 52.
             ExpenseCreationResult createdExpense = await expenses.CreateAsync(
                 new SaveExpenseCommand(
-                    supplierId, expenseCategoryId, "Compra con IVA de prueba de IVA del período", "VC-IVA-1",
+                    supplierId, expenseAccountId, "Compra con IVA de prueba de IVA del período", "VC-IVA-1",
                     entryDate, PaymentTerm.Cash, 400m, taxType.Id, true, PaymentMethod.Cash),
                 actorId);
             Guid expenseId = createdExpense.ExpenseId!.Value;
@@ -580,7 +733,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             // Gasto confirmado y luego anulado con la misma tarifa: no debe aparecer.
             ExpenseCreationResult cancelledExpense = await expenses.CreateAsync(
                 new SaveExpenseCommand(
-                    supplierId, expenseCategoryId, "Compra anulada de prueba de IVA del período", "VC-IVA-2",
+                    supplierId, expenseAccountId, "Compra anulada de prueba de IVA del período", "VC-IVA-2",
                     entryDate, PaymentTerm.Cash, 9999m, taxType.Id, true, PaymentMethod.Cash),
                 actorId);
             ExpenseModel cancelledDraft = (await expenses.GetAsync(cancelledExpense.ExpenseId!.Value))!;
@@ -615,15 +768,15 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
             IReceivablePaymentService payments = services.GetRequiredService<IReceivablePaymentService>();
             Guid customerId = await CreateCustomerAsync(services, actorId, appliesStateWithholding: true);
-            Guid incomeCategoryId = await CreateCategoryAsync(services, actorId, FinancialCategoryKind.Income);
+            Guid incomeAccountId = await CreateCategoryAsync(services, actorId, LedgerAccountType.Income);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
             Guid withholdingTypeId = await CreateWithholdingTypeAsync(services, actorId, rate: 2m);
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
             Guid receivableIdA = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, incomeCategoryId, actorId, amount: 1000m);
+                services, invoices, customerId, incomeAccountId, actorId, amount: 1000m);
             Guid receivableIdB = await CreateConfirmedCreditReceivableAsync(
-                services, invoices, customerId, incomeCategoryId, actorId, amount: 1000m);
+                services, invoices, customerId, incomeAccountId, actorId, amount: 1000m);
 
             DateOnly paymentDateActive = new(2014, 4, 1);
             DateOnly paymentDateCancelled = new(2014, 4, 2);
@@ -674,14 +827,16 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
         IServiceProvider services,
         IInvoiceService invoices,
         Guid customerId,
-        Guid incomeCategoryId,
+        Guid incomeAccountId,
         Guid actorId,
-        decimal amount)
+        decimal amount,
+        DateOnly? issueDate = null)
     {
         Guid taxTypeId = await CreateTaxTypeAsync(services, actorId);
 
         InvoiceCreationResult created = await invoices.CreateAsync(
-            new CreateInvoiceCommand(customerId, incomeCategoryId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Credit30),
+            new CreateInvoiceCommand(
+                customerId, incomeAccountId, issueDate ?? DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Credit30),
             actorId);
         Guid invoiceId = created.InvoiceId!.Value;
 
@@ -712,12 +867,12 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
         DateOnly issueDate,
         decimal amount)
     {
-        Guid categoryId = await CreateCategoryAsync(services, actorId, FinancialCategoryKind.Expense);
+        Guid accountId = await CreateCategoryAsync(services, actorId, LedgerAccountType.Expense);
         Guid taxTypeId = await CreateTaxTypeAsync(services, actorId);
 
         ExpenseCreationResult created = await expenses.CreateAsync(
             new SaveExpenseCommand(
-                supplierId, categoryId, "Compra a crédito de pruebas de reportes", "VC-0001", issueDate, PaymentTerm.Credit30,
+                supplierId, accountId, "Compra a crédito de pruebas de reportes", "VC-0001", issueDate, PaymentTerm.Credit30,
                 amount, taxTypeId, true, PaymentMethod.Cash),
             actorId);
         Guid expenseId = created.ExpenseId!.Value;
@@ -771,7 +926,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
     private static async Task<Guid> CreateAndConfirmCashExpenseAsync(
         IExpenseService expenses,
         Guid supplierId,
-        Guid categoryId,
+        Guid accountId,
         Guid taxTypeId,
         Guid cashAccountId,
         DateOnly issueDate,
@@ -780,7 +935,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
     {
         ExpenseCreationResult created = await expenses.CreateAsync(
             new SaveExpenseCommand(
-                supplierId, categoryId, "Gasto de prueba de reportes", "VC-0001", issueDate, PaymentTerm.Cash,
+                supplierId, accountId, "Gasto de prueba de reportes", "VC-0001", issueDate, PaymentTerm.Cash,
                 netAmount, taxTypeId, true, PaymentMethod.Cash),
             actorId);
         Guid expenseId = created.ExpenseId!.Value;
@@ -799,7 +954,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
     private static async Task<Guid> CreateDraftExpenseAsync(
         IExpenseService expenses,
         Guid supplierId,
-        Guid categoryId,
+        Guid accountId,
         Guid taxTypeId,
         DateOnly issueDate,
         decimal netAmount,
@@ -807,7 +962,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
     {
         ExpenseCreationResult created = await expenses.CreateAsync(
             new SaveExpenseCommand(
-                supplierId, categoryId, "Borrador de pruebas de reportes", "VC-0001", issueDate, PaymentTerm.Cash,
+                supplierId, accountId, "Borrador de pruebas de reportes", "VC-0001", issueDate, PaymentTerm.Cash,
                 netAmount, taxTypeId, true, PaymentMethod.Cash),
             actorId);
         return created.ExpenseId!.Value;
@@ -897,7 +1052,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
     private static async Task<Guid> CreateCategoryAsync(
         IServiceProvider services,
         Guid actorId,
-        FinancialCategoryKind kind)
+        LedgerAccountType kind)
     {
         FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
         string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
@@ -905,7 +1060,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             Guid.NewGuid(),
             $"LA-{suffix}",
             "Cuenta de pruebas de reportes",
-            kind == FinancialCategoryKind.Expense ? LedgerAccountType.Expense : LedgerAccountType.Income,
+            kind,
             null,
             null,
             null,
@@ -915,19 +1070,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
         context.LedgerAccounts.Add(ledgerAccount);
         await context.SaveChangesAsync();
 
-        FinancialCategory category = new(
-            Guid.NewGuid(),
-            $"CAT-{suffix}",
-            "Categoría de pruebas de reportes",
-            kind,
-            null,
-            ledgerAccount.Id,
-            null,
-            DateTimeOffset.UtcNow,
-            actorId);
-        context.FinancialCategories.Add(category);
-        await context.SaveChangesAsync();
-        return category.Id;
+        return ledgerAccount.Id;
     }
 
     private static async Task<Guid> CreateUserAsync(IServiceProvider services)

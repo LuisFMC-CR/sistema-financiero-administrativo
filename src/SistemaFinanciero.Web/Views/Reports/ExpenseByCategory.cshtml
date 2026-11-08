@@ -18,8 +18,8 @@
         <input class="form-control form-control-sm" type="date" id="periodTo" name="periodTo" value="@Model.PeriodTo.ToString("yyyy-MM-dd")" required />
     </div>
     <div class="col-auto">
-        <label class="form-label small mb-0" for="categoryId">Categoría</label>
-        <select class="form-select form-select-sm" id="categoryId" name="categoryId" asp-items="Model.CategoryOptions">
+        <label class="form-label small mb-0" for="accountId">Categoría</label>
+        <select class="form-select form-select-sm" id="accountId" name="accountId" asp-items="Model.CategoryOptions">
             <option value="">Todas</option>
         </select>
     </div>
@@ -29,8 +29,8 @@
     @if (Model.Result is not null)
     {
         <div class="col-auto">
-            <a class="btn btn-outline-secondary btn-sm" asp-action="ExpenseByCategoryPdf" asp-route-periodFrom="@Model.PeriodFrom.ToString("yyyy-MM-dd")" asp-route-periodTo="@Model.PeriodTo.ToString("yyyy-MM-dd")" asp-route-categoryId="@Model.CategoryId">Exportar PDF</a>
-            <a class="btn btn-outline-secondary btn-sm" asp-action="ExpenseByCategoryExcel" asp-route-periodFrom="@Model.PeriodFrom.ToString("yyyy-MM-dd")" asp-route-periodTo="@Model.PeriodTo.ToString("yyyy-MM-dd")" asp-route-categoryId="@Model.CategoryId">Exportar Excel</a>
+            <a class="btn btn-outline-secondary btn-sm" asp-action="ExpenseByCategoryPdf" asp-route-periodFrom="@Model.PeriodFrom.ToString("yyyy-MM-dd")" asp-route-periodTo="@Model.PeriodTo.ToString("yyyy-MM-dd")" asp-route-accountId="@Model.AccountId">Exportar PDF</a>
+            <a class="btn btn-outline-secondary btn-sm" asp-action="ExpenseByCategoryExcel" asp-route-periodFrom="@Model.PeriodFrom.ToString("yyyy-MM-dd")" asp-route-periodTo="@Model.PeriodTo.ToString("yyyy-MM-dd")" asp-route-accountId="@Model.AccountId">Exportar Excel</a>
         </div>
     }
 </form>
@@ -57,8 +57,8 @@
                 @foreach (ExpenseByCategoryReportLine line in result.Lines)
                 {
                     <tr>
-                        <td>@line.CategoryCode</td>
-                        <td>@line.CategoryName</td>
+                        <td>@line.AccountCode</td>
+                        <td>@line.AccountName</td>
                         <td class="text-end">@line.Count</td>
                         <td class="text-end">₡@line.NetAmount.ToString("N2")</td>
                         <td class="text-end">₡@line.TaxAmount.ToString("N2")</td>

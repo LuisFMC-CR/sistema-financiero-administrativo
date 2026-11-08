@@ -40,6 +40,53 @@ public sealed class RegisterReceivablePaymentStartViewModel
     public DateOnly PaymentDate { get; set; } = DateOnly.FromDateTime(DateTime.Now);
 }
 
+/// <summary>Entrada de un abono dirigido a una cuenta por cobrar seleccionada.</summary>
+public sealed class RegisterSingleReceivablePaymentViewModel
+{
+    [ValidateNever]
+    public Guid ReceivableId { get; set; }
+
+    [ValidateNever]
+    public string CustomerName { get; set; } = string.Empty;
+
+    [ValidateNever]
+    public string InvoiceLabel { get; set; } = string.Empty;
+
+    [ValidateNever]
+    public decimal Balance { get; set; }
+
+    [Range(0.01, 999_999_999_999.99, ErrorMessage = "El monto debe ser mayor que cero.")]
+    [Display(Name = "Monto del abono")]
+    public decimal Amount { get; set; }
+
+    [Required(ErrorMessage = "La cuenta de efectivo es obligatoria.")]
+    [Display(Name = "Cuenta de efectivo")]
+    public Guid? CashAccountId { get; set; }
+
+    [ValidateNever]
+    public IReadOnlyList<SelectListItem> CashAccountOptions { get; set; } = [];
+
+    [Required(ErrorMessage = "La referencia es obligatoria.")]
+    [StringLength(100, ErrorMessage = "La referencia no puede superar 100 caracteres.")]
+    [Display(Name = "Referencia")]
+    public string Reference { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "La fecha del abono es obligatoria.")]
+    [DataType(DataType.Date)]
+    [Display(Name = "Fecha del abono")]
+    public DateOnly PaymentDate { get; set; } = DateOnly.FromDateTime(DateTime.Now);
+
+    [Display(Name = "Tipo de retención")]
+    public Guid? WithholdingTypeId { get; set; }
+
+    [Range(0, 999_999_999_999.99, ErrorMessage = "La base de la retención no puede ser negativa.")]
+    [Display(Name = "Base de la retención")]
+    public decimal? WithholdingBase { get; set; }
+
+    [ValidateNever]
+    public IReadOnlyList<SelectListItem> WithholdingTypeOptions { get; set; } = [];
+}
+
 /// <summary>Línea editable del reparto propuesto para una cuenta por cobrar.</summary>
 public sealed class ReceivablePaymentAllocationLineViewModel
 {

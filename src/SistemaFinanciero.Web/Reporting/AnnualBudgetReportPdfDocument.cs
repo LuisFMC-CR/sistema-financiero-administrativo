@@ -55,7 +55,7 @@ public sealed class AnnualBudgetReportPdfDocument(AnnualBudgetReportResult resul
 
                     foreach (AnnualBudgetReportLine line in result.Lines)
                     {
-                        table.Cell().Element(ReportDocumentStyles.BodyCellStyle).Text($"{line.CategoryCode} - {line.CategoryName}");
+                        table.Cell().Element(ReportDocumentStyles.BodyCellStyle).Text($"{line.AccountCode} - {line.AccountName}");
                         table.Cell().Element(ReportDocumentStyles.BodyCellStyle).AlignRight()
                             .Text(ReportDocumentStyles.FormatCrc(line.AccumulatedBudgeted));
                         table.Cell().Element(ReportDocumentStyles.BodyCellStyle).AlignRight()

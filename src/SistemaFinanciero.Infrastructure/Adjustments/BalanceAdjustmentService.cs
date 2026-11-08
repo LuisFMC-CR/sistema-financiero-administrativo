@@ -74,9 +74,9 @@ internal sealed class BalanceAdjustmentService(
             return CatalogOperationResult.Invalid("El token de concurrencia no es válido.");
         }
 
-        DateOnly today = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
+        DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
         string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
-            dbContext, today, cancellationToken);
+            dbContext, today, timeProvider, cancellationToken);
 
         if (closingDateViolation is not null)
         {
@@ -162,9 +162,9 @@ internal sealed class BalanceAdjustmentService(
             return CatalogOperationResult.Invalid("El token de concurrencia no es válido.");
         }
 
-        DateOnly today = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
+        DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
         string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
-            dbContext, today, cancellationToken);
+            dbContext, today, timeProvider, cancellationToken);
 
         if (closingDateViolation is not null)
         {

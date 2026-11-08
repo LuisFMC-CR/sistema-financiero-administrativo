@@ -92,75 +92,45 @@ public sealed class SystemParametersTests
     }
 
     [Fact]
-    public void Constructor_StartsWithNoClosingDateConfigured()
+    public void UpdateFiscalPeriod_StoresTheTwelveMonthRangeAndAudit()
     {
         SystemParameters parameters = CreateParameters(500_000m, 7);
+        DateTimeOffset changedAtUtc = CreatedAtUtc.AddMinutes(5);
 
-        Assert.Equal(DateOnly.MinValue, parameters.ClosingDate);
-        Assert.True(parameters.IsOpen(new DateOnly(2000, 1, 1)));
-        Assert.True(parameters.IsOpen(DateOnly.FromDateTime(DateTime.UtcNow)));
-    }
+        parameters.UpdateFiscalPeriod(
+            new DateOnly(2026, 1, 1),
+            new DateOnly(2026, 12, 31),
+            changedAtUtc,
+            EditorId);
 
-    [Fact]
-    public void IsOpen_RejectsOnlyDatesOnOrBeforeTheClosingDate()
-    {
-        SystemParameters parameters = CreateParameters(500_000m, 7);
-        DateOnly today = new(2026, 10, 25);
-        parameters.ChangeClosingDate(new DateOnly(2026, 9, 30), today, reason: null, CreatedAtUtc.AddMinutes(5), EditorId);
-
-        Assert.False(parameters.IsOpen(new DateOnly(2026, 9, 30)));
-        Assert.False(parameters.IsOpen(new DateOnly(2026, 9, 15)));
-        Assert.True(parameters.IsOpen(new DateOnly(2026, 10, 1)));
-    }
-
-    [Fact]
-    public void ChangeClosingDate_AdvancingDoesNotRequireAReason()
-    {
-        SystemParameters parameters = CreateParameters(500_000m, 7);
-        DateOnly today = new(2026, 10, 25);
-
-        parameters.ChangeClosingDate(new DateOnly(2026, 9, 30), today, reason: null, CreatedAtUtc.AddMinutes(5), EditorId);
-
-        Assert.Equal(new DateOnly(2026, 9, 30), parameters.ClosingDate);
+        Assert.Equal(new DateOnly(2026, 1, 1), parameters.FiscalPeriodStartDate);
+        Assert.Equal(new DateOnly(2026, 12, 31), parameters.FiscalPeriodEndDate);
+        Assert.Equal(changedAtUtc, parameters.UpdatedAtUtc);
         Assert.Equal(EditorId, parameters.UpdatedByUserId);
     }
 
-    [Fact]
-    public void ChangeClosingDate_GoingBackwardsRequiresAReason()
+    [Theory]
+    [InlineData(2026, 1, 1, 2026, 12, 30)]
+    [InlineData(2026, 2, 1, 2027, 1, 30)]
+    [InlineData(2026, 1, 2, 2027, 1, 1)]
+    public void UpdateFiscalPeriod_RejectsRangesThatAreNotExactlyTwelveMonths(
+        int startYear,
+        int startMonth,
+        int startDay,
+        int endYear,
+        int endMonth,
+        int endDay)
     {
         SystemParameters parameters = CreateParameters(500_000m, 7);
-        DateOnly today = new(2026, 10, 25);
-        parameters.ChangeClosingDate(new DateOnly(2026, 9, 30), today, reason: null, CreatedAtUtc.AddMinutes(5), EditorId);
 
-        Assert.Throws<ArgumentException>(() =>
-            parameters.ChangeClosingDate(new DateOnly(2026, 8, 31), today, reason: null, CreatedAtUtc.AddMinutes(10), EditorId));
+        Assert.Throws<ArgumentException>(() => parameters.UpdateFiscalPeriod(
+            new DateOnly(startYear, startMonth, startDay),
+            new DateOnly(endYear, endMonth, endDay),
+            CreatedAtUtc.AddMinutes(5),
+            EditorId));
 
-        Assert.Equal(new DateOnly(2026, 9, 30), parameters.ClosingDate);
-    }
-
-    [Fact]
-    public void ChangeClosingDate_GoingBackwardsWithAReasonSucceeds()
-    {
-        SystemParameters parameters = CreateParameters(500_000m, 7);
-        DateOnly today = new(2026, 10, 25);
-        parameters.ChangeClosingDate(new DateOnly(2026, 9, 30), today, reason: null, CreatedAtUtc.AddMinutes(5), EditorId);
-
-        parameters.ChangeClosingDate(
-            new DateOnly(2026, 8, 31), today, "Reapertura para corregir un gasto de agosto", CreatedAtUtc.AddMinutes(10), EditorId);
-
-        Assert.Equal(new DateOnly(2026, 8, 31), parameters.ClosingDate);
-    }
-
-    [Fact]
-    public void ChangeClosingDate_RejectsADateAfterToday()
-    {
-        SystemParameters parameters = CreateParameters(500_000m, 7);
-        DateOnly today = new(2026, 10, 25);
-
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            parameters.ChangeClosingDate(new DateOnly(2026, 10, 26), today, reason: null, CreatedAtUtc.AddMinutes(5), EditorId));
-
-        Assert.Equal(DateOnly.MinValue, parameters.ClosingDate);
+        Assert.Null(parameters.FiscalPeriodStartDate);
+        Assert.Null(parameters.FiscalPeriodEndDate);
     }
 
     [Fact]
@@ -171,7 +141,7 @@ public sealed class SystemParametersTests
 
         parameters.UpdateCompany(
             "Soporte Experto", "3-101-123456", "San José, Costa Rica", "2222-2222", "info@soportexperto.cr",
-            "620301", "Soporte Experto CR", "1", "01", "02", changedAtUtc, EditorId);
+            "620301", "Soporte Experto CR", "1", "01", "02", "001", "00001", changedAtUtc, EditorId);
 
         Assert.Equal("Soporte Experto", parameters.CompanyName);
         Assert.Equal("3-101-123456", parameters.CompanyLegalId);
@@ -183,6 +153,8 @@ public sealed class SystemParametersTests
         Assert.Equal("1", parameters.CompanyProvinceCode);
         Assert.Equal("01", parameters.CompanyCantonCode);
         Assert.Equal("02", parameters.CompanyDistrictCode);
+        Assert.Equal("001", parameters.CompanyBranchCode);
+        Assert.Equal("00001", parameters.CompanyTerminalCode);
         Assert.Equal(changedAtUtc, parameters.UpdatedAtUtc);
         Assert.Equal(EditorId, parameters.UpdatedByUserId);
     }
@@ -193,7 +165,8 @@ public sealed class SystemParametersTests
         SystemParameters parameters = CreateParameters(500_000m, 7);
 
         parameters.UpdateCompany(
-            "Soporte Experto", "3-101-123456", null, null, null, null, null, null, null, null, CreatedAtUtc.AddMinutes(5), EditorId);
+            "Soporte Experto", "3-101-123456", null, null, null, null, null, null, null, null, null, null,
+            CreatedAtUtc.AddMinutes(5), EditorId);
 
         Assert.Null(parameters.CompanyAddress);
         Assert.Null(parameters.CompanyPhone);
@@ -203,6 +176,8 @@ public sealed class SystemParametersTests
         Assert.Null(parameters.CompanyProvinceCode);
         Assert.Null(parameters.CompanyCantonCode);
         Assert.Null(parameters.CompanyDistrictCode);
+        Assert.Null(parameters.CompanyBranchCode);
+        Assert.Null(parameters.CompanyTerminalCode);
     }
 
     [Theory]
@@ -216,7 +191,7 @@ public sealed class SystemParametersTests
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             parameters.UpdateCompany(
                 "Soporte Experto", "3-101-123456", null, null, null, null, null, provinceCode, null, null,
-                CreatedAtUtc.AddMinutes(5), EditorId));
+                null, null, CreatedAtUtc.AddMinutes(5), EditorId));
     }
 
     [Theory]
@@ -229,11 +204,37 @@ public sealed class SystemParametersTests
         Assert.Throws<ArgumentException>(() =>
             parameters.UpdateCompany(
                 "Soporte Experto", "3-101-123456", null, null, null, null, null, null, invalidCode, null,
-                CreatedAtUtc.AddMinutes(5), EditorId));
+                null, null, CreatedAtUtc.AddMinutes(5), EditorId));
         Assert.Throws<ArgumentException>(() =>
             parameters.UpdateCompany(
                 "Soporte Experto", "3-101-123456", null, null, null, null, null, null, null, invalidCode,
-                CreatedAtUtc.AddMinutes(5), EditorId));
+                null, null, CreatedAtUtc.AddMinutes(5), EditorId));
+    }
+
+    [Theory]
+    [InlineData("1")]
+    [InlineData("1234")]
+    public void UpdateCompany_RejectsABranchCodeWithTheWrongLength(string invalidCode)
+    {
+        SystemParameters parameters = CreateParameters(500_000m, 7);
+
+        Assert.Throws<ArgumentException>(() =>
+            parameters.UpdateCompany(
+                "Soporte Experto", "3-101-123456", null, null, null, null, null, null, null, null,
+                invalidCode, null, CreatedAtUtc.AddMinutes(5), EditorId));
+    }
+
+    [Theory]
+    [InlineData("1")]
+    [InlineData("123456")]
+    public void UpdateCompany_RejectsATerminalCodeWithTheWrongLength(string invalidCode)
+    {
+        SystemParameters parameters = CreateParameters(500_000m, 7);
+
+        Assert.Throws<ArgumentException>(() =>
+            parameters.UpdateCompany(
+                "Soporte Experto", "3-101-123456", null, null, null, null, null, null, null, null,
+                null, invalidCode, CreatedAtUtc.AddMinutes(5), EditorId));
     }
 
     [Theory]
@@ -246,7 +247,7 @@ public sealed class SystemParametersTests
 
         Assert.Throws<ArgumentException>(() =>
             parameters.UpdateCompany(
-                name!, "3-101-123456", null, null, null, null, null, null, null, null,
+                name!, "3-101-123456", null, null, null, null, null, null, null, null, null, null,
                 CreatedAtUtc.AddMinutes(5), EditorId));
     }
 
@@ -259,7 +260,7 @@ public sealed class SystemParametersTests
 
         Assert.Throws<ArgumentException>(() =>
             parameters.UpdateCompany(
-                "Soporte Experto", legalId!, null, null, null, null, null, null, null, null,
+                "Soporte Experto", legalId!, null, null, null, null, null, null, null, null, null, null,
                 CreatedAtUtc.AddMinutes(5), EditorId));
     }
 

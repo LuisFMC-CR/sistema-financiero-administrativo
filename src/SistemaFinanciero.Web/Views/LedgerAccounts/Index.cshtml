@@ -1,17 +1,17 @@
-@model CatalogIndexViewModel<LedgerAccountModel>
+@model LedgerAccountIndexViewModel
 @{
-    ViewData["Title"] = "Cuentas contables";
+    ViewData["Title"] = "Catálogo contable";
     bool canManage = (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ManageBusinessCatalogs)).Succeeded;
 }
 
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
     <div>
-        <h1 class="h2 mb-1">Cuentas contables</h1>
-        <p class="text-body-secondary mb-0">Catálogo jerárquico que clasifica; incluye las cajas y bancos. No lleva partida doble.</p>
+        <h1 class="h2 mb-1">Catálogo contable</h1>
+        <p class="text-body-secondary mb-0">Cuentas jerárquicas, acumuladoras y de movimiento, con saldo calculado desde el libro mayor.</p>
     </div>
     @if (canManage)
     {
-        <a asp-action="Create" class="btn btn-primary">Nueva cuenta contable</a>
+        <a asp-action="Create" class="btn btn-primary">Nueva cuenta</a>
     }
 </div>
 
@@ -20,17 +20,37 @@
         <thead class="table-light">
             <tr>
                 <th scope="col">Código</th>
-                <th scope="col">Nombre</th>
-                <th scope="col">Tipo</th>
-                <th scope="col">Cuenta superior</th>
-                <th scope="col">Efectivo</th>
+                <th scope="col">Nombre o descripción</th>
+                <th scope="col">Tipo / naturaleza</th>
+                <th scope="col">Nivel / jerarquía</th>
                 <th scope="col">Estado</th>
+                <th scope="col" class="text-end">Saldo actual</th>
                 @if (canManage)
                 {
                     <th scope="col" class="text-end">Acciones</th>
                 }
             </tr>
-            <partial name="_CatalogFilters" model="new CatalogFilterViewModel(Model.Search, Model.Status)" />
+            <tr>
+                <form method="get">
+                    <th><input asp-for="Code" class="form-control form-control-sm" placeholder="Filtrar" /></th>
+                    <th><input asp-for="Name" class="form-control form-control-sm" placeholder="Filtrar" /></th>
+                    <th>
+                        <select asp-for="Type" class="form-select form-select-sm" asp-items="Html.GetEnumSelectList<LedgerAccountType>()"><option value="">Todos</option></select>
+                    </th>
+                    <th>
+                        <select asp-for="IsMovement" class="form-select form-select-sm">
+                            <option value="">Todos</option><option value="true">Movimiento</option><option value="false">Acumuladora</option>
+                        </select>
+                    </th>
+                    <th>
+                        <select asp-for="IsActive" class="form-select form-select-sm">
+                            <option value="">Todos</option><option value="true">Activa</option><option value="false">Inactiva</option>
+                        </select>
+                    </th>
+                    <th class="text-end"><button type="submit" class="btn btn-sm btn-outline-secondary">Filtrar</button></th>
+                    @if (canManage) { <th></th> }
+                </form>
+            </tr>
         </thead>
         <tbody>
             @if (Model.Results.Items.Count == 0)
@@ -40,48 +60,25 @@
             @foreach (LedgerAccountModel account in Model.Results.Items)
             {
                 <tr>
-                    <td class="fw-semibold">@account.Code</td>
-                    <td>
+                    <td class="fw-semibold" style="padding-left: @(Math.Max(0, account.Level - 1) * 1.5)rem">@account.Code</td>
+                    <td style="padding-left: @(Math.Max(0, account.Level - 1) * 1.5)rem">
                         @account.Name
-                        @if (account.IsProtected)
-                        {
-                            <span class="badge text-bg-secondary ms-1">Grupo</span>
-                        }
-                        @if (account.SystemRole is LedgerAccountSystemRole systemRole)
-                        {
-                            <span class="badge text-bg-info ms-1" title="@systemRole.ToDisplayName()">Sistema</span>
-                        }
-                        @if (!string.IsNullOrWhiteSpace(account.Reference))
-                        {
-                            <div class="small text-body-secondary">@account.Reference</div>
-                        }
+                        @if (!string.IsNullOrWhiteSpace(account.Description)) { <div class="small text-body-secondary">@account.Description</div> }
                     </td>
                     <td>@account.Type.ToDisplayName()</td>
-                    <td>@(account.ParentName ?? "—")</td>
-                    <td>
-                        @if (account.CashKind is CashAccountKind cashKind)
-                        {
-                            @cashKind.ToDisplayName()
-                        }
-                        else
-                        {
-                            <span>—</span>
-                        }
-                    </td>
+                    <td>@account.NatureLabel</td>
                     <td><partial name="_CatalogStatusBadge" model="account.IsActive" /></td>
+                    <td class="text-end">@account.Balance.ToString("N2")</td>
                     @if (canManage)
                     {
                         <td class="text-end text-nowrap">
-                            <a asp-action="Edit" asp-route-id="@account.Id" class="btn btn-sm btn-outline-primary">Editar</a>
-                            @if (!account.IsProtected && (account.IsActive == false || account.SystemRole is null))
+                            @if (account.CanEdit) { <a asp-action="Edit" asp-route-id="@account.Id" class="btn btn-sm btn-outline-primary">Editar</a> }
+                            @if (account.CanDeactivate || (!account.IsActive && account.CanEdit))
                             {
-                                <form asp-action="SetActive" asp-route-id="@account.Id" method="post" class="d-inline js-confirm-form"
-                                      data-confirm-message="¿Confirma que desea @(account.IsActive ? "desactivar" : "reactivar") esta cuenta contable?">
-                                    <input type="hidden" name="IsActive" value="@(!account.IsActive)" />
+                                <form asp-action="SetActive" asp-route-id="@account.Id" method="post" class="d-inline js-confirm-form" data-confirm-message="¿Confirma que desea @(account.IsActive ? "desactivar" : "reactivar") esta cuenta contable?">
+                                    <input type="hidden" name="IsActive" value="@(account.IsActive ? "false" : "true")" />
                                     <input type="hidden" name="Version" value="@account.Version" />
-                                    <button type="submit" class="btn btn-sm @(account.IsActive ? "btn-outline-danger" : "btn-outline-success")">
-                                        @(account.IsActive ? "Desactivar" : "Reactivar")
-                                    </button>
+                                    <button type="submit" class="btn btn-sm @(account.IsActive ? "btn-outline-danger" : "btn-outline-success")">@(account.IsActive ? "Desactivar" : "Reactivar")</button>
                                 </form>
                             }
                         </td>
@@ -92,4 +89,14 @@
     </table>
 </div>
 
-<partial name="_CatalogPagination" model="new CatalogPaginationViewModel(Model.Results.Page, Model.Results.TotalPages, Model.Results.HasPreviousPage, Model.Results.HasNextPage, Model.Search, Model.Status)" />
+@if (Model.Results.TotalPages > 1)
+{
+    <nav class="mt-3" aria-label="Paginación del catálogo">
+        <ul class="pagination">
+            @for (int pageNumber = 1; pageNumber <= Model.Results.TotalPages; pageNumber++)
+            {
+                <li class="page-item @(pageNumber == Model.Results.Page ? "active" : string.Empty)"><a class="page-link" asp-route-page="@pageNumber" asp-route-code="@Model.Code" asp-route-name="@Model.Name" asp-route-type="@Model.Type" asp-route-isMovement="@Model.IsMovement" asp-route-isActive="@Model.IsActive">@pageNumber</a></li>
+            }
+        </ul>
+    </nav>
+}

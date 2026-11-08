@@ -21,7 +21,9 @@ public sealed record SaveCompanyDataCommand(
     string? TradeName,
     string? ProvinceCode,
     string? CantonCode,
-    string? DistrictCode);
+    string? DistrictCode,
+    string? BranchCode,
+    string? TerminalCode);
 
 /// <summary>Proyección administrativa de los parámetros del sistema.</summary>
 public sealed record SystemParametersModel(
@@ -38,9 +40,22 @@ public sealed record SystemParametersModel(
     string? CompanyProvinceCode,
     string? CompanyCantonCode,
     string? CompanyDistrictCode,
+    string? CompanyBranchCode,
+    string? CompanyTerminalCode,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc,
     string UpdatedByUserName,
+    string Version,
+    DateOnly? FiscalPeriodStartDate = null,
+    DateOnly? FiscalPeriodEndDate = null);
+
+/// <summary>Proyección de un período anterior que Gerencia reabrió manualmente.</summary>
+public sealed record ReopenedAccountingPeriodModel(
+    int Year,
+    int Month,
+    string Reason,
+    DateTimeOffset ReopenedAtUtc,
+    string ReopenedByUserName,
     string Version);
 
 /// <summary>
@@ -67,13 +82,31 @@ public interface ISystemParametersService
         Guid actorId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Cambia la fecha de cierre (regla 16). Adelantarla es el cierre mensual, sin motivo;
-    /// retrocederla es una reapertura y exige motivo. Nunca puede ser posterior a hoy.
-    /// </summary>
-    public Task<CatalogOperationResult> ChangeClosingDateAsync(
-        DateOnly newClosingDate,
+    /// <summary>Define o cambia el período fiscal de doce meses con motivo opcional.</summary>
+    public Task<CatalogOperationResult> UpdateFiscalPeriodAsync(
+        DateOnly startDate,
+        DateOnly endDate,
         string? reason,
+        string version,
+        Guid actorId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Consulta las excepciones actualmente abiertas por Gerencia.</summary>
+    public Task<IReadOnlyList<ReopenedAccountingPeriodModel>> GetReopenedAccountingPeriodsAsync(
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Reabre un mes pasado hasta que Gerencia vuelva a cerrarlo.</summary>
+    public Task<CatalogOperationResult> ReopenAccountingPeriodAsync(
+        int year,
+        int month,
+        string reason,
+        Guid actorId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Cierra de nuevo un mes que Gerencia había reabierto.</summary>
+    public Task<CatalogOperationResult> CloseAccountingPeriodAsync(
+        int year,
+        int month,
         string version,
         Guid actorId,
         CancellationToken cancellationToken = default);

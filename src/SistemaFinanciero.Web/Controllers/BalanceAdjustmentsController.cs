@@ -12,7 +12,7 @@ namespace SistemaFinanciero.Web.Controllers;
 
 /// <summary>
 /// Registra ajustes manuales de saldo sobre cuentas por cobrar y por pagar (regla de negocio 4).
-/// Exclusivo de Gerencia.
+/// Disponible para Finanzas y Gerencia.
 /// </summary>
 /// <remarks>
 /// Conexiones: usa <c>IBalanceAdjustmentService</c> para registrar el ajuste, e

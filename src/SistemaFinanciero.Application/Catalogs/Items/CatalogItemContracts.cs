@@ -14,7 +14,7 @@ public sealed record CreateCatalogItemCommand(
     string? Description,
     UnitOfMeasureCode UnitOfMeasure,
     decimal? ReferencePriceCrc,
-    Guid? DefaultIncomeCategoryId,
+    Guid? DefaultIncomeAccountId,
     Guid? DefaultTaxTypeId);
 
 /// <summary>
@@ -27,7 +27,7 @@ public sealed record UpdateCatalogItemCommand(
     string? Description,
     UnitOfMeasureCode UnitOfMeasure,
     decimal? ReferencePriceCrc,
-    Guid? DefaultIncomeCategoryId,
+    Guid? DefaultIncomeAccountId,
     Guid? DefaultTaxTypeId);
 
 /// <summary>
@@ -56,8 +56,8 @@ public sealed record CatalogItemModel(
     string? Description,
     UnitOfMeasureCode UnitOfMeasure,
     decimal? ReferencePriceCrc,
-    Guid? DefaultIncomeCategoryId,
-    string? DefaultIncomeCategoryName,
+    Guid? DefaultIncomeAccountId,
+    string? DefaultIncomeAccountName,
     Guid? DefaultTaxTypeId,
     string? DefaultTaxTypeName,
     bool IsActive,
@@ -69,7 +69,7 @@ public sealed record CatalogItemModel(
 /// <remarks>
 /// Conexiones: lo implementa <c>CatalogItemService</c> (Infrastructure/Catalogs/Items); lo consume
 /// <c>CatalogItemsController</c> (Web, ruta <c>/catalogos/productos-servicios</c>).
-/// <c>DefaultIncomeCategoryId</c> debe apuntar a una <c>FinancialCategory</c> activa de tipo Ingreso.
+/// <c>DefaultIncomeAccountId</c> debe apuntar a una <c>FinancialCategory</c> activa de tipo Ingreso.
 /// <c>DefaultTaxTypeId</c> (RF-52) debe apuntar a un <c>TaxType</c> activo; es la tarifa de IVA que se
 /// propondrá al agregar el artículo a una línea de factura, editable en la línea misma.
 /// </remarks>

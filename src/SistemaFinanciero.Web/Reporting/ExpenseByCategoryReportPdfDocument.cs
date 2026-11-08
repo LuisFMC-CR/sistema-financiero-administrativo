@@ -49,8 +49,8 @@ public sealed class ExpenseByCategoryReportPdfDocument(ExpenseByCategoryReportRe
 
                     foreach (ExpenseByCategoryReportLine line in result.Lines)
                     {
-                        table.Cell().Element(ReportDocumentStyles.BodyCellStyle).Text(line.CategoryCode);
-                        table.Cell().Element(ReportDocumentStyles.BodyCellStyle).Text(line.CategoryName);
+                        table.Cell().Element(ReportDocumentStyles.BodyCellStyle).Text(line.AccountCode);
+                        table.Cell().Element(ReportDocumentStyles.BodyCellStyle).Text(line.AccountName);
                         table.Cell().Element(ReportDocumentStyles.BodyCellStyle).AlignRight()
                             .Text(line.Count.ToString(System.Globalization.CultureInfo.InvariantCulture));
                         table.Cell().Element(ReportDocumentStyles.BodyCellStyle).AlignRight()

@@ -12,11 +12,11 @@ namespace SistemaFinanciero.Web.Controllers;
 /// <remarks>
 /// Conexiones: usa <c>IPayableService</c> para la cuenta por pagar, <c>ISupplierPaymentService</c>
 /// para su historial de pagos e <c>IBalanceAdjustmentService</c> para su historial de ajustes de
-/// saldo (regla 4). Solo Gerencia y Finanzas ven esta pantalla (política <c>Reportes.Ver</c>), igual
-/// criterio que <c>ReceivablesController</c>. Registrar y anular un pago lo hace
+/// saldo (regla 4). Gerencia, Finanzas y Asistente pueden consultar esta pantalla; Asistente no puede
+/// registrar ni anular pagos ni ajustar saldos. Registrar y anular un pago lo hace
 /// <c>SupplierPaymentsController</c>; ajustar el saldo lo hace <c>BalanceAdjustmentsController</c>.
 /// </remarks>
-[Authorize(Policy = SystemPolicies.ViewFinancialReports)]
+[Authorize(Policy = SystemPolicies.ViewReceivablesAndPayables)]
 [Route("cuentas-por-pagar")]
 public sealed class PayablesController(
     IPayableService service,

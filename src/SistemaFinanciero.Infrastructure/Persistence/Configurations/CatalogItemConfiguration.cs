@@ -9,7 +9,7 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Configurations;
 /// <remarks>
 /// Conexiones: <c>FinancialDbContext.OnModelCreating</c> la aplica por convención. La usa
 /// <c>CatalogItemService</c>; su clave foránea restrictiva hacia <c>FinancialCategory</c>
-/// (<c>DefaultIncomeCategoryId</c>) y hacia <c>TaxType</c> (<c>DefaultTaxTypeId</c>, RF-52) impide
+/// (<c>DefaultIncomeAccountId</c>) y hacia <c>TaxType</c> (<c>DefaultTaxTypeId</c>, RF-52) impide
 /// eliminar una categoría o una tarifa de IVA referenciada.
 /// </remarks>
 internal sealed class CatalogItemConfiguration : IEntityTypeConfiguration<CatalogItem>
@@ -65,9 +65,9 @@ internal sealed class CatalogItemConfiguration : IEntityTypeConfiguration<Catalo
         builder.HasIndex(item => new { item.IsActive, item.Name })
             .HasDatabaseName("IX_ProductosServicios_IsActive_Name");
 
-        builder.HasOne<FinancialCategory>()
+        builder.HasOne<LedgerAccount>()
             .WithMany()
-            .HasForeignKey(item => item.DefaultIncomeCategoryId)
+            .HasForeignKey(item => item.DefaultIncomeAccountId)
             .OnDelete(DeleteBehavior.Restrict)
             .HasConstraintName("FK_ProductosServicios_CategoriasFinancieras");
         builder.HasOne<TaxType>()

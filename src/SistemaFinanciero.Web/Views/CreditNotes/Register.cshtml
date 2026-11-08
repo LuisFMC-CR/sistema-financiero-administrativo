@@ -1,0 +1,70 @@
+@model SistemaFinanciero.Web.Models.CreditNotes.CreditNoteRegisterViewModel
+@{
+    ViewData["Title"] = "Registrar nota de crédito";
+    decimal refundAmount = Model.Invoice.IsCashInvoice ? Model.Invoice.InvoiceTotal : Model.Invoice.CashReceived;
+}
+
+<div class="mb-3">
+    <h1 class="h2">Registrar nota de crédito</h1>
+    <p class="text-body-secondary">La nota acredita el total de la factura y la anula sin eliminar su historial.</p>
+</div>
+
+<div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+<div class="card card-body mb-3">
+    <h2 class="h5">Factura @Model.Invoice.InvoiceNumber — @Model.Invoice.CustomerName</h2>
+    <div class="row">
+        <div class="col-md-3"><strong>Fecha:</strong> @Model.Invoice.IssueDate.ToString("dd/MM/yyyy")</div>
+        <div class="col-md-3"><strong>Total:</strong> ₡@Model.Invoice.InvoiceTotal.ToString("N2")</div>
+        <div class="col-md-3"><strong>Saldo:</strong> ₡@Model.Invoice.ReceivableBalance.ToString("N2")</div>
+        <div class="col-md-3"><strong>Retenciones a revertir:</strong> ₡@Model.Invoice.WithholdingAmount.ToString("N2")</div>
+    </div>
+    @if (Model.Invoice.HasBalanceAdjustments)
+    {
+        <div class="alert alert-warning mt-3 mb-0">
+            No se puede emitir la nota porque la cuenta por cobrar tiene historial de ajustes de saldo. Verifique y concilie esos movimientos antes de emitirla.
+        </div>
+    }
+</div>
+
+<form asp-action="Register" asp-route-invoiceId="@Model.Invoice.InvoiceId" method="post">
+    <input asp-for="InvoiceVersion" type="hidden" />
+    <div class="row g-3">
+        <div class="col-md-4">
+            <label asp-for="IssueDate" class="form-label"></label><span class="text-danger"> *</span>
+            <input asp-for="IssueDate" class="form-control" />
+            <span asp-validation-for="IssueDate" class="text-danger"></span>
+        </div>
+        <div class="col-md-8">
+            <label asp-for="Reason" class="form-label"></label><span class="text-danger"> *</span>
+            <input asp-for="Reason" class="form-control" maxlength="300" />
+            <span asp-validation-for="Reason" class="text-danger"></span>
+        </div>
+        @if (refundAmount > 0m)
+        {
+            <div class="col-12">
+                <p class="mb-1">Devolución en efectivo requerida: <strong>₡@refundAmount.ToString("N2")</strong></p>
+                <p class="text-body-secondary">Las retenciones aplicadas se revertirán en la cuenta contable correspondiente; no forman parte del efectivo devuelto.</p>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="CashAccountId" class="form-label"></label><span class="text-danger"> *</span>
+                <select asp-for="CashAccountId" asp-items="Model.CashAccountOptions" class="form-select" required>
+                    <option value="">Seleccione una cuenta</option>
+                </select>
+                <span asp-validation-for="CashAccountId" class="text-danger"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="RefundReference" class="form-label"></label><span class="text-danger"> *</span>
+                <input asp-for="RefundReference" class="form-control" maxlength="100" required />
+                <span asp-validation-for="RefundReference" class="text-danger"></span>
+            </div>
+        }
+    </div>
+    <div class="d-flex gap-2 mt-4">
+        <button type="submit" class="btn btn-danger" disabled="@Model.Invoice.HasBalanceAdjustments">Registrar nota de crédito</button>
+        <a asp-action="Index" class="btn btn-outline-secondary">Volver</a>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

@@ -15,14 +15,14 @@ public sealed class IncomeTests
     public void FromInvoice_KeepsTheInvoiceOriginAndItsData()
     {
         Guid invoiceId = Guid.NewGuid();
-        Guid categoryId = Guid.NewGuid();
+        Guid accountId = Guid.NewGuid();
         Guid cashAccountId = Guid.NewGuid();
 
         Income income = Income.FromInvoice(
             Guid.NewGuid(),
             "ING-001",
             invoiceId,
-            categoryId,
+            accountId,
             cashAccountId,
             226m,
             IncomeDate,
@@ -34,7 +34,7 @@ public sealed class IncomeTests
         Assert.Equal(IncomeOrigin.InvoiceCash, income.Origin);
         Assert.Equal(invoiceId, income.InvoiceId);
         Assert.Null(income.ReceivablePaymentId);
-        Assert.Equal(categoryId, income.CategoryId);
+        Assert.Equal(accountId, income.AccountId);
         Assert.Equal(cashAccountId, income.CashAccountId);
         Assert.Equal(226m, income.Amount);
         Assert.Equal(PaymentMethod.Cash, income.PaymentMethod);
@@ -46,14 +46,14 @@ public sealed class IncomeTests
     public void FromReceivablePayment_KeepsTheReceivablePaymentOriginAndNoPaymentMethod()
     {
         Guid receivablePaymentId = Guid.NewGuid();
-        Guid categoryId = Guid.NewGuid();
+        Guid accountId = Guid.NewGuid();
         Guid cashAccountId = Guid.NewGuid();
 
         Income income = Income.FromReceivablePayment(
             Guid.NewGuid(),
             "ING-001",
             receivablePaymentId,
-            categoryId,
+            accountId,
             cashAccountId,
             450m,
             IncomeDate,
@@ -72,13 +72,13 @@ public sealed class IncomeTests
     [Fact]
     public void CreateManual_KeepsNoInvoiceNorReceivablePaymentAndRequiresTheDescription()
     {
-        Guid categoryId = Guid.NewGuid();
+        Guid accountId = Guid.NewGuid();
         Guid cashAccountId = Guid.NewGuid();
 
         Income income = Income.CreateManual(
             Guid.NewGuid(),
             "ING-001",
-            categoryId,
+            accountId,
             cashAccountId,
             50_000m,
             IncomeDate,

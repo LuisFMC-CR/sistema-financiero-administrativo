@@ -2,22 +2,21 @@ using Microsoft.EntityFrameworkCore;
 using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Catalogs.LedgerAccounts;
 using SistemaFinanciero.Domain.Catalogs;
+using SistemaFinanciero.Domain.Ledger;
 using SistemaFinanciero.Infrastructure.Persistence;
 
 namespace SistemaFinanciero.Infrastructure.Catalogs.LedgerAccounts;
 
 /// <summary>
-/// Ejecuta los casos de uso y las reglas jerárquicas del catálogo de cuentas contables, sin almacenar
-/// saldos.
+/// Ejecuta los casos de uso y las reglas jerárquicas del catálogo contable. El saldo de cada cuenta
+/// no se almacena: se calcula desde el libro mayor y se acumula hacia las cuentas superiores.
 /// </summary>
 /// <remarks>
 /// Conexiones: implementa <c>ILedgerAccountService</c> (Application); se registra en
-/// <c>DependencyInjection.AddInfrastructure</c>; lo inyectan <c>LedgerAccountsController</c> y
-/// <c>FinancialCategoriesController</c> (Web, este último solo para los selectores). Lee y escribe
-/// <c>FinancialDbContext.LedgerAccounts</c> (tabla <c>catalogos.CuentasContables</c>) y consulta
-/// <c>FinancialCategories</c> al desactivar, para no dejar una cuenta usada por una categoría activa.
-/// <see cref="CreateAsync"/> calcula el código jerárquico (regla 12) como el siguiente hijo libre del
-/// padre, con reintento ante colisiones de concurrencia sobre el índice único de código.
+/// <c>DependencyInjection.AddInfrastructure</c>; lo inyecta <c>LedgerAccountsController</c> (Web).
+/// Lee y escribe <c>catalogos.CuentasContables</c> y consulta <c>finanzas.AsientoLineas</c> para el
+/// saldo actual. Solo las cuentas de movimiento (tercer nivel) se crean, editan o desactivan; las
+/// raíces y los grupos son acumuladores protegidos.
 /// </remarks>
 internal sealed class LedgerAccountService(
     FinancialDbContext dbContext,
@@ -27,45 +26,59 @@ internal sealed class LedgerAccountService(
     private const int MaxCodeGenerationAttempts = 5;
 
     public async Task<PagedResult<LedgerAccountModel>> SearchAsync(
-        CatalogQuery query,
+        LedgerAccountQuery query,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(query);
 
         IQueryable<LedgerAccount> accounts = dbContext.Set<LedgerAccount>().AsNoTracking();
 
-        accounts = query.Status switch
+        if (query.Code is not null)
         {
-            CatalogStatusFilter.Active => accounts.Where(account => account.IsActive),
-            CatalogStatusFilter.Inactive => accounts.Where(account => !account.IsActive),
-            CatalogStatusFilter.All => accounts,
-            _ => throw new ArgumentOutOfRangeException(nameof(query)),
-        };
+            string code = query.Code;
+            accounts = accounts.Where(account => account.Code.Contains(code));
+        }
 
-        if (query.Search is not null)
+        if (query.Name is not null)
         {
-            string search = query.Search;
+            string name = query.Name;
             accounts = accounts.Where(account =>
-                account.Code.Contains(search) ||
-                account.Name.Contains(search) ||
-                (account.Reference != null && account.Reference.Contains(search)) ||
-                (account.Description != null && account.Description.Contains(search)));
+                account.Name.Contains(name) ||
+                (account.Description != null && account.Description.Contains(name)) ||
+                (account.Reference != null && account.Reference.Contains(name)));
+        }
+
+        if (query.Type is LedgerAccountType type)
+        {
+            accounts = accounts.Where(account => account.Type == type);
+        }
+
+        if (query.IsMovement is bool isMovement)
+        {
+            accounts = accounts.Where(account => account.IsMovement == isMovement);
+        }
+
+        if (query.IsActive is bool isActive)
+        {
+            accounts = accounts.Where(account => account.IsActive == isActive);
         }
 
         PagedResult<LedgerAccount> page = await CatalogPersistence.ToPageAsync(
-            accounts
-                .OrderBy(account => account.Type)
-                .ThenBy(account => account.Code),
+            accounts.OrderBy(account => account.Code),
             query.Page,
             query.PageSize,
             cancellationToken);
 
-        IReadOnlyDictionary<Guid, string> parentNames = await GetParentNamesAsync(
+        IReadOnlyDictionary<Guid, AccountBalance> balances = await GetBalancesAsync(cancellationToken);
+        IReadOnlyDictionary<Guid, LedgerAccount> parents = await GetParentsAsync(
             page.Items,
             cancellationToken);
 
         return new PagedResult<LedgerAccountModel>(
-            page.Items.Select(account => Map(account, parentNames)).ToArray(),
+            page.Items.Select(account => Map(
+                account,
+                account.ParentId is Guid parentId ? parents.GetValueOrDefault(parentId) : null,
+                balances.GetValueOrDefault(account.Id))).ToArray(),
             page.Page,
             page.PageSize,
             page.TotalCount);
@@ -84,11 +97,14 @@ internal sealed class LedgerAccountService(
             return null;
         }
 
-        IReadOnlyDictionary<Guid, string> parentNames = await GetParentNamesAsync(
-            [account],
-            cancellationToken);
+        IReadOnlyDictionary<Guid, AccountBalance> balances = await GetBalancesAsync(cancellationToken);
+        LedgerAccount? parent = account.ParentId is Guid parentId
+            ? await dbContext.Set<LedgerAccount>()
+                .AsNoTracking()
+                .SingleOrDefaultAsync(candidate => candidate.Id == parentId, cancellationToken)
+            : null;
 
-        return Map(account, parentNames);
+        return Map(account, parent, balances.GetValueOrDefault(account.Id));
     }
 
     public async Task<IReadOnlyList<LedgerAccountOption>> GetParentOptionsAsync(
@@ -101,26 +117,10 @@ internal sealed class LedgerAccountService(
             throw new ArgumentOutOfRangeException(nameof(type));
         }
 
-        // El usuario solo crea cuentas de detalle dentro de 1.1 Efectivo, Ingresos y Gastos (bloque 4
-        // del catálogo contable ampliado): Pasivo y Patrimonio son siempre cuentas de sistema, sin
-        // ningún punto donde el usuario pueda agregar una cuenta propia.
-        if (type is LedgerAccountType.Liability or LedgerAccountType.Equity)
-        {
-            return [];
-        }
-
-        AccountNode[] nodes = await dbContext.Set<LedgerAccount>()
+        List<LedgerAccount> nodes = await dbContext.Set<LedgerAccount>()
             .AsNoTracking()
             .Where(account => account.Type == type)
-            .Select(account => new AccountNode(
-                account.Id,
-                account.ParentId,
-                account.Code,
-                account.Name,
-                account.IsActive,
-                account.CashKind != null,
-                account.SystemRole))
-            .ToArrayAsync(cancellationToken);
+            .ToListAsync(cancellationToken);
 
         HashSet<Guid> excludedIds = [];
 
@@ -131,11 +131,12 @@ internal sealed class LedgerAccountService(
         }
 
         return nodes
-            .Where(node => node.IsActive && !node.IsCash && node.SystemRole is null && !excludedIds.Contains(node.Id))
-            // Dentro de Activo, solo el grupo de Efectivo admite cuentas nuevas: Cuentas por cobrar e
-            // Impuestos a favor son cuentas de sistema sin más detalle que el que ya sembró la migración.
-            .Where(node => type != LedgerAccountType.Asset || string.Equals(node.Code, "1.1", StringComparison.Ordinal))
-            .OrderBy(node => node.Code)
+            .Where(node => node.IsActive
+                && !node.IsCash
+                && node.SystemRole is null
+                && !excludedIds.Contains(node.Id)
+                && LedgerAccountGroups.DetailParentCodes.Contains(node.Code))
+            .OrderBy(node => node.Code, StringComparer.Ordinal)
             .Select(node => new LedgerAccountOption(node.Id, node.Code, node.Name))
             .ToArray();
     }
@@ -149,10 +150,13 @@ internal sealed class LedgerAccountService(
             throw new ArgumentOutOfRangeException(nameof(type));
         }
 
-        // Las cuentas de sistema no aparecen para elegir en categorías financieras (bloque 4).
+        // Solo cuentas de movimiento: las acumuladoras no admiten facturar ni registrar asientos.
         return await dbContext.Set<LedgerAccount>()
             .AsNoTracking()
-            .Where(account => account.Type == type && account.IsActive && account.SystemRole == null)
+            .Where(account => account.Type == type
+                && account.IsActive
+                && account.IsMovement
+                && account.SystemRole == null)
             .OrderBy(account => account.Code)
             .Select(account => new LedgerAccountOption(account.Id, account.Code, account.Name))
             .ToListAsync(cancellationToken);
@@ -181,7 +185,7 @@ internal sealed class LedgerAccountService(
     {
         return await dbContext.Set<LedgerAccount>()
             .AsNoTracking()
-            .Where(account => !account.IsProtected)
+            .Where(account => account.IsMovement)
             .OrderBy(account => account.Code)
             .Select(account => new LedgerAccountOption(account.Id, account.Code, account.Name))
             .ToListAsync(cancellationToken);
@@ -213,13 +217,22 @@ internal sealed class LedgerAccountService(
             return CatalogOperationResult.Invalid("Una cuenta de sistema no puede tener cuentas hijas.");
         }
 
-        bool isAllowedParent = parent.Type is LedgerAccountType.Income or LedgerAccountType.Expense
-            || (parent.Type == LedgerAccountType.Asset && string.Equals(parent.Code, "1.1", StringComparison.Ordinal));
-
-        if (!isAllowedParent)
+        if (!LedgerAccountGroups.DetailParentCodes.Contains(parent.Code))
         {
             return CatalogOperationResult.Invalid(
-                "Solo se pueden crear cuentas de detalle dentro de Efectivo, Ingresos o Gastos.");
+                "Las cuentas nuevas solo se crean dentro de un grupo de segundo nivel del catálogo contable.");
+        }
+
+        if (parent.Type == LedgerAccountType.Asset && command.CashKind is null)
+        {
+            return CatalogOperationResult.Invalid(
+                "Una cuenta nueva dentro de Activo corriente debe indicar si es caja o banco.");
+        }
+
+        if (parent.Type != LedgerAccountType.Asset && command.CashKind is not null)
+        {
+            return CatalogOperationResult.Invalid(
+                "Solo una cuenta de tipo Activo puede ser de efectivo.");
         }
 
         for (int attempt = 1; attempt <= MaxCodeGenerationAttempts; attempt++)
@@ -283,11 +296,11 @@ internal sealed class LedgerAccountService(
             return CatalogOperationResult.Missing();
         }
 
-        if (account.IsProtected)
+        if (!account.IsMovement || account.IsProtected)
         {
             dbContext.ChangeTracker.Clear();
             return CatalogOperationResult.Invalid(
-                "Una cuenta de grupo del catálogo base no se puede modificar.");
+                "Solo se pueden modificar las cuentas de movimiento (último nivel); las cuentas acumuladoras y los títulos no se editan.");
         }
 
         if (!CatalogPersistence.TrySetOriginalVersion(dbContext, account, version))
@@ -331,17 +344,11 @@ internal sealed class LedgerAccountService(
             return CatalogOperationResult.Missing();
         }
 
-        if (account.IsProtected)
+        if (!account.IsMovement || account.IsProtected)
         {
             dbContext.ChangeTracker.Clear();
             return CatalogOperationResult.Invalid(
-                "Una cuenta de grupo del catálogo base no se puede desactivar.");
-        }
-
-        if (!isActive && account.SystemRole is not null)
-        {
-            dbContext.ChangeTracker.Clear();
-            return CatalogOperationResult.Invalid("Una cuenta de sistema no se puede desactivar.");
+                "Las cuentas acumuladoras y los títulos no se pueden activar ni desactivar.");
         }
 
         if (!CatalogPersistence.TrySetOriginalVersion(dbContext, account, version))
@@ -351,6 +358,17 @@ internal sealed class LedgerAccountService(
 
         if (!isActive)
         {
+            bool hasTransactions = await dbContext.Set<JournalEntryLine>()
+                .AsNoTracking()
+                .AnyAsync(line => line.AccountId == id, cancellationToken);
+
+            if (hasTransactions)
+            {
+                dbContext.ChangeTracker.Clear();
+                return CatalogOperationResult.Dependency(
+                    "La cuenta tiene movimientos asociados en el libro mayor y no se puede desactivar.");
+            }
+
             bool hasActiveChildren = await dbContext.Set<LedgerAccount>()
                 .AsNoTracking()
                 .AnyAsync(
@@ -364,18 +382,6 @@ internal sealed class LedgerAccountService(
                     "Desactive o reasigne primero las cuentas hijas activas.");
             }
 
-            bool isUsedByActiveCategory = await dbContext.Set<FinancialCategory>()
-                .AsNoTracking()
-                .AnyAsync(
-                    category => category.LedgerAccountId == id && category.IsActive,
-                    cancellationToken);
-
-            if (isUsedByActiveCategory)
-            {
-                dbContext.ChangeTracker.Clear();
-                return CatalogOperationResult.Dependency(
-                    "La cuenta está asignada a categorías financieras activas. Reasígnelas o desactívelas primero.");
-            }
         }
         else if (account.ParentId is Guid parentId)
         {
@@ -435,7 +441,7 @@ internal sealed class LedgerAccountService(
         return $"{parent.Code}.{nextSuffix:D2}";
     }
 
-    private async Task<IReadOnlyDictionary<Guid, string>> GetParentNamesAsync(
+    private async Task<IReadOnlyDictionary<Guid, LedgerAccount>> GetParentsAsync(
         IReadOnlyList<LedgerAccount> accounts,
         CancellationToken cancellationToken)
     {
@@ -447,19 +453,87 @@ internal sealed class LedgerAccountService(
 
         if (parentIds.Length == 0)
         {
-            return new Dictionary<Guid, string>();
+            return new Dictionary<Guid, LedgerAccount>();
         }
 
         return await dbContext.Set<LedgerAccount>()
             .AsNoTracking()
             .Where(account => parentIds.Contains(account.Id))
-            .ToDictionaryAsync(
-                account => account.Id,
-                account => account.Name,
-                cancellationToken);
+            .ToDictionaryAsync(account => account.Id, cancellationToken);
     }
 
-    private static HashSet<Guid> FindDescendants(IReadOnlyList<AccountNode> nodes, Guid parentId)
+    /// <summary>
+    /// Calcula el saldo de todas las cuentas desde <c>finanzas.AsientoLineas</c>. El saldo propio usa
+    /// la naturaleza de la cuenta (activo/gasto: débito menos crédito; pasivo/patrimonio/ingreso:
+    /// crédito menos débito) y luego se acumula hacia las cuentas superiores.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<Guid, AccountBalance>> GetBalancesAsync(
+        CancellationToken cancellationToken)
+    {
+        List<AccountNode> accounts = await dbContext.Set<LedgerAccount>()
+            .AsNoTracking()
+            .Select(account => new AccountNode(
+                account.Id,
+                account.ParentId,
+                account.Code,
+                account.Type))
+            .ToListAsync(cancellationToken);
+
+        var lines = await dbContext.Set<JournalEntryLine>()
+            .AsNoTracking()
+            .GroupBy(line => line.AccountId)
+            .Select(group => new
+            {
+                AccountId = group.Key,
+                Debit = group.Sum(line => line.Debit),
+                Credit = group.Sum(line => line.Credit),
+            })
+            .ToListAsync(cancellationToken);
+
+        Dictionary<Guid, AccountBalance> balances = accounts.ToDictionary(
+            account => account.Id,
+            account => new AccountBalance(0m, false));
+
+        foreach (var line in lines)
+        {
+            AccountNode? account = accounts.FirstOrDefault(candidate => candidate.Id == line.AccountId);
+
+            if (account is null)
+            {
+                continue;
+            }
+
+            decimal signed = account.Type is LedgerAccountType.Asset or LedgerAccountType.Expense
+                ? line.Debit - line.Credit
+                : line.Credit - line.Debit;
+
+            balances[account.Id] = new AccountBalance(signed, true);
+        }
+
+        foreach (AccountNode account in accounts.OrderByDescending(candidate => candidate.Code.Length))
+        {
+            if (account.ParentId is not Guid parentId
+                || !balances.TryGetValue(parentId, out AccountBalance? parentBalance))
+            {
+                continue;
+            }
+
+            balances[account.Id] = balances[account.Id] with
+            {
+                Balance = balances[account.Id].Balance + 0m,
+            };
+
+            balances[parentId] = parentBalance with
+            {
+                Balance = parentBalance.Balance + balances[account.Id].Balance,
+                HasTransactions = parentBalance.HasTransactions || balances[account.Id].HasTransactions,
+            };
+        }
+
+        return balances;
+    }
+
+    private static HashSet<Guid> FindDescendants(IReadOnlyList<LedgerAccount> nodes, Guid parentId)
     {
         Dictionary<Guid, Guid[]> childrenByParent = nodes
             .Where(node => node.ParentId.HasValue)
@@ -493,7 +567,8 @@ internal sealed class LedgerAccountService(
 
     private static LedgerAccountModel Map(
         LedgerAccount account,
-        IReadOnlyDictionary<Guid, string> parentNames)
+        LedgerAccount? parent,
+        AccountBalance? balance)
     {
         return new LedgerAccountModel(
             account.Id,
@@ -501,15 +576,17 @@ internal sealed class LedgerAccountService(
             account.Name,
             account.Type,
             account.ParentId,
-            account.ParentId is Guid parentId && parentNames.TryGetValue(parentId, out string? parentName)
-                ? parentName
-                : null,
+            parent?.Code,
+            parent?.Name,
             account.CashKind,
             account.Reference,
             account.Description,
             account.IsActive,
             account.IsProtected,
+            account.IsMovement,
             account.SystemRole,
+            balance?.Balance ?? 0m,
+            balance?.HasTransactions ?? false,
             account.CreatedAtUtc,
             account.UpdatedAtUtc,
             CatalogPersistence.EncodeVersion(account.RowVersion));
@@ -519,8 +596,7 @@ internal sealed class LedgerAccountService(
         Guid Id,
         Guid? ParentId,
         string Code,
-        string Name,
-        bool IsActive,
-        bool IsCash,
-        LedgerAccountSystemRole? SystemRole);
+        LedgerAccountType Type);
+
+    private sealed record AccountBalance(decimal Balance, bool HasTransactions);
 }

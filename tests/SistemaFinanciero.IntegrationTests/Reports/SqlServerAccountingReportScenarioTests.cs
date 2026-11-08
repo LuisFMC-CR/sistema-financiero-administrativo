@@ -49,18 +49,18 @@ public sealed class SqlServerAccountingReportScenarioTests : IClassFixture<Finan
             Guid supplierId = await CreateSupplierAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "13");
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
-            Guid expenseCategoryId = await CreateExpenseCategoryAsync(services, actorId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid expenseAccountId = await CreateExpenseCategoryAsync(services, actorId);
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
             Guid invoiceId = await CreateInvoiceWithLineOnDateAsync(
-                services, invoices, customerId, incomeCategoryId, taxTypeId, actorId, 100m, entryDate);
+                services, invoices, customerId, incomeAccountId, taxTypeId, actorId, 100m, entryDate);
             InvoiceModel invoiceDraft = (await invoices.GetAsync(invoiceId))!;
             await invoices.ConfirmAsync(
                 invoiceId, new ConfirmInvoiceCommand(cashAccountId, PaymentMethod.Cash, "F-0001"), invoiceDraft.Version, actorId);
 
             Guid expenseId = await CreateExpenseOnDateAsync(
-                expenses, supplierId, expenseCategoryId, taxTypeId, 50m, entryDate, actorId);
+                expenses, supplierId, expenseAccountId, taxTypeId, 50m, entryDate, actorId);
             ExpenseModel expenseDraft = (await expenses.GetAsync(expenseId))!;
             await expenses.ConfirmAsync(
                 expenseId, new ConfirmExpenseCommand(cashAccountId, "REC-0001"), expenseDraft.Version, actorId, actorIsManagement: false);
@@ -105,8 +105,8 @@ public sealed class SqlServerAccountingReportScenarioTests : IClassFixture<Finan
             Guid supplierId = await CreateSupplierAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
-            Guid expenseCategoryId = await CreateExpenseCategoryAsync(services, actorId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid expenseAccountId = await CreateExpenseCategoryAsync(services, actorId);
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
             DateOnly beforePeriodDate = new(2027, 1, 10);
@@ -115,13 +115,13 @@ public sealed class SqlServerAccountingReportScenarioTests : IClassFixture<Finan
             DateOnly withinPeriodDate = new(2027, 1, 20);
 
             Guid openingInvoiceId = await CreateInvoiceWithLineOnDateAsync(
-                services, invoices, customerId, incomeCategoryId, taxTypeId, actorId, 200m, beforePeriodDate);
+                services, invoices, customerId, incomeAccountId, taxTypeId, actorId, 200m, beforePeriodDate);
             InvoiceModel openingDraft = (await invoices.GetAsync(openingInvoiceId))!;
             await invoices.ConfirmAsync(
                 openingInvoiceId, new ConfirmInvoiceCommand(cashAccountId, PaymentMethod.Cash, "F-OPEN"), openingDraft.Version, actorId);
 
             Guid expenseId = await CreateExpenseOnDateAsync(
-                expenses, supplierId, expenseCategoryId, taxTypeId, 80m, withinPeriodDate, actorId);
+                expenses, supplierId, expenseAccountId, taxTypeId, 80m, withinPeriodDate, actorId);
             ExpenseModel expenseDraft = (await expenses.GetAsync(expenseId))!;
             await expenses.ConfirmAsync(
                 expenseId, new ConfirmExpenseCommand(cashAccountId, "REC-OPEN"), expenseDraft.Version, actorId, actorIsManagement: false);
@@ -244,12 +244,10 @@ public sealed class SqlServerAccountingReportScenarioTests : IClassFixture<Finan
             Guid supplierId = await CreateSupplierAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "13");
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
-            Guid incomeCategoryId = await CreateIncomeCategoryAsync(services, actorId);
-            Guid expenseCategoryId = await CreateExpenseCategoryAsync(services, actorId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid expenseAccountId = await CreateExpenseCategoryAsync(services, actorId);
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
-            Guid incomeAccountId = await GetCategoryLedgerAccountIdAsync(services, incomeCategoryId);
-            Guid expenseAccountId = await GetCategoryLedgerAccountIdAsync(services, expenseCategoryId);
             Guid vatPayableAccountId = await GetSystemAccountIdAsync(services, LedgerAccountSystemRole.VatPayable);
             Guid vatCreditableAccountId = await GetSystemAccountIdAsync(services, LedgerAccountSystemRole.VatCreditable);
             string incomeAccountCode = await GetLedgerAccountCodeAsync(services, incomeAccountId);
@@ -258,13 +256,13 @@ public sealed class SqlServerAccountingReportScenarioTests : IClassFixture<Finan
             string vatCreditableCode = await GetLedgerAccountCodeAsync(services, vatCreditableAccountId);
 
             Guid invoiceId = await CreateInvoiceWithLineOnDateAsync(
-                services, invoices, customerId, incomeCategoryId, taxTypeId, actorId, 100m, entryDate);
+                services, invoices, customerId, incomeAccountId, taxTypeId, actorId, 100m, entryDate);
             InvoiceModel invoiceDraft = (await invoices.GetAsync(invoiceId))!;
             await invoices.ConfirmAsync(
                 invoiceId, new ConfirmInvoiceCommand(cashAccountId, PaymentMethod.Cash, "F-0001"), invoiceDraft.Version, actorId);
 
             Guid expenseId = await CreateExpenseOnDateAsync(
-                expenses, supplierId, expenseCategoryId, taxTypeId, 40m, entryDate, actorId);
+                expenses, supplierId, expenseAccountId, taxTypeId, 40m, entryDate, actorId);
             ExpenseModel expenseDraft = (await expenses.GetAsync(expenseId))!;
             await expenses.ConfirmAsync(
                 expenseId, new ConfirmExpenseCommand(cashAccountId, "REC-0001"), expenseDraft.Version, actorId, actorIsManagement: false);
@@ -314,14 +312,14 @@ public sealed class SqlServerAccountingReportScenarioTests : IClassFixture<Finan
         IServiceProvider services,
         IInvoiceService invoices,
         Guid customerId,
-        Guid incomeCategoryId,
+        Guid incomeAccountId,
         Guid taxTypeId,
         Guid actorId,
         decimal netAmount,
         DateOnly issueDate)
     {
         InvoiceCreationResult created = await invoices.CreateAsync(
-            new CreateInvoiceCommand(customerId, incomeCategoryId, issueDate, PaymentTerm.Cash),
+            new CreateInvoiceCommand(customerId, incomeAccountId, issueDate, PaymentTerm.Cash),
             actorId);
         Guid invoiceId = created.InvoiceId!.Value;
         InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
@@ -339,7 +337,7 @@ public sealed class SqlServerAccountingReportScenarioTests : IClassFixture<Finan
     private static async Task<Guid> CreateExpenseOnDateAsync(
         IExpenseService expenses,
         Guid supplierId,
-        Guid categoryId,
+        Guid accountId,
         Guid taxTypeId,
         decimal netAmount,
         DateOnly issueDate,
@@ -347,7 +345,7 @@ public sealed class SqlServerAccountingReportScenarioTests : IClassFixture<Finan
     {
         ExpenseCreationResult created = await expenses.CreateAsync(
             new SaveExpenseCommand(
-                supplierId, categoryId, "Compra de prueba", "VC-0001", issueDate, PaymentTerm.Cash, netAmount, taxTypeId, true, PaymentMethod.Cash),
+                supplierId, accountId, "Compra de prueba", "VC-0001", issueDate, PaymentTerm.Cash, netAmount, taxTypeId, true, PaymentMethod.Cash),
             actorId);
 
         Assert.True(created.Operation.IsSuccess);
@@ -373,19 +371,7 @@ public sealed class SqlServerAccountingReportScenarioTests : IClassFixture<Finan
         context.LedgerAccounts.Add(ledgerAccount);
         await context.SaveChangesAsync();
 
-        FinancialCategory category = new(
-            Guid.NewGuid(),
-            $"CAT-{label}-{suffix}",
-            $"Categoría de gasto {label} de pruebas de balanza",
-            FinancialCategoryKind.Expense,
-            null,
-            ledgerAccount.Id,
-            null,
-            DateTimeOffset.UtcNow,
-            actorId);
-        context.FinancialCategories.Add(category);
-        await context.SaveChangesAsync();
-        return category.Id;
+        return ledgerAccount.Id;
     }
 
     private static async Task<string> GetLedgerAccountCodeAsync(IServiceProvider services, Guid accountId)
@@ -394,11 +380,11 @@ public sealed class SqlServerAccountingReportScenarioTests : IClassFixture<Finan
         return (await context.LedgerAccounts.AsNoTracking().SingleAsync(account => account.Id == accountId)).Code;
     }
 
-    private static async Task<Guid> GetCategoryLedgerAccountIdAsync(IServiceProvider services, Guid categoryId)
+    private static Task<Guid> GetCategoryLedgerAccountIdAsync(IServiceProvider services, Guid accountId)
     {
-        FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
-        return (await context.FinancialCategories.AsNoTracking().SingleAsync(category => category.Id == categoryId))
-            .LedgerAccountId;
+        // La cuenta contable ya es la cuenta del libro mayor: no hay una categoría intermedia.
+        _ = services;
+        return Task.FromResult(accountId);
     }
 
     private static async Task<Guid> GetSystemAccountIdAsync(IServiceProvider services, LedgerAccountSystemRole role)
@@ -530,19 +516,7 @@ public sealed class SqlServerAccountingReportScenarioTests : IClassFixture<Finan
         context.LedgerAccounts.Add(ledgerAccount);
         await context.SaveChangesAsync();
 
-        FinancialCategory category = new(
-            Guid.NewGuid(),
-            $"CAT-{suffix}",
-            "Categoría de ingreso de pruebas de reportes contables",
-            FinancialCategoryKind.Income,
-            null,
-            ledgerAccount.Id,
-            null,
-            DateTimeOffset.UtcNow,
-            actorId);
-        context.FinancialCategories.Add(category);
-        await context.SaveChangesAsync();
-        return category.Id;
+        return ledgerAccount.Id;
     }
 
     private static async Task<Guid> CreateExpenseCategoryAsync(IServiceProvider services, Guid actorId)
@@ -563,19 +537,7 @@ public sealed class SqlServerAccountingReportScenarioTests : IClassFixture<Finan
         context.LedgerAccounts.Add(ledgerAccount);
         await context.SaveChangesAsync();
 
-        FinancialCategory category = new(
-            Guid.NewGuid(),
-            $"CAT-{suffix}",
-            "Categoría de gasto de pruebas de reportes contables",
-            FinancialCategoryKind.Expense,
-            null,
-            ledgerAccount.Id,
-            null,
-            DateTimeOffset.UtcNow,
-            actorId);
-        context.FinancialCategories.Add(category);
-        await context.SaveChangesAsync();
-        return category.Id;
+        return ledgerAccount.Id;
     }
 
     private static async Task SetAuthorizationLimitAsync(IServiceProvider services, Guid actorId, decimal limit)

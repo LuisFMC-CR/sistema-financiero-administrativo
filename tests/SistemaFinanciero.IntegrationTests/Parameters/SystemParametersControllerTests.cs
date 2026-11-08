@@ -49,15 +49,31 @@ public sealed class SystemParametersControllerTests
     [Fact]
     public async Task Save_WithInvalidData_DoesNotCallTheService()
     {
-        RecordingSystemParametersService service = new();
+        RecordingSystemParametersService service = new()
+        {
+            Current = new SystemParametersModel(
+                500_000m, 7, new DateOnly(2026, 1, 1), null, null, null, null, null, null, null, null, null, null,
+                null, null,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "version-guardada"),
+        };
         SystemParametersController controller = CreateController(service);
         controller.ModelState.AddModelError(nameof(SystemParametersViewModel.OverdueAlertDays), "Inválido.");
 
-        IActionResult result = await controller.Save(new SystemParametersViewModel(), CancellationToken.None);
+        IActionResult result = await controller.Save(
+            new SystemParametersViewModel
+            {
+                AuthorizationLimitCrc = 900_000m,
+                OverdueAlertDays = 0,
+                Version = "version-guardada",
+            },
+            CancellationToken.None);
 
-        Assert.IsType<ViewResult>(result);
+        ViewResult view = Assert.IsType<ViewResult>(result);
         Assert.Equal(0, service.CreateCalls);
         Assert.Equal(0, service.UpdateCalls);
+        SystemParametersPageViewModel pageModel = Assert.IsType<SystemParametersPageViewModel>(view.Model);
+        Assert.Equal(500_000m, pageModel.CurrentConfiguration!.AuthorizationLimitCrc);
+        Assert.Equal(900_000m, pageModel.Parameters.AuthorizationLimitCrc);
     }
 
     [Fact]
@@ -67,6 +83,7 @@ public sealed class SystemParametersControllerTests
         {
             Current = new SystemParametersModel(
                 500_000m, 7, new DateOnly(2026, 1, 1), null, null, null, null, null, null, null, null, null, null,
+                null, null,
                 DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "version-vigente"),
             OperationResult = CatalogOperationResult.Concurrent(),
         };
@@ -112,6 +129,7 @@ public sealed class SystemParametersControllerTests
 
         ViewResult view = Assert.IsType<ViewResult>(result);
         SystemParametersPageViewModel model = Assert.IsType<SystemParametersPageViewModel>(view.Model);
+        Assert.Null(model.CurrentConfiguration);
         Assert.Equal(string.Empty, model.Parameters.Version);
     }
 
@@ -121,7 +139,21 @@ public sealed class SystemParametersControllerTests
         RecordingSystemParametersService service = new()
         {
             Current = new SystemParametersModel(
-                500_000m, 7, new DateOnly(2026, 1, 1), null, null, null, null, null, null, null, null, null, null,
+                750_000m,
+                12,
+                new DateOnly(2026, 1, 31),
+                "Soporte Experto",
+                "3-101-123456",
+                "San José, Costa Rica",
+                "2222-3333",
+                "contacto@example.com",
+                "6202",
+                "Soporte TI",
+                "1",
+                "01",
+                "02",
+                "001",
+                "00001",
                 DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "v1"),
         };
         SystemParametersController controller = CreateController(service);
@@ -130,76 +162,103 @@ public sealed class SystemParametersControllerTests
 
         ViewResult view = Assert.IsType<ViewResult>(result);
         SystemParametersPageViewModel model = Assert.IsType<SystemParametersPageViewModel>(view.Model);
-        Assert.Equal(500_000m, model.Parameters.AuthorizationLimitCrc);
+        Assert.Equal(750_000m, model.CurrentConfiguration!.AuthorizationLimitCrc);
+        Assert.Equal("Soporte Experto", model.CurrentConfiguration.CompanyName);
+        Assert.Equal(750_000m, model.Parameters.AuthorizationLimitCrc);
+        Assert.Equal(12, model.Parameters.OverdueAlertDays);
         Assert.Equal("v1", model.Parameters.Version);
         Assert.Equal("Gerente", model.Parameters.UpdatedByUserName);
-        Assert.Equal(new DateOnly(2026, 1, 1), model.Parameters.ClosingDate);
-        Assert.Equal(new DateOnly(2026, 1, 1), model.ClosingDateForm.NewClosingDate);
-        Assert.Equal("v1", model.ClosingDateForm.Version);
+        Assert.Null(model.Parameters.FiscalPeriodStartDate);
+        Assert.Null(model.FiscalPeriodForm.StartDate);
+        Assert.Equal("v1", model.FiscalPeriodForm.Version);
+        Assert.Equal("Soporte Experto", model.CompanyDataForm.Name);
+        Assert.Equal("3-101-123456", model.CompanyDataForm.LegalId);
+        Assert.Equal("San José, Costa Rica", model.CompanyDataForm.Address);
+        Assert.Equal("2222-3333", model.CompanyDataForm.Phone);
+        Assert.Equal("contacto@example.com", model.CompanyDataForm.Email);
+        Assert.Equal("6202", model.CompanyDataForm.ActivityCode);
+        Assert.Equal("Soporte TI", model.CompanyDataForm.TradeName);
+        Assert.Equal("1", model.CompanyDataForm.ProvinceCode);
+        Assert.Equal("01", model.CompanyDataForm.CantonCode);
+        Assert.Equal("02", model.CompanyDataForm.DistrictCode);
+        Assert.Equal("001", model.CompanyDataForm.BranchCode);
+        Assert.Equal("00001", model.CompanyDataForm.TerminalCode);
+        Assert.Equal("v1", model.CompanyDataForm.Version);
     }
 
     [Fact]
-    public async Task ChangeClosingDate_CallsServiceAndRedirectsOnSuccess()
+    public async Task UpdateFiscalPeriod_CallsServiceAndRedirectsOnSuccess()
     {
         RecordingSystemParametersService service = new()
         {
             Current = new SystemParametersModel(
                 500_000m, 7, new DateOnly(2026, 1, 1), null, null, null, null, null, null, null, null, null, null,
+                null, null,
                 DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "v1"),
         };
         SystemParametersController controller = CreateController(service);
-        ChangeClosingDateViewModel model = new()
+        FiscalPeriodViewModel model = new()
         {
-            NewClosingDate = new DateOnly(2026, 2, 1),
+            StartDate = new DateOnly(2026, 1, 1),
+            EndDate = new DateOnly(2026, 12, 31),
             Version = "v1",
         };
 
-        IActionResult result = await controller.ChangeClosingDate(model, CancellationToken.None);
+        IActionResult result = await controller.UpdateFiscalPeriod(model, CancellationToken.None);
 
         Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal(1, service.ChangeClosingDateCalls);
-        Assert.Equal(new DateOnly(2026, 2, 1), service.LastNewClosingDate);
-        Assert.Equal("v1", service.LastClosingDateVersion);
+        Assert.Equal(1, service.UpdateFiscalPeriodCalls);
+        Assert.Equal(new DateOnly(2026, 1, 1), service.LastFiscalPeriodStart);
+        Assert.Equal(new DateOnly(2026, 12, 31), service.LastFiscalPeriodEnd);
+        Assert.Equal("v1", service.LastFiscalPeriodVersion);
     }
 
     [Fact]
-    public async Task ChangeClosingDate_OnInvalidResult_ReturnsIndexWithThePageModel()
+    public async Task UpdateFiscalPeriod_OnInvalidResult_ReturnsIndexWithThePageModel()
     {
         RecordingSystemParametersService service = new()
         {
             Current = new SystemParametersModel(
                 500_000m, 7, new DateOnly(2026, 2, 1), null, null, null, null, null, null, null, null, null, null,
-                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "v1"),
-            OperationResult = CatalogOperationResult.Invalid("El motivo de la reapertura es obligatorio."),
+                null, null,
+                DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "v1",
+                new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31)),
+            OperationResult = CatalogOperationResult.Invalid("El período fiscal debe abarcar doce meses."),
         };
         SystemParametersController controller = CreateController(service);
-        ChangeClosingDateViewModel model = new()
+        FiscalPeriodViewModel model = new()
         {
-            NewClosingDate = new DateOnly(2026, 1, 1),
+            StartDate = new DateOnly(2025, 1, 1),
+            EndDate = new DateOnly(2025, 12, 31),
             Version = "v1",
         };
 
-        IActionResult result = await controller.ChangeClosingDate(model, CancellationToken.None);
+        IActionResult result = await controller.UpdateFiscalPeriod(model, CancellationToken.None);
 
         ViewResult view = Assert.IsType<ViewResult>(result);
         Assert.Equal("Index", view.ViewName);
         SystemParametersPageViewModel pageModel = Assert.IsType<SystemParametersPageViewModel>(view.Model);
-        Assert.Equal(new DateOnly(2026, 1, 1), pageModel.ClosingDateForm.NewClosingDate);
-        Assert.Equal(new DateOnly(2026, 2, 1), pageModel.Parameters.ClosingDate);
+        Assert.Equal(new DateOnly(2025, 1, 1), pageModel.FiscalPeriodForm.StartDate);
+        Assert.Equal(new DateOnly(2026, 1, 1), pageModel.CurrentConfiguration!.FiscalPeriodStartDate);
     }
 
     [Fact]
-    public async Task ChangeClosingDate_WithoutAnAuthenticatedUser_IsForbidden()
+    public async Task UpdateFiscalPeriod_WithoutAnAuthenticatedUser_IsForbidden()
     {
         RecordingSystemParametersService service = new();
         SystemParametersController controller = CreateController(service, withActor: false);
 
-        IActionResult result = await controller.ChangeClosingDate(
-            new ChangeClosingDateViewModel { NewClosingDate = new DateOnly(2026, 1, 1), Version = "v1" },
+        IActionResult result = await controller.UpdateFiscalPeriod(
+            new FiscalPeriodViewModel
+            {
+                StartDate = new DateOnly(2026, 1, 1),
+                EndDate = new DateOnly(2026, 12, 31),
+                Version = "v1",
+            },
             CancellationToken.None);
 
         Assert.IsType<ForbidResult>(result);
-        Assert.Equal(0, service.ChangeClosingDateCalls);
+        Assert.Equal(0, service.UpdateFiscalPeriodCalls);
     }
 
     [Fact]
@@ -209,6 +268,7 @@ public sealed class SystemParametersControllerTests
         {
             Current = new SystemParametersModel(
                 500_000m, 7, new DateOnly(2026, 1, 1), null, null, null, null, null, null, null, null, null, null,
+                null, null,
                 DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "Gerente", "v1"),
         };
         SystemParametersController controller = CreateController(service);
@@ -287,7 +347,7 @@ public sealed class SystemParametersControllerTests
 
         public int UpdateCalls { get; private set; }
 
-        public int ChangeClosingDateCalls { get; private set; }
+        public int UpdateFiscalPeriodCalls { get; private set; }
 
         public int UpdateCompanyCalls { get; private set; }
 
@@ -295,9 +355,11 @@ public sealed class SystemParametersControllerTests
 
         public string? LastUpdateVersion { get; private set; }
 
-        public DateOnly? LastNewClosingDate { get; private set; }
+        public DateOnly? LastFiscalPeriodStart { get; private set; }
 
-        public string? LastClosingDateVersion { get; private set; }
+        public DateOnly? LastFiscalPeriodEnd { get; private set; }
+
+        public string? LastFiscalPeriodVersion { get; private set; }
 
         public SystemParametersModel? Current { get; init; }
 
@@ -328,18 +390,32 @@ public sealed class SystemParametersControllerTests
             return Task.FromResult(OperationResult);
         }
 
-        public Task<CatalogOperationResult> ChangeClosingDateAsync(
-            DateOnly newClosingDate,
+        public Task<CatalogOperationResult> UpdateFiscalPeriodAsync(
+            DateOnly startDate,
+            DateOnly endDate,
             string? reason,
             string version,
             Guid actorId,
             CancellationToken cancellationToken = default)
         {
-            ChangeClosingDateCalls++;
-            LastNewClosingDate = newClosingDate;
-            LastClosingDateVersion = version;
+            UpdateFiscalPeriodCalls++;
+            LastFiscalPeriodStart = startDate;
+            LastFiscalPeriodEnd = endDate;
+            LastFiscalPeriodVersion = version;
             return Task.FromResult(OperationResult);
         }
+
+        public Task<IReadOnlyList<ReopenedAccountingPeriodModel>> GetReopenedAccountingPeriodsAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<ReopenedAccountingPeriodModel>>([]);
+
+        public Task<CatalogOperationResult> ReopenAccountingPeriodAsync(
+            int year, int month, string reason, Guid actorId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperationResult);
+
+        public Task<CatalogOperationResult> CloseAccountingPeriodAsync(
+            int year, int month, string version, Guid actorId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(OperationResult);
 
         public Task<CatalogOperationResult> UpdateCompanyAsync(
             SaveCompanyDataCommand command,

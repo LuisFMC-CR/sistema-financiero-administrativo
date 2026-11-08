@@ -16,9 +16,8 @@ namespace SistemaFinanciero.Web.Controllers;
 /// (<c>SystemPolicies.ViewAuditTrail</c>): es información financiera, y el perfil Administrador "no
 /// tiene acceso a información financiera", así que no entra aquí aunque administre cuentas. Es la
 /// mitad "temas de operación" de la bitácora; la mitad "temas de sistema" la ve Administrador en
-/// <c>SecurityAuditController</c>. Vive en <c>auditoria/...</c> y no en <c>consultas/...</c> porque
-/// <c>QueriesAuthorizationTests</c> exige que toda ruta bajo "consultas" use
-/// <c>SystemPolicies.ViewFinancialReports</c> (Gerencia y Finanzas); esta pantalla es más restrictiva.
+/// <c>SecurityAuditController</c>. Vive en <c>auditoria/...</c> porque es más restrictiva que
+/// <c>SystemPolicies.ViewFinancialReports</c>: esta pantalla es solo de Gerencia.
 /// </remarks>
 [Authorize(Policy = SystemPolicies.ViewAuditTrail)]
 [Route("auditoria/bitacora-operaciones")]

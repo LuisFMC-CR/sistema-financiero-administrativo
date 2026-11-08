@@ -10,8 +10,9 @@ namespace SistemaFinanciero.IntegrationTests.Invoices;
 
 /// <summary>
 /// Verifica, sin tocar SQL Server, que las rutas de <c>InvoicesController</c> exigen exactamente las
-/// políticas de la matriz de perfiles: Asistente, Finanzas y Gerencia preparan borradores y confirman,
-/// y solo Gerencia anula. Sigue el mismo patrón que <c>CatalogAuthorizationTests</c>.
+/// políticas de la matriz de perfiles: Asistente, Finanzas y Gerencia preparan borradores; solo
+/// Finanzas y Gerencia confirman, y las anulaciones se tramitan mediante nota de crédito.
+/// <c>CatalogAuthorizationTests</c>.
 /// </summary>
 public sealed class InvoiceAuthorizationTests : IClassFixture<FinancialWebApplicationFactory>
 {
@@ -85,9 +86,7 @@ public sealed class InvoiceAuthorizationTests : IClassFixture<FinancialWebApplic
 
         Assert.NotEmpty(endpoints);
 
-        // Confirmar y anular son las acciones más sensibles: cada una exige su propia política además
-        // de la de solo-consulta de la clase, nunca la política del otro perfil. Confirmar tiene GET y
-        // POST (la de contado pide cuenta de efectivo, medio de pago, referencia y categoría).
+        // Confirmar exige su propia política además de la de solo-consulta de la clase.
         RouteEndpoint[] confirmEndpoints = endpoints
             .Where(endpoint => endpoint.RoutePattern.RawText!.EndsWith("confirmar", StringComparison.Ordinal))
             .ToArray();
@@ -106,17 +105,7 @@ public sealed class InvoiceAuthorizationTests : IClassFixture<FinancialWebApplic
         RouteEndpoint[] cancelEndpoints = endpoints
             .Where(endpoint => endpoint.RoutePattern.RawText!.EndsWith("anular", StringComparison.Ordinal))
             .ToArray();
-        Assert.NotEmpty(cancelEndpoints);
-        Assert.All(
-            cancelEndpoints,
-            endpoint => Assert.Contains(
-                endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>(),
-                data => data.Policy == SystemPolicies.VoidFinancialTransactions));
-        Assert.All(
-            cancelEndpoints,
-            endpoint => Assert.DoesNotContain(
-                endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>(),
-                data => data.Policy == SystemPolicies.ConfirmFinancialTransactions));
+        Assert.Empty(cancelEndpoints);
 
         // Crear, editar encabezado, agregar/editar/quitar línea son de Asistente y Finanzas.
         string[] draftActionSuffixes = ["crear", "encabezado", "agregar", "editar", "quitar"];

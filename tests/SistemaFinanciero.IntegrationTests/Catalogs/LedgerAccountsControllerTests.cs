@@ -223,13 +223,15 @@ public sealed class LedgerAccountsControllerTests
 
         IActionResult action = await controller.Index(
             new string('x', 150),
-            (CatalogStatusFilter)999,
+            name: null,
+            type: null,
+            isMovement: null,
+            isActive: null,
             page: 1,
             CancellationToken.None);
 
         Assert.IsType<ViewResult>(action);
-        Assert.Equal(new string('x', 100), service.LastQuery!.Search);
-        Assert.Equal(CatalogStatusFilter.Active, service.LastQuery.Status);
+        Assert.Equal(new string('x', 150), service.LastQuery!.Code);
     }
 
     private static LedgerAccountModel CreateModel(
@@ -243,13 +245,17 @@ public sealed class LedgerAccountsControllerTests
             "Cuenta",
             type,
             ParentId: null,
+            ParentCode: null,
             ParentName: null,
             cashKind,
             Reference: null,
             Description: null,
             IsActive: true,
             IsProtected: false,
+            IsMovement: true,
             SystemRole: null,
+            Balance: 0m,
+            HasTransactions: false,
             DateTimeOffset.UtcNow,
             DateTimeOffset.UtcNow,
             version);
@@ -293,7 +299,7 @@ public sealed class LedgerAccountsControllerTests
 
         public Guid? LastExcludedAccountId { get; private set; }
 
-        public CatalogQuery? LastQuery { get; private set; }
+        public LedgerAccountQuery? LastQuery { get; private set; }
 
         public LedgerAccountModel? Current { get; init; }
 
@@ -302,7 +308,7 @@ public sealed class LedgerAccountsControllerTests
         public Dictionary<LedgerAccountType, IReadOnlyList<LedgerAccountOption>> ParentOptionsByType { get; } = [];
 
         public Task<PagedResult<LedgerAccountModel>> SearchAsync(
-            CatalogQuery query,
+            LedgerAccountQuery query,
             CancellationToken cancellationToken = default)
         {
             LastQuery = query;

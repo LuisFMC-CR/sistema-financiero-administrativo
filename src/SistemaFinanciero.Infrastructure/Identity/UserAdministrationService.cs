@@ -53,6 +53,27 @@ internal sealed class UserAdministrationService(
                 user.Email!.Contains(search));
         }
 
+        if (query.FullName is not null)
+        {
+            users = users.Where(user => user.FullName.Contains(query.FullName));
+        }
+
+        if (query.Email is not null)
+        {
+            users = users.Where(user => user.Email!.Contains(query.Email));
+        }
+
+        DateTimeOffset now = timeProvider.GetUtcNow();
+        users = query.Access switch
+        {
+            UserAccessFilter.LockedOut => users.Where(user => user.LockoutEnd != null && user.LockoutEnd > now),
+            UserAccessFilter.PasswordChangeRequired => users.Where(user =>
+                user.MustChangePassword && (user.LockoutEnd == null || user.LockoutEnd <= now)),
+            UserAccessFilter.Available => users.Where(user =>
+                !user.MustChangePassword && (user.LockoutEnd == null || user.LockoutEnd <= now)),
+            _ => users,
+        };
+
         if (SystemRoles.IsDefined(query.Role))
         {
             string role = query.Role!;
@@ -97,8 +118,6 @@ internal sealed class UserAdministrationService(
             query.Page,
             query.PageSize,
             cancellationToken);
-
-        DateTimeOffset now = timeProvider.GetUtcNow();
 
         return new PagedResult<UserModel>(
             page.Items.Select(user => Map(user, now)).ToArray(),

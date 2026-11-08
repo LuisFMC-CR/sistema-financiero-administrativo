@@ -28,26 +28,56 @@ public sealed class SystemParametersViewModel
 
     public string? UpdatedByUserName { get; set; }
 
-    /// <summary>Fecha de cierre vigente; solo informativa en este formulario (regla 16).</summary>
-    public DateOnly ClosingDate { get; set; }
+    public DateOnly? FiscalPeriodStartDate { get; set; }
+
+    public DateOnly? FiscalPeriodEndDate { get; set; }
 }
 
-/// <summary>
-/// Entrada para cambiar la fecha de cierre (regla de negocio 16). Adelantarla es el cierre mensual,
-/// sin motivo; retrocederla es una reapertura y exige motivo.
-/// </summary>
-public sealed class ChangeClosingDateViewModel
+public sealed class FiscalPeriodViewModel
 {
-    [Required(ErrorMessage = "La nueva fecha de cierre es obligatoria.")]
+    [Required(ErrorMessage = "La fecha de inicio del período fiscal es obligatoria.")]
     [DataType(DataType.Date)]
-    [Display(Name = "Nueva fecha de cierre")]
-    public DateOnly NewClosingDate { get; set; }
+    [Display(Name = "Inicio del período fiscal")]
+    public DateOnly? StartDate { get; set; }
+
+    [Required(ErrorMessage = "La fecha de cierre del período fiscal es obligatoria.")]
+    [DataType(DataType.Date)]
+    [Display(Name = "Cierre del período fiscal")]
+    public DateOnly? EndDate { get; set; }
 
     [StringLength(300, ErrorMessage = "El motivo no puede superar 300 caracteres.")]
-    [Display(Name = "Motivo (obligatorio solo si retrocede la fecha)")]
+    [Display(Name = "Motivo del cambio (opcional)")]
     public string? Reason { get; set; }
 
     [Required(ErrorMessage = "No fue posible validar la versión del registro.")]
+    public string Version { get; set; } = string.Empty;
+}
+
+public sealed class ReopenAccountingPeriodViewModel
+{
+    [Range(1, 9998, ErrorMessage = "El año del período no es válido.")]
+    [Display(Name = "Año")]
+    public int Year { get; set; }
+
+    [Range(1, 12, ErrorMessage = "El mes debe estar entre 1 y 12.")]
+    [Display(Name = "Mes")]
+    public int Month { get; set; }
+
+    [Required(ErrorMessage = "El motivo de reapertura es obligatorio.")]
+    [StringLength(300, ErrorMessage = "El motivo no puede superar 300 caracteres.")]
+    [Display(Name = "Motivo de reapertura")]
+    public string Reason { get; set; } = string.Empty;
+}
+
+public sealed class CloseAccountingPeriodViewModel
+{
+    [Range(1, 9998)]
+    public int Year { get; set; }
+
+    [Range(1, 12)]
+    public int Month { get; set; }
+
+    [Required]
     public string Version { get; set; } = string.Empty;
 }
 
@@ -101,16 +131,33 @@ public sealed class CompanyDataViewModel
     [Display(Name = "Distrito")]
     public string? DistrictCode { get; set; }
 
+    [StringLength(3, ErrorMessage = "El código de sucursal debe tener exactamente 3 dígitos.")]
+    [RegularExpression(@"^\d{3}$", ErrorMessage = "El código de sucursal debe tener exactamente 3 dígitos.")]
+    [Display(Name = "Sucursal")]
+    public string? BranchCode { get; set; } = "001";
+
+    [StringLength(5, ErrorMessage = "El código de terminal debe tener exactamente 5 dígitos.")]
+    [RegularExpression(@"^\d{5}$", ErrorMessage = "El código de terminal debe tener exactamente 5 dígitos.")]
+    [Display(Name = "Terminal")]
+    public string? TerminalCode { get; set; } = "00001";
+
     [Required(ErrorMessage = "No fue posible validar la versión del registro.")]
     public string Version { get; set; } = string.Empty;
 }
 
-/// <summary>Agrupa los tres formularios independientes de la pantalla de parámetros.</summary>
+/// <summary>Agrupa los formularios independientes de la pantalla de parámetros.</summary>
 public sealed class SystemParametersPageViewModel
 {
+    public SistemaFinanciero.Application.Parameters.SystemParametersModel? CurrentConfiguration { get; set; }
+
     public SystemParametersViewModel Parameters { get; set; } = new();
 
-    public ChangeClosingDateViewModel ClosingDateForm { get; set; } = new();
+    public FiscalPeriodViewModel FiscalPeriodForm { get; set; } = new();
+
+    public ReopenAccountingPeriodViewModel ReopenAccountingPeriodForm { get; set; } = new();
+
+    public IReadOnlyList<SistemaFinanciero.Application.Parameters.ReopenedAccountingPeriodModel>
+        ReopenedAccountingPeriods { get; set; } = [];
 
     public CompanyDataViewModel CompanyDataForm { get; set; } = new();
 }

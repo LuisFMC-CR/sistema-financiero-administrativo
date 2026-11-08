@@ -96,8 +96,11 @@ Facturación · Presupuesto · Impuestos y Retenciones · Mantenimiento · Consu
    tipo. Las cuentas de Pasivo y Patrimonio son únicamente **cuentas de sistema** (columna
    `SystemRole`, ver el bloque de catálogo contable ampliado del paquete de mejoras finales): las
    reglas de contabilización las buscan por su rol, nunca por código o nombre; no tienen categoría
-   financiera ni se eligen en ningún formulario de ingresos o gastos; se pueden renombrar pero no
-   inactivar ni mover. El usuario solo crea cuentas de detalle nuevas, siempre de **tercer nivel**,
+   financiera ni se eligen en ningún formulario de ingresos o gastos; se pueden renombrar y
+   desactivar solo si no tienen movimientos en el libro mayor. El botón de desactivación siempre se
+   muestra; si hay movimientos, se rechaza la acción con un mensaje claro. Si una cuenta de sistema
+   está inactiva, las operaciones que requieran su rol no se contabilizan hasta reactivarla. Estas
+   cuentas no se pueden mover. El usuario solo crea cuentas de detalle nuevas, siempre de **tercer nivel**,
    dentro de los grupos de segundo nivel 1.1, 4.1, 4.2, 4.3, 5.1, 5.2 y 5.3 (ver el bloque de regla de
    creación de cuentas contables del paquete v7; una cuenta nueva bajo 1.1 siempre es de efectivo). El
    catálogo en sí sigue siendo solo clasificación; la partida doble vive en los asientos automáticos
@@ -109,11 +112,13 @@ Facturación · Presupuesto · Impuestos y Retenciones · Mantenimiento · Consu
    - Ingresos manuales: solo otras entradas de la operación (reintegros, intereses que acredite el
      banco); nunca préstamos ni aportes.
    - Todo ingreso indica categoría y cuenta de efectivo de destino; todo pago, la de origen.
-   - Abono o pago a varias facturas: se eligen cliente o proveedor, monto, cuenta de efectivo y
-     referencia; el sistema propone el reparto de la más antigua a la más nueva (editable; en abonos,
-     cada línea admite retención); crea un abono o pago por cuenta en una sola transacción, todos con
-     la misma referencia y un `GroupId` común; el límite se compara con el **total**; cada uno se anula
-     de forma individual.
+   - Un abono iniciado desde el detalle de una cuenta por cobrar se aplica únicamente a esa cuenta y
+     toma de ella el cliente. El reparto de un cobro entre varias cuentas por cobrar se inicia como
+     una opción separada en Ingresos: se elige el cliente, monto, cuenta de efectivo y referencia; el
+     sistema propone el reparto de la más antigua a la más nueva (editable, con retención por línea),
+     crea un abono por cuenta en una transacción con la misma referencia y `GroupId`, compara el límite
+     con el **total** y permite anular cada abono individualmente. Los pagos a varias cuentas por pagar
+     conservan su propio flujo desde Cuentas por Pagar.
    - El dinero que pasa de una cuenta de efectivo a otra es un **traspaso** (bloque de traspasos del
      paquete v7), nunca un ingreso ni un gasto: no toca categorías, presupuesto ni estado de
      resultados. El pago del IVA a Hacienda es una **liquidación** (bloque de liquidación del IVA del
@@ -153,13 +158,16 @@ Facturación · Presupuesto · Impuestos y Retenciones · Mantenimiento · Consu
    - Ajuste de saldo (solo Gerencia), aumento o disminución con motivo; invariante 0 ≤ saldo ≤ monto
      original; no genera ingresos ni pagos ni toca efectivo, documento o presupuesto; un error se
      corrige con otro ajuste en sentido contrario.
-   - Nota de crédito interna (bloque de nota de crédito del paquete v7): no es una anulación (la
-     factura nunca debió existir) ni un ajuste de saldo; corrige una venta real después de facturar
-     (devolución de un equipo, descuento posterior o exceso facturado), rebajando primero el saldo
-     pendiente de la cuenta por cobrar y devolviendo en dinero lo que no alcance a rebajar. No existen
-     saldos a favor del cliente.
+   - La factura confirmada se anula desde el flujo de nota de crédito, no con una acción directa. La
+     nota de crédito interna no es un ajuste de saldo: documenta la corrección de una venta real
+     después de facturar, conserva las líneas originales, liquida el saldo por cobrar y devuelve en
+     efectivo lo cobrado. Las retenciones aplicadas se revierten en su cuenta contable, no se entregan
+     en efectivo. No existen saldos a favor del cliente ni anulación de una nota ya aplicada.
 5. **Moneda.** Solo colones; sin tipo de cambio ni conversiones.
 6. **Presupuesto.** Mensual, por categoría de gasto de último nivel (las superiores solo suman).
+   Solo se puede crear o modificar para el mes actual o uno futuro; los meses anteriores quedan
+   disponibles únicamente para consulta. La fecha y hora del sistema se obtienen del reloj común
+   `TimeProvider` (`TimeProvider.System` en producción).
    Ejecutado = **costo** de los gastos confirmados del mes (sin borradores ni anulados; los pagos no lo
    cambian): el monto sin IVA, más el IVA solo cuando ese gasto lo marca como no acreditable (bloque de
    presupuesto y reportes del paquete v7; el IVA acreditable va a IVA acreditable, no al presupuesto).
@@ -221,10 +229,13 @@ Facturación · Presupuesto · Impuestos y Retenciones · Mantenimiento · Consu
     total); resumen con IVA desglosado por tarifa; pie con medio de pago (contado) y la leyenda
     "Documento administrativo interno. No sustituye el comprobante electrónico oficial." Las anuladas
     muestran "ANULADA" y el motivo.
-16. **Fecha de cierre.** Parámetro exclusivo de Gerencia. No se registra, confirma, anula ni ajusta
-    nada con fecha igual o anterior (validar en el servidor). Adelantarla es el cierre mensual;
-    retrocederla es una reapertura con motivo y queda en bitácora (valor anterior y nuevo). Anular en
-    un mes cerrado exige reabrirlo. No puede ser posterior a hoy.
+16. **Cierres mensuales y período fiscal.** Todo mes anterior al mes actual (según la fecha local
+    obtenida del `TimeProvider`) se cierra automáticamente: no se registra, confirma, anula ni ajusta
+    en él. Gerencia puede reabrirlo con motivo; la reapertura permanece hasta que Gerencia vuelva a
+    cerrarlo. Cada cambio de estado queda en una bitácora inmutable. El período fiscal, exclusivo de
+    Gerencia, inicia el primer día de un mes y termina el último día de doce meses después; cambiarlo
+    admite motivo opcional y conserva historial. Los reportes anuales usan ese rango. El período
+    inicial acordado es 01/01/2026–31/12/2026.
 
 Trazabilidad: usa los códigos RF-01 a RF-98 (RF-15 = pago a varias cuentas; RF-54 = datos iniciales;
 RF-78 a RF-92 del paquete de mejoras finales; RF-93 a RF-98 del paquete v7: condición de IVA del
@@ -244,7 +255,10 @@ tablas y columnas. Si el código difiere, explícame la diferencia antes de migr
   TiposRetencion, PlazosPago, Parametros); `finanzas` (CuentasContables, Facturas, FacturaLineas,
   CuentasPorCobrar, Abonos, Retenciones, Ingresos, Gastos, CuentasPorPagar, Pagos, AjustesSaldo,
   Presupuestos, PresupuestoCambios, Asientos, AsientoLineas, y del paquete v7: Traspasos,
-  LiquidacionesIva, NotasCredito, NotaCreditoLineas).
+  LiquidacionesIva, NotasCredito, NotaCreditoLineas, PeriodosContablesReabiertos,
+  PeriodosContablesHistorial, PeriodoFiscalHistorial). `ParametrosSistema` conserva las columnas
+  históricas `ClosingDate` y su tabla `ClosingDateChanges`, pero el cierre automático ya no las usa;
+  agrega `FiscalPeriodStartDate` y `FiscalPeriodEndDate`.
 - **Tipos:** `CHAR(36)` → `uniqueidentifier`; `VARCHAR(n)` → `nvarchar(n)`; `TEXT` → `nvarchar(max)`;
   `DATETIME` → `datetimeoffset` (UTC); `BIT` → `bit`; `BINARY(8)` → `rowversion`. Importes
   `decimal(18,2)`, cantidades y precios `decimal(18,4)`, porcentajes `decimal(5,2)`, fechas `date`.
@@ -286,12 +300,14 @@ tablas y columnas. Si el código difiere, explícame la diferencia antes de migr
   PaymentTerm, Invoice, InvoiceLine, Receivable, ReceivablePayment (Abonos), Withholding, Income,
   Expense, Payable, SupplierPayment (Pagos), BalanceAdjustment, Budget, BudgetChange, JournalEntry
   (Asientos), JournalEntryLine (AsientoLineas), y del paquete v7: CashTransfer (Traspasos),
-  VatSettlement (LiquidacionesIva), CreditNote (NotasCredito), CreditNoteLine (NotaCreditoLineas).
+  VatSettlement (LiquidacionesIva), CreditNote (NotasCredito), CreditNoteLine (NotaCreditoLineas);
+  AccountingPeriodOverride (PeriodosContablesReabiertos), AccountingPeriodChange
+  (PeriodosContablesHistorial), FiscalPeriodChange (PeriodoFiscalHistorial).
 - **Operaciones publicadas:** Invoice.AddLine, RemoveLine, Confirm(closingDate), AssignNumber,
   Cancel; InvoiceLine.Recalculate; Receivable y Payable.ApplyPayment, RevertPayment, Adjust, Cancel;
   Expense.Recalculate, Confirm(closingDate, authorizationLimit), Cancel; ReceivablePayment,
-  SupplierPayment e Income.Cancel; Budget.ChangeAmount; SystemSettings.IsOpen(date),
-  ChangeClosingDate(newDate, today, reason), UpdateLimits, UpdateCompany;
+  SupplierPayment e Income.Cancel; Budget.ChangeAmount; SystemSettings.UpdateFiscalPeriod(start, end),
+  AccountingPeriodOverride.Reopen/Close, UpdateLimits, UpdateCompany;
   PaymentTerm.CalculateDueDate; catálogos con Update, Activate y Deactivate (VatRate y
   WithholdingType con ChangeRate; AccountingAccount con Rename). Servicios: InvoiceService.ConfirmAsync,
   ReceivablePaymentService.RegisterAsync, ExpenseService.CheckBudgetAsync y ConfirmAsync. El paquete
@@ -307,7 +323,7 @@ tablas y columnas. Si el código difiere, explícame la diferencia antes de migr
 
 | Perfil | Permisos |
 |---|---|
-| Asistente | Consulta catálogos; mantiene clientes y proveedores; registra borradores de facturas y gastos y ve solo los suyos. No ve reportes, presupuesto ni saldos. |
+| Asistente | Consulta catálogos; mantiene clientes y proveedores; consulta facturas y gastos de todos los usuarios y mantiene únicamente sus propios borradores; consulta y registra ingresos manuales; consulta cuentas por cobrar y por pagar, y ve sus indicadores de vencimientos en el inicio. No confirma documentos, no registra abonos ni pagos, no anula movimientos ni ve asientos, reportes o presupuesto. |
 | Finanzas | Catálogos financieros (cuentas, categorías, tarifas, retenciones, productos); confirma documentos; ingresos manuales; abonos, pagos y traspasos hasta el límite; liquidación del IVA hasta el límite; notas de crédito; presupuesto; consultas y reportes. |
 | Gerencia | Todo lo de Finanzas y Asistente (ve los borradores de todos), más lo exclusivo: abonos, pagos y traspasos sobre el límite, pagos de liquidación de IVA sobre el límite, anulaciones (incluidas notas de crédito, traspasos y liquidaciones), ajustes de saldo y parámetros (límite, días de alerta, datos de la empresa, fecha de cierre). No administra usuarios. |
 | Administrador | Solo usuarios y configuración técnica; sin acceso a información financiera. |

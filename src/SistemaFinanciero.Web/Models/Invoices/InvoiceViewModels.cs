@@ -8,36 +8,44 @@ using SistemaFinanciero.Domain.Invoices;
 namespace SistemaFinanciero.Web.Models.Invoices;
 
 /// <summary>
-/// Modelo de listado de facturas, con sus propios filtros de estado (Borrador/Confirmada/Anulada),
-/// rango de fecha de emisión y plazo de pago.
+/// Modelo de listado de facturas y filtros por columna.
 /// </summary>
 public sealed record InvoiceIndexViewModel(
     SistemaFinanciero.Application.Catalogs.Common.PagedResult<InvoiceSummaryModel> Results,
-    string? Search,
+    long? Number,
+    string? CustomerName,
+    DateOnly? IssueDate,
+    PaymentTerm? PaymentTerm,
+    DateOnly? DueDate,
     InvoiceStatusFilter Status,
-    DateOnly? IssueDateFrom,
-    DateOnly? IssueDateTo,
-    PaymentTerm? PaymentTerm);
+    decimal? TotalAmount,
+    string? CreatedByUserName);
 
-/// <summary>Datos del formulario de filtros del listado de facturas.</summary>
+/// <summary>Datos de los filtros por columna del listado de facturas.</summary>
 public sealed record InvoiceFilterViewModel(
-    string? Search,
+    long? Number,
+    string? CustomerName,
+    DateOnly? IssueDate,
+    PaymentTerm? PaymentTerm,
+    DateOnly? DueDate,
     InvoiceStatusFilter Status,
-    DateOnly? IssueDateFrom,
-    DateOnly? IssueDateTo,
-    PaymentTerm? PaymentTerm);
+    decimal? TotalAmount,
+    string? CreatedByUserName);
 
-/// <summary>Datos necesarios para conservar los filtros al navegar entre páginas del listado.</summary>
+/// <summary>Datos necesarios para conservar los filtros al navegar entre páginas.</summary>
 public sealed record InvoicePaginationViewModel(
     int CurrentPage,
     int TotalPages,
     bool HasPreviousPage,
     bool HasNextPage,
-    string? Search,
+    long? Number,
+    string? CustomerName,
+    DateOnly? IssueDate,
+    PaymentTerm? PaymentTerm,
+    DateOnly? DueDate,
     InvoiceStatusFilter Status,
-    DateOnly? IssueDateFrom,
-    DateOnly? IssueDateTo,
-    PaymentTerm? PaymentTerm);
+    decimal? TotalAmount,
+    string? CreatedByUserName);
 
 /// <summary>Entrada para crear el encabezado de un borrador de factura.</summary>
 public class InvoiceCreateViewModel
@@ -51,7 +59,7 @@ public class InvoiceCreateViewModel
 
     [Required(ErrorMessage = "La categoría de ingreso es obligatoria.")]
     [Display(Name = "Categoría de ingreso")]
-    public Guid? IncomeCategoryId { get; set; }
+    public Guid? IncomeAccountId { get; set; }
 
     [ValidateNever]
     public IReadOnlyList<SelectListItem> IncomeCategoryOptions { get; set; } = [];
@@ -204,48 +212,12 @@ public sealed class InvoiceConfirmViewModel
     public string Version { get; set; } = string.Empty;
 }
 
-/// <summary>Entrada para anular una factura confirmada; exige el motivo (regla 4).</summary>
-public sealed class InvoiceCancelViewModel
-{
-    [Required(ErrorMessage = "El motivo de la anulación es obligatorio.")]
-    [StringLength(300, ErrorMessage = "El motivo no puede superar 300 caracteres.")]
-    [Display(Name = "Motivo de la anulación")]
-    public string Reason { get; set; } = string.Empty;
-
-    [Required(ErrorMessage = "No fue posible validar la versión del registro.")]
-    public string Version { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// Entrada para registrar, una sola vez, la clave y el consecutivo del comprobante electrónico
-/// emitido en la plataforma externa (bloque 3, RF-89). El sistema no los emite ni los valida ante
-/// Hacienda: solo guarda los datos preparados para el traslado manual.
-/// </summary>
-public sealed class InvoiceElectronicInvoiceViewModel
-{
-    [Required(ErrorMessage = "La clave del comprobante electrónico es obligatoria.")]
-    [StringLength(50, MinimumLength = 50, ErrorMessage = "La clave debe tener exactamente 50 dígitos.")]
-    [RegularExpression(@"^\d{50}$", ErrorMessage = "La clave debe tener exactamente 50 dígitos.")]
-    [Display(Name = "Clave del comprobante electrónico")]
-    public string ElectronicInvoiceKey { get; set; } = string.Empty;
-
-    [Required(ErrorMessage = "El consecutivo del comprobante electrónico es obligatorio.")]
-    [StringLength(20, MinimumLength = 20, ErrorMessage = "El consecutivo debe tener exactamente 20 dígitos.")]
-    [RegularExpression(@"^\d{20}$", ErrorMessage = "El consecutivo debe tener exactamente 20 dígitos.")]
-    [Display(Name = "Consecutivo del comprobante electrónico")]
-    public string ElectronicInvoiceNumber { get; set; } = string.Empty;
-
-    [Required(ErrorMessage = "No fue posible validar la versión del registro.")]
-    public string Version { get; set; } = string.Empty;
-}
-
 /// <summary>
 /// Modelo de la pantalla de detalle: la factura completa, si el usuario puede editarla (borrador propio
-/// o de cualquiera si es Finanzas) y si puede confirmarla o anularla.
+/// o de cualquiera si es Finanzas), confirmarla o registrar una nota de crédito.
 /// </summary>
 public sealed record InvoiceDetailsViewModel(
     InvoiceModel Invoice,
     bool CanEditDraft,
     bool CanConfirm,
-    bool CanCancel,
-    bool CanRegisterElectronicInvoice);
+    bool CanRegisterCreditNote);

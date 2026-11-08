@@ -18,7 +18,7 @@ public sealed record ReportHeader(
 public sealed record IncomeReportLine(
     string Code,
     DateOnly IncomeDate,
-    string CategoryName,
+    string AccountName,
     string CashAccountName,
     IncomeOrigin Origin,
     string? Reference,
@@ -37,8 +37,8 @@ public sealed record IncomeReportResult(
 
 /// <summary>El total de los gastos confirmados de una categoría dentro del período del reporte.</summary>
 public sealed record ExpenseByCategoryReportLine(
-    string CategoryCode,
-    string CategoryName,
+    string AccountCode,
+    string AccountName,
     int Count,
     decimal NetAmount,
     decimal TaxAmount,
@@ -46,14 +46,14 @@ public sealed record ExpenseByCategoryReportLine(
 
 /// <summary>
 /// Resultado del reporte de gastos por período y categoría (regla 8). Solo incluye gastos confirmados:
-/// nunca borradores ni anulados (regla 4/6). <see cref="CategoryId"/> es nulo cuando el reporte incluye
+/// nunca borradores ni anulados (regla 4/6). <see cref="AccountId"/> es nulo cuando el reporte incluye
 /// todas las categorías.
 /// </summary>
 public sealed record ExpenseByCategoryReportResult(
     ReportHeader Header,
     DateOnly PeriodFrom,
     DateOnly PeriodTo,
-    Guid? CategoryId,
+    Guid? AccountId,
     IReadOnlyList<ExpenseByCategoryReportLine> Lines,
     decimal GrandTotal);
 
@@ -119,22 +119,104 @@ public sealed record CustomerStatementReportResult(
     IReadOnlyList<CustomerStatementLine> Lines,
     decimal CurrentBalance);
 
-/// <summary>Las cuentas por pagar vigentes de un proveedor, resumidas para el reporte.</summary>
+/// <summary>
+/// El saldo de un documento (cuenta por cobrar o por pagar) repartido en los rangos de antigüedad
+/// estándar (al día, 1-30, 31-60, 61-90 y más de 90 días de vencido), a la fecha del reporte.
+/// </summary>
+public sealed record AgingAmounts(
+    decimal Current,
+    decimal Overdue1To30,
+    decimal Overdue31To60,
+    decimal Overdue61To90,
+    decimal OverdueOver90)
+{
+    /// <summary>Instancia en cero, usada para iniciar la acumulación por grupo.</summary>
+    public static readonly AgingAmounts Zero = new(0m, 0m, 0m, 0m, 0m);
+
+    /// <summary>Suma el saldo de un documento al rango de antigüedad que le corresponde según sus días de vencido.</summary>
+    public AgingAmounts Add(int daysPastDue, decimal balance) => daysPastDue switch
+    {
+        <= 0 => this with { Current = Current + balance },
+        <= 30 => this with { Overdue1To30 = Overdue1To30 + balance },
+        <= 60 => this with { Overdue31To60 = Overdue31To60 + balance },
+        <= 90 => this with { Overdue61To90 = Overdue61To90 + balance },
+        _ => this with { OverdueOver90 = OverdueOver90 + balance },
+    };
+
+    /// <summary>Suma los rangos de antigüedad de otra instancia (para el gran total del reporte).</summary>
+    public static AgingAmounts operator +(AgingAmounts left, AgingAmounts right) => new(
+        left.Current + right.Current,
+        left.Overdue1To30 + right.Overdue1To30,
+        left.Overdue31To60 + right.Overdue31To60,
+        left.Overdue61To90 + right.Overdue61To90,
+        left.OverdueOver90 + right.OverdueOver90);
+}
+
+/// <summary>Una cuenta por pagar individual, dentro del desglose de un proveedor.</summary>
+public sealed record PayableDetailLine(
+    string ExpenseCode,
+    DateOnly IssueDate,
+    DateOnly DueDate,
+    decimal Balance,
+    AgingAmounts Aging);
+
+/// <summary>
+/// Las cuentas por pagar vigentes de un proveedor, resumidas para el reporte, con el desglose de cada
+/// una (<see cref="Details"/>, ordenado por vencimiento, el más antiguo primero).
+/// </summary>
 public sealed record PayableBySupplierReportLine(
     Guid SupplierId,
     string SupplierName,
     int PayableCount,
     decimal TotalBalance,
-    DateOnly EarliestDueDate);
+    DateOnly EarliestDueDate,
+    AgingAmounts Aging,
+    IReadOnlyList<PayableDetailLine> Details);
 
 /// <summary>
 /// Resultado del reporte de cuentas por pagar por proveedor (regla 8): una fotografía del momento de
-/// todas las cuentas por pagar vigentes (Pendiente o Parcialmente pagada), agrupadas por proveedor.
+/// todas las cuentas por pagar vigentes (Pendiente o Parcialmente pagada), agrupadas por proveedor, con
+/// el saldo de cada proveedor repartido por antigüedad (paquete v7).
 /// </summary>
 public sealed record PayableBySupplierReportResult(
     ReportHeader Header,
     IReadOnlyList<PayableBySupplierReportLine> Lines,
-    decimal GrandTotalBalance);
+    decimal GrandTotalBalance,
+    AgingAmounts GrandTotalAging);
+
+/// <summary>Una cuenta por cobrar individual, dentro del desglose de un cliente.</summary>
+public sealed record ReceivableDetailLine(
+    long? InvoiceNumber,
+    DateOnly IssueDate,
+    DateOnly DueDate,
+    decimal Balance,
+    AgingAmounts Aging);
+
+/// <summary>
+/// Las cuentas por cobrar vigentes de un cliente, resumidas para el reporte, con el desglose de cada
+/// una (<see cref="Details"/>, ordenado por vencimiento, el más antiguo primero).
+/// </summary>
+public sealed record ReceivableByCustomerReportLine(
+    Guid CustomerId,
+    string CustomerName,
+    int ReceivableCount,
+    decimal TotalBalance,
+    DateOnly EarliestDueDate,
+    AgingAmounts Aging,
+    IReadOnlyList<ReceivableDetailLine> Details);
+
+/// <summary>
+/// Resultado del reporte de cuentas por cobrar por cliente con antigüedad de saldos (RF-98, paquete
+/// v7): una fotografía del momento de todas las cuentas por cobrar vigentes (Pendiente o Parcialmente
+/// pagada), agrupadas por cliente, con el saldo de cada cliente repartido por antigüedad. Distinto del
+/// estado de cuenta de cliente: ese muestra el historial de un solo cliente; este muestra el saldo de
+/// todos a la vez.
+/// </summary>
+public sealed record ReceivableByCustomerReportResult(
+    ReportHeader Header,
+    IReadOnlyList<ReceivableByCustomerReportLine> Lines,
+    decimal GrandTotalBalance,
+    AgingAmounts GrandTotalAging);
 
 /// <summary>Una línea (débito o crédito) de un asiento, dentro del libro diario.</summary>
 public sealed record JournalBookLine(string AccountCode, string AccountName, decimal Debit, decimal Credit);
@@ -246,14 +328,13 @@ public sealed record IncomeStatementReportResult(
     decimal NetResult);
 
 /// <summary>
-/// Una categoría de gasto de último nivel dentro del presupuesto anual a la fecha (RF-87, bloque 7
-/// del paquete de mejoras finales, punto 3): acumulado de enero hasta el mes indicado, sin IVA, más
-/// el presupuesto total del año como referencia. Es solo una vista: no cambia cómo se registra el
-/// presupuesto, que sigue siendo manual, mes por mes y categoría por categoría.
+/// Una categoría de gasto de último nivel dentro del presupuesto anual a la fecha (RF-87): acumulado
+/// desde el inicio del período fiscal hasta el mes indicado, sin IVA, más el presupuesto de sus doce
+/// meses como referencia. Es solo una vista: el presupuesto sigue registrándose por mes y categoría.
 /// </summary>
 public sealed record AnnualBudgetReportLine(
-    string CategoryCode,
-    string CategoryName,
+    string AccountCode,
+    string AccountName,
     decimal AccumulatedBudgeted,
     decimal AccumulatedExecuted,
     decimal AnnualBudgeted,
@@ -370,13 +451,13 @@ public interface IReportService
 
     /// <summary>
     /// Gastos confirmados entre <paramref name="periodFrom"/> y <paramref name="periodTo"/>, agrupados
-    /// por categoría; <paramref name="categoryId"/> limita el resultado a una sola categoría cuando se
+    /// por categoría; <paramref name="accountId"/> limita el resultado a una sola categoría cuando se
     /// indica.
     /// </summary>
     public Task<ExpenseByCategoryReportResult> GetExpenseByCategoryReportAsync(
         DateOnly periodFrom,
         DateOnly periodTo,
-        Guid? categoryId,
+        Guid? accountId,
         string generatedByUserName,
         CancellationToken cancellationToken = default);
 
@@ -406,8 +487,19 @@ public interface IReportService
         string generatedByUserName,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Cuentas por pagar vigentes de todos los proveedores, agrupadas por proveedor.</summary>
+    /// <summary>
+    /// Cuentas por pagar vigentes de todos los proveedores, agrupadas por proveedor, con antigüedad de
+    /// saldos a la fecha de generación (paquete v7).
+    /// </summary>
     public Task<PayableBySupplierReportResult> GetPayableBySupplierReportAsync(
+        string generatedByUserName,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Cuentas por cobrar vigentes de todos los clientes, agrupadas por cliente, con antigüedad de
+    /// saldos a la fecha de generación (RF-98, paquete v7).
+    /// </summary>
+    public Task<ReceivableByCustomerReportResult> GetReceivableByCustomerReportAsync(
         string generatedByUserName,
         CancellationToken cancellationToken = default);
 
@@ -440,8 +532,8 @@ public interface IReportService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Presupuesto anual a la fecha (RF-87): acumulado de enero hasta <paramref name="upToMonth"/>
-    /// del año <paramref name="periodYear"/>, por cada categoría de gasto de último nivel.
+    /// Presupuesto anual a la fecha (RF-87): acumulado hasta el mes fiscal ordinal
+    /// <paramref name="upToMonth"/> del período cuyo año inicial es <paramref name="periodYear"/>.
     /// </summary>
     public Task<AnnualBudgetReportResult> GetAnnualBudgetReportAsync(
         int periodYear,

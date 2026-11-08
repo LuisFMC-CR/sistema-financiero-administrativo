@@ -19,15 +19,24 @@ public sealed class SuppliersController(ISupplierCatalogService service) : Catal
 {
     [HttpGet("")]
     public async Task<IActionResult> Index(
-        string? search,
+        string? code,
+        string? name,
+        string? identification,
+        string? contact,
         CatalogStatusFilter status = CatalogStatusFilter.Active,
         int page = 1,
         CancellationToken cancellationToken = default)
     {
-        CatalogQuery query = new(NormalizeSearch(search), NormalizeStatus(status), page);
+        CatalogQuery query = new(
+            status: NormalizeStatus(status),
+            page: page,
+            code: code,
+            name: name,
+            identification: identification,
+            contact: contact);
         PagedResult<SupplierModel> results = await service.SearchAsync(query, cancellationToken);
 
-        return View(new CatalogIndexViewModel<SupplierModel>(results, query.Search, query.Status));
+        return View(new CatalogIndexViewModel<SupplierModel>(results, query));
     }
 
     [Authorize(Policy = SystemPolicies.ManageBusinessContacts)]

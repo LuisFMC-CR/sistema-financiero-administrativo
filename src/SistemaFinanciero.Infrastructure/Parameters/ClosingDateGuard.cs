@@ -5,9 +5,8 @@ using SistemaFinanciero.Infrastructure.Persistence;
 namespace SistemaFinanciero.Infrastructure.Parameters;
 
 /// <summary>
-/// Punto único donde cada servicio comprueba la fecha de cierre (regla de negocio 16) antes de
-/// registrar, confirmar, anular o ajustar. Sin parámetros configurados, no hay fecha de cierre que
-/// aplicar: todo está abierto, igual criterio que el límite de autorización (regla 7).
+/// Punto único donde cada servicio impide movimientos en meses pasados cerrados automáticamente o
+/// cerrados de nuevo por Gerencia.
 /// </summary>
 /// <remarks>
 /// Conexiones: la usan <c>InvoiceService</c>, <c>ExpenseService</c>, <c>ReceivablePaymentService</c>,
@@ -19,18 +18,41 @@ internal static class ClosingDateGuard
     public static async Task<string?> GetViolationMessageAsync(
         FinancialDbContext dbContext,
         DateOnly operationDate,
+        TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
-        SystemParameters? parameters = await dbContext.Set<SystemParameters>()
+        DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
+        SystemParameters? parameters = await dbContext.SystemParameters
             .AsNoTracking()
             .SingleOrDefaultAsync(cancellationToken);
 
-        if (parameters is null || parameters.IsOpen(operationDate))
+        if (parameters?.FiscalPeriodStartDate is DateOnly fiscalStart
+            && parameters.FiscalPeriodEndDate is DateOnly fiscalEnd
+            && (operationDate < fiscalStart || operationDate > fiscalEnd))
+        {
+            return $"No es posible operar con fecha {operationDate:dd/MM/yyyy}: está fuera del "
+                + $"período fiscal vigente ({fiscalStart:dd/MM/yyyy}–{fiscalEnd:dd/MM/yyyy}).";
+        }
+
+        bool isPastMonth = operationDate.Year < today.Year
+            || operationDate.Year == today.Year && operationDate.Month < today.Month;
+        if (!isPastMonth)
         {
             return null;
         }
 
-        return $"No es posible operar con fecha {operationDate:dd/MM/yyyy}: el período ya está "
-            + $"cerrado (fecha de cierre {parameters.ClosingDate:dd/MM/yyyy}).";
+        bool isReopened = await dbContext.AccountingPeriodOverrides
+            .AsNoTracking()
+            .AnyAsync(period => period.Year == operationDate.Year
+                && period.Month == operationDate.Month
+                && period.IsOpen,
+                cancellationToken);
+
+        if (isReopened)
+        {
+            return null;
+        }
+
+        return $"No es posible operar con fecha {operationDate:dd/MM/yyyy}: el mes ya está cerrado.";
     }
 }

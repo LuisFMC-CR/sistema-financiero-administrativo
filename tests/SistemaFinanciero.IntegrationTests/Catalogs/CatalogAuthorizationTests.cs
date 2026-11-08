@@ -9,9 +9,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using SistemaFinanciero.Application.Catalogs.Categories;
 using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Catalogs.LedgerAccounts;
+using SistemaFinanciero.Application.Parameters;
 using SistemaFinanciero.Application.Security;
 using SistemaFinanciero.Domain.Catalogs;
 
@@ -56,7 +56,6 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
     [InlineData("/catalogos/clientes")]
     [InlineData("/catalogos/proveedores")]
     [InlineData("/catalogos/productos-servicios")]
-    [InlineData("/catalogos/categorias-financieras")]
     [InlineData("/catalogos/cuentas-contables")]
     [InlineData("/impuestos-y-retenciones")]
     [InlineData("/parametros")]
@@ -77,14 +76,11 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
     [Theory]
     [InlineData("/catalogos/productos-servicios/crear")]
     [InlineData("/catalogos/cuentas-contables/crear")]
-    [InlineData("/catalogos/categorias-financieras/crear")]
     public async Task FinanceUser_CanOpenFinancialCatalogCreationPages(string route)
     {
         using WebApplicationFactory<Program> financeFactory = factory.WithWebHostBuilder(builder =>
             builder.ConfigureTestServices(services =>
             {
-                services.RemoveAll<IFinancialCategoryService>();
-                services.AddScoped<IFinancialCategoryService, EmptyFinancialCategoryService>();
                 services.RemoveAll<ILedgerAccountService>();
                 services.AddScoped<ILedgerAccountService, EmptyLedgerAccountService>();
                 services
@@ -108,6 +104,101 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
 
         string responseBody = await response.Content.ReadAsStringAsync();
         Assert.True(response.IsSuccessStatusCode, responseBody);
+    }
+
+    [Fact]
+    public async Task FinanceUser_SeesCurrentAuthorizationLimitInAnEditableField()
+    {
+        CurrentSystemParametersService parametersService = new();
+        using WebApplicationFactory<Program> financeFactory = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<ISystemParametersService>();
+                services.AddSingleton<ISystemParametersService>(parametersService);
+                services
+                    .AddAuthentication(options =>
+                    {
+                        options.DefaultAuthenticateScheme = FinanceAuthenticationHandler.SchemeName;
+                        options.DefaultChallengeScheme = FinanceAuthenticationHandler.SchemeName;
+                        options.DefaultForbidScheme = FinanceAuthenticationHandler.SchemeName;
+                    })
+                    .AddScheme<AuthenticationSchemeOptions, FinanceAuthenticationHandler>(
+                        FinanceAuthenticationHandler.SchemeName,
+                        _ => { });
+            }));
+        using HttpClient client = financeFactory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost"),
+        });
+
+        using HttpResponseMessage response = await client.GetAsync("/parametros");
+        string responseBody = await response.Content.ReadAsStringAsync();
+
+        Assert.True(response.IsSuccessStatusCode, responseBody);
+        string limitInput = System.Text.RegularExpressions.Regex
+            .Matches(responseBody, "<input\\b[^>]*>")
+            .Select(match => match.Value)
+            .Single(input => input.Contains("name=\"Parameters.AuthorizationLimitCrc\"", StringComparison.Ordinal));
+        Assert.DoesNotContain("readonly", limitInput, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(
+            "value=\"750000\"",
+            System.Text.RegularExpressions.Regex.Match(limitInput, "value=\"[^\"]*\"").Value);
+    }
+
+    [Fact]
+    public async Task FinanceUser_CanSaveNestedSystemParametersForm()
+    {
+        CurrentSystemParametersService parametersService = new();
+        using WebApplicationFactory<Program> financeFactory = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<ISystemParametersService>();
+                services.AddSingleton<ISystemParametersService>(parametersService);
+                services.PostConfigure<Microsoft.AspNetCore.Mvc.MvcOptions>(options =>
+                {
+                    Microsoft.AspNetCore.Mvc.AutoValidateAntiforgeryTokenAttribute? antiforgeryFilter =
+                        options.Filters
+                            .OfType<Microsoft.AspNetCore.Mvc.AutoValidateAntiforgeryTokenAttribute>()
+                            .SingleOrDefault();
+                    if (antiforgeryFilter is not null)
+                    {
+                        options.Filters.Remove(antiforgeryFilter);
+                    }
+                });
+                services
+                    .AddAuthentication(options =>
+                    {
+                        options.DefaultAuthenticateScheme = FinanceAuthenticationHandler.SchemeName;
+                        options.DefaultChallengeScheme = FinanceAuthenticationHandler.SchemeName;
+                        options.DefaultForbidScheme = FinanceAuthenticationHandler.SchemeName;
+                    })
+                    .AddScheme<AuthenticationSchemeOptions, FinanceAuthenticationHandler>(
+                        FinanceAuthenticationHandler.SchemeName,
+                        _ => { });
+            }));
+        using HttpClient client = financeFactory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost"),
+        });
+
+        using HttpResponseMessage getResponse = await client.GetAsync("/parametros");
+        Assert.True(getResponse.IsSuccessStatusCode);
+
+        using FormUrlEncodedContent content = new(
+        [
+            new KeyValuePair<string, string>("Parameters.Version", "version-actual"),
+            new KeyValuePair<string, string>("Parameters.AuthorizationLimitCrc", "1000000"),
+            new KeyValuePair<string, string>("Parameters.OverdueAlertDays", "10"),
+        ]);
+        using HttpResponseMessage postResponse = await client.PostAsync("/parametros", content);
+
+        Assert.Equal(System.Net.HttpStatusCode.Redirect, postResponse.StatusCode);
+        Assert.Equal("/parametros", postResponse.Headers.Location?.OriginalString);
+        Assert.Equal(0, parametersService.CreateCalls);
+        Assert.Equal(1, parametersService.UpdateCalls);
+        Assert.Equal(new SaveSystemParametersCommand(1_000_000m, 10), parametersService.LastUpdateCommand);
+        Assert.Equal("version-actual", parametersService.LastUpdateVersion);
     }
 
     [Fact]
@@ -175,13 +266,19 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
     }
 
     [Fact]
-    public void ManageSystemParametersPolicy_AllowsManagementOnly()
+    public void ManageSystemParametersPolicy_AllowsManagementAndFinance()
     {
-        AssertPolicyRoles(SystemPolicies.ManageSystemParameters, SystemRoles.Management);
+        AssertPolicyRoles(SystemPolicies.ManageSystemParameters, SystemRoles.Management, SystemRoles.Finance);
     }
 
     [Fact]
-    public void SystemParametersEndpoints_OnlyManagementCanSave()
+    public void ManageAccountingPeriodsPolicy_AllowsManagementOnly()
+    {
+        AssertPolicyRoles(SystemPolicies.ManageAccountingPeriods, SystemRoles.Management);
+    }
+
+    [Fact]
+    public void SystemParametersEndpoints_SaveRequiresManageSystemParameters()
     {
         Microsoft.AspNetCore.Routing.RouteEndpoint[] endpoints = factory.Services
             .GetServices<Microsoft.AspNetCore.Routing.EndpointDataSource>()
@@ -204,12 +301,48 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
             endpoint => endpoint.Metadata
                 .GetMetadata<Microsoft.AspNetCore.Routing.HttpMethodMetadata>()!
                 .HttpMethods.Contains("GET"));
-        Assert.DoesNotContain(
-            index.Metadata.GetOrderedMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>(),
-            data => data.Policy == SystemPolicies.ManageSystemParameters);
         Assert.Contains(
             index.Metadata.GetOrderedMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>(),
+            data => data.Policy == SystemPolicies.ManageSystemParameters);
+        Assert.DoesNotContain(
+            index.Metadata.GetOrderedMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>(),
             data => data.Policy == SystemPolicies.ViewFinancialReports);
+    }
+
+    [Fact]
+    public void FiscalPeriodEndpoint_RequiresManageAccountingPeriods()
+    {
+        Microsoft.AspNetCore.Routing.RouteEndpoint endpoint = factory.Services
+            .GetServices<Microsoft.AspNetCore.Routing.EndpointDataSource>()
+            .SelectMany(source => source.Endpoints)
+            .OfType<Microsoft.AspNetCore.Routing.RouteEndpoint>()
+            .Single(candidate => candidate.RoutePattern.RawText == "parametros/periodo-fiscal");
+
+        Assert.Contains(
+            endpoint.Metadata.GetOrderedMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>(),
+            data => data.Policy == SystemPolicies.ManageAccountingPeriods);
+    }
+
+    [Fact]
+    public void ReopenAndCloseAccountingPeriodEndpoints_RequireManageAccountingPeriods()
+    {
+        string[] routes =
+        [
+            "parametros/periodos/reabrir",
+            "parametros/periodos/cerrar",
+        ];
+
+        Microsoft.AspNetCore.Routing.RouteEndpoint[] endpoints = factory.Services
+            .GetServices<Microsoft.AspNetCore.Routing.EndpointDataSource>()
+            .SelectMany(source => source.Endpoints)
+            .OfType<Microsoft.AspNetCore.Routing.RouteEndpoint>()
+            .Where(endpoint => routes.Contains(endpoint.RoutePattern.RawText, StringComparer.Ordinal))
+            .ToArray();
+
+        Assert.Equal(routes.Length, endpoints.Length);
+        Assert.All(endpoints, endpoint => Assert.Contains(
+            endpoint.Metadata.GetOrderedMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>(),
+            data => data.Policy == SystemPolicies.ManageAccountingPeriods));
     }
 
     [Fact]
@@ -290,14 +423,98 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
         }
     }
 
+    private sealed class CurrentSystemParametersService : ISystemParametersService
+    {
+        public int CreateCalls { get; private set; }
+
+        public int UpdateCalls { get; private set; }
+
+        public SaveSystemParametersCommand? LastUpdateCommand { get; private set; }
+
+        public string? LastUpdateVersion { get; private set; }
+
+        public Task<SystemParametersModel?> GetAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<SystemParametersModel?>(new SystemParametersModel(
+                750_000m,
+                12,
+                new DateOnly(2026, 1, 31),
+                "Soporte Experto",
+                "3-101-123456",
+                "San José, Costa Rica",
+                "2222-3333",
+                "contacto@example.com",
+                "6202",
+                "Soporte TI",
+                "1",
+                "01",
+                "02",
+                "001",
+                "00001",
+                DateTimeOffset.UtcNow,
+                DateTimeOffset.UtcNow,
+                "Gerente",
+                "version-actual",
+                new DateOnly(2026, 1, 1),
+                new DateOnly(2026, 12, 31)));
+
+        public Task<CatalogOperationResult> CreateAsync(
+            SaveSystemParametersCommand command,
+            Guid actorId,
+            CancellationToken cancellationToken = default)
+        {
+            CreateCalls++;
+            return Task.FromResult(CatalogOperationResult.Succeeded());
+        }
+
+        public Task<CatalogOperationResult> UpdateAsync(
+            SaveSystemParametersCommand command,
+            string version,
+            Guid actorId,
+            CancellationToken cancellationToken = default)
+        {
+            UpdateCalls++;
+            LastUpdateCommand = command;
+            LastUpdateVersion = version;
+            return Task.FromResult(CatalogOperationResult.Succeeded());
+        }
+
+        public Task<CatalogOperationResult> UpdateFiscalPeriodAsync(
+            DateOnly startDate,
+            DateOnly endDate,
+            string? reason,
+            string version,
+            Guid actorId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromException<CatalogOperationResult>(new NotSupportedException());
+
+        public Task<IReadOnlyList<ReopenedAccountingPeriodModel>> GetReopenedAccountingPeriodsAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<ReopenedAccountingPeriodModel>>([]);
+
+        public Task<CatalogOperationResult> ReopenAccountingPeriodAsync(
+            int year, int month, string reason, Guid actorId, CancellationToken cancellationToken = default) =>
+            Task.FromException<CatalogOperationResult>(new NotSupportedException());
+
+        public Task<CatalogOperationResult> CloseAccountingPeriodAsync(
+            int year, int month, string version, Guid actorId, CancellationToken cancellationToken = default) =>
+            Task.FromException<CatalogOperationResult>(new NotSupportedException());
+
+        public Task<CatalogOperationResult> UpdateCompanyAsync(
+            SaveCompanyDataCommand command,
+            string version,
+            Guid actorId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromException<CatalogOperationResult>(new NotSupportedException());
+    }
+
     /// <summary>
-    /// Igual que la de categorías: la pantalla de creación solo necesita listas vacías de cuentas
-    /// superiores, sin consultar SQL Server.
+    /// La pantalla de creación solo necesita listas vacías de cuentas superiores, sin consultar
+    /// SQL Server.
     /// </summary>
     private sealed class EmptyLedgerAccountService : ILedgerAccountService
     {
         public Task<PagedResult<LedgerAccountModel>> SearchAsync(
-            CatalogQuery query,
+            LedgerAccountQuery query,
             CancellationToken cancellationToken = default) =>
             Task.FromException<PagedResult<LedgerAccountModel>>(new NotSupportedException());
 
@@ -332,49 +549,6 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
         public Task<CatalogOperationResult> UpdateAsync(
             Guid id,
             UpdateLedgerAccountCommand command,
-            string version,
-            Guid actorId,
-            CancellationToken cancellationToken = default) =>
-            Task.FromException<CatalogOperationResult>(new NotSupportedException());
-
-        public Task<CatalogOperationResult> SetActiveAsync(
-            Guid id,
-            bool isActive,
-            string version,
-            Guid actorId,
-            CancellationToken cancellationToken = default) =>
-            Task.FromException<CatalogOperationResult>(new NotSupportedException());
-    }
-
-    /// <summary>
-    /// Evita que esta prueba de autorización dependa de datos de SQL Server; las acciones GET
-    /// solo necesitan una lista vacía válida para construir el selector de categorías.
-    /// </summary>
-    private sealed class EmptyFinancialCategoryService : IFinancialCategoryService
-    {
-        public Task<PagedResult<FinancialCategoryModel>> SearchAsync(
-            CatalogQuery query,
-            CancellationToken cancellationToken = default) =>
-            Task.FromException<PagedResult<FinancialCategoryModel>>(new NotSupportedException());
-
-        public Task<FinancialCategoryModel?> GetAsync(Guid id, CancellationToken cancellationToken = default) =>
-            Task.FromException<FinancialCategoryModel?>(new NotSupportedException());
-
-        public Task<IReadOnlyList<FinancialCategoryOption>> GetActiveOptionsAsync(
-            FinancialCategoryKind kind,
-            Guid? excludedCategoryId = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<FinancialCategoryOption>>([]);
-
-        public Task<CatalogOperationResult> CreateAsync(
-            SaveFinancialCategoryCommand command,
-            Guid actorId,
-            CancellationToken cancellationToken = default) =>
-            Task.FromException<CatalogOperationResult>(new NotSupportedException());
-
-        public Task<CatalogOperationResult> UpdateAsync(
-            Guid id,
-            SaveFinancialCategoryCommand command,
             string version,
             Guid actorId,
             CancellationToken cancellationToken = default) =>

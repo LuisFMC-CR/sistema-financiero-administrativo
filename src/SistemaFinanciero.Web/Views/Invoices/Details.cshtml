@@ -20,6 +20,7 @@
         </p>
     </div>
     <div class="d-flex gap-2">
+        <a asp-action="Index" class="btn btn-outline-secondary">← Volver a facturas</a>
         @if (Model.CanEditDraft)
         {
             <a asp-action="EditHeader" asp-route-id="@invoice.Id" class="btn btn-outline-primary">Editar encabezado</a>
@@ -28,13 +29,9 @@
         {
             <a asp-action="Confirm" asp-route-id="@invoice.Id" class="btn btn-success">Confirmar</a>
         }
-        @if (Model.CanCancel)
+        @if (Model.CanRegisterCreditNote && invoice.Status == InvoiceStatus.Confirmed)
         {
-            <a asp-action="Cancel" asp-route-id="@invoice.Id" class="btn btn-danger">Anular</a>
-        }
-        @if (Model.CanRegisterElectronicInvoice)
-        {
-            <a asp-action="RegisterElectronicInvoice" asp-route-id="@invoice.Id" class="btn btn-outline-primary">Registrar clave electrónica</a>
+            <a asp-controller="CreditNotes" asp-action="Register" asp-route-invoiceId="@invoice.Id" class="btn btn-outline-danger">Registrar nota de crédito</a>
         }
         @if (!isDraft)
         {
@@ -57,7 +54,7 @@
             <p class="mb-1">@invoice.CustomerName</p>
             <p class="mb-1 text-body-secondary"><small>Condición de IVA: @invoice.CustomerVatCondition.ToDisplayName()</small></p>
             <h2 class="h5 mt-3">Categoría de ingreso</h2>
-            <p class="mb-1">@invoice.IncomeCategoryName</p>
+            <p class="mb-1">@invoice.IncomeAccountName</p>
             <h2 class="h5 mt-3">Condiciones</h2>
             <p class="mb-1">Emisión: @invoice.IssueDate.ToString("dd/MM/yyyy")</p>
             <p class="mb-1">Plazo de pago: @invoice.PaymentTerm.ToDisplayName()</p>

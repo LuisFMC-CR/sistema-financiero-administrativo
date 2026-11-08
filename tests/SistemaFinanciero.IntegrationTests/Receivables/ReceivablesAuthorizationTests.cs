@@ -9,7 +9,8 @@ namespace SistemaFinanciero.IntegrationTests.Receivables;
 /// <summary>
 /// Verifica, sin tocar SQL Server, que las rutas de <c>ReceivablesController</c> y
 /// <c>ReceivablePaymentsController</c> exigen exactamente las políticas de la matriz de perfiles:
-/// Gerencia y Finanzas consultan cuentas por cobrar y registran abonos; solo Gerencia los anula.
+/// Gerencia, Finanzas y Asistente consultan cuentas por cobrar; Asistente no registra abonos y solo
+/// Gerencia los anula.
 /// Sigue el mismo patrón que <c>InvoiceAuthorizationTests</c>.
 /// </summary>
 public sealed class ReceivablesAuthorizationTests : IClassFixture<FinancialWebApplicationFactory>
@@ -23,7 +24,8 @@ public sealed class ReceivablesAuthorizationTests : IClassFixture<FinancialWebAp
 
     [Theory]
     [InlineData("/cuentas-por-cobrar")]
-    [InlineData("/cuentas-por-cobrar/abonos/nuevo")]
+    [InlineData("/ingresos/abonos/nuevo")]
+    [InlineData("/ingresos/abonos/cuenta/11111111-1111-1111-1111-111111111111")]
     public async Task ReceivableRoutes_WhenAnonymous_RedirectToLogin(string route)
     {
         using HttpClient client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -39,7 +41,7 @@ public sealed class ReceivablesAuthorizationTests : IClassFixture<FinancialWebAp
     }
 
     [Fact]
-    public void ReceivablesEndpoints_RequireViewFinancialReports()
+    public void ReceivablesEndpoints_RequireViewReceivablesAndPayables()
     {
         RouteEndpoint[] endpoints = GetEndpointsStartingWith("cuentas-por-cobrar")
             .Where(endpoint => !endpoint.RoutePattern.RawText!.Contains("abonos", StringComparison.Ordinal)
@@ -51,7 +53,7 @@ public sealed class ReceivablesAuthorizationTests : IClassFixture<FinancialWebAp
             endpoints,
             endpoint => Assert.Contains(
                 endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>(),
-                data => data.Policy == SystemPolicies.ViewFinancialReports));
+                data => data.Policy == SystemPolicies.ViewReceivablesAndPayables));
     }
 
     [Fact]
@@ -77,12 +79,13 @@ public sealed class ReceivablesAuthorizationTests : IClassFixture<FinancialWebAp
     [Fact]
     public void ReceivablePaymentsEndpoints_RequireTheirOwnPolicyNotTheOthers()
     {
-        RouteEndpoint[] endpoints = GetEndpointsStartingWith("cuentas-por-cobrar/abonos");
+        RouteEndpoint[] endpoints = GetEndpointsStartingWith("ingresos/abonos");
         Assert.NotEmpty(endpoints);
 
         RouteEndpoint[] registerEndpoints = endpoints
             .Where(endpoint => endpoint.RoutePattern.RawText!.EndsWith("nuevo", StringComparison.Ordinal)
-                || endpoint.RoutePattern.RawText!.EndsWith("aplicar", StringComparison.Ordinal))
+                || endpoint.RoutePattern.RawText!.EndsWith("aplicar", StringComparison.Ordinal)
+                || endpoint.RoutePattern.RawText!.Contains("cuenta/{id:guid}", StringComparison.Ordinal))
             .ToArray();
         Assert.NotEmpty(registerEndpoints);
         Assert.All(
@@ -95,6 +98,16 @@ public sealed class ReceivablesAuthorizationTests : IClassFixture<FinancialWebAp
             endpoint => Assert.DoesNotContain(
                 endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>(),
                 data => data.Policy == SystemPolicies.VoidFinancialTransactions));
+        Assert.All(
+            registerEndpoints,
+            endpoint => Assert.DoesNotContain(
+                endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>(),
+                data => data.Policy == SystemPolicies.RegisterManualIncome));
+        Assert.All(
+            registerEndpoints,
+            endpoint => Assert.DoesNotContain(
+                endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>(),
+                data => data.Policy == SystemPolicies.ViewFinancialReports));
 
         RouteEndpoint[] cancelEndpoints = endpoints
             .Where(endpoint => endpoint.RoutePattern.RawText!.EndsWith("anular", StringComparison.Ordinal))

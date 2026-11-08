@@ -55,7 +55,7 @@ public sealed class IncomeReportPdfDocument(IncomeReportResult result) : IDocume
                         table.Cell().Element(ReportDocumentStyles.BodyCellStyle).Text(line.Code);
                         table.Cell().Element(ReportDocumentStyles.BodyCellStyle)
                             .Text(line.IncomeDate.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture));
-                        table.Cell().Element(ReportDocumentStyles.BodyCellStyle).Text(line.CategoryName);
+                        table.Cell().Element(ReportDocumentStyles.BodyCellStyle).Text(line.AccountName);
                         table.Cell().Element(ReportDocumentStyles.BodyCellStyle).Text(line.CashAccountName);
                         table.Cell().Element(ReportDocumentStyles.BodyCellStyle).Text(line.Origin.ToDisplayName());
                         table.Cell().Element(ReportDocumentStyles.BodyCellStyle).Text(line.Reference ?? "—");

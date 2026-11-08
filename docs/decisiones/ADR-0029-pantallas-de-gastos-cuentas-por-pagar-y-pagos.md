@@ -15,11 +15,10 @@ espejo del cierre del paso 2 (ADR-0026).
 - **`Expense` no tiene un asistente de líneas**: a diferencia de `InvoicesController`, `Create` y
   `EditHeader` capturan todo el encabezado de una sola vez (proveedor, categoría, descripción, fecha,
   plazo, monto neto, tarifa de IVA y medio de pago), porque un gasto no tiene líneas (regla 2).
-- **`Expense` aplica la restricción de perfiles de Asistente** ("ve solo los suyos", igual que
-  facturas): se agregó `restrictToOwnerUserId` a `IExpenseService.GetAsync`/`UpdateHeaderAsync` y
-  `ExpenseQuery.CreatedByUserId`, que no existían en el bloque 1 porque todavía no había pantalla que
-  lo necesitara (mismo criterio que `IReceivableService.SearchAsync` se agregó hasta el bloque 5 del
-  paso 2).
+- **Alcance de propiedad de `Expense` (actualizado por ADR-0052):** Asistente consulta gastos de
+  cualquier usuario y edita únicamente sus propios borradores. Se agregó `restrictToOwnerUserId` a
+  `IExpenseService.GetAsync`/`UpdateHeaderAsync` y `ExpenseQuery.CreatedByUserId`; el controlador
+  aplica el límite al editar, no al listar ni al consultar el detalle.
 - **`ISupplierCatalogService.GetActiveOptionsAsync`**, identificado como brecha al planear el paso 3,
   se agrega ahora junto con la pantalla que lo necesita, copiando `ICustomerCatalogService`.
 - **`ExpenseConfirmViewModel` no pide medio de pago ni categoría**, a diferencia de

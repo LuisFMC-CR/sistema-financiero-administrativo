@@ -1,13 +1,13 @@
 @using SistemaFinanciero.Web.Models.Receivables
 @model RegisterReceivablePaymentStartViewModel
 @{
-    ViewData["Title"] = "Registrar abono";
+    ViewData["Title"] = "Distribuir cobro";
 }
 
 <div class="catalog-form">
-    <h1 class="h2">Registrar abono</h1>
+    <h1 class="h2">Distribuir un cobro entre varias cuentas por cobrar</h1>
     <p class="text-body-secondary">
-        Elija el cliente y el monto total a abonar. El sistema propondrá el reparto entre sus facturas
+        Elija el cliente y el monto total recibido. El sistema propondrá el reparto entre sus facturas
         pendientes, de la más antigua a la más nueva, y podrá editarlo antes de confirmar.
     </p>
     <form method="post" class="card card-body">
@@ -44,8 +44,8 @@
             </div>
         </div>
         <div class="d-flex gap-2 mt-3">
-            <button type="submit" class="btn btn-primary">Proponer reparto</button>
-            <a asp-controller="Receivables" asp-action="Index" class="btn btn-outline-secondary">Cancelar</a>
+            <button type="submit" class="btn btn-primary">Continuar con el reparto</button>
+            <a asp-controller="Incomes" asp-action="Index" class="btn btn-outline-secondary">Cancelar</a>
         </div>
     </form>
 </div>

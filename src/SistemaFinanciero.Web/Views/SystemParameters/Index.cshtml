@@ -3,7 +3,8 @@
 @{
     ViewData["Title"] = "Parámetros del sistema";
     bool canManage = (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ManageSystemParameters)).Succeeded;
-    bool isConfigured = !string.IsNullOrEmpty(Model.Parameters.Version);
+    bool canManageAccountingPeriods = (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ManageAccountingPeriods)).Succeeded;
+    bool isConfigured = Model.CurrentConfiguration is not null;
 
     // Las 7 provincias de Costa Rica (bloque 2 del paquete v7): lista fija y cerrada, sin tabla de
     // catálogo. Cantón y distrito no tienen una lista equivalente todavía (pendiente en el ADR).
@@ -21,46 +22,40 @@
 
 <div class="mb-3">
     <h1 class="h2 mb-1">Parámetros del sistema</h1>
-    <p class="text-body-secondary mb-0">Límite de autorización de abonos y pagos, días de alerta de vencimiento próximo, y fecha de cierre.</p>
+    <p class="text-body-secondary mb-0">Límite de autorización, días de alerta, período fiscal anual y reaperturas mensuales.</p>
 </div>
 
-@if (!isConfigured && !canManage)
+@if (!isConfigured)
 {
-    <div class="alert alert-warning" role="status">Gerencia todavía no ha configurado los parámetros del sistema.</div>
+    <div class="alert alert-info" role="status">
+        Aún no hay una configuración guardada. Los valores de los formularios serán vigentes solo después de guardarlos.
+    </div>
 }
-else
-{
-    <div class="catalog-form mb-4">
+
+<div class="catalog-form mb-4">
+        <h2 class="h5">@(isConfigured ? "Editar parámetros" : "Configurar parámetros iniciales")</h2>
         <form asp-action="Save" method="post" class="card card-body">
             <input asp-for="Parameters.Version" type="hidden" />
             <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+            @if (isConfigured)
+            {
+                <p class="text-body-secondary small">
+                    Los campos muestran los valores guardados. Al editarlos verás aquí los cambios propuestos; se aplicarán al sistema al guardarlos.
+                </p>
+            }
             <div class="row g-3">
                 <div class="col-md-6">
                     <label asp-for="Parameters.AuthorizationLimitCrc" class="form-label"></label>
                     <div class="input-group">
                         <span class="input-group-text">CRC</span>
-                        @if (canManage)
-                        {
-                            <input asp-for="Parameters.AuthorizationLimitCrc" type="number" min="0" step="0.01" class="form-control" />
-                        }
-                        else
-                        {
-                            <input value="@Model.Parameters.AuthorizationLimitCrc.ToString("N2", System.Globalization.CultureInfo.CurrentCulture)" class="form-control" readonly />
-                        }
-                    </div>
+                        <input asp-for="Parameters.AuthorizationLimitCrc" type="number" min="0" step="0.01" class="form-control" />
+</div>
                     <span asp-validation-for="Parameters.AuthorizationLimitCrc" class="text-danger"></span>
                     <div class="form-text">Los abonos y pagos por encima de este monto solo los registra Gerencia.</div>
                 </div>
                 <div class="col-md-6">
                     <label asp-for="Parameters.OverdueAlertDays" class="form-label"></label>
-                    @if (canManage)
-                    {
-                        <input asp-for="Parameters.OverdueAlertDays" type="number" min="1" max="3650" class="form-control" />
-                    }
-                    else
-                    {
-                        <input value="@Model.Parameters.OverdueAlertDays" class="form-control" readonly />
-                    }
+                    <input asp-for="Parameters.OverdueAlertDays" type="number" min="1" max="3650" class="form-control" />
                     <span asp-validation-for="Parameters.OverdueAlertDays" class="text-danger"></span>
                     <div class="form-text">Anticipación para marcar una cuenta por cobrar o por pagar como próxima a vencer.</div>
                 </div>
@@ -71,53 +66,123 @@ else
                     Última modificación: @Model.Parameters.UpdatedAtUtc?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") por @Model.Parameters.UpdatedByUserName.
                 </p>
             }
-            @if (canManage)
-            {
-                <div class="d-flex gap-2 mt-4">
-                    <button type="submit" class="btn btn-primary">Guardar parámetros</button>
-                </div>
-            }
+            <div class="d-flex gap-2 mt-4">
+                <button type="submit" class="btn btn-primary">Guardar parámetros</button>
+            </div>
         </form>
     </div>
 
     @if (isConfigured)
     {
         <div class="catalog-form">
-            <h2 class="h5">Fecha de cierre</h2>
+            <h2 class="h5">Período fiscal anual</h2>
             <p class="text-body-secondary small">
-                No se registra, confirma, anula ni ajusta nada con fecha igual o anterior a la de cierre.
-                Adelantarla es el cierre mensual (sin motivo); retrocederla es una reapertura y exige motivo.
-                Nunca puede ser posterior a hoy.
+                El período debe abarcar exactamente doce meses. Los meses anteriores al mes actual se cierran
+                automáticamente; Gerencia puede reabrirlos con motivo y cerrarlos de nuevo cuando corresponda.
             </p>
-            <form asp-action="ChangeClosingDate" method="post" class="card card-body">
-                <input asp-for="ClosingDateForm.Version" type="hidden" />
+            <form asp-action="UpdateFiscalPeriod" method="post" class="card card-body">
+                <input asp-for="FiscalPeriodForm.Version" type="hidden" />
                 <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
                 <div class="row g-3">
                     <div class="col-md-6">
-                        <label class="form-label">Fecha de cierre vigente</label>
-                        <input value="@Model.Parameters.ClosingDate.ToString("dd/MM/yyyy")" class="form-control" readonly />
+                        <label asp-for="FiscalPeriodForm.StartDate" class="form-label"></label>
+                        @if (canManageAccountingPeriods)
+                        {
+                            <input asp-for="FiscalPeriodForm.StartDate" type="date" class="form-control" />
+                        }
+                        else
+                        {
+                            <input value="@Model.CurrentConfiguration?.FiscalPeriodStartDate?.ToString("dd/MM/yyyy")" class="form-control" readonly />
+                        }
+                        <span asp-validation-for="FiscalPeriodForm.StartDate" class="text-danger"></span>
                     </div>
-                    @if (canManage)
+                    <div class="col-md-6">
+                        <label asp-for="FiscalPeriodForm.EndDate" class="form-label"></label>
+                        @if (canManageAccountingPeriods)
+                        {
+                            <input asp-for="FiscalPeriodForm.EndDate" type="date" class="form-control" />
+                        }
+                        else
+                        {
+                            <input value="@Model.CurrentConfiguration?.FiscalPeriodEndDate?.ToString("dd/MM/yyyy")" class="form-control" readonly />
+                        }
+                        <span asp-validation-for="FiscalPeriodForm.EndDate" class="text-danger"></span>
+                    </div>
+                    @if (canManageAccountingPeriods)
                     {
-                        <div class="col-md-6">
-                            <label asp-for="ClosingDateForm.NewClosingDate" class="form-label"></label>
-                            <input asp-for="ClosingDateForm.NewClosingDate" type="date" class="form-control" />
-                            <span asp-validation-for="ClosingDateForm.NewClosingDate" class="text-danger"></span>
+                        <div class="col-12">
+                            <label asp-for="FiscalPeriodForm.Reason" class="form-label"></label>
+                            <textarea asp-for="FiscalPeriodForm.Reason" class="form-control" rows="2"></textarea>
+                            <span asp-validation-for="FiscalPeriodForm.Reason" class="text-danger"></span>
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary">Guardar período fiscal</button>
                         </div>
                     }
                 </div>
-                @if (canManage)
-                {
-                    <div class="mt-3">
-                        <label asp-for="ClosingDateForm.Reason" class="form-label"></label>
-                        <textarea asp-for="ClosingDateForm.Reason" class="form-control" rows="2"></textarea>
-                        <span asp-validation-for="ClosingDateForm.Reason" class="text-danger"></span>
-                    </div>
-                    <div class="d-flex gap-2 mt-4">
-                        <button type="submit" class="btn btn-warning">Cambiar fecha de cierre</button>
-                    </div>
-                }
             </form>
+
+            @if (canManageAccountingPeriods)
+            {
+                <h3 class="h6 mt-4">Reabrir un mes cerrado</h3>
+                <form asp-action="ReopenAccountingPeriod" method="post" class="card card-body mb-4">
+                    <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+                    <div class="row g-3">
+                        <div class="col-sm-3">
+                            <label asp-for="ReopenAccountingPeriodForm.Year" class="form-label"></label>
+                            <input asp-for="ReopenAccountingPeriodForm.Year" class="form-control" />
+                            <span asp-validation-for="ReopenAccountingPeriodForm.Year" class="text-danger"></span>
+                        </div>
+                        <div class="col-sm-3">
+                            <label asp-for="ReopenAccountingPeriodForm.Month" class="form-label"></label>
+                            <input asp-for="ReopenAccountingPeriodForm.Month" class="form-control" />
+                            <span asp-validation-for="ReopenAccountingPeriodForm.Month" class="text-danger"></span>
+                        </div>
+                        <div class="col-sm-6">
+                            <label asp-for="ReopenAccountingPeriodForm.Reason" class="form-label"></label>
+                            <input asp-for="ReopenAccountingPeriodForm.Reason" class="form-control" />
+                            <span asp-validation-for="ReopenAccountingPeriodForm.Reason" class="text-danger"></span>
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-warning">Reabrir mes</button>
+                        </div>
+                    </div>
+                </form>
+            }
+
+            @if (Model.ReopenedAccountingPeriods.Count > 0)
+            {
+                <h3 class="h6">Meses reabiertos</h3>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr><th>Período</th><th>Motivo</th><th>Reabierto por</th><th>Fecha</th>@if (canManageAccountingPeriods) { <th>Acción</th> }</tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var period in Model.ReopenedAccountingPeriods)
+                            {
+                                <tr>
+                                    <td>@(new DateOnly(period.Year, period.Month, 1).ToString("MMMM yyyy"))</td>
+                                    <td>@period.Reason</td>
+                                    <td>@period.ReopenedByUserName</td>
+                                    <td>@period.ReopenedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                                    @if (canManageAccountingPeriods)
+                                    {
+                                        <td>
+                                            <form asp-action="CloseAccountingPeriod" method="post">
+                                                <input type="hidden" name="Year" value="@period.Year" />
+                                                <input type="hidden" name="Month" value="@period.Month" />
+                                                <input type="hidden" name="Version" value="@period.Version" />
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">Cerrar mes</button>
+                                            </form>
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
         </div>
 
         <div class="catalog-form mt-4">
@@ -130,6 +195,9 @@ else
             <form asp-action="UpdateCompany" method="post" class="card card-body">
                 <input asp-for="CompanyDataForm.Version" type="hidden" />
                 <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+                <p class="text-body-secondary small">
+                    Los campos muestran los datos guardados. Al editarlos verás aquí los cambios propuestos; se aplicarán al sistema al guardarlos.
+                </p>
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label asp-for="CompanyDataForm.Name" class="form-label"></label>
@@ -260,6 +328,32 @@ else
                         }
                         <span asp-validation-for="CompanyDataForm.ActivityCode" class="text-danger"></span>
                     </div>
+                    <div class="col-md-3">
+                        <label asp-for="CompanyDataForm.BranchCode" class="form-label"></label>
+                        @if (canManage)
+                        {
+                            <input asp-for="CompanyDataForm.BranchCode" class="form-control" maxlength="3" placeholder="3 dígitos" />
+                        }
+                        else
+                        {
+                            <input value="@Model.CompanyDataForm.BranchCode" class="form-control" readonly />
+                        }
+                        <span asp-validation-for="CompanyDataForm.BranchCode" class="text-danger"></span>
+                        <div class="form-text">Para la clave del comprobante electrónico de Hacienda.</div>
+                    </div>
+                    <div class="col-md-3">
+                        <label asp-for="CompanyDataForm.TerminalCode" class="form-label"></label>
+                        @if (canManage)
+                        {
+                            <input asp-for="CompanyDataForm.TerminalCode" class="form-control" maxlength="5" placeholder="5 dígitos" />
+                        }
+                        else
+                        {
+                            <input value="@Model.CompanyDataForm.TerminalCode" class="form-control" readonly />
+                        }
+                        <span asp-validation-for="CompanyDataForm.TerminalCode" class="text-danger"></span>
+                        <div class="form-text">Para la clave del comprobante electrónico de Hacienda.</div>
+                    </div>
                 </div>
                 @if (canManage)
                 {
@@ -270,7 +364,6 @@ else
             </form>
         </div>
     }
-}
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />

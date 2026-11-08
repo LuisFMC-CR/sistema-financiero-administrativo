@@ -2,11 +2,13 @@ using Microsoft.EntityFrameworkCore;
 using SistemaFinanciero.Application.Budgets;
 using SistemaFinanciero.Application.Reports;
 using SistemaFinanciero.Domain.Catalogs;
+using SistemaFinanciero.Domain.CreditNotes;
 using SistemaFinanciero.Domain.Expenses;
 using SistemaFinanciero.Domain.Incomes;
 using SistemaFinanciero.Domain.Invoices;
 using SistemaFinanciero.Domain.Ledger;
 using SistemaFinanciero.Domain.Payables;
+using SistemaFinanciero.Domain.Parameters;
 using SistemaFinanciero.Domain.Receivables;
 using SistemaFinanciero.Infrastructure.Persistence;
 
@@ -46,8 +48,8 @@ internal sealed class ReportService(
             .ThenBy(income => income.Code)
             .ToListAsync(cancellationToken);
 
-        Dictionary<Guid, string> categoryNames = await GetCategoryNamesAsync(
-            incomes.Select(income => income.CategoryId),
+        Dictionary<Guid, string> accountNames = await GetAccountNamesAsync(
+            incomes.Select(income => income.AccountId),
             cancellationToken);
         Dictionary<Guid, string> cashAccountNames = await GetLedgerAccountNamesAsync(
             incomes.Select(income => income.CashAccountId),
@@ -57,7 +59,7 @@ internal sealed class ReportService(
             .Select(income => new IncomeReportLine(
                 income.Code,
                 income.IncomeDate,
-                categoryNames.GetValueOrDefault(income.CategoryId, "—"),
+                accountNames.GetValueOrDefault(income.AccountId, "—"),
                 cashAccountNames.GetValueOrDefault(income.CashAccountId, "—"),
                 income.Origin,
                 income.Reference,
@@ -81,7 +83,7 @@ internal sealed class ReportService(
     public async Task<ExpenseByCategoryReportResult> GetExpenseByCategoryReportAsync(
         DateOnly periodFrom,
         DateOnly periodTo,
-        Guid? categoryId,
+        Guid? accountId,
         string generatedByUserName,
         CancellationToken cancellationToken = default)
     {
@@ -92,36 +94,36 @@ internal sealed class ReportService(
             .Where(expense => expense.Status == ExpenseStatus.Confirmed
                 && expense.IssueDate >= periodFrom
                 && expense.IssueDate <= periodTo
-                && (!categoryId.HasValue || expense.CategoryId == categoryId.Value))
+                && (!accountId.HasValue || expense.AccountId == accountId.Value))
             .ToListAsync(cancellationToken);
 
-        Dictionary<Guid, FinancialCategory> categories = await dbContext.Set<FinancialCategory>()
+        Dictionary<Guid, LedgerAccount> accounts = await dbContext.Set<LedgerAccount>()
             .AsNoTracking()
-            .Where(category => expenses.Select(expense => expense.CategoryId).Distinct().Contains(category.Id))
-            .ToDictionaryAsync(category => category.Id, cancellationToken);
+            .Where(account => expenses.Select(expense => expense.AccountId).Distinct().Contains(account.Id))
+            .ToDictionaryAsync(account => account.Id, cancellationToken);
 
         ExpenseByCategoryReportLine[] lines = expenses
-            .GroupBy(expense => expense.CategoryId)
+            .GroupBy(expense => expense.AccountId)
             .Select(group =>
             {
-                FinancialCategory? category = categories.GetValueOrDefault(group.Key);
+                LedgerAccount? account = accounts.GetValueOrDefault(group.Key);
                 return new ExpenseByCategoryReportLine(
-                    category?.Code ?? "—",
-                    category?.Name ?? "—",
+                    account?.Code ?? "—",
+                    account?.Name ?? "—",
                     group.Count(),
                     group.Sum(expense => expense.NetAmount),
                     group.Sum(expense => expense.TaxAmount),
                     group.Sum(expense => expense.TotalAmount));
             })
-            .OrderBy(line => line.CategoryCode, StringComparer.Ordinal)
+            .OrderBy(line => line.AccountCode, StringComparer.Ordinal)
             .ToArray();
 
         ReportHeader header = new(
             "Gastos por período y categoría",
             FormatPeriod(periodFrom, periodTo)
-                + (categoryId is null
+                + (accountId is null
                     ? "; todas las categorías"
-                    : $"; categoría {categories.GetValueOrDefault(categoryId.Value)?.Name ?? "—"}"),
+                    : $"; categoría {accounts.GetValueOrDefault(accountId.Value)?.Name ?? "—"}"),
             timeProvider.GetUtcNow(),
             generatedByUserName);
 
@@ -129,7 +131,7 @@ internal sealed class ReportService(
             header,
             periodFrom,
             periodTo,
-            categoryId,
+            accountId,
             lines,
             lines.Sum(line => line.TotalAmount));
     }
@@ -260,6 +262,8 @@ internal sealed class ReportService(
             .Join(dbContext.Set<Invoice>(), receivable => receivable.InvoiceId, invoice => invoice.Id,
                 (receivable, invoice) => new { receivable.Id, invoice })
             .ToDictionaryAsync(pair => pair.Id, pair => pair.invoice, cancellationToken);
+        Dictionary<Guid, long?> invoiceNumbersById = invoicesByReceivableId.Values
+            .ToDictionary(invoice => invoice.Id, invoice => invoice.Number);
 
         List<ReceivablePayment> payments = await dbContext.Set<ReceivablePayment>()
             .AsNoTracking()
@@ -291,6 +295,18 @@ internal sealed class ReportService(
             payment.Amount + withholdingAmountsByPaymentId.GetValueOrDefault(payment.Id),
             payment.Status == ReceivablePaymentStatus.Cancelled)));
 
+        Guid[] invoiceIds = invoicesByReceivableId.Values.Select(invoice => invoice.Id).ToArray();
+        List<CreditNote> creditNotes = await dbContext.CreditNotes
+            .AsNoTracking()
+            .Where(note => invoiceIds.Contains(note.InvoiceId) && note.Status == CreditNoteStatus.Active)
+            .ToListAsync(cancellationToken);
+        lines.AddRange(creditNotes.Select(note => new CustomerStatementLine(
+            note.IssueDate,
+            "Nota de crédito",
+            $"Nota de crédito {note.Code} sobre factura N° {invoiceNumbersById.GetValueOrDefault(note.InvoiceId)}",
+            note.TotalAmount,
+            IsCancelled: false)));
+
         lines = lines.OrderBy(line => line.Date).ToList();
 
         decimal currentBalance = receivables
@@ -310,6 +326,8 @@ internal sealed class ReportService(
         string generatedByUserName,
         CancellationToken cancellationToken = default)
     {
+        DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
+
         List<Payable> payables = await dbContext.Set<Payable>()
             .AsNoTracking()
             .Where(payable => payable.Status == PayableStatus.Pending || payable.Status == PayableStatus.PartiallyPaid)
@@ -320,24 +338,111 @@ internal sealed class ReportService(
             .Where(supplier => payables.Select(payable => payable.SupplierId).Distinct().Contains(supplier.Id))
             .ToDictionaryAsync(supplier => supplier.Id, supplier => supplier.Name, cancellationToken);
 
+        Dictionary<Guid, Expense> expensesByPayableId = await dbContext.Set<Expense>()
+            .AsNoTracking()
+            .Where(expense => payables.Select(payable => payable.ExpenseId).Contains(expense.Id))
+            .ToDictionaryAsync(expense => expense.Id, cancellationToken);
+
         PayableBySupplierReportLine[] lines = payables
             .GroupBy(payable => payable.SupplierId)
-            .Select(group => new PayableBySupplierReportLine(
-                group.Key,
-                supplierNames.GetValueOrDefault(group.Key, "—"),
-                group.Count(),
-                group.Sum(payable => payable.Balance),
-                group.Min(payable => payable.DueDate)))
+            .Select(group =>
+            {
+                PayableDetailLine[] details = group
+                    .OrderBy(payable => payable.DueDate)
+                    .Select(payable =>
+                    {
+                        Expense expense = expensesByPayableId[payable.ExpenseId];
+                        int daysPastDue = today.DayNumber - payable.DueDate.DayNumber;
+                        return new PayableDetailLine(
+                            expense.Code, expense.IssueDate, payable.DueDate, payable.Balance,
+                            AgingAmounts.Zero.Add(daysPastDue, payable.Balance));
+                    })
+                    .ToArray();
+
+                return new PayableBySupplierReportLine(
+                    group.Key,
+                    supplierNames.GetValueOrDefault(group.Key, "—"),
+                    group.Count(),
+                    group.Sum(payable => payable.Balance),
+                    group.Min(payable => payable.DueDate),
+                    details.Aggregate(AgingAmounts.Zero, (total, detail) => total + detail.Aging),
+                    details);
+            })
             .OrderBy(line => line.SupplierName, StringComparer.Ordinal)
             .ToArray();
 
         ReportHeader header = new(
             "Cuentas por pagar por proveedor",
-            "Cuentas por pagar vigentes a la fecha de generación",
+            "Cuentas por pagar vigentes, con antigüedad de saldos a la fecha de generación",
             timeProvider.GetUtcNow(),
             generatedByUserName);
 
-        return new PayableBySupplierReportResult(header, lines, lines.Sum(line => line.TotalBalance));
+        AgingAmounts grandTotalAging = lines.Aggregate(AgingAmounts.Zero, (total, line) => total + line.Aging);
+
+        return new PayableBySupplierReportResult(
+            header, lines, lines.Sum(line => line.TotalBalance), grandTotalAging);
+    }
+
+    public async Task<ReceivableByCustomerReportResult> GetReceivableByCustomerReportAsync(
+        string generatedByUserName,
+        CancellationToken cancellationToken = default)
+    {
+        DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
+
+        List<Receivable> receivables = await dbContext.Set<Receivable>()
+            .AsNoTracking()
+            .Where(receivable => receivable.Status == ReceivableStatus.Pending
+                || receivable.Status == ReceivableStatus.PartiallyPaid)
+            .ToListAsync(cancellationToken);
+
+        Dictionary<Guid, string> customerNames = await dbContext.Set<Customer>()
+            .AsNoTracking()
+            .Where(customer => receivables.Select(receivable => receivable.CustomerId).Distinct().Contains(customer.Id))
+            .ToDictionaryAsync(customer => customer.Id, customer => customer.Name, cancellationToken);
+
+        Dictionary<Guid, Invoice> invoicesByReceivableId = await dbContext.Set<Invoice>()
+            .AsNoTracking()
+            .Where(invoice => receivables.Select(receivable => receivable.InvoiceId).Contains(invoice.Id))
+            .ToDictionaryAsync(invoice => invoice.Id, cancellationToken);
+
+        ReceivableByCustomerReportLine[] lines = receivables
+            .GroupBy(receivable => receivable.CustomerId)
+            .Select(group =>
+            {
+                ReceivableDetailLine[] details = group
+                    .OrderBy(receivable => receivable.DueDate)
+                    .Select(receivable =>
+                    {
+                        Invoice invoice = invoicesByReceivableId[receivable.InvoiceId];
+                        int daysPastDue = today.DayNumber - receivable.DueDate.DayNumber;
+                        return new ReceivableDetailLine(
+                            invoice.Number, invoice.IssueDate, receivable.DueDate, receivable.Balance,
+                            AgingAmounts.Zero.Add(daysPastDue, receivable.Balance));
+                    })
+                    .ToArray();
+
+                return new ReceivableByCustomerReportLine(
+                    group.Key,
+                    customerNames.GetValueOrDefault(group.Key, "—"),
+                    group.Count(),
+                    group.Sum(receivable => receivable.Balance),
+                    group.Min(receivable => receivable.DueDate),
+                    details.Aggregate(AgingAmounts.Zero, (total, detail) => total + detail.Aging),
+                    details);
+            })
+            .OrderBy(line => line.CustomerName, StringComparer.Ordinal)
+            .ToArray();
+
+        ReportHeader header = new(
+            "Cuentas por cobrar por cliente",
+            "Cuentas por cobrar vigentes, con antigüedad de saldos a la fecha de generación",
+            timeProvider.GetUtcNow(),
+            generatedByUserName);
+
+        AgingAmounts grandTotalAging = lines.Aggregate(AgingAmounts.Zero, (total, line) => total + line.Aging);
+
+        return new ReceivableByCustomerReportResult(
+            header, lines, lines.Sum(line => line.TotalBalance), grandTotalAging);
     }
 
     public async Task<JournalBookReportResult> GetJournalBookReportAsync(
@@ -585,33 +690,53 @@ internal sealed class ReportService(
             throw new ArgumentOutOfRangeException(nameof(upToMonth), upToMonth, "El mes debe estar entre 1 y 12.");
         }
 
-        // Un llamado por mes de enero a diciembre, reutilizando IBudgetService: así el acumulado usa
-        // exactamente las mismas cifras (presupuesto y ejecutado sin IVA) que la pantalla de
-        // presupuesto, mes por mes. Los meses posteriores a upToMonth solo completan el presupuesto
-        // anual de referencia.
+        SystemParameters? parameters = await dbContext.SystemParameters
+            .AsNoTracking()
+            .SingleOrDefaultAsync(cancellationToken);
+        DateOnly fiscalStart = parameters?.FiscalPeriodStartDate ?? new DateOnly(periodYear, 1, 1);
+        DateOnly fiscalEnd = parameters?.FiscalPeriodEndDate ?? fiscalStart.AddYears(1).AddDays(-1);
+        if (periodYear != fiscalStart.Year)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(periodYear),
+                periodYear,
+                $"El año debe coincidir con el inicio del período fiscal vigente ({fiscalStart.Year}).");
+        }
+
+        // El presupuesto se define por mes calendario; se suma cada mes que cae dentro del período
+        // fiscal, en orden desde su inicio. Meses posteriores al acumulado completan el total anual.
         Dictionary<Guid, (string Code, string Name, decimal AccBudgeted, decimal AccExecuted, decimal AnnualBudgeted)> accumulator = [];
 
-        for (int month = 1; month <= 12; month++)
+        for (int fiscalMonth = 1; fiscalMonth <= 12; fiscalMonth++)
         {
-            IReadOnlyList<BudgetModel> monthResults = await budgetService.SearchByPeriodAsync(periodYear, month, cancellationToken);
+            DateOnly calendarMonth = fiscalStart.AddMonths(fiscalMonth - 1);
+            if (calendarMonth > fiscalEnd)
+            {
+                break;
+            }
+
+            IReadOnlyList<BudgetModel> monthResults = await budgetService.SearchByPeriodAsync(
+                calendarMonth.Year,
+                calendarMonth.Month,
+                cancellationToken);
 
             foreach (BudgetModel budget in monthResults)
             {
                 (string Code, string Name, decimal AccBudgeted, decimal AccExecuted, decimal AnnualBudgeted) entry =
-                    accumulator.TryGetValue(budget.CategoryId, out var existing)
+                    accumulator.TryGetValue(budget.AccountId, out var existing)
                         ? existing
-                        : (budget.CategoryCode, budget.CategoryName, 0m, 0m, 0m);
+                        : (budget.AccountCode, budget.AccountName, 0m, 0m, 0m);
 
                 decimal budgeted = budget.BudgetedAmount ?? 0m;
 
-                if (month <= upToMonth)
+                if (fiscalMonth <= upToMonth)
                 {
                     entry.AccBudgeted += budgeted;
                     entry.AccExecuted += budget.ExecutedAmount;
                 }
 
                 entry.AnnualBudgeted += budgeted;
-                accumulator[budget.CategoryId] = entry;
+                accumulator[budget.AccountId] = entry;
             }
         }
 
@@ -631,7 +756,8 @@ internal sealed class ReportService(
 
         ReportHeader header = new(
             "Presupuesto anual a la fecha",
-            $"Año {periodYear}, hasta {upToMonth:D2}",
+            $"Período fiscal {fiscalStart:dd/MM/yyyy}–{fiscalEnd:dd/MM/yyyy}; acumulado hasta "
+                + $"{fiscalStart.AddMonths(upToMonth - 1):MMMM yyyy}",
             timeProvider.GetUtcNow(),
             generatedByUserName);
 
@@ -734,7 +860,9 @@ internal sealed class ReportService(
 
         var salesByTax = await dbContext.Set<Invoice>()
             .AsNoTracking()
-            .Where(invoice => invoice.Status == InvoiceStatus.Confirmed
+            .Where(invoice => (invoice.Status == InvoiceStatus.Confirmed
+                    || dbContext.CreditNotes.Any(note =>
+                        note.InvoiceId == invoice.Id && note.Status == CreditNoteStatus.Active))
                 && invoice.IssueDate >= periodFrom
                 && invoice.IssueDate <= periodTo)
             .SelectMany(invoice => invoice.Lines)
@@ -745,6 +873,26 @@ internal sealed class ReportService(
                 group.Key.Name,
                 Base = group.Sum(line => line.Tax.TaxableAmount),
                 Vat = group.Sum(line => line.Tax.Amount),
+            })
+            .ToListAsync(cancellationToken);
+
+        var creditsByTax = await (
+            from note in dbContext.CreditNotes.AsNoTracking()
+            join creditLine in dbContext.Set<CreditNoteLine>().AsNoTracking()
+                on note.Id equals creditLine.CreditNoteId
+            join invoiceLine in dbContext.Set<InvoiceLine>().AsNoTracking()
+                on creditLine.InvoiceLineId equals invoiceLine.Id
+            where note.Status == CreditNoteStatus.Active
+                && note.IssueDate >= periodFrom
+                && note.IssueDate <= periodTo
+            group creditLine by new { invoiceLine.Tax.Code, invoiceLine.Tax.Name }
+            into taxGroup
+            select new
+            {
+                taxGroup.Key.Code,
+                taxGroup.Key.Name,
+                Base = -taxGroup.Sum(line => line.NetAmount),
+                Vat = -taxGroup.Sum(line => line.TaxAmount),
             })
             .ToListAsync(cancellationToken);
 
@@ -763,7 +911,20 @@ internal sealed class ReportService(
             })
             .ToListAsync(cancellationToken);
 
-        string[] codes = salesByTax.Select(entry => entry.Code)
+        var netSalesByTax = salesByTax
+            .Select(entry => new { entry.Code, entry.Name, entry.Base, entry.Vat })
+            .Concat(creditsByTax)
+            .GroupBy(entry => new { entry.Code, entry.Name })
+            .Select(group => new
+            {
+                group.Key.Code,
+                group.Key.Name,
+                Base = group.Sum(entry => entry.Base),
+                Vat = group.Sum(entry => entry.Vat),
+            })
+            .ToArray();
+
+        string[] codes = netSalesByTax.Select(entry => entry.Code)
             .Concat(purchasesByTax.Select(entry => entry.Code))
             .Distinct()
             .OrderBy(code => code, StringComparer.Ordinal)
@@ -772,7 +933,7 @@ internal sealed class ReportService(
         VatPeriodReportLine[] lines = codes
             .Select(code =>
             {
-                var sale = salesByTax.SingleOrDefault(entry => entry.Code == code);
+                var sale = netSalesByTax.SingleOrDefault(entry => entry.Code == code);
                 var purchase = purchasesByTax.SingleOrDefault(entry => entry.Code == code);
 
                 return new VatPeriodReportLine(
@@ -943,16 +1104,16 @@ internal sealed class ReportService(
     private static string FormatPeriod(DateOnly periodFrom, DateOnly periodTo) =>
         $"Del {periodFrom:dd/MM/yyyy} al {periodTo:dd/MM/yyyy}";
 
-    private async Task<Dictionary<Guid, string>> GetCategoryNamesAsync(
-        IEnumerable<Guid> categoryIds,
+    private async Task<Dictionary<Guid, string>> GetAccountNamesAsync(
+        IEnumerable<Guid> accountIds,
         CancellationToken cancellationToken)
     {
-        Guid[] ids = categoryIds.Distinct().ToArray();
+        Guid[] ids = accountIds.Distinct().ToArray();
 
-        return await dbContext.Set<FinancialCategory>()
+        return await dbContext.Set<LedgerAccount>()
             .AsNoTracking()
-            .Where(category => ids.Contains(category.Id))
-            .ToDictionaryAsync(category => category.Id, category => category.Name, cancellationToken);
+            .Where(account => ids.Contains(account.Id))
+            .ToDictionaryAsync(account => account.Id, account => account.Name, cancellationToken);
     }
 
     private async Task<Dictionary<Guid, string>> GetLedgerAccountNamesAsync(

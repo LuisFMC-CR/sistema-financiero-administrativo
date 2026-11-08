@@ -5,12 +5,17 @@
         .Any(claim => bool.TryParse(claim.Value, out bool required) && required);
     bool canViewCatalogs = isAuthenticated && !mustChangePassword &&
         (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ViewBusinessCatalogs)).Succeeded;
+    bool canViewFinancialCatalogs = canViewCatalogs && !User.IsInRole(SystemRoles.Assistant);
     bool canViewInvoices = isAuthenticated && !mustChangePassword &&
         (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ViewFinancialTransactions)).Succeeded;
+    bool canViewReceivablesAndPayables = isAuthenticated && !mustChangePassword &&
+        (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ViewReceivablesAndPayables)).Succeeded;
     bool canManageUsers = isAuthenticated && !mustChangePassword &&
         (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ManageUsers)).Succeeded;
     bool canViewFinancialReports = isAuthenticated && !mustChangePassword &&
         (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ViewFinancialReports)).Succeeded;
+    bool canRegisterCreditNotes = isAuthenticated && !mustChangePassword &&
+        (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ConfirmFinancialTransactions)).Succeeded;
     bool canViewAuditTrail = isAuthenticated && !mustChangePassword &&
         (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ViewAuditTrail)).Succeeded;
     bool canManageSystemParameters = isAuthenticated && !mustChangePassword &&
@@ -27,6 +32,7 @@
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/SistemaFinanciero.Web.styles.css" asp-append-version="true" />
+    <link rel="icon" type="image/png" href="~/logo.png" />
 </head>
 <body>
 @if (isAuthenticated)
@@ -35,7 +41,7 @@
         <aside class="app-sidebar" id="app-sidebar" aria-label="Navegación principal">
             <div class="sidebar-brand">
                 <a asp-controller="Home" asp-action="Index" class="sidebar-brand-link">
-                    <span class="brand-mark" aria-hidden="true">SF</span>
+                    <img src="~/logo.png" alt="" class="brand-mark" aria-hidden="true" />
                     <span class="sidebar-label">@sidebarBrandLabel</span>
                 </a>
                 <button class="sidebar-toggle" type="button" aria-label="Contraer menú" aria-expanded="true" aria-controls="app-sidebar" data-sidebar-toggle>
@@ -43,32 +49,46 @@
                 </button>
             </div>
             <nav class="sidebar-nav">
-                <a class="sidebar-link" asp-controller="Home" asp-action="Index" title="Inicio">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" /></svg><span class="sidebar-label">Inicio</span>
+                <a class="sidebar-link" asp-controller="Home" asp-action="Index" title="Dashboard">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" /></svg><span class="sidebar-label">Dashboard</span>
                 </a>
-                @if (canViewInvoices || canViewFinancialReports)
+                @if (canViewInvoices || canViewReceivablesAndPayables)
                 {
-                    <p class="sidebar-heading sidebar-label">Facturación</p>
+                    <p class="sidebar-heading sidebar-label">Ciclo Operativo Diario</p>
                     @if (canViewInvoices)
                     {
                         <a class="sidebar-link" asp-controller="Invoices" asp-action="Index" title="Facturas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v18l-2.5-1.5L12 21l-2.5-1.5L7 21zM9 8h6M9 12h6M9 16h3" /></svg><span class="sidebar-label">Facturas</span></a>
                     }
-                    @if (canViewFinancialReports)
+                    @if (canViewReceivablesAndPayables)
                     {
                         <a class="sidebar-link" asp-controller="Receivables" asp-action="Index" title="Cuentas por cobrar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10h18M3 6h18v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1zM7 14h4" /></svg><span class="sidebar-label">Cuentas por cobrar</span></a>
+                    }
+                    @if (canViewInvoices)
+                    {
                         <a class="sidebar-link" asp-controller="Incomes" asp-action="Index" title="Ingresos"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14" /></svg><span class="sidebar-label">Ingresos</span></a>
                     }
-                }
-                @if (canViewInvoices || canViewFinancialReports)
-                {
-                    <p class="sidebar-heading sidebar-label">Gastos</p>
+                    @if (canRegisterCreditNotes)
+                    {
+                        <a class="sidebar-link" asp-controller="CreditNotes" asp-action="Index" title="Notas de crédito"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v18l-2.5-1.5L12 21l-2.5-1.5L7 21zM9 8h6M9 12h6M9 16h3M5 12H2m0 0 2-2m-2 2 2 2" /></svg><span class="sidebar-label">Notas de crédito</span></a>
+                    }
                     @if (canViewInvoices)
                     {
                         <a class="sidebar-link" asp-controller="Expenses" asp-action="Index" title="Gastos"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v18l-2.5-1.5L12 21l-2.5-1.5L7 21zM9 8h6M9 12h6M9 16h3" /></svg><span class="sidebar-label">Gastos</span></a>
                     }
-                    @if (canViewFinancialReports)
+                    @if (canViewReceivablesAndPayables)
                     {
                         <a class="sidebar-link" asp-controller="Payables" asp-action="Index" title="Cuentas por pagar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10h18M3 6h18v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1zM7 14h4" /></svg><span class="sidebar-label">Cuentas por pagar</span></a>
+                    }
+                }
+                @if (canViewFinancialReports)
+                {
+                    <p class="sidebar-heading sidebar-label">Control Financiero Contable</p>
+                    <a class="sidebar-link" asp-controller="Budgets" asp-action="Index" title="Presupuesto"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5a1 1 0 0 1 1-1h11l4 4v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM16 4v4h4M8 13h8M8 17h5" /></svg><span class="sidebar-label">Presupuesto</span></a>
+                    <a class="sidebar-link" asp-controller="JournalEntries" asp-action="Index" title="Asientos contables"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5a1 1 0 0 1 1-1h11l4 4v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM16 4v4h4M8 13h3m2 0h3M8 17h3m2 0h3" /></svg><span class="sidebar-label">Asientos contables</span></a>
+                    <a class="sidebar-link" asp-controller="Reports" asp-action="Index" title="Reportes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5a1 1 0 0 1 1-1h11l4 4v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM16 4v4h4M8 11h8v6H8z" /></svg><span class="sidebar-label">Reportes</span></a>
+                    @if (canViewAuditTrail)
+                    {
+                        <a class="sidebar-link" asp-controller="OperationAudit" asp-action="Index" title="Bitácora de operaciones"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5a1 1 0 0 1 1-1h11l4 4v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM16 4v4h4M8 11h3m-3 4h8m-8 4h5" /></svg><span class="sidebar-label">Bitácora de operaciones</span></a>
                     }
                 }
                 @if (canViewCatalogs)
@@ -77,28 +97,16 @@
                     <a class="sidebar-link" asp-controller="Customers" asp-action="Index" title="Clientes"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" /></svg><span class="sidebar-label">Clientes</span></a>
                     <a class="sidebar-link" asp-controller="Suppliers" asp-action="Index" title="Proveedores"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18M5 21V6l7-3 7 3v15M8 9h1m6 0h1m-8 4h1m6 0h1" /></svg><span class="sidebar-label">Proveedores</span></a>
                     <a class="sidebar-link" asp-controller="CatalogItems" asp-action="Index" title="Productos y servicios"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 8-9 5-9-5 9-5zM3 8v8l9 5 9-5V8" /></svg><span class="sidebar-label">Productos y servicios</span></a>
-                    <a class="sidebar-link" asp-controller="FinancialCategories" asp-action="Index" title="Categorías financieras"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zm10 0h6v6h-6zM9 14h6v6H9zM7 10v2h10v-2m-5 2v2" /></svg><span class="sidebar-label">Categorías financieras</span></a>
-                    <a class="sidebar-link" asp-controller="LedgerAccounts" asp-action="Index" title="Cuentas contables"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h16M8 5v14" /></svg><span class="sidebar-label">Cuentas contables</span></a>
-                    <a class="sidebar-link" asp-controller="TaxesAndWithholdings" asp-action="Index" title="Impuestos y retenciones"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19 19 5M7.5 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm9 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z" /></svg><span class="sidebar-label">Impuestos y retenciones</span></a>
+                    @if (canViewFinancialCatalogs)
+                    {
+                        <a class="sidebar-link" asp-controller="LedgerAccounts" asp-action="Index" title="Catálogo contable"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h16M8 5v14" /></svg><span class="sidebar-label">Catálogo contable</span></a>
+                        <a class="sidebar-link" asp-controller="TaxesAndWithholdings" asp-action="Index" title="Impuestos y retenciones"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19 19 5M7.5 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm9 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z" /></svg><span class="sidebar-label">Impuestos y retenciones</span></a>
+                    }
                 }
-                @if (canViewFinancialReports)
+                @if (canManageSystemParameters)
                 {
-                    <p class="sidebar-heading sidebar-label">Presupuesto</p>
-                    <a class="sidebar-link" asp-controller="Budgets" asp-action="Index" title="Presupuesto"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5a1 1 0 0 1 1-1h11l4 4v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM16 4v4h4M8 13h8M8 17h5" /></svg><span class="sidebar-label">Presupuesto</span></a>
-                    <p class="sidebar-heading sidebar-label">Consultas</p>
-                    <a class="sidebar-link" asp-controller="Queries" asp-action="Index" title="Consultas"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg><span class="sidebar-label">Consultas</span></a>
-                    @if (canViewAuditTrail)
-                    {
-                        <a class="sidebar-link" asp-controller="OperationAudit" asp-action="Index" title="Bitácora de operaciones"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5a1 1 0 0 1 1-1h11l4 4v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM16 4v4h4M8 11h3m-3 4h8m-8 4h5" /></svg><span class="sidebar-label">Bitácora de operaciones</span></a>
-                    }
-                    <p class="sidebar-heading sidebar-label">Reportes</p>
-                    <a class="sidebar-link" asp-controller="Reports" asp-action="Index" title="Reportes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5a1 1 0 0 1 1-1h11l4 4v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM16 4v4h4M8 11h8v6H8z" /></svg><span class="sidebar-label">Reportes</span></a>
-                    <p class="sidebar-heading sidebar-label">Mantenimiento</p>
+                    <p class="sidebar-heading sidebar-label">Configuración</p>
                     <a class="sidebar-link" asp-controller="SystemParameters" asp-action="Index" title="Parámetros del sistema"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v3m0 12v3m9-9h-3M6 12H3m14.5-6.5-2.1 2.1M8.6 15.4l-2.1 2.1m11-2.1 2.1 2.1M8.6 8.6 6.5 6.5" /><circle cx="12" cy="12" r="3" /></svg><span class="sidebar-label">Parámetros del sistema</span></a>
-                    @if (canManageSystemParameters)
-                    {
-                        <a class="sidebar-link" asp-controller="JournalEntries" asp-action="Index" title="Asientos contables"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5a1 1 0 0 1 1-1h11l4 4v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM16 4v4h4M8 13h3m2 0h3M8 17h3m2 0h3" /></svg><span class="sidebar-label">Asientos contables</span></a>
-                    }
                 }
                 @if (canManageUsers)
                 {

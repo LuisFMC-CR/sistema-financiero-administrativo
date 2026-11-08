@@ -129,7 +129,7 @@ internal sealed class ReceivablePaymentService(
         }
 
         string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
-            dbContext, command.PaymentDate, cancellationToken);
+            dbContext, command.PaymentDate, timeProvider, cancellationToken);
 
         if (closingDateViolation is not null)
         {
@@ -212,7 +212,7 @@ internal sealed class ReceivablePaymentService(
                     Guid.NewGuid(),
                     incomeCode,
                     allocation.Payment.Id,
-                    allocation.IncomeCategoryId,
+                    allocation.IncomeAccountId,
                     command.CashAccountId,
                     allocation.Total,
                     command.PaymentDate,
@@ -293,7 +293,7 @@ internal sealed class ReceivablePaymentService(
         }
 
         string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
-            dbContext, payment.PaymentDate, cancellationToken);
+            dbContext, payment.PaymentDate, timeProvider, cancellationToken);
 
         if (closingDateViolation is not null)
         {
@@ -467,15 +467,15 @@ internal sealed class ReceivablePaymentService(
         // La categoría de ingreso pertenece a cada factura, no al abono (bloque 2 del paquete de
         // mejoras finales): un mismo abono a varias facturas puede heredar categorías distintas.
         Guid[] invoiceIds = receivables.Select(receivable => receivable.InvoiceId).Distinct().ToArray();
-        Dictionary<Guid, Guid> incomeCategoryIdsByInvoiceId = await dbContext.Set<Invoice>()
+        Dictionary<Guid, Guid> incomeAccountIdsByInvoiceId = await dbContext.Set<Invoice>()
             .AsNoTracking()
             .Where(invoice => invoiceIds.Contains(invoice.Id))
-            .ToDictionaryAsync(invoice => invoice.Id, invoice => invoice.IncomeCategoryId, cancellationToken);
+            .ToDictionaryAsync(invoice => invoice.Id, invoice => invoice.IncomeAccountId, cancellationToken);
 
         foreach (ReceivablePaymentAllocationCommand allocation in command.Allocations)
         {
             Receivable receivable = receivables.Single(candidate => candidate.Id == allocation.ReceivableId);
-            Guid incomeCategoryId = incomeCategoryIdsByInvoiceId[receivable.InvoiceId];
+            Guid incomeAccountId = incomeAccountIdsByInvoiceId[receivable.InvoiceId];
             Guid paymentId = Guid.NewGuid();
 
             Withholding? withholding = null;
@@ -516,7 +516,7 @@ internal sealed class ReceivablePaymentService(
 
             decimal allocationTotal = payment.Amount + (withholding?.Amount ?? 0m);
             total += allocationTotal;
-            prepared.Add(new PreparedAllocation(receivable, payment, withholding, allocationTotal, incomeCategoryId));
+            prepared.Add(new PreparedAllocation(receivable, payment, withholding, allocationTotal, incomeAccountId));
         }
 
         return (prepared, total);
@@ -566,5 +566,5 @@ internal sealed class ReceivablePaymentService(
         ReceivablePayment Payment,
         Withholding? Withholding,
         decimal Total,
-        Guid IncomeCategoryId);
+        Guid IncomeAccountId);
 }

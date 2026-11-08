@@ -8,8 +8,9 @@ namespace SistemaFinanciero.IntegrationTests.Expenses;
 
 /// <summary>
 /// Verifica, sin tocar SQL Server, que las rutas de <c>ExpensesController</c> exigen exactamente las
-/// políticas de la matriz de perfiles: Asistente, Finanzas y Gerencia preparan borradores y confirman,
-/// y solo Gerencia anula. Sigue el mismo patrón que <c>InvoiceAuthorizationTests</c>.
+/// políticas de la matriz de perfiles: Asistente consulta todos los gastos y solo edita sus propios
+/// borradores; Finanzas y Gerencia confirman; solo Gerencia anula. Sigue el mismo patrón que
+/// <c>InvoiceAuthorizationTests</c>.
 /// </summary>
 public sealed class ExpensesAuthorizationTests : IClassFixture<FinancialWebApplicationFactory>
 {

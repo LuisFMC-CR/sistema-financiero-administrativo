@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
-using SistemaFinanciero.Application.Catalogs.Categories;
 using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Catalogs.Customers;
 using SistemaFinanciero.Application.Catalogs.Items;
@@ -53,6 +52,14 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
                 new CatalogQuery(uniqueName, CatalogStatusFilter.Active));
             CustomerModel created = Assert.Single(activePage.Items);
             string code = created.Code;
+            PagedResult<CustomerModel> matchingCustomerColumns = await customers.SearchAsync(
+                new CatalogQuery(
+                    status: CatalogStatusFilter.Active,
+                    code: code,
+                    name: uniqueName,
+                    identification: $"ID-{suffix}",
+                    contact: "cliente@example.test"));
+            Assert.Collection(matchingCustomerColumns.Items, customer => Assert.Equal(created.Id, customer.Id));
 
             SaveCustomerCommand updated = original with { Name = "Cliente actualizado" };
             Assert.True((await customers.UpdateAsync(
@@ -125,100 +132,76 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
                 actorId)).IsSuccess);
             Assert.Single((await suppliers.SearchAsync(
                 new CatalogQuery(supplierName, CatalogStatusFilter.Active))).Items);
+            Assert.Single((await suppliers.SearchAsync(new CatalogQuery(
+                status: CatalogStatusFilter.Active,
+                name: supplierName,
+                identification: $"PRV-ID-{suffix}"))).Items);
         });
     }
 
     [Fact]
     [Trait("Category", "SqlServer")]
-    public Task CategoryAndItemScenario_ValidatesHierarchyAndActiveDependencies()
+    public Task AccountAndItemScenario_ValidatesMovementAccountsAndActiveDependencies()
     {
         return RunInRollbackTransactionAsync(async (services, actorId) =>
         {
-            IFinancialCategoryService categories = services
-                .GetRequiredService<IFinancialCategoryService>();
+            ILedgerAccountService accounts = services.GetRequiredService<ILedgerAccountService>();
             ICatalogItemService items = services.GetRequiredService<ICatalogItemService>();
-            ILedgerAccountService ledgerAccounts = services.GetRequiredService<ILedgerAccountService>();
             string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
 
-            // Toda categoría necesita una cuenta contable activa de su mismo tipo. El servicio ya no
-            // crea cuentas raíz (regla 13): se agregan como detalle bajo los grupos del catálogo base.
-            Guid incomeRootId = Assert.Single((await ledgerAccounts.SearchAsync(
-                new CatalogQuery("4", CatalogStatusFilter.Active))).Items, account => account.Code == "4").Id;
-            Guid expenseRootId = Assert.Single((await ledgerAccounts.SearchAsync(
-                new CatalogQuery("5", CatalogStatusFilter.Active))).Items, account => account.Code == "5").Id;
+            // Solo se crean cuentas de movimiento dentro de los grupos permitidos.
+            LedgerAccountModel incomeGroup = Assert.Single(
+                (await accounts.SearchAsync(new LedgerAccountQuery("4.1"))).Items,
+                account => account.Code == "4.1");
+            LedgerAccountModel expenseGroup = Assert.Single(
+                (await accounts.SearchAsync(new LedgerAccountQuery("5.1"))).Items,
+                account => account.Code == "5.1");
+            LedgerAccountModel assetGroup = Assert.Single(
+                (await accounts.SearchAsync(new LedgerAccountQuery("1.1"))).Items,
+                account => account.Code == "1.1");
+            LedgerAccountModel incomeRoot = Assert.Single(
+                (await accounts.SearchAsync(new LedgerAccountQuery("4"))).Items,
+                account => account.Code == "4");
 
-            Assert.True((await ledgerAccounts.CreateAsync(
-                new CreateLedgerAccountCommand($"Cuenta de ingresos {suffix}", incomeRootId, null, null, null),
-                actorId)).IsSuccess);
-            Assert.True((await ledgerAccounts.CreateAsync(
-                new CreateLedgerAccountCommand($"Cuenta de gastos {suffix}", expenseRootId, null, null, null),
-                actorId)).IsSuccess);
-            Guid incomeAccountId = (await ledgerAccounts.GetActiveOptionsAsync(LedgerAccountType.Income))
-                .Single(option => option.Name == $"Cuenta de ingresos {suffix}").Id;
-            Guid expenseAccountId = (await ledgerAccounts.GetActiveOptionsAsync(LedgerAccountType.Expense))
-                .Single(option => option.Name == $"Cuenta de gastos {suffix}").Id;
-
-            string incomeCategoryName = $"Ingresos de integración {suffix}";
-            Assert.True((await categories.CreateAsync(
-                new SaveFinancialCategoryCommand(
-                    incomeCategoryName,
-                    FinancialCategoryKind.Income,
-                    null,
-                    incomeAccountId,
-                    null),
-                actorId)).IsSuccess);
-
-            FinancialCategoryModel parent = Assert.Single((await categories.SearchAsync(
-                new CatalogQuery(incomeCategoryName, CatalogStatusFilter.Active))).Items);
-
-            string subCategoryName = $"Subcategoría de integración {suffix}";
-            Assert.True((await categories.CreateAsync(
-                new SaveFinancialCategoryCommand(
-                    subCategoryName,
-                    FinancialCategoryKind.Income,
-                    parent.Id,
-                    incomeAccountId,
-                    null),
-                actorId)).IsSuccess);
-
-            FinancialCategoryModel child = Assert.Single((await categories.SearchAsync(
-                new CatalogQuery(subCategoryName, CatalogStatusFilter.Active))).Items);
-
-            string expenseCategoryName = $"Gasto de integración {suffix}";
-            Assert.True((await categories.CreateAsync(
-                new SaveFinancialCategoryCommand(
-                    expenseCategoryName,
-                    FinancialCategoryKind.Expense,
-                    null,
-                    expenseAccountId,
-                    null),
-                actorId)).IsSuccess);
-            FinancialCategoryModel expense = Assert.Single((await categories.SearchAsync(
-                new CatalogQuery(expenseCategoryName, CatalogStatusFilter.Active))).Items);
-
-            CatalogOperationResult wrongKind = await categories.UpdateAsync(
-                child.Id,
-                new SaveFinancialCategoryCommand(
-                    child.Name,
-                    child.Kind,
-                    expense.Id,
-                    child.LedgerAccountId,
-                    child.Description),
-                child.Version,
+            CatalogOperationResult underRoot = await accounts.CreateAsync(
+                new CreateLedgerAccountCommand($"Cuenta inválida {suffix}", incomeRoot.Id, null, null, null),
                 actorId);
-            Assert.Equal(CatalogOperationStatus.Invalid, wrongKind.Status);
+            Assert.Equal(CatalogOperationStatus.Invalid, underRoot.Status);
 
-            CatalogOperationResult cycle = await categories.UpdateAsync(
-                parent.Id,
-                new SaveFinancialCategoryCommand(
-                    parent.Name,
-                    parent.Kind,
-                    child.Id,
-                    parent.LedgerAccountId,
-                    parent.Description),
-                parent.Version,
+            CatalogOperationResult assetWithoutCash = await accounts.CreateAsync(
+                new CreateLedgerAccountCommand($"Activo inválido {suffix}", assetGroup.Id, null, null, null),
                 actorId);
-            Assert.Equal(CatalogOperationStatus.Invalid, cycle.Status);
+            Assert.Equal(CatalogOperationStatus.Invalid, assetWithoutCash.Status);
+
+            Assert.True((await accounts.CreateAsync(
+                new CreateLedgerAccountCommand(
+                    $"Cuenta de ingresos {suffix}",
+                    incomeGroup.Id,
+                    null,
+                    null,
+                    null),
+                actorId)).IsSuccess);
+            Assert.True((await accounts.CreateAsync(
+                new CreateLedgerAccountCommand(
+                    $"Cuenta de gastos {suffix}",
+                    expenseGroup.Id,
+                    null,
+                    null,
+                    null),
+                actorId)).IsSuccess);
+
+            LedgerAccountModel incomeAccount = Assert.Single(
+                (await accounts.SearchAsync(new LedgerAccountQuery(null, $"Cuenta de ingresos {suffix}"))).Items);
+            LedgerAccountModel expenseAccount = Assert.Single(
+                (await accounts.SearchAsync(new LedgerAccountQuery(null, $"Cuenta de gastos {suffix}"))).Items);
+
+            // Las cuentas acumuladoras del catálogo base no se editan.
+            CatalogOperationResult groupUpdate = await accounts.UpdateAsync(
+                incomeGroup.Id,
+                new UpdateLedgerAccountCommand("Grupo renombrado", null, null),
+                incomeGroup.Version,
+                actorId);
+            Assert.Equal(CatalogOperationStatus.Invalid, groupUpdate.Status);
 
             string itemName = $"Servicio de integración {suffix}";
             Assert.True((await items.CreateAsync(
@@ -229,47 +212,66 @@ public sealed class SqlServerCatalogScenarioTests : IClassFixture<FinancialWebAp
                     null,
                     UnitOfMeasureCode.Hour,
                     25.12345m,
-                    child.Id,
+                    incomeAccount.Id,
                     null),
                 actorId)).IsSuccess);
 
-            CatalogOperationResult dependency = await categories.SetActiveAsync(
-                child.Id,
+            CatalogOperationResult deactivation = await accounts.SetActiveAsync(
+                incomeAccount.Id,
                 false,
-                child.Version,
+                incomeAccount.Version,
                 actorId);
-            Assert.Equal(CatalogOperationStatus.DependencyConflict, dependency.Status);
+            Assert.True(deactivation.IsSuccess);
+            Assert.DoesNotContain(
+                await accounts.GetActiveOptionsAsync(LedgerAccountType.Income),
+                option => option.Id == incomeAccount.Id);
 
             CatalogItemModel item = Assert.Single((await items.SearchAsync(
                 new CatalogQuery(itemName, CatalogStatusFilter.Active))).Items);
+            Assert.True(item.IsActive);
             Assert.Equal(25.1235m, item.ReferencePriceCrc);
+            Assert.Single((await items.SearchAsync(new CatalogQuery(
+                status: CatalogStatusFilter.Active,
+                code: item.Code,
+                name: itemName,
+                itemType: CatalogItemType.Service,
+                cabysCode: "8311500000000",
+                unitOfMeasure: UnitOfMeasureCode.Hour,
+                referencePrice: 25.1235m))).Items, result => result.Id == item.Id);
+
+            LedgerAccountModel firstInactiveIncome = (await accounts.GetAsync(incomeAccount.Id))!;
+            Assert.True((await accounts.SetActiveAsync(
+                firstInactiveIncome.Id,
+                true,
+                firstInactiveIncome.Version,
+                actorId)).IsSuccess);
+
             Assert.True((await items.SetActiveAsync(
                 item.Id,
                 false,
                 item.Version,
                 actorId)).IsSuccess);
 
-            FinancialCategoryModel currentChild = (await categories.GetAsync(child.Id))!;
-            Assert.True((await categories.SetActiveAsync(
-                currentChild.Id,
+            LedgerAccountModel currentIncome = (await accounts.GetAsync(incomeAccount.Id))!;
+            Assert.True((await accounts.SetActiveAsync(
+                currentIncome.Id,
                 false,
-                currentChild.Version,
+                currentIncome.Version,
                 actorId)).IsSuccess);
 
-            FinancialCategoryModel currentParent = (await categories.GetAsync(parent.Id))!;
-            Assert.True((await categories.SetActiveAsync(
-                currentParent.Id,
-                false,
-                currentParent.Version,
-                actorId)).IsSuccess);
-
-            FinancialCategoryModel inactiveChild = (await categories.GetAsync(child.Id))!;
-            CatalogOperationResult inactiveParent = await categories.SetActiveAsync(
-                inactiveChild.Id,
+            LedgerAccountModel inactiveIncome = (await accounts.GetAsync(incomeAccount.Id))!;
+            Assert.True((await accounts.SetActiveAsync(
+                inactiveIncome.Id,
                 true,
-                inactiveChild.Version,
-                actorId);
-            Assert.Equal(CatalogOperationStatus.Invalid, inactiveParent.Status);
+                inactiveIncome.Version,
+                actorId)).IsSuccess);
+
+            LedgerAccountModel currentExpense = (await accounts.GetAsync(expenseAccount.Id))!;
+            Assert.True((await accounts.SetActiveAsync(
+                currentExpense.Id,
+                false,
+                currentExpense.Version,
+                actorId)).IsSuccess);
         });
     }
 

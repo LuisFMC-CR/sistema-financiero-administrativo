@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using SistemaFinanciero.Application.Catalogs.Categories;
 using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Catalogs.LedgerAccounts;
 using SistemaFinanciero.Application.Incomes;
@@ -16,14 +15,14 @@ namespace SistemaFinanciero.Web.Controllers;
 /// <remarks>
 /// Conexiones: usa <c>IIncomeService</c> para todo. Los ingresos automáticos (factura de contado,
 /// abono) solo se consultan aquí; se anulan desde su factura o su abono (regla 4). Solo Gerencia y
-/// Finanzas ven esta pantalla (política <c>Reportes.Ver</c>).
+/// Finanzas y Asistente ven esta pantalla (política <c>Movimientos.Ver</c>); el ingreso manual requiere
+/// <c>Ingresos.RegistrarManual</c> y solo Gerencia puede anularlo.
 /// </remarks>
-[Authorize(Policy = SystemPolicies.ViewFinancialReports)]
+[Authorize(Policy = SystemPolicies.ViewFinancialTransactions)]
 [Route("ingresos")]
 public sealed class IncomesController(
     IIncomeService service,
     ILedgerAccountService ledgerAccountService,
-    IFinancialCategoryService financialCategoryService,
     IAuthorizationService authorizationService) : CatalogControllerBase
 {
     [HttpGet("")]
@@ -31,7 +30,7 @@ public sealed class IncomesController(
         DateOnly? incomeDateFrom,
         DateOnly? incomeDateTo,
         IncomeOriginFilter origin = IncomeOriginFilter.All,
-        string? categoryName = null,
+        string? accountName = null,
         string? cashAccountName = null,
         string? referenceOrDescription = null,
         decimal? amountMin = null,
@@ -44,7 +43,7 @@ public sealed class IncomesController(
             incomeDateFrom,
             incomeDateTo,
             NormalizeOrigin(origin),
-            NormalizeSearch(categoryName),
+            NormalizeSearch(accountName),
             NormalizeSearch(cashAccountName),
             NormalizeSearch(referenceOrDescription),
             amountMin,
@@ -74,7 +73,7 @@ public sealed class IncomesController(
             && income.Status == IncomeStatus.Active));
     }
 
-    [Authorize(Policy = SystemPolicies.ConfirmFinancialTransactions)]
+    [Authorize(Policy = SystemPolicies.RegisterManualIncome)]
     [HttpGet("nuevo")]
     public async Task<IActionResult> Create(CancellationToken cancellationToken)
     {
@@ -83,7 +82,7 @@ public sealed class IncomesController(
         return View(model);
     }
 
-    [Authorize(Policy = SystemPolicies.ConfirmFinancialTransactions)]
+    [Authorize(Policy = SystemPolicies.RegisterManualIncome)]
     [HttpPost("nuevo")]
     public async Task<IActionResult> Create(
         CreateManualIncomeViewModel model,
@@ -102,7 +101,7 @@ public sealed class IncomesController(
 
         IncomeCreationResult result = await service.CreateManualAsync(
             new CreateManualIncomeCommand(
-                model.CategoryId!.Value,
+                model.AccountId!.Value,
                 model.CashAccountId!.Value,
                 model.Amount,
                 model.IncomeDate,
@@ -199,14 +198,14 @@ public sealed class IncomesController(
                 option.Id == model.CashAccountId))
             .ToList();
 
-        IReadOnlyList<FinancialCategoryOption> categories = await financialCategoryService.GetActiveOptionsAsync(
-            FinancialCategoryKind.Income,
+        IReadOnlyList<LedgerAccountOption> categories = await ledgerAccountService.GetActiveOptionsAsync(
+            LedgerAccountType.Income,
             cancellationToken: cancellationToken);
         model.CategoryOptions = categories
             .Select(option => new SelectListItem(
                 $"{option.Code} - {option.Name}",
                 option.Id.ToString(),
-                option.Id == model.CategoryId))
+                option.Id == model.AccountId))
             .ToList();
     }
 

@@ -75,7 +75,7 @@ public sealed class ExpenseTests
 
         expense.UpdateHeader(
             expense.SupplierId,
-            expense.CategoryId,
+            expense.AccountId,
             "Compra corregida",
             "VC-0002",
             IssueDate,
@@ -109,7 +109,7 @@ public sealed class ExpenseTests
 
         Assert.Throws<InvalidOperationException>(() => expense.UpdateHeader(
             expense.SupplierId,
-            expense.CategoryId,
+            expense.AccountId,
             expense.Description,
             expense.VoucherReference,
             IssueDate,

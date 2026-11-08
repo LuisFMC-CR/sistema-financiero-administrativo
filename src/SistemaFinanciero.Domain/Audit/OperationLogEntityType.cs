@@ -27,4 +27,7 @@ public enum OperationLogEntityType
 
     /// <summary>Pago a proveedor.</summary>
     SupplierPayment = 7,
+
+    /// <summary>Nota de crédito interna que anula una factura.</summary>
+    CreditNote = 8,
 }

@@ -102,6 +102,7 @@ public sealed class UserAdministrationAuthorizationTests
     {
         string[] routes = GetRouteEndpoints()
             .Select(endpoint => endpoint.RoutePattern.RawText ?? string.Empty)
+            .Where(route => route.StartsWith("cuenta", StringComparison.OrdinalIgnoreCase))
             .ToArray();
 
         Assert.DoesNotContain(

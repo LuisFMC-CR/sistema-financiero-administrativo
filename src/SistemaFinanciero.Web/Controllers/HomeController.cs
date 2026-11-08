@@ -18,8 +18,9 @@ namespace SistemaFinanciero.Web.Controllers;
 /// </summary>
 /// <remarks>
 /// Conexiones: es la ruta <c>Home/Index</c>, destino predeterminado del enrutador (<c>Program.cs</c>) y
-/// de los enlaces «Inicio» en <c>_Layout.cshtml</c>. El indicador solo se calcula y muestra para
-/// Gerencia y Finanzas (política <c>Reportes.Ver</c>): Asistente "no ve... saldos" (perfiles). Usa
+/// de los enlaces «Inicio» en <c>_Layout.cshtml</c>. El indicador de vencimientos se calcula para
+/// Gerencia, Finanzas y Asistente (política <c>Cuentas.Ver</c>); el de presupuesto continúa reservado
+/// a Gerencia y Finanzas (<c>Reportes.Ver</c>). Usa
 /// <c>IReceivableService</c>/<c>IPayableService.GetOverdueSummaryAsync</c>, los mismos que alimentarán
 /// el indicador de la pantalla de Consultas, mediante la vista parcial compartida
 /// <c>_OverdueIndicator.cshtml</c>. <c>Error</c> es el destino de <c>app.UseExceptionHandler</c> en
@@ -37,30 +38,40 @@ public sealed class HomeController(
 
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
     {
+        bool canViewOverdueAccounts = (await authorizationService.AuthorizeAsync(
+            User,
+            SystemPolicies.ViewReceivablesAndPayables)).Succeeded;
         bool canViewFinancialReports = (await authorizationService.AuthorizeAsync(
             User,
             SystemPolicies.ViewFinancialReports)).Succeeded;
 
-        if (!canViewFinancialReports)
+        if (!canViewOverdueAccounts && !canViewFinancialReports)
         {
             return View();
         }
 
-        SystemParametersModel? parameters = await systemParametersService.GetAsync(cancellationToken);
-        int alertDays = parameters?.OverdueAlertDays ?? DefaultOverdueAlertDays;
-
-        OverdueSummary receivablesSummary = await receivableService.GetOverdueSummaryAsync(alertDays, cancellationToken);
-        OverdueSummary payablesSummary = await payableService.GetOverdueSummaryAsync(alertDays, cancellationToken);
-
         DateOnly today = DateOnly.FromDateTime(DateTime.Now);
-        BudgetExceededSummary exceededSummary = await budgetService.GetExceededSummaryAsync(
-            today.Year, today.Month, cancellationToken);
+        OverdueIndicatorViewModel? overdue = null;
+        if (canViewOverdueAccounts)
+        {
+            SystemParametersModel? parameters = await systemParametersService.GetAsync(cancellationToken);
+            int alertDays = parameters?.OverdueAlertDays ?? DefaultOverdueAlertDays;
+            OverdueSummary receivablesSummary = await receivableService.GetOverdueSummaryAsync(alertDays, cancellationToken);
+            OverdueSummary payablesSummary = await payableService.GetOverdueSummaryAsync(alertDays, cancellationToken);
+            overdue = new OverdueIndicatorViewModel(receivablesSummary, payablesSummary, alertDays);
+        }
+
+        HomeBudgetIndicatorViewModel? budgetIndicator = null;
+        if (canViewFinancialReports)
+        {
+            BudgetExceededSummary exceededSummary = await budgetService.GetExceededSummaryAsync(
+                today.Year, today.Month, cancellationToken);
+            budgetIndicator = new HomeBudgetIndicatorViewModel(exceededSummary, today.Year, today.Month);
+        }
 
         return View(new HomeIndicatorsViewModel(
-            new OverdueIndicatorViewModel(receivablesSummary, payablesSummary, alertDays),
-            exceededSummary,
-            today.Year,
-            today.Month));
+            overdue,
+            budgetIndicator));
     }
 
     [AllowAnonymous]

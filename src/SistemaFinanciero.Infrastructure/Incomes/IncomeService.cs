@@ -59,11 +59,11 @@ internal sealed class IncomeService(
                 (income.Description != null && income.Description.Contains(search)));
         }
 
-        if (query.CategoryName is not null)
+        if (query.AccountName is not null)
         {
-            string categoryName = query.CategoryName;
-            incomes = incomes.Where(income => dbContext.Set<FinancialCategory>().Any(category =>
-                category.Id == income.CategoryId && category.Name.Contains(categoryName)));
+            string accountName = query.AccountName;
+            incomes = incomes.Where(income => dbContext.Set<LedgerAccount>().Any(account =>
+                account.Id == income.AccountId && account.Name.Contains(accountName)));
         }
 
         if (query.CashAccountName is not null)
@@ -143,24 +143,26 @@ internal sealed class IncomeService(
                 false);
         }
 
-        bool isValidCategory = await dbContext.Set<FinancialCategory>()
+        bool isValidAccount = await dbContext.Set<LedgerAccount>()
             .AsNoTracking()
             .AnyAsync(
-                category => category.Id == command.CategoryId
-                    && category.IsActive
-                    && category.Kind == FinancialCategoryKind.Income,
+                account => account.Id == command.AccountId
+                    && account.IsActive
+                    && account.Type == LedgerAccountType.Income
+                    && account.IsMovement,
                 cancellationToken);
 
-        if (!isValidCategory)
+        if (!isValidAccount)
         {
             return new IncomeCreationResult(
-                CatalogOperationResult.Invalid("La categoría seleccionada no existe, está inactiva o no es de ingreso."),
+                CatalogOperationResult.Invalid(
+                    "La cuenta de ingreso seleccionada no existe, está inactiva, no es de ingreso o no es de movimiento."),
                 null,
                 false);
         }
 
         string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
-            dbContext, command.IncomeDate, cancellationToken);
+            dbContext, command.IncomeDate, timeProvider, cancellationToken);
 
         if (closingDateViolation is not null)
         {
@@ -182,7 +184,7 @@ internal sealed class IncomeService(
             Income income = Income.CreateManual(
                 Guid.NewGuid(),
                 code,
-                command.CategoryId,
+                command.AccountId,
                 command.CashAccountId,
                 command.Amount,
                 command.IncomeDate,
@@ -247,7 +249,7 @@ internal sealed class IncomeService(
         }
 
         string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
-            dbContext, income.IncomeDate, cancellationToken);
+            dbContext, income.IncomeDate, timeProvider, cancellationToken);
 
         if (closingDateViolation is not null)
         {
@@ -310,11 +312,11 @@ internal sealed class IncomeService(
                 .Where(invoice => invoiceIds.Contains(invoice.Id))
                 .ToDictionaryAsync(invoice => invoice.Id, invoice => invoice.Number, cancellationToken);
 
-        Guid[] categoryIds = incomes.Select(income => income.CategoryId).Distinct().ToArray();
-        IReadOnlyDictionary<Guid, string> categoryNames = await dbContext.Set<FinancialCategory>()
+        Guid[] accountIds = incomes.Select(income => income.AccountId).Distinct().ToArray();
+        IReadOnlyDictionary<Guid, string> accountNames = await dbContext.Set<LedgerAccount>()
             .AsNoTracking()
-            .Where(category => categoryIds.Contains(category.Id))
-            .ToDictionaryAsync(category => category.Id, category => category.Name, cancellationToken);
+            .Where(account => accountIds.Contains(account.Id))
+            .ToDictionaryAsync(account => account.Id, account => account.Name, cancellationToken);
 
         Guid[] cashAccountIds = incomes.Select(income => income.CashAccountId).Distinct().ToArray();
         IReadOnlyDictionary<Guid, string> cashAccountNames = await dbContext.Set<LedgerAccount>()
@@ -330,8 +332,8 @@ internal sealed class IncomeService(
                 income.InvoiceId,
                 income.InvoiceId is null ? null : invoiceNumbers.GetValueOrDefault(income.InvoiceId.Value),
                 income.ReceivablePaymentId,
-                income.CategoryId,
-                categoryNames.GetValueOrDefault(income.CategoryId, "—"),
+                income.AccountId,
+                accountNames.GetValueOrDefault(income.AccountId, "—"),
                 income.CashAccountId,
                 cashAccountNames.GetValueOrDefault(income.CashAccountId, "—"),
                 income.Amount,

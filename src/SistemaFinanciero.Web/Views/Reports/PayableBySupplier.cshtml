@@ -7,7 +7,7 @@
 }
 
 <h1 class="h2 mb-1">Cuentas por pagar por proveedor</h1>
-<p class="text-body-secondary mb-3">Cuentas por pagar vigentes a la fecha, agrupadas por proveedor.</p>
+<p class="text-body-secondary mb-3">Cuentas por pagar vigentes a la fecha, agrupadas por proveedor, con antigüedad de saldos. Haga clic en un proveedor para ver el desglose por cuenta.</p>
 
 <div class="d-flex justify-content-end gap-2 mb-3">
     @if (result.Lines.Count > 0)
@@ -17,40 +17,73 @@
     }
 </div>
 
-<div class="table-responsive bg-white border rounded">
-    <table class="table table-hover align-middle mb-0">
-        <thead class="table-light">
-            <tr>
-                <th scope="col">Proveedor</th>
-                <th scope="col" class="text-end">Cantidad</th>
-                <th scope="col" class="text-end">Saldo total</th>
-                <th scope="col" class="text-end">Vence más próximo</th>
-            </tr>
-        </thead>
-        <tbody>
-            @if (result.Lines.Count == 0)
-            {
-                <tr><td colspan="4" class="text-center text-body-secondary py-4">No hay cuentas por pagar vigentes.</td></tr>
-            }
-            @foreach (PayableBySupplierReportLine line in result.Lines)
-            {
-                <tr>
-                    <td>@line.SupplierName</td>
-                    <td class="text-end">@line.PayableCount</td>
-                    <td class="text-end">₡@line.TotalBalance.ToString("N2")</td>
-                    <td class="text-end">@line.EarliestDueDate.ToString("dd/MM/yyyy")</td>
-                </tr>
-            }
-        </tbody>
-        @if (result.Lines.Count > 0)
+<div class="bg-white border rounded">
+    @if (result.Lines.Count == 0)
+    {
+        <p class="text-center text-body-secondary py-4 mb-0">No hay cuentas por pagar vigentes.</p>
+    }
+    else
+    {
+        @foreach (PayableBySupplierReportLine line in result.Lines)
         {
-            <tfoot>
-                <tr class="fw-semibold">
-                    <td colspan="2" class="text-end">Total</td>
-                    <td class="text-end">₡@result.GrandTotalBalance.ToString("N2")</td>
-                    <td></td>
-                </tr>
-            </tfoot>
+            <details class="aging-entry">
+                <summary class="d-flex flex-wrap justify-content-between align-items-start gap-3 px-3 py-3">
+                    <div>
+                        <div class="fw-semibold">@line.SupplierName</div>
+                        <div class="text-body-secondary small">
+                            @line.PayableCount cuenta(s) · vence más próximo @line.EarliestDueDate.ToString("dd/MM/yyyy")
+                        </div>
+                        <div class="text-body-secondary small">
+                            Al día ₡@line.Aging.Current.ToString("N2") ·
+                            1-30 ₡@line.Aging.Overdue1To30.ToString("N2") ·
+                            31-60 ₡@line.Aging.Overdue31To60.ToString("N2") ·
+                            61-90 ₡@line.Aging.Overdue61To90.ToString("N2") ·
+                            +90 ₡@line.Aging.OverdueOver90.ToString("N2")
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <div class="fw-semibold">₡@line.TotalBalance.ToString("N2")</div>
+                        <div class="text-body-secondary small">Saldo total</div>
+                    </div>
+                </summary>
+                <div class="px-3 pb-3">
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th scope="col">Gasto</th>
+                                    <th scope="col" class="text-end">Emisión</th>
+                                    <th scope="col" class="text-end">Vencimiento</th>
+                                    <th scope="col" class="text-end">Saldo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (PayableDetailLine detail in line.Details)
+                                {
+                                    <tr>
+                                        <td>@detail.ExpenseCode</td>
+                                        <td class="text-end">@detail.IssueDate.ToString("dd/MM/yyyy")</td>
+                                        <td class="text-end">@detail.DueDate.ToString("dd/MM/yyyy")</td>
+                                        <td class="text-end">₡@detail.Balance.ToString("N2")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </details>
         }
-    </table>
+    }
 </div>
+
+@if (result.Lines.Count > 0)
+{
+    <div class="d-flex justify-content-end gap-4 mt-3 pe-2">
+        <span class="text-body-secondary small">Al día: ₡@result.GrandTotalAging.Current.ToString("N2")</span>
+        <span class="text-body-secondary small">1-30 días: ₡@result.GrandTotalAging.Overdue1To30.ToString("N2")</span>
+        <span class="text-body-secondary small">31-60 días: ₡@result.GrandTotalAging.Overdue31To60.ToString("N2")</span>
+        <span class="text-body-secondary small">61-90 días: ₡@result.GrandTotalAging.Overdue61To90.ToString("N2")</span>
+        <span class="text-body-secondary small">Más de 90 días: ₡@result.GrandTotalAging.OverdueOver90.ToString("N2")</span>
+        <span class="fw-semibold">Saldo total: ₡@result.GrandTotalBalance.ToString("N2")</span>
+    </div>
+}

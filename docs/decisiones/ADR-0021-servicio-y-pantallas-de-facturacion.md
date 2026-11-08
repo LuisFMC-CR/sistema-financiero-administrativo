@@ -34,14 +34,15 @@ entidades se construyan.
   facturas son de solo consulta y necesitan un permiso distinto de `Catalogos.Ver`, que es para los
   catálogos de mantenimiento.
 
-### Regla «Asistente ve solo las suyas»
+### Alcance de propiedad (lectura actualizada por ADR-0052)
 
-- Todas las operaciones de lectura y de edición de borrador que podría usar un Asistente reciben un
-  `restrictToOwnerUserId` opcional. Cuando no es nulo, cualquier factura de otro usuario se trata como
-  inexistente: no hay una respuesta distinta para «no existe» y para «no es tuya», así que una URL
-  manipulada no revela si el identificador es válido.
-- `InvoicesController.OwnerRestriction()` decide ese valor por rol: lo fija al actor cuando el usuario
-  es Asistente y lo deja nulo para Finanzas y Gerencia, que no tienen esa restricción.
+- ADR-0052 reemplazó la restricción de lectura: Asistente consulta facturas de cualquier usuario y
+  conserva la edición solo de sus propios borradores.
+- El servicio mantiene `restrictToOwnerUserId` como límite opcional. Cuando no es nulo, cualquier
+  factura ajena se trata como inexistente; el controlador aplica este límite en las operaciones de
+  edición, no en el listado ni el detalle de solo consulta.
+- `InvoicesController.OwnerRestriction()` fija el actor cuando un Asistente accede a una operación
+  limitada por propietario y lo deja nulo para Finanzas y Gerencia.
 - Confirmar y anular no reciben esta restricción porque ya son exclusivos de Finanzas y Gerencia por su
   propia política (`Movimientos.Confirmar`, `Movimientos.Anular`), que ningún Asistente cumple.
 

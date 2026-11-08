@@ -9,7 +9,7 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Configurations;
 /// <summary>Configura la persistencia del presupuesto mensual por categoría de gasto.</summary>
 /// <remarks>
 /// Conexiones: <c>FinancialDbContext.OnModelCreating</c> la aplica por convención. Solo
-/// <c>BudgetService.SetAmountAsync</c> la crea o modifica. El índice único por (CategoryId,
+/// <c>BudgetService.SetAmountAsync</c> la crea o modifica. El índice único por (AccountId,
 /// PeriodYear, PeriodMonth) impide dos filas para la misma categoría y el mismo mes (regla 6).
 /// </remarks>
 internal sealed class BudgetConfiguration : IEntityTypeConfiguration<Budget>
@@ -35,11 +35,11 @@ internal sealed class BudgetConfiguration : IEntityTypeConfiguration<Budget>
         builder.Property(budget => budget.UpdatedAtUtc).IsRequired();
         builder.Property(budget => budget.RowVersion).IsRowVersion();
 
-        builder.HasIndex(budget => new { budget.CategoryId, budget.PeriodYear, budget.PeriodMonth })
+        builder.HasIndex(budget => new { budget.AccountId, budget.PeriodYear, budget.PeriodMonth })
             .IsUnique()
-            .HasDatabaseName("UX_Presupuestos_CategoryId_Period");
+            .HasDatabaseName("UX_Presupuestos_AccountId_Period");
 
-        builder.HasOne<FinancialCategory>().WithMany().HasForeignKey(budget => budget.CategoryId)
+        builder.HasOne<LedgerAccount>().WithMany().HasForeignKey(budget => budget.AccountId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_Presupuestos_CategoriasFinancieras");
         builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(budget => budget.CreatedByUserId)
             .OnDelete(DeleteBehavior.Restrict).HasConstraintName("FK_Presupuestos_Usuarios_CreatedBy");

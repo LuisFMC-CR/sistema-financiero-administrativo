@@ -52,7 +52,7 @@
                 @foreach (BudgetModel line in result.Lines)
                 {
                     <tr>
-                        <td>@line.CategoryCode - @line.CategoryName</td>
+                        <td>@line.AccountCode - @line.AccountName</td>
                         <td class="text-end">@(line.BudgetedAmount is decimal budgeted ? $"₡{budgeted:N2}" : "Sin presupuesto")</td>
                         <td class="text-end">₡@line.ExecutedAmount.ToString("N2")</td>
                         <td class="text-end">@(line.AvailableAmount is decimal available ? $"₡{available:N2}" : "—")</td>

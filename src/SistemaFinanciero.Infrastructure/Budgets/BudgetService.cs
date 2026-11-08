@@ -30,50 +30,50 @@ internal sealed class BudgetService(
         int periodMonth,
         CancellationToken cancellationToken = default)
     {
-        List<FinancialCategory> leafCategories = await GetLeafExpenseCategoriesAsync(cancellationToken);
+        List<LedgerAccount> leafAccounts = await GetLeafExpenseAccountsAsync(cancellationToken);
 
-        if (leafCategories.Count == 0)
+        if (leafAccounts.Count == 0)
         {
             return [];
         }
 
-        Guid[] categoryIds = leafCategories.Select(category => category.Id).ToArray();
+        Guid[] accountIds = leafAccounts.Select(account => account.Id).ToArray();
 
         Dictionary<Guid, Budget> budgets = await dbContext.Set<Budget>()
             .AsNoTracking()
-            .Where(budget => categoryIds.Contains(budget.CategoryId)
+            .Where(budget => accountIds.Contains(budget.AccountId)
                 && budget.PeriodYear == periodYear
                 && budget.PeriodMonth == periodMonth)
-            .ToDictionaryAsync(budget => budget.CategoryId, cancellationToken);
+            .ToDictionaryAsync(budget => budget.AccountId, cancellationToken);
 
-        Dictionary<Guid, decimal> executedByCategory = await GetExecutedAmountsAsync(
-            categoryIds,
+        Dictionary<Guid, decimal> executedByAccount = await GetExecutedAmountsAsync(
+            accountIds,
             periodYear,
             periodMonth,
             cancellationToken);
 
-        return leafCategories
-            .OrderBy(category => category.Code, StringComparer.Ordinal)
-            .Select(category => Map(
-                category,
-                budgets.GetValueOrDefault(category.Id),
+        return leafAccounts
+            .OrderBy(account => account.Code, StringComparer.Ordinal)
+            .Select(account => Map(
+                account,
+                budgets.GetValueOrDefault(account.Id),
                 periodYear,
                 periodMonth,
-                executedByCategory.GetValueOrDefault(category.Id, 0m)))
+                executedByAccount.GetValueOrDefault(account.Id, 0m)))
             .ToArray();
     }
 
     public async Task<BudgetModel?> GetAsync(
-        Guid categoryId,
+        Guid accountId,
         int periodYear,
         int periodMonth,
         CancellationToken cancellationToken = default)
     {
-        FinancialCategory? category = await dbContext.Set<FinancialCategory>()
+        LedgerAccount? account = await dbContext.Set<LedgerAccount>()
             .AsNoTracking()
-            .SingleOrDefaultAsync(candidate => candidate.Id == categoryId, cancellationToken);
+            .SingleOrDefaultAsync(candidate => candidate.Id == accountId, cancellationToken);
 
-        if (category is null)
+        if (account is null)
         {
             return null;
         }
@@ -81,14 +81,14 @@ internal sealed class BudgetService(
         Budget? budget = await dbContext.Set<Budget>()
             .AsNoTracking()
             .SingleOrDefaultAsync(
-                candidate => candidate.CategoryId == categoryId
+                candidate => candidate.AccountId == accountId
                     && candidate.PeriodYear == periodYear
                     && candidate.PeriodMonth == periodMonth,
                 cancellationToken);
 
-        decimal executedAmount = await GetExecutedAmountAsync(categoryId, periodYear, periodMonth, cancellationToken);
+        decimal executedAmount = await GetExecutedAmountAsync(accountId, periodYear, periodMonth, cancellationToken);
 
-        return Map(category, budget, periodYear, periodMonth, executedAmount);
+        return Map(account, budget, periodYear, periodMonth, executedAmount);
     }
 
     public async Task<CatalogOperationResult> SetAmountAsync(
@@ -99,8 +99,22 @@ internal sealed class BudgetService(
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        CatalogOperationResult? categoryValidation = await ValidateLeafExpenseCategoryAsync(
-            command.CategoryId,
+        if (command.PeriodYear is < 2000 or > 2200 || command.PeriodMonth is < 1 or > 12)
+        {
+            return CatalogOperationResult.Invalid("El año o mes del presupuesto no es válido.");
+        }
+
+        DateOnly periodStart = new(command.PeriodYear, command.PeriodMonth, 1);
+        DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
+        DateOnly currentMonth = new(today.Year, today.Month, 1);
+        if (periodStart < currentMonth)
+        {
+            return CatalogOperationResult.Invalid(
+                "No se puede crear ni modificar un presupuesto para un mes anterior al actual.");
+        }
+
+        CatalogOperationResult? categoryValidation = await ValidateLeafExpenseAccountAsync(
+            command.AccountId,
             cancellationToken);
 
         if (categoryValidation is not null)
@@ -110,7 +124,7 @@ internal sealed class BudgetService(
 
         Budget? budget = await dbContext.Set<Budget>()
             .SingleOrDefaultAsync(
-                candidate => candidate.CategoryId == command.CategoryId
+                candidate => candidate.AccountId == command.AccountId
                     && candidate.PeriodYear == command.PeriodYear
                     && candidate.PeriodMonth == command.PeriodMonth,
                 cancellationToken);
@@ -123,7 +137,7 @@ internal sealed class BudgetService(
             {
                 Budget newBudget = new(
                     Guid.NewGuid(),
-                    command.CategoryId,
+                    command.AccountId,
                     command.PeriodYear,
                     command.PeriodMonth,
                     command.Amount,
@@ -186,55 +200,43 @@ internal sealed class BudgetService(
         return new BudgetExceededSummary(exceeded.Length, exceededAmount);
     }
 
-    private async Task<CatalogOperationResult?> ValidateLeafExpenseCategoryAsync(
-        Guid categoryId,
+    private async Task<CatalogOperationResult?> ValidateLeafExpenseAccountAsync(
+        Guid accountId,
         CancellationToken cancellationToken)
     {
-        FinancialCategory? category = await dbContext.Set<FinancialCategory>()
+        LedgerAccount? account = await dbContext.Set<LedgerAccount>()
             .AsNoTracking()
-            .SingleOrDefaultAsync(candidate => candidate.Id == categoryId, cancellationToken);
+            .SingleOrDefaultAsync(candidate => candidate.Id == accountId, cancellationToken);
 
-        if (category is null || !category.IsActive || category.Kind != FinancialCategoryKind.Expense)
+        if (account is null || !account.IsActive || account.Type != LedgerAccountType.Expense)
         {
             return CatalogOperationResult.Invalid(
-                "La categoría seleccionada no existe, está inactiva o no es de gasto.");
+                "La cuenta seleccionada no existe, está inactiva o no es de gasto.");
         }
 
-        bool hasChildren = await dbContext.Set<FinancialCategory>()
-            .AsNoTracking()
-            .AnyAsync(candidate => candidate.ParentId == categoryId, cancellationToken);
-
-        if (hasChildren)
+        if (!account.IsMovement)
         {
             return CatalogOperationResult.Invalid(
-                "Solo se puede presupuestar una categoría de gasto de último nivel; las superiores solo suman.");
+                "Solo se puede presupuestar una cuenta de gasto de movimiento (último nivel); las acumuladoras solo suman.");
         }
 
         return null;
     }
 
-    private async Task<List<FinancialCategory>> GetLeafExpenseCategoriesAsync(CancellationToken cancellationToken)
+    private async Task<List<LedgerAccount>> GetLeafExpenseAccountsAsync(CancellationToken cancellationToken)
     {
-        List<FinancialCategory> categories = await dbContext.Set<FinancialCategory>()
+        return await dbContext.Set<LedgerAccount>()
             .AsNoTracking()
-            .Where(category => category.Kind == FinancialCategoryKind.Expense && category.IsActive)
+            .Where(account =>
+                account.Type == LedgerAccountType.Expense
+                && account.IsActive
+                && account.IsMovement)
+            .OrderBy(account => account.Code)
             .ToListAsync(cancellationToken);
-
-        if (categories.Count == 0)
-        {
-            return [];
-        }
-
-        HashSet<Guid> parentIds = categories
-            .Where(category => category.ParentId is not null)
-            .Select(category => category.ParentId!.Value)
-            .ToHashSet();
-
-        return categories.Where(category => !parentIds.Contains(category.Id)).ToList();
     }
 
     private async Task<Dictionary<Guid, decimal>> GetExecutedAmountsAsync(
-        Guid[] categoryIds,
+        Guid[] accountIds,
         int periodYear,
         int periodMonth,
         CancellationToken cancellationToken)
@@ -243,17 +245,17 @@ internal sealed class BudgetService(
 
         return await dbContext.Set<Expense>()
             .AsNoTracking()
-            .Where(expense => categoryIds.Contains(expense.CategoryId)
+            .Where(expense => accountIds.Contains(expense.AccountId)
                 && expense.Status == ExpenseStatus.Confirmed
                 && expense.IssueDate >= periodStart
                 && expense.IssueDate <= periodEnd)
-            .GroupBy(expense => expense.CategoryId)
-            .Select(group => new { CategoryId = group.Key, Total = group.Sum(expense => expense.NetAmount) })
-            .ToDictionaryAsync(entry => entry.CategoryId, entry => entry.Total, cancellationToken);
+            .GroupBy(expense => expense.AccountId)
+            .Select(group => new { AccountId = group.Key, Total = group.Sum(expense => expense.NetAmount) })
+            .ToDictionaryAsync(entry => entry.AccountId, entry => entry.Total, cancellationToken);
     }
 
     private async Task<decimal> GetExecutedAmountAsync(
-        Guid categoryId,
+        Guid accountId,
         int periodYear,
         int periodMonth,
         CancellationToken cancellationToken)
@@ -262,7 +264,7 @@ internal sealed class BudgetService(
 
         return await dbContext.Set<Expense>()
             .AsNoTracking()
-            .Where(expense => expense.CategoryId == categoryId
+            .Where(expense => expense.AccountId == accountId
                 && expense.Status == ExpenseStatus.Confirmed
                 && expense.IssueDate >= periodStart
                 && expense.IssueDate <= periodEnd)
@@ -278,7 +280,7 @@ internal sealed class BudgetService(
     }
 
     private static BudgetModel Map(
-        FinancialCategory category,
+        LedgerAccount account,
         Budget? budget,
         int periodYear,
         int periodMonth,
@@ -297,9 +299,9 @@ internal sealed class BudgetService(
 
         return new BudgetModel(
             budget?.Id,
-            category.Id,
-            category.Code,
-            category.Name,
+            account.Id,
+            account.Code,
+            account.Name,
             periodYear,
             periodMonth,
             budgetedAmount,

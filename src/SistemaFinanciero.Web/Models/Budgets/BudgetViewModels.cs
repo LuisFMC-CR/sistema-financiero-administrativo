@@ -20,13 +20,14 @@ public sealed record BudgetIndexViewModel(
     IReadOnlyList<BudgetModel> Results,
     int PeriodYear,
     int PeriodMonth,
-    BudgetListFilter Filter);
+    BudgetListFilter Filter,
+    bool CanEditPeriod);
 
 /// <summary>Entrada para crear o corregir el monto presupuestado de una categoría y un mes (regla 6).</summary>
 public sealed class BudgetEditViewModel
 {
     [ValidateNever]
-    public Guid CategoryId { get; set; }
+    public Guid AccountId { get; set; }
 
     [ValidateNever]
     public string CategoryLabel { get; set; } = string.Empty;
@@ -55,7 +56,7 @@ public sealed class BudgetCreateViewModel
 {
     [Required(ErrorMessage = "La categoría es obligatoria.")]
     [Display(Name = "Categoría de gasto")]
-    public Guid? CategoryId { get; set; }
+    public Guid? AccountId { get; set; }
 
     [ValidateNever]
     public IReadOnlyList<SelectListItem> CategoryOptions { get; set; } = [];

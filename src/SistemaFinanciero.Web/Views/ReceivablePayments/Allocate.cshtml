@@ -1,11 +1,11 @@
 @using SistemaFinanciero.Web.Models.Receivables
 @model RegisterReceivablePaymentAllocateViewModel
 @{
-    ViewData["Title"] = "Reparto del abono";
+    ViewData["Title"] = "Distribución del cobro";
 }
 
 <div class="catalog-form" style="max-width: 960px;">
-    <h1 class="h2">Reparto del abono</h1>
+    <h1 class="h2">Distribución del cobro</h1>
     <p class="text-body-secondary">
         Cliente: <strong>@Model.CustomerName</strong> — Cuenta de efectivo: @Model.CashAccountLabel —
         Referencia: @Model.Reference — Fecha: @Model.PaymentDate.ToString("dd/MM/yyyy")
@@ -63,8 +63,8 @@
         </div>
 
         <div class="d-flex gap-2 mt-3">
-            <button type="submit" class="btn btn-success">Registrar abono</button>
-            <a asp-action="Start" class="btn btn-outline-secondary">Empezar de nuevo</a>
+            <button type="submit" class="btn btn-success">Registrar cobro distribuido</button>
+            <a asp-action="Start" class="btn btn-outline-secondary">Cambiar datos del cobro</a>
         </div>
     </form>
 </div>

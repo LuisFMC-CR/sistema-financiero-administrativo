@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SistemaFinanciero.Domain.Adjustments;
 using SistemaFinanciero.Domain.Catalogs;
+using SistemaFinanciero.Domain.CreditNotes;
 using SistemaFinanciero.Domain.Expenses;
 using SistemaFinanciero.Domain.Incomes;
 using SistemaFinanciero.Domain.Invoices;
@@ -50,7 +51,7 @@ internal static class JournalPostingService
         Guid actorId,
         CancellationToken cancellationToken)
     {
-        Guid incomeAccountId = await GetCategoryAccountIdAsync(dbContext, invoice.IncomeCategoryId, cancellationToken);
+        Guid incomeAccountId = invoice.IncomeAccountId;
         Guid debitAccountId = cashAccountId
             ?? await GetSystemAccountIdAsync(dbContext, LedgerAccountSystemRole.ReceivablesFromCustomers, cancellationToken);
         Guid vatPayableAccountId = await GetSystemAccountIdAsync(dbContext, LedgerAccountSystemRole.VatPayable, cancellationToken);
@@ -87,7 +88,7 @@ internal static class JournalPostingService
         Guid actorId,
         CancellationToken cancellationToken)
     {
-        Guid categoryAccountId = await GetCategoryAccountIdAsync(dbContext, expense.CategoryId, cancellationToken);
+        Guid categoryAccountId = expense.AccountId;
         Guid vatCreditableAccountId = await GetSystemAccountIdAsync(dbContext, LedgerAccountSystemRole.VatCreditable, cancellationToken);
         Guid creditAccountId = expense.CashAccountId
             ?? await GetSystemAccountIdAsync(dbContext, LedgerAccountSystemRole.PayablesToSuppliers, cancellationToken);
@@ -184,7 +185,7 @@ internal static class JournalPostingService
         Guid actorId,
         CancellationToken cancellationToken)
     {
-        Guid categoryAccountId = await GetCategoryAccountIdAsync(dbContext, income.CategoryId, cancellationToken);
+        Guid categoryAccountId = income.AccountId;
 
         List<JournalEntryLineInput> lines =
         [
@@ -283,6 +284,67 @@ internal static class JournalPostingService
     }
 
     /// <summary>
+    /// Nota de crédito total: debita devoluciones y el IVA por pagar; acredita el saldo pendiente,
+    /// la devolución en efectivo y las retenciones vigentes revertidas.
+    /// </summary>
+    public static async Task PostCreditNoteAsync(
+        FinancialDbContext dbContext,
+        CreditNote creditNote,
+        DateTimeOffset postedAtUtc,
+        Guid actorId,
+        CancellationToken cancellationToken)
+    {
+        Guid returnsAccountId = await GetSystemAccountIdAsync(
+            dbContext,
+            LedgerAccountSystemRole.SalesReturnsAndAllowances,
+            cancellationToken);
+        Guid vatPayableAccountId = await GetSystemAccountIdAsync(
+            dbContext,
+            LedgerAccountSystemRole.VatPayable,
+            cancellationToken);
+
+        List<JournalEntryLineInput> lines =
+        [
+            new(returnsAccountId, creditNote.NetAmount, 0m),
+            new(vatPayableAccountId, creditNote.TaxAmount, 0m),
+        ];
+
+        if (creditNote.AppliedToBalance > 0m)
+        {
+            Guid receivableAccountId = await GetSystemAccountIdAsync(
+                dbContext,
+                LedgerAccountSystemRole.ReceivablesFromCustomers,
+                cancellationToken);
+            lines.Add(new JournalEntryLineInput(receivableAccountId, 0m, creditNote.AppliedToBalance));
+        }
+
+        if (creditNote.RefundedAmount > 0m)
+        {
+            lines.Add(new JournalEntryLineInput(creditNote.CashAccountId!.Value, 0m, creditNote.RefundedAmount));
+        }
+
+        if (creditNote.WithholdingReversedAmount > 0m)
+        {
+            Guid withholdingAccountId = await GetSystemAccountIdAsync(
+                dbContext,
+                LedgerAccountSystemRole.WithholdingsReceivable,
+                cancellationToken);
+            lines.Add(new JournalEntryLineInput(withholdingAccountId, 0m, creditNote.WithholdingReversedAmount));
+        }
+
+        await CreateEntryAsync(
+            dbContext,
+            $"Nota de crédito {creditNote.Code}",
+            JournalEntrySourceType.CreditNote,
+            creditNote.Id,
+            creditNote.IssueDate,
+            lines,
+            postedAtUtc,
+            actorId,
+            cancellationToken);
+    }
+
+    /// <summary>
     /// Genera el asiento de reversión del asiento original de un documento (RF-79): las mismas líneas
     /// con débitos y créditos intercambiados, con la misma fecha del original. No hace nada si el
     /// documento no tiene asiento o si ya fue reversado (comando de generación idempotente).
@@ -372,22 +434,23 @@ internal static class JournalPostingService
         LedgerAccountSystemRole role,
         CancellationToken cancellationToken)
     {
-        return await dbContext.Set<LedgerAccount>()
+        LedgerAccount? account = await dbContext.Set<LedgerAccount>()
             .AsNoTracking()
             .Where(account => account.SystemRole == role)
-            .Select(account => account.Id)
-            .SingleAsync(cancellationToken);
-    }
+            .SingleOrDefaultAsync(cancellationToken);
 
-    private static async Task<Guid> GetCategoryAccountIdAsync(
-        FinancialDbContext dbContext,
-        Guid categoryId,
-        CancellationToken cancellationToken)
-    {
-        return await dbContext.Set<FinancialCategory>()
-            .AsNoTracking()
-            .Where(category => category.Id == categoryId)
-            .Select(category => category.LedgerAccountId)
-            .SingleAsync(cancellationToken);
+        if (account is null)
+        {
+            throw new InvalidOperationException(
+                $"No existe una cuenta contable para el rol de sistema {role}.");
+        }
+
+        if (!account.IsActive)
+        {
+            throw new InvalidOperationException(
+                $"La cuenta contable de sistema «{account.Name}» está inactiva; reactívela antes de registrar esta operación.");
+        }
+
+        return account.Id;
     }
 }

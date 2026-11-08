@@ -13,7 +13,7 @@ public sealed class CatalogItemTests
     [Fact]
     public void Constructor_NormalizesTextAndKeepsFourReferencePriceDecimals()
     {
-        Guid categoryId = Guid.NewGuid();
+        Guid accountId = Guid.NewGuid();
         Guid taxTypeId = Guid.NewGuid();
 
         CatalogItem item = new(
@@ -25,7 +25,7 @@ public sealed class CatalogItemTests
             " Atención remota ",
             UnitOfMeasureCode.Hour,
             123.45678m,
-            categoryId,
+            accountId,
             taxTypeId,
             CreatedAtUtc,
             CreatorId);
@@ -37,7 +37,7 @@ public sealed class CatalogItemTests
         Assert.Equal("Atención remota", item.Description);
         Assert.Equal(UnitOfMeasureCode.Hour, item.UnitOfMeasure);
         Assert.Equal(123.4568m, item.ReferencePriceCrc);
-        Assert.Equal(categoryId, item.DefaultIncomeCategoryId);
+        Assert.Equal(accountId, item.DefaultIncomeAccountId);
         Assert.Equal(taxTypeId, item.DefaultTaxTypeId);
         Assert.True(item.IsActive);
     }
@@ -48,7 +48,7 @@ public sealed class CatalogItemTests
         CatalogItem item = CreateItem(referencePriceCrc: null);
 
         Assert.Null(item.ReferencePriceCrc);
-        Assert.Null(item.DefaultIncomeCategoryId);
+        Assert.Null(item.DefaultIncomeAccountId);
         Assert.Null(item.DefaultTaxTypeId);
     }
 
@@ -88,7 +88,7 @@ public sealed class CatalogItemTests
     public void UpdateDetails_ChangesEditableValuesAndAudit()
     {
         CatalogItem item = CreateItem(referencePriceCrc: 100m);
-        Guid categoryId = Guid.NewGuid();
+        Guid accountId = Guid.NewGuid();
         Guid taxTypeId = Guid.NewGuid();
         DateTimeOffset changedAtUtc = CreatedAtUtc.AddMinutes(5);
 
@@ -98,7 +98,7 @@ public sealed class CatalogItemTests
             " ",
             UnitOfMeasureCode.Unit,
             20.12345m,
-            categoryId,
+            accountId,
             taxTypeId,
             changedAtUtc,
             EditorId);
@@ -110,7 +110,7 @@ public sealed class CatalogItemTests
         Assert.Null(item.Description);
         Assert.Equal(UnitOfMeasureCode.Unit, item.UnitOfMeasure);
         Assert.Equal(20.1235m, item.ReferencePriceCrc);
-        Assert.Equal(categoryId, item.DefaultIncomeCategoryId);
+        Assert.Equal(accountId, item.DefaultIncomeAccountId);
         Assert.Equal(taxTypeId, item.DefaultTaxTypeId);
         Assert.Equal(changedAtUtc, item.UpdatedAtUtc);
         Assert.Equal(EditorId, item.UpdatedByUserId);

@@ -12,8 +12,7 @@ namespace SistemaFinanciero.Web.Models.Catalogs;
 /// </remarks>
 public sealed record CatalogIndexViewModel<T>(
     PagedResult<T> Results,
-    string? Search,
-    CatalogStatusFilter Status);
+    CatalogQuery Query);
 
 /// <summary>
 /// Datos compartidos por el formulario de filtros de los catálogos.
@@ -21,6 +20,10 @@ public sealed record CatalogIndexViewModel<T>(
 public sealed record CatalogFilterViewModel(
     string? Search,
     CatalogStatusFilter? Status = null);
+
+public sealed record CatalogItemFilterViewModel(
+    CatalogQuery Query,
+    bool CanManage);
 
 /// <summary>
 /// Datos necesarios para conservar filtros al navegar entre páginas.
@@ -30,6 +33,4 @@ public sealed record CatalogPaginationViewModel(
     int TotalPages,
     bool HasPreviousPage,
     bool HasNextPage,
-    string? Search,
-    CatalogStatusFilter? Status = null);
-
+    CatalogQuery Query);

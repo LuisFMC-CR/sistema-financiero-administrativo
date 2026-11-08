@@ -2,9 +2,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using QuestPDF.Fluent;
-using SistemaFinanciero.Application.Catalogs.Categories;
 using SistemaFinanciero.Application.Catalogs.Customers;
 using SistemaFinanciero.Application.Catalogs.LedgerAccounts;
+using SistemaFinanciero.Application.Parameters;
 using SistemaFinanciero.Application.Reports;
 using SistemaFinanciero.Application.Security;
 using SistemaFinanciero.Domain.Catalogs;
@@ -18,7 +18,7 @@ namespace SistemaFinanciero.Web.Controllers;
 /// </summary>
 /// <remarks>
 /// Conexiones: usa <c>IReportService</c> (Application/Infrastructure) y, para los selectores de
-/// categoría y de cliente, <c>IFinancialCategoryService</c> e <c>ICustomerCatalogService</c>. Misma
+/// cuenta contable y de cliente, <c>ILedgerAccountService</c> e <c>ICustomerCatalogService</c>. Misma
 /// política que Presupuesto y Consultas: Asistente no entra. Cuando el reporte no tiene datos para
 /// los parámetros indicados, no se genera ningún archivo: se vuelve al formulario con un mensaje
 /// (regla 8).
@@ -27,9 +27,10 @@ namespace SistemaFinanciero.Web.Controllers;
 [Route("reportes")]
 public sealed class ReportsController(
     IReportService reportService,
-    IFinancialCategoryService categoryService,
     ICustomerCatalogService customerService,
-    ILedgerAccountService ledgerAccountService) : Controller
+    ILedgerAccountService ledgerAccountService,
+    ISystemParametersService systemParametersService,
+    TimeProvider timeProvider) : Controller
 {
     [HttpGet("")]
     public IActionResult Index() => View();
@@ -101,7 +102,7 @@ public sealed class ReportsController(
     public async Task<IActionResult> ExpenseByCategory(
         DateOnly? periodFrom,
         DateOnly? periodTo,
-        Guid? categoryId,
+        Guid? accountId,
         CancellationToken cancellationToken)
     {
         (DateOnly from, DateOnly to) = NormalizePeriod(periodFrom, periodTo);
@@ -113,7 +114,7 @@ public sealed class ReportsController(
             result = await reportService.GetExpenseByCategoryReportAsync(
                 from,
                 to,
-                categoryId,
+                accountId,
                 CurrentUserName(),
                 cancellationToken);
         }
@@ -121,7 +122,7 @@ public sealed class ReportsController(
         return View(new ExpenseByCategoryReportViewModel(
             from,
             to,
-            categoryId,
+            accountId,
             await GetCategoryOptionsAsync(cancellationToken),
             result));
     }
@@ -130,19 +131,19 @@ public sealed class ReportsController(
     public async Task<IActionResult> ExpenseByCategoryPdf(
         DateOnly periodFrom,
         DateOnly periodTo,
-        Guid? categoryId,
+        Guid? accountId,
         CancellationToken cancellationToken)
     {
         ExpenseByCategoryReportResult result = await reportService.GetExpenseByCategoryReportAsync(
             periodFrom,
             periodTo,
-            categoryId,
+            accountId,
             CurrentUserName(),
             cancellationToken);
 
         if (result.Lines.Count == 0)
         {
-            return NoDataResult(nameof(ExpenseByCategory), periodFrom, periodTo, categoryId);
+            return NoDataResult(nameof(ExpenseByCategory), periodFrom, periodTo, accountId);
         }
 
         byte[] pdf = new ExpenseByCategoryReportPdfDocument(result).GeneratePdf();
@@ -153,19 +154,19 @@ public sealed class ReportsController(
     public async Task<IActionResult> ExpenseByCategoryExcel(
         DateOnly periodFrom,
         DateOnly periodTo,
-        Guid? categoryId,
+        Guid? accountId,
         CancellationToken cancellationToken)
     {
         ExpenseByCategoryReportResult result = await reportService.GetExpenseByCategoryReportAsync(
             periodFrom,
             periodTo,
-            categoryId,
+            accountId,
             CurrentUserName(),
             cancellationToken);
 
         if (result.Lines.Count == 0)
         {
-            return NoDataResult(nameof(ExpenseByCategory), periodFrom, periodTo, categoryId);
+            return NoDataResult(nameof(ExpenseByCategory), periodFrom, periodTo, accountId);
         }
 
         byte[] excel = ReportExcelExporter.BuildExpenseByCategoryWorkbook(result);
@@ -408,6 +409,50 @@ public sealed class ReportsController(
             "cuentas-por-pagar-proveedor.xlsx");
     }
 
+    [HttpGet("cuentas-por-cobrar-cliente")]
+    public async Task<IActionResult> ReceivableByCustomer(CancellationToken cancellationToken)
+    {
+        ReceivableByCustomerReportResult result = await reportService.GetReceivableByCustomerReportAsync(
+            CurrentUserName(), cancellationToken);
+
+        return View(new ReceivableByCustomerReportViewModel(result));
+    }
+
+    [HttpGet("cuentas-por-cobrar-cliente/pdf")]
+    public async Task<IActionResult> ReceivableByCustomerPdf(CancellationToken cancellationToken)
+    {
+        ReceivableByCustomerReportResult result = await reportService.GetReceivableByCustomerReportAsync(
+            CurrentUserName(), cancellationToken);
+
+        if (result.Lines.Count == 0)
+        {
+            TempData["ErrorMessage"] = "No hay datos para los parámetros indicados; no se generó ningún archivo.";
+            return RedirectToAction(nameof(ReceivableByCustomer));
+        }
+
+        byte[] pdf = new ReceivableByCustomerReportPdfDocument(result).GeneratePdf();
+        return File(pdf, "application/pdf", "cuentas-por-cobrar-cliente.pdf");
+    }
+
+    [HttpGet("cuentas-por-cobrar-cliente/excel")]
+    public async Task<IActionResult> ReceivableByCustomerExcel(CancellationToken cancellationToken)
+    {
+        ReceivableByCustomerReportResult result = await reportService.GetReceivableByCustomerReportAsync(
+            CurrentUserName(), cancellationToken);
+
+        if (result.Lines.Count == 0)
+        {
+            TempData["ErrorMessage"] = "No hay datos para los parámetros indicados; no se generó ningún archivo.";
+            return RedirectToAction(nameof(ReceivableByCustomer));
+        }
+
+        byte[] excel = ReportExcelExporter.BuildReceivableByCustomerWorkbook(result);
+        return File(
+            excel,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "cuentas-por-cobrar-cliente.xlsx");
+    }
+
     [HttpGet("libro-diario")]
     public async Task<IActionResult> JournalBook(
         DateOnly? periodFrom,
@@ -623,12 +668,24 @@ public sealed class ReportsController(
         int? upToMonth,
         CancellationToken cancellationToken)
     {
-        (int year, int month) = NormalizeMonth(periodYear, upToMonth);
+        (DateOnly fiscalStart, DateOnly fiscalEnd) = await GetFiscalPeriodAsync(cancellationToken);
+        if (periodYear is int requestedYear && requestedYear != fiscalStart.Year)
+        {
+            TempData["ErrorMessage"] = "Este reporte utiliza el período fiscal configurado actualmente.";
+            return RedirectToAction(nameof(AnnualBudget), new
+            {
+                periodYear = fiscalStart.Year,
+                upToMonth = upToMonth ?? GetCurrentFiscalMonth(fiscalStart, fiscalEnd),
+            });
+        }
+
+        int year = fiscalStart.Year;
+        int month = upToMonth ?? GetCurrentFiscalMonth(fiscalStart, fiscalEnd);
 
         AnnualBudgetReportResult result = await reportService.GetAnnualBudgetReportAsync(
             year, month, CurrentUserName(), cancellationToken);
 
-        return View(new AnnualBudgetReportViewModel(year, month, result));
+        return View(new AnnualBudgetReportViewModel(year, month, result, fiscalStart, fiscalEnd));
     }
 
     [HttpGet("presupuesto-anual/pdf")]
@@ -637,6 +694,17 @@ public sealed class ReportsController(
         int upToMonth,
         CancellationToken cancellationToken)
     {
+        (DateOnly fiscalStart, _) = await GetFiscalPeriodAsync(cancellationToken);
+        if (periodYear != fiscalStart.Year)
+        {
+            TempData["ErrorMessage"] = "Este reporte utiliza el período fiscal configurado actualmente.";
+            return RedirectToAction(nameof(AnnualBudget), new
+            {
+                periodYear = fiscalStart.Year,
+                upToMonth = upToMonth,
+            });
+        }
+
         AnnualBudgetReportResult result = await reportService.GetAnnualBudgetReportAsync(
             periodYear, upToMonth, CurrentUserName(), cancellationToken);
 
@@ -656,6 +724,17 @@ public sealed class ReportsController(
         int upToMonth,
         CancellationToken cancellationToken)
     {
+        (DateOnly fiscalStart, _) = await GetFiscalPeriodAsync(cancellationToken);
+        if (periodYear != fiscalStart.Year)
+        {
+            TempData["ErrorMessage"] = "Este reporte utiliza el período fiscal configurado actualmente.";
+            return RedirectToAction(nameof(AnnualBudget), new
+            {
+                periodYear = fiscalStart.Year,
+                upToMonth = upToMonth,
+            });
+        }
+
         AnnualBudgetReportResult result = await reportService.GetAnnualBudgetReportAsync(
             periodYear, upToMonth, CurrentUserName(), cancellationToken);
 
@@ -843,6 +922,42 @@ public sealed class ReportsController(
         return (periodYear ?? today.Year, periodMonth ?? today.Month);
     }
 
+    private async Task<(DateOnly Start, DateOnly End)> GetFiscalPeriodAsync(
+        CancellationToken cancellationToken)
+    {
+        SystemParametersModel? parameters = await systemParametersService.GetAsync(cancellationToken);
+        if (parameters?.FiscalPeriodStartDate is DateOnly start
+            && parameters.FiscalPeriodEndDate is DateOnly end)
+        {
+            return (start, end);
+        }
+
+        if (parameters?.FiscalPeriodStartDate is not null || parameters?.FiscalPeriodEndDate is not null)
+        {
+            throw new InvalidOperationException("La configuración del período fiscal está incompleta.");
+        }
+
+        DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
+        DateOnly calendarStart = new(today.Year, 1, 1);
+        return (calendarStart, calendarStart.AddYears(1).AddDays(-1));
+    }
+
+    private int GetCurrentFiscalMonth(DateOnly fiscalStart, DateOnly fiscalEnd)
+    {
+        DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
+        if (today < fiscalStart)
+        {
+            return 1;
+        }
+
+        if (today > fiscalEnd)
+        {
+            return 12;
+        }
+
+        return (today.Year - fiscalStart.Year) * 12 + today.Month - fiscalStart.Month + 1;
+    }
+
     private static (int YearFrom, int MonthFrom, int YearTo, int MonthTo) NormalizeMonthRange(
         int? periodYearFrom, int? periodMonthFrom, int? periodYearTo, int? periodMonthTo)
     {
@@ -860,16 +975,16 @@ public sealed class ReportsController(
         string actionName,
         DateOnly periodFrom,
         DateOnly periodTo,
-        Guid? categoryId = null)
+        Guid? accountId = null)
     {
         TempData["ErrorMessage"] = "No hay datos para los parámetros indicados; no se generó ningún archivo.";
-        return RedirectToAction(actionName, new { periodFrom, periodTo, categoryId });
+        return RedirectToAction(actionName, new { periodFrom, periodTo, accountId });
     }
 
     private async Task<IReadOnlyList<SelectListItem>> GetCategoryOptionsAsync(CancellationToken cancellationToken)
     {
-        IReadOnlyList<FinancialCategoryOption> categories = await categoryService.GetActiveOptionsAsync(
-            FinancialCategoryKind.Expense,
+        IReadOnlyList<LedgerAccountOption> categories = await ledgerAccountService.GetActiveOptionsAsync(
+            LedgerAccountType.Expense,
             cancellationToken: cancellationToken);
 
         return categories

@@ -53,8 +53,20 @@ public static class AuthorizationExtensions
                     SystemRoles.Finance,
                     SystemRoles.Assistant))
             .AddPolicy(
+                SystemPolicies.ViewReceivablesAndPayables,
+                policy => policy.RequireRole(
+                    SystemRoles.Management,
+                    SystemRoles.Finance,
+                    SystemRoles.Assistant))
+            .AddPolicy(
                 SystemPolicies.CreateFinancialDrafts,
                 policy => policy.RequireRole(SystemRoles.Management, SystemRoles.Finance, SystemRoles.Assistant))
+            .AddPolicy(
+                SystemPolicies.RegisterManualIncome,
+                policy => policy.RequireRole(
+                    SystemRoles.Management,
+                    SystemRoles.Finance,
+                    SystemRoles.Assistant))
             .AddPolicy(
                 SystemPolicies.ConfirmFinancialTransactions,
                 policy => policy.RequireRole(SystemRoles.Management, SystemRoles.Finance))
@@ -63,7 +75,7 @@ public static class AuthorizationExtensions
                 policy => policy.RequireRole(SystemRoles.Management))
             .AddPolicy(
                 SystemPolicies.AdjustFinancialBalances,
-                policy => policy.RequireRole(SystemRoles.Management))
+                policy => policy.RequireRole(SystemRoles.Management, SystemRoles.Finance))
             .AddPolicy(
                 SystemPolicies.ViewFinancialReports,
                 policy => policy.RequireRole(SystemRoles.Management, SystemRoles.Finance))
@@ -72,6 +84,9 @@ public static class AuthorizationExtensions
                 policy => policy.RequireRole(SystemRoles.Management))
             .AddPolicy(
                 SystemPolicies.ManageSystemParameters,
+                policy => policy.RequireRole(SystemRoles.Management, SystemRoles.Finance))
+            .AddPolicy(
+                SystemPolicies.ManageAccountingPeriods,
                 policy => policy.RequireRole(SystemRoles.Management));
 
         return services;

@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using SistemaFinanciero.Application.Catalogs.Categories;
 using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Catalogs.LedgerAccounts;
 using SistemaFinanciero.Application.Catalogs.Suppliers;
@@ -18,11 +17,11 @@ namespace SistemaFinanciero.Web.Controllers;
 /// <summary>Presenta el ciclo de vida del gasto: borrador, confirmación y anulación.</summary>
 /// <remarks>
 /// Conexiones: usa <c>IExpenseService</c> (Application) para el gasto, <c>ISupplierCatalogService</c>
-/// para el selector de proveedor, <c>IFinancialCategoryService</c> para el selector de categoría de
-/// gasto, <c>ITaxTypeService</c> para el selector de tarifa de IVA y <c>ILedgerAccountService</c> para
-/// el selector de cuenta de efectivo que pide confirmar un gasto de contado (regla 7). Un Asistente
-/// solo ve y edita los gastos que él mismo creó (<see cref="OwnerRestriction"/>, igual que con
-/// facturas); Finanzas y Gerencia ven y, según su política, editan o resuelven cualquiera. Es el
+/// para el selector de proveedor, <c>ILedgerAccountService</c> para los selectores de cuenta de gasto
+/// y de cuenta de efectivo que pide confirmar un gasto de contado (regla 7), y <c>ITaxTypeService</c>
+/// para el selector de tarifa de IVA. Un Asistente consulta gastos de cualquier usuario, pero solo
+/// edita sus propios borradores (<see cref="OwnerRestriction"/>, igual que con facturas); Finanzas
+/// y Gerencia ven y, según su política, editan o resuelven cualquiera. Es el
 /// espejo, del lado de gastos, de <c>InvoicesController</c>; a diferencia de este, no tiene líneas.
 /// </remarks>
 [Authorize(Policy = SystemPolicies.ViewFinancialTransactions)]
@@ -30,7 +29,6 @@ namespace SistemaFinanciero.Web.Controllers;
 public sealed class ExpensesController(
     IExpenseService service,
     ISupplierCatalogService supplierService,
-    IFinancialCategoryService financialCategoryService,
     ITaxTypeService taxTypeService,
     ILedgerAccountService ledgerAccountService,
     IAuthorizationService authorizationService) : CatalogControllerBase
@@ -39,7 +37,7 @@ public sealed class ExpensesController(
     public async Task<IActionResult> Index(
         string? code,
         string? supplierName,
-        string? categoryName,
+        string? accountName,
         DateOnly? issueDateFrom,
         DateOnly? issueDateTo,
         decimal? amountMin,
@@ -51,14 +49,14 @@ public sealed class ExpensesController(
         ExpenseQuery query = new(
             NormalizeSearch(code),
             NormalizeSearch(supplierName),
-            NormalizeSearch(categoryName),
+            NormalizeSearch(accountName),
             issueDateFrom,
             issueDateTo,
             amountMin,
             amountMax,
             NormalizeStatus(status),
-            OwnerRestriction(),
-            page);
+            createdByUserId: null,
+            page: page);
         PagedResult<ExpenseModel> results = await service.SearchAsync(query, cancellationToken);
 
         return View(new ExpenseIndexViewModel(results, query));
@@ -110,7 +108,7 @@ public sealed class ExpensesController(
             return Forbid();
         }
 
-        ExpenseModel? expense = await service.GetAsync(id, OwnerRestriction(), cancellationToken);
+        ExpenseModel? expense = await service.GetAsync(id, restrictToOwnerUserId: null, cancellationToken);
 
         if (expense is null)
         {
@@ -152,7 +150,7 @@ public sealed class ExpensesController(
         ExpenseHeaderEditViewModel model = new()
         {
             SupplierId = expense.SupplierId,
-            CategoryId = expense.CategoryId,
+            AccountId = expense.AccountId,
             Description = expense.Description,
             VoucherReference = expense.VoucherReference,
             IssueDate = expense.IssueDate,
@@ -379,7 +377,7 @@ public sealed class ExpensesController(
 
     private static SaveExpenseCommand ToCommand(ExpenseCreateViewModel model) => new(
         model.SupplierId!.Value,
-        model.CategoryId!.Value,
+        model.AccountId!.Value,
         model.Description,
         model.VoucherReference,
         model.IssueDate,
@@ -415,7 +413,7 @@ public sealed class ExpensesController(
         CancellationToken cancellationToken)
     {
         ExpenseBudgetCheck check = await service.CheckBudgetAsync(
-            expense.CategoryId,
+            expense.AccountId,
             expense.IssueDate,
             expense.NetAmount,
             cancellationToken);
@@ -451,14 +449,14 @@ public sealed class ExpensesController(
                 option.Id == model.SupplierId))
             .ToList();
 
-        IReadOnlyList<FinancialCategoryOption> categories = await financialCategoryService.GetActiveOptionsAsync(
-            FinancialCategoryKind.Expense,
+        IReadOnlyList<LedgerAccountOption> categories = await ledgerAccountService.GetActiveOptionsAsync(
+            LedgerAccountType.Expense,
             cancellationToken: cancellationToken);
         model.CategoryOptions = categories
             .Select(option => new SelectListItem(
                 $"{option.Code} - {option.Name}",
                 option.Id.ToString(),
-                option.Id == model.CategoryId))
+                option.Id == model.AccountId))
             .ToList();
 
         IReadOnlyList<TaxTypeOption> taxOptions = await taxTypeService.GetActiveOptionsAsync(cancellationToken);

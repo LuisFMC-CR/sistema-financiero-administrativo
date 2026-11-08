@@ -13,7 +13,7 @@ namespace SistemaFinanciero.Infrastructure.Catalogs.Items;
 /// Conexiones: implementa <c>ICatalogItemService</c> (Application); se registra en
 /// <c>DependencyInjection.AddInfrastructure</c>; lo inyecta <c>CatalogItemsController</c> (Web). Lee y
 /// escribe <c>FinancialDbContext.CatalogItems</c> (tabla <c>catalogos.ProductosServicios</c>); valida
-/// que <c>DefaultIncomeCategoryId</c> apunte a una <c>FinancialCategory</c> activa de tipo Ingreso y que
+/// que <c>DefaultIncomeAccountId</c> apunte a una <c>FinancialCategory</c> activa de tipo Ingreso y que
 /// <c>DefaultTaxTypeId</c> (RF-52) apunte a un <c>TaxType</c> activo. El código lo asigna esta clase al
 /// crear, con una secuencia de SQL Server distinta para productos (<c>PRD-0001</c>) y servicios
 /// (<c>SRV-0001</c>, regla 12).
@@ -47,13 +47,50 @@ internal sealed class CatalogItemService(
                 (item.Description != null && item.Description.Contains(search)));
         }
 
+        if (query.Code is not null)
+        {
+            items = items.Where(item => item.Code.Contains(query.Code));
+        }
+
+        if (query.Name is not null)
+        {
+            items = items.Where(item => item.Name.Contains(query.Name));
+        }
+
+        if (query.ItemType is CatalogItemType itemType)
+        {
+            items = items.Where(item => item.Type == itemType);
+        }
+
+        if (query.CabysCode is not null)
+        {
+            items = items.Where(item => item.CabysCode.Contains(query.CabysCode));
+        }
+
+        if (query.UnitOfMeasure is UnitOfMeasureCode unitOfMeasure)
+        {
+            items = items.Where(item => item.UnitOfMeasure == unitOfMeasure);
+        }
+
+        if (query.ReferencePrice is decimal referencePrice)
+        {
+            items = items.Where(item => item.ReferencePriceCrc == referencePrice);
+        }
+
+        if (query.TaxTypeName is not null)
+        {
+            items = items.Where(item => item.DefaultTaxTypeId != null &&
+                dbContext.Set<TaxType>().Any(taxType =>
+                    taxType.Id == item.DefaultTaxTypeId && taxType.Name.Contains(query.TaxTypeName)));
+        }
+
         PagedResult<CatalogItem> page = await CatalogPersistence.ToPageAsync(
             items.OrderBy(item => item.Name).ThenBy(item => item.Code),
             query.Page,
             query.PageSize,
             cancellationToken);
 
-        IReadOnlyDictionary<Guid, string> categoryNames = await GetCategoryNamesAsync(
+        IReadOnlyDictionary<Guid, string> accountNames = await GetAccountNamesAsync(
             page.Items,
             cancellationToken);
         IReadOnlyDictionary<Guid, string> taxTypeNames = await GetTaxTypeNamesAsync(
@@ -61,7 +98,7 @@ internal sealed class CatalogItemService(
             cancellationToken);
 
         return new PagedResult<CatalogItemModel>(
-            page.Items.Select(item => Map(item, categoryNames, taxTypeNames)).ToArray(),
+            page.Items.Select(item => Map(item, accountNames, taxTypeNames)).ToArray(),
             page.Page,
             page.PageSize,
             page.TotalCount);
@@ -80,14 +117,14 @@ internal sealed class CatalogItemService(
             return null;
         }
 
-        IReadOnlyDictionary<Guid, string> categoryNames = await GetCategoryNamesAsync(
+        IReadOnlyDictionary<Guid, string> accountNames = await GetAccountNamesAsync(
             [item],
             cancellationToken);
         IReadOnlyDictionary<Guid, string> taxTypeNames = await GetTaxTypeNamesAsync(
             [item],
             cancellationToken);
 
-        return Map(item, categoryNames, taxTypeNames);
+        return Map(item, accountNames, taxTypeNames);
     }
 
     public async Task<IReadOnlyList<CatalogItemOption>> GetActiveOptionsAsync(
@@ -116,7 +153,7 @@ internal sealed class CatalogItemService(
         ArgumentNullException.ThrowIfNull(command);
 
         CatalogOperationResult? categoryValidation = await ValidateIncomeCategoryAsync(
-            command.DefaultIncomeCategoryId,
+            command.DefaultIncomeAccountId,
             cancellationToken);
 
         if (categoryValidation is not null)
@@ -158,7 +195,7 @@ internal sealed class CatalogItemService(
                 command.Description,
                 command.UnitOfMeasure,
                 command.ReferencePriceCrc,
-                command.DefaultIncomeCategoryId,
+                command.DefaultIncomeAccountId,
                 command.DefaultTaxTypeId,
                 timeProvider.GetUtcNow(),
                 actorId);
@@ -200,7 +237,7 @@ internal sealed class CatalogItemService(
         }
 
         CatalogOperationResult? categoryValidation = await ValidateIncomeCategoryAsync(
-            command.DefaultIncomeCategoryId,
+            command.DefaultIncomeAccountId,
             cancellationToken);
 
         if (categoryValidation is not null)
@@ -227,7 +264,7 @@ internal sealed class CatalogItemService(
                 command.Description,
                 command.UnitOfMeasure,
                 command.ReferencePriceCrc,
-                command.DefaultIncomeCategoryId,
+                command.DefaultIncomeAccountId,
                 command.DefaultTaxTypeId,
                 timeProvider.GetUtcNow(),
                 actorId);
@@ -267,7 +304,7 @@ internal sealed class CatalogItemService(
         if (isActive)
         {
             CatalogOperationResult? categoryValidation = await ValidateIncomeCategoryAsync(
-                item.DefaultIncomeCategoryId,
+                item.DefaultIncomeAccountId,
                 cancellationToken);
 
             if (categoryValidation is not null)
@@ -311,27 +348,33 @@ internal sealed class CatalogItemService(
     }
 
     private async Task<CatalogOperationResult?> ValidateIncomeCategoryAsync(
-        Guid? categoryId,
+        Guid? accountId,
         CancellationToken cancellationToken)
     {
-        if (categoryId is null)
+        if (accountId is null)
         {
             return null;
         }
 
-        FinancialCategory? category = await dbContext.Set<FinancialCategory>()
+        LedgerAccount? account = await dbContext.Set<LedgerAccount>()
             .AsNoTracking()
-            .SingleOrDefaultAsync(candidate => candidate.Id == categoryId.Value, cancellationToken);
+            .SingleOrDefaultAsync(candidate => candidate.Id == accountId.Value, cancellationToken);
 
-        if (category is null)
+        if (account is null)
         {
-            return CatalogOperationResult.Invalid("La categoría de ingreso seleccionada no existe.");
+            return CatalogOperationResult.Invalid("La cuenta de ingreso seleccionada no existe.");
         }
 
-        if (!category.IsActive || category.Kind != FinancialCategoryKind.Income)
+        if (!account.IsActive || account.Type != LedgerAccountType.Income)
         {
             return CatalogOperationResult.Invalid(
-                "La categoría predeterminada debe ser una categoría de ingreso activa.");
+                "La cuenta predeterminada debe ser una cuenta de ingreso activa.");
+        }
+
+        if (!account.IsMovement)
+        {
+            return CatalogOperationResult.Invalid(
+                "La cuenta de ingreso predeterminada debe ser una cuenta de movimiento (último nivel).");
         }
 
         return null;
@@ -369,27 +412,27 @@ internal sealed class CatalogItemService(
         return null;
     }
 
-    private async Task<IReadOnlyDictionary<Guid, string>> GetCategoryNamesAsync(
+    private async Task<IReadOnlyDictionary<Guid, string>> GetAccountNamesAsync(
         IReadOnlyList<CatalogItem> items,
         CancellationToken cancellationToken)
     {
-        Guid[] categoryIds = items
-            .Where(item => item.DefaultIncomeCategoryId.HasValue)
-            .Select(item => item.DefaultIncomeCategoryId!.Value)
+        Guid[] accountIds = items
+            .Where(item => item.DefaultIncomeAccountId.HasValue)
+            .Select(item => item.DefaultIncomeAccountId!.Value)
             .Distinct()
             .ToArray();
 
-        if (categoryIds.Length == 0)
+        if (accountIds.Length == 0)
         {
             return new Dictionary<Guid, string>();
         }
 
-        return await dbContext.Set<FinancialCategory>()
+        return await dbContext.Set<LedgerAccount>()
             .AsNoTracking()
-            .Where(category => categoryIds.Contains(category.Id))
+            .Where(account => accountIds.Contains(account.Id))
             .ToDictionaryAsync(
-                category => category.Id,
-                category => category.Name,
+                account => account.Id,
+                account => account.Name,
                 cancellationToken);
     }
 
@@ -419,12 +462,12 @@ internal sealed class CatalogItemService(
 
     private static CatalogItemModel Map(
         CatalogItem item,
-        IReadOnlyDictionary<Guid, string> categoryNames,
+        IReadOnlyDictionary<Guid, string> accountNames,
         IReadOnlyDictionary<Guid, string> taxTypeNames)
     {
-        string? categoryName = item.DefaultIncomeCategoryId is Guid categoryId &&
-            categoryNames.TryGetValue(categoryId, out string? foundCategoryName)
-                ? foundCategoryName
+        string? accountName = item.DefaultIncomeAccountId is Guid accountId &&
+            accountNames.TryGetValue(accountId, out string? foundAccountName)
+                ? foundAccountName
                 : null;
         string? taxTypeName = item.DefaultTaxTypeId is Guid taxTypeId &&
             taxTypeNames.TryGetValue(taxTypeId, out string? foundTaxTypeName)
@@ -440,8 +483,8 @@ internal sealed class CatalogItemService(
             item.Description,
             item.UnitOfMeasure,
             item.ReferencePriceCrc,
-            item.DefaultIncomeCategoryId,
-            categoryName,
+            item.DefaultIncomeAccountId,
+            accountName,
             item.DefaultTaxTypeId,
             taxTypeName,
             item.IsActive,

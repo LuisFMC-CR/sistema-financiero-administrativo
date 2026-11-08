@@ -15,6 +15,8 @@ namespace SistemaFinanciero.IntegrationTests.Invoices;
 public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebApplicationFactory>
 {
     private const string EnableVariable = "SISTEMA_FINANCIERO_RUN_SQL_TESTS";
+    private const string SampleKey = "12345678901234567890123456789012345678901234567890";
+    private const string SampleConsecutivo = "12345678901234567890";
     private readonly FinancialWebApplicationFactory factory;
 
     public SqlServerInvoiceScenarioTests(FinancialWebApplicationFactory factory)
@@ -229,7 +231,7 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
             Invoice reloaded = await LoadAsync(context, invoiceId);
             reloaded.UpdateHeader(
                 reloaded.CustomerId,
-                reloaded.IncomeCategoryId,
+                reloaded.IncomeAccountId,
                 newIssueDate,
                 PaymentTerm.Cash,
                 now.AddSeconds(10),
@@ -242,7 +244,7 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
             Assert.Null(reloaded.DueDate);
 
             long number = await GetNextInvoiceNumberAsync(context);
-            reloaded.Confirm(now.AddSeconds(20), actorId, number);
+            reloaded.Confirm(now.AddSeconds(20), actorId, number, SampleKey, SampleConsecutivo);
             await context.SaveChangesAsync();
 
             reloaded = await LoadAsync(context, invoiceId);
@@ -269,12 +271,13 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
 
             Invoice reloadedFirst = await LoadAsync(context, firstDraft.Id);
             long firstNumber = await GetNextInvoiceNumberAsync(context);
-            reloadedFirst.Confirm(now.AddSeconds(10), actorId, firstNumber);
+            reloadedFirst.Confirm(now.AddSeconds(10), actorId, firstNumber, SampleKey, SampleConsecutivo);
             await context.SaveChangesAsync();
 
+            string secondKey = new('9', Invoice.ElectronicInvoiceKeyLength);
             Invoice reloadedSecond = await LoadAsync(context, secondDraft.Id);
             long secondNumber = await GetNextInvoiceNumberAsync(context);
-            reloadedSecond.Confirm(now.AddSeconds(11), actorId, secondNumber);
+            reloadedSecond.Confirm(now.AddSeconds(11), actorId, secondNumber, secondKey, SampleConsecutivo);
             await context.SaveChangesAsync();
 
             Assert.NotEqual(firstNumber, secondNumber);
@@ -344,13 +347,13 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
             now,
             actorId);
         context.Customers.Add(customer);
-        Guid incomeCategoryId = await CreateIncomeCategoryAsync(context, actorId, now);
+        Guid incomeAccountId = await CreateIncomeCategoryAsync(context, actorId, now);
 
         DateOnly issueDate = DateOnly.FromDateTime(now.UtcDateTime);
         Invoice invoice = new(
             Guid.NewGuid(),
             customer.Id,
-            incomeCategoryId,
+            incomeAccountId,
             issueDate,
             PaymentTerm.Credit30,
             now,
@@ -384,19 +387,7 @@ public sealed class SqlServerInvoiceScenarioTests : IClassFixture<FinancialWebAp
             actorId);
         context.LedgerAccounts.Add(ledgerAccount);
 
-        FinancialCategory category = new(
-            Guid.NewGuid(),
-            $"CATI-{suffix}",
-            "Categoría de ingreso de pruebas de facturas",
-            FinancialCategoryKind.Income,
-            null,
-            ledgerAccount.Id,
-            null,
-            now,
-            actorId);
-        context.FinancialCategories.Add(category);
-        await context.SaveChangesAsync();
-        return category.Id;
+        return ledgerAccount.Id;
     }
 
     private static async Task<Invoice> LoadAsync(FinancialDbContext context, Guid invoiceId)

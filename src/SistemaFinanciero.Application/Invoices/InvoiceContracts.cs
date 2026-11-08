@@ -24,7 +24,7 @@ public enum InvoiceStatusFilter
 /// <summary>
 /// Define búsqueda, estado y paginación para el listado de facturas. A diferencia de
 /// <see cref="CatalogQuery"/>, no tiene baja lógica sino el ciclo Borrador/Confirmada/Anulada, y admite
-/// restringir el resultado a las facturas de un usuario (Asistente «ve solo las suyas»).
+/// restringir el resultado a las facturas de un usuario cuando una consulta requiere ese alcance.
 /// </summary>
 public sealed record InvoiceQuery
 {
@@ -36,7 +36,13 @@ public sealed record InvoiceQuery
         DateOnly? issueDateTo = null,
         PaymentTerm? paymentTerm = null,
         int page = 1,
-        int pageSize = 20)
+        int pageSize = 20,
+        long? number = null,
+        string? customerName = null,
+        DateOnly? issueDate = null,
+        DateOnly? dueDate = null,
+        decimal? totalAmount = null,
+        string? createdByUserName = null)
     {
         Search = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
         Status = status;
@@ -44,6 +50,12 @@ public sealed record InvoiceQuery
         IssueDateFrom = issueDateFrom;
         IssueDateTo = issueDateTo;
         PaymentTerm = paymentTerm;
+        Number = number;
+        CustomerName = string.IsNullOrWhiteSpace(customerName) ? null : customerName.Trim();
+        IssueDate = issueDate;
+        DueDate = dueDate;
+        TotalAmount = totalAmount;
+        CreatedByUserName = string.IsNullOrWhiteSpace(createdByUserName) ? null : createdByUserName.Trim();
         Page = Math.Max(1, page);
         PageSize = Math.Clamp(pageSize, 1, 100);
     }
@@ -63,6 +75,19 @@ public sealed record InvoiceQuery
     /// <summary>Plazo de pago opcional por el que filtrar (regla 11).</summary>
     public PaymentTerm? PaymentTerm { get; }
 
+    /// <summary>Filtros independientes de las columnas del listado.</summary>
+    public long? Number { get; }
+
+    public string? CustomerName { get; }
+
+    public DateOnly? IssueDate { get; }
+
+    public DateOnly? DueDate { get; }
+
+    public decimal? TotalAmount { get; }
+
+    public string? CreatedByUserName { get; }
+
     /// <summary>
     /// Cuando no es nulo, limita el resultado a las facturas creadas por este usuario (Asistente).
     /// </summary>
@@ -78,7 +103,7 @@ public sealed record InvoiceQuery
 /// <summary>Datos para crear el encabezado de un borrador de factura. Las líneas se agregan después.</summary>
 public sealed record CreateInvoiceCommand(
     Guid CustomerId,
-    Guid IncomeCategoryId,
+    Guid IncomeAccountId,
     DateOnly IssueDate,
     PaymentTerm PaymentTerm);
 
@@ -88,7 +113,7 @@ public sealed record CreateInvoiceCommand(
 /// </summary>
 public sealed record UpdateInvoiceHeaderCommand(
     Guid CustomerId,
-    Guid IncomeCategoryId,
+    Guid IncomeAccountId,
     DateOnly IssueDate,
     PaymentTerm PaymentTerm);
 
@@ -157,8 +182,8 @@ public sealed record InvoiceModel(
     string? CustomerPhone,
     VatCondition CustomerVatCondition,
     string? CustomerActivityCode,
-    Guid IncomeCategoryId,
-    string IncomeCategoryName,
+    Guid IncomeAccountId,
+    string IncomeAccountName,
     DateOnly IssueDate,
     PaymentTerm PaymentTerm,
     DateOnly? DueDate,
@@ -180,12 +205,6 @@ public sealed record InvoiceModel(
     string Version,
     IReadOnlyList<InvoiceLineModel> Lines,
     PaymentMethod? PaymentMethod);
-
-/// <summary>
-/// Datos para registrar la clave y el consecutivo del comprobante electrónico de una factura
-/// confirmada (bloque 3, RF-89): solo una vez por factura, 50 y 20 dígitos respectivamente.
-/// </summary>
-public sealed record RegisterElectronicInvoiceCommand(string ElectronicInvoiceKey, string ElectronicInvoiceNumber);
 
 /// <summary>Proyección resumida de una factura para el listado.</summary>
 public sealed record InvoiceSummaryModel(
@@ -220,11 +239,11 @@ public sealed record CustomerCreditLimitCheck(
 /// cobrar (crédito) o el ingreso (contado) de la factura; anular la anula en cascada (regla 2/4),
 /// siempre que no tenga abonos vigentes.
 ///
-/// El parámetro <c>restrictToOwnerUserId</c> que reciben la lectura y las ediciones de borrador aplica
-/// la regla de perfiles «Asistente ve solo las suyas»: cuando no es nulo, cualquier factura de otro
-/// usuario se trata como inexistente (se responde igual que un identificador que no existe, sin
-/// distinguir un caso del otro). Confirmar y anular no lo reciben porque son exclusivos de Finanzas y
-/// Gerencia respectivamente, que no tienen esa restricción.
+/// El parámetro <c>restrictToOwnerUserId</c> permite limitar la lectura y las ediciones de borrador:
+/// cuando no es nulo, cualquier factura de otro usuario se trata como inexistente (se responde igual
+/// que un identificador que no existe, sin distinguir un caso del otro). El Asistente consulta
+/// facturas de todos los usuarios, pero el controlador aplica este límite al editar borradores.
+/// Confirmar y anular no lo reciben porque son exclusivos de Finanzas y Gerencia respectivamente.
 /// </remarks>
 public interface IInvoiceService
 {
@@ -290,25 +309,6 @@ public interface IInvoiceService
     public Task<CatalogOperationResult> ConfirmAsync(
         Guid id,
         ConfirmInvoiceCommand command,
-        string version,
-        Guid actorId,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>Anula una factura confirmada con motivo. Solo Gerencia.</summary>
-    public Task<CatalogOperationResult> CancelAsync(
-        Guid id,
-        string reason,
-        string version,
-        Guid actorId,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Registra la clave y el consecutivo del comprobante electrónico de una factura ya confirmada
-    /// (bloque 3, RF-89); solo una vez por factura. Finanzas y Gerencia.
-    /// </summary>
-    public Task<CatalogOperationResult> RegisterElectronicInvoiceAsync(
-        Guid id,
-        RegisterElectronicInvoiceCommand command,
         string version,
         Guid actorId,
         CancellationToken cancellationToken = default);

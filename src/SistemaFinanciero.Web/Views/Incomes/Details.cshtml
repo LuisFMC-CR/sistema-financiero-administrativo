@@ -24,7 +24,8 @@
         {
             <a asp-action="Cancel" asp-route-id="@income.Id" class="btn btn-danger">Anular</a>
         }
-        @if (income.Origin == IncomeOrigin.Manual)
+        @if (income.Origin == IncomeOrigin.Manual &&
+            (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ViewFinancialReports)).Succeeded)
         {
             <a asp-controller="JournalEntries" asp-action="Trace"
                asp-route-sourceType="@((int)JournalEntrySourceType.Income)" asp-route-sourceId="@income.Id"
@@ -45,7 +46,7 @@
                 }
             </p>
             <h2 class="h5 mt-3">Categoría y cuenta de efectivo</h2>
-            <p class="mb-1">@income.CategoryName</p>
+            <p class="mb-1">@income.AccountName</p>
             <p class="mb-0">@income.CashAccountName</p>
         </div>
     </div>

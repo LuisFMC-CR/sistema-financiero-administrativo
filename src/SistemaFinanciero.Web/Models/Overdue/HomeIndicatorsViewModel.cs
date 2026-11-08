@@ -1,13 +1,9 @@
-using SistemaFinanciero.Application.Budgets;
-
 namespace SistemaFinanciero.Web.Models.Overdue;
 
 /// <summary>
-/// Indicadores de inicio para Gerencia y Finanzas: cuentas vencidas (regla 9) y presupuestos
-/// excedidos del mes actual (RF-92, bloque 7 del paquete de mejoras finales, punto 10).
+/// Indicadores de inicio: vencimientos para los perfiles con acceso a CxC/CxP y presupuestos
+/// excedidos del mes actual solo para Gerencia y Finanzas.
 /// </summary>
 public sealed record HomeIndicatorsViewModel(
-    OverdueIndicatorViewModel Overdue,
-    BudgetExceededSummary ExceededBudgets,
-    int PeriodYear,
-    int PeriodMonth);
+    OverdueIndicatorViewModel? Overdue,
+    HomeBudgetIndicatorViewModel? Budget);

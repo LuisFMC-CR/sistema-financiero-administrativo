@@ -8,20 +8,35 @@
             <li class="page-item @(!Model.HasPreviousPage ? "disabled" : null)">
                 <a class="page-link"
                    asp-action="Index"
-                   asp-route-search="@Model.Search"
-                   asp-route-status="@Model.Status"
+                   asp-route-code="@Model.Query.Code"
+                   asp-route-name="@Model.Query.Name"
+                   asp-route-identification="@Model.Query.Identification"
+                   asp-route-contact="@Model.Query.Contact"
+                   asp-route-itemType="@Model.Query.ItemType"
+                   asp-route-cabysCode="@Model.Query.CabysCode"
+                   asp-route-unitOfMeasure="@Model.Query.UnitOfMeasure"
+                   asp-route-referencePrice="@Model.Query.ReferencePrice?.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)"
+                   asp-route-taxTypeName="@Model.Query.TaxTypeName"
+                   asp-route-status="@Model.Query.Status"
                    asp-route-page="@(Model.CurrentPage - 1)"
                    aria-disabled="@(!Model.HasPreviousPage)">Anterior</a>
             </li>
             <li class="page-item @(!Model.HasNextPage ? "disabled" : null)">
                 <a class="page-link"
                    asp-action="Index"
-                   asp-route-search="@Model.Search"
-                   asp-route-status="@Model.Status"
+                   asp-route-code="@Model.Query.Code"
+                   asp-route-name="@Model.Query.Name"
+                   asp-route-identification="@Model.Query.Identification"
+                   asp-route-contact="@Model.Query.Contact"
+                   asp-route-itemType="@Model.Query.ItemType"
+                   asp-route-cabysCode="@Model.Query.CabysCode"
+                   asp-route-unitOfMeasure="@Model.Query.UnitOfMeasure"
+                   asp-route-referencePrice="@Model.Query.ReferencePrice?.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)"
+                   asp-route-taxTypeName="@Model.Query.TaxTypeName"
+                   asp-route-status="@Model.Query.Status"
                    asp-route-page="@(Model.CurrentPage + 1)"
                    aria-disabled="@(!Model.HasNextPage)">Siguiente</a>
             </li>
         </ul>
     </nav>
 }
-

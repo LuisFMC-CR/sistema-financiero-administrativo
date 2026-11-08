@@ -11,7 +11,8 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Configurations;
 /// <remarks>
 /// Conexiones: <c>FinancialDbContext.OnModelCreating</c> la aplica por convención.
 /// <c>InvoiceService.ConfirmAsync</c> la crea cuando la factura es a crédito;
-/// <c>InvoiceService.CancelAsync</c> la anula en cascada. <c>CK_CuentasPorCobrar_Balance</c> repite en
+/// <c>CreditNoteService.RegisterAsync</c> la liquida al registrar una nota de crédito.
+/// <c>CK_CuentasPorCobrar_Balance</c> repite en
 /// SQL la invariante 0 ≤ <c>Balance</c> ≤ <c>OriginalAmount</c> que ya exige el dominio.
 /// </remarks>
 internal sealed class ReceivableConfiguration : IEntityTypeConfiguration<Receivable>

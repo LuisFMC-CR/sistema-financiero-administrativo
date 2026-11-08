@@ -30,16 +30,34 @@ public sealed class TaxesAndWithholdingsController(
 {
     [HttpGet("")]
     public async Task<IActionResult> Index(
-        string? taxSearch,
+        string? taxCode = null,
+        string? taxName = null,
+        string? haciendaRateCode = null,
+        decimal? taxRate = null,
         CatalogStatusFilter taxStatus = CatalogStatusFilter.Active,
         int taxPage = 1,
-        string? withholdingSearch = null,
+        string? withholdingCode = null,
+        string? withholdingName = null,
+        decimal? withholdingRate = null,
+        decimal? minimumBase = null,
         CatalogStatusFilter withholdingStatus = CatalogStatusFilter.Active,
         int withholdingPage = 1,
         CancellationToken cancellationToken = default)
     {
-        CatalogQuery taxQuery = new(NormalizeSearch(taxSearch), NormalizeStatus(taxStatus), taxPage);
-        CatalogQuery withholdingQuery = new(NormalizeSearch(withholdingSearch), NormalizeStatus(withholdingStatus), withholdingPage);
+        CatalogQuery taxQuery = new(
+            status: NormalizeStatus(taxStatus),
+            page: taxPage,
+            code: taxCode,
+            name: taxName,
+            haciendaRateCode: haciendaRateCode,
+            rate: taxRate);
+        CatalogQuery withholdingQuery = new(
+            status: NormalizeStatus(withholdingStatus),
+            page: withholdingPage,
+            code: withholdingCode,
+            name: withholdingName,
+            rate: withholdingRate,
+            minimumBase: minimumBase);
 
         PagedResult<TaxTypeModel> taxTypes = await taxTypeService.SearchAsync(taxQuery, cancellationToken);
         PagedResult<WithholdingTypeModel> withholdingTypes = await withholdingTypeService.SearchAsync(withholdingQuery, cancellationToken);
@@ -49,11 +67,9 @@ public sealed class TaxesAndWithholdingsController(
 
         return View(new TaxesAndWithholdingsIndexViewModel(
             taxTypes,
-            taxQuery.Search,
-            taxQuery.Status,
+            taxQuery,
             withholdingTypes,
-            withholdingQuery.Search,
-            withholdingQuery.Status,
+            withholdingQuery,
             canManage,
             canAdd));
     }

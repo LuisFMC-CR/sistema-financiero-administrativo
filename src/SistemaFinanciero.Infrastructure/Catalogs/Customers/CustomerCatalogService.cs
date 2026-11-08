@@ -44,6 +44,28 @@ internal sealed class CustomerCatalogService(
                 (customer.Email != null && customer.Email.Contains(search)));
         }
 
+        if (query.Code is not null)
+        {
+            customers = customers.Where(customer => customer.Code.Contains(query.Code));
+        }
+
+        if (query.Name is not null)
+        {
+            customers = customers.Where(customer => customer.Name.Contains(query.Name));
+        }
+
+        if (query.Identification is not null)
+        {
+            customers = customers.Where(customer => customer.Identification.Contains(query.Identification));
+        }
+
+        if (query.Contact is not null)
+        {
+            customers = customers.Where(customer =>
+                (customer.Email != null && customer.Email.Contains(query.Contact)) ||
+                (customer.Phone != null && customer.Phone.Contains(query.Contact)));
+        }
+
         PagedResult<Customer> page = await CatalogPersistence.ToPageAsync(
             customers.OrderBy(customer => customer.Name).ThenBy(customer => customer.Code),
             query.Page,

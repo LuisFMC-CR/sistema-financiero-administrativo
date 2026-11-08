@@ -228,18 +228,18 @@ public sealed class TaxesAndWithholdingsControllerTests
         TaxesAndWithholdingsController controller = CreateController(taxService, withholdingService, isManagement: true);
 
         IActionResult result = await controller.Index(
-            taxSearch: new string('x', 150),
+            taxCode: new string('x', 150),
             taxStatus: (CatalogStatusFilter)999,
             taxPage: 1,
-            withholdingSearch: new string('y', 150),
+            withholdingCode: new string('y', 150),
             withholdingStatus: (CatalogStatusFilter)999,
             withholdingPage: 1,
             cancellationToken: CancellationToken.None);
 
         Assert.IsType<ViewResult>(result);
-        Assert.Equal(new string('x', 100), taxService.LastQuery!.Search);
+        Assert.Equal(new string('x', 30), taxService.LastQuery!.Code);
         Assert.Equal(CatalogStatusFilter.Active, taxService.LastQuery.Status);
-        Assert.Equal(new string('y', 100), withholdingService.LastQuery!.Search);
+        Assert.Equal(new string('y', 30), withholdingService.LastQuery!.Code);
         Assert.Equal(CatalogStatusFilter.Active, withholdingService.LastQuery.Status);
     }
 
