@@ -60,6 +60,8 @@ public static class AuditDisplayExtensions
             OperationLogEntityType.Expense => "Gasto",
             OperationLogEntityType.Payable => "Cuenta por pagar",
             OperationLogEntityType.SupplierPayment => "Pago a proveedor",
+            OperationLogEntityType.CreditNote => "Nota de crédito",
+            OperationLogEntityType.CashTransfer => "Traspaso",
             _ => entityType.ToString(),
         };
     }

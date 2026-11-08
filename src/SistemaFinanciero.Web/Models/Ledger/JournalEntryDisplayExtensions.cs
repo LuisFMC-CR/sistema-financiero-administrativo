@@ -13,6 +13,8 @@ public static class JournalEntryDisplayExtensions
         JournalEntrySourceType.Expense => "Gasto",
         JournalEntrySourceType.SupplierPayment => "Pago a proveedor",
         JournalEntrySourceType.BalanceAdjustment => "Ajuste de saldo",
+        JournalEntrySourceType.CreditNote => "Nota de crédito",
+        JournalEntrySourceType.CashTransfer => "Traspaso",
         _ => "Desconocido",
     };
 }

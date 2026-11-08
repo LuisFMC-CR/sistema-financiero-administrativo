@@ -1,0 +1,54 @@
+@using SistemaFinanciero.Application.CashTransfers
+@using SistemaFinanciero.Application.Security
+@using SistemaFinanciero.Domain.CashTransfers
+@using SistemaFinanciero.Domain.Ledger
+@using SistemaFinanciero.Web.Models.CashTransfers
+@model CashTransferDetailsViewModel
+@{
+    ViewData["Title"] = "Detalle de traspaso";
+    CashTransferModel transfer = Model.CashTransfer;
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+    <div>
+        <h1 class="h2 mb-1">Traspaso @transfer.Code</h1>
+        <p class="text-body-secondary mb-0">
+            Estado: <strong>@transfer.Status.ToDisplayName()</strong>
+            @if (transfer.Status == CashTransferStatus.Cancelled && !string.IsNullOrWhiteSpace(transfer.CancellationReason))
+            {
+                <text> — Motivo: @transfer.CancellationReason</text>
+            }
+        </p>
+    </div>
+    <div class="d-flex gap-2">
+        @if (Model.CanCancel)
+        {
+            <a asp-action="Cancel" asp-route-id="@transfer.Id" class="btn btn-danger">Anular</a>
+        }
+        @if ((await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ViewFinancialReports)).Succeeded)
+        {
+            <a asp-controller="JournalEntries" asp-action="Trace"
+               asp-route-sourceType="@((int)JournalEntrySourceType.CashTransfer)" asp-route-sourceId="@transfer.Id"
+               class="btn btn-outline-secondary">Ver asiento</a>
+        }
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card card-body h-100">
+            <h2 class="h5">Cuentas</h2>
+            <p class="mb-1">Origen: @transfer.SourceCashAccountName</p>
+            <p class="mb-0">Destino: @transfer.DestinationCashAccountName</p>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card card-body h-100">
+            <h2 class="h5">Montos y referencia</h2>
+            <p class="mb-1 fw-semibold">₡@transfer.Amount.ToString("N2")</p>
+            <p class="mb-1">Fecha: @transfer.TransferDate.ToString("dd/MM/yyyy")</p>
+            <p class="mb-1">Referencia: @transfer.Reference</p>
+            <p class="mb-0">Descripción: @transfer.Description</p>
+        </div>
+    </div>
+</div>

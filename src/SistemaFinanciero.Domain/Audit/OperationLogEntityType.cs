@@ -30,4 +30,7 @@ public enum OperationLogEntityType
 
     /// <summary>Nota de crédito interna que anula una factura.</summary>
     CreditNote = 8,
+
+    /// <summary>Traspaso entre dos cuentas de efectivo propias.</summary>
+    CashTransfer = 9,
 }

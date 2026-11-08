@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using SistemaFinanciero.Domain.Adjustments;
 using SistemaFinanciero.Domain.Audit;
 using SistemaFinanciero.Domain.Budgets;
+using SistemaFinanciero.Domain.CashTransfers;
 using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.CreditNotes;
 using SistemaFinanciero.Domain.Expenses;
@@ -115,6 +116,9 @@ public sealed class FinancialDbContext(
 
     /// <summary>Notas de crédito internas que anulan facturas y conservan sus líneas.</summary>
     public DbSet<CreditNote> CreditNotes => Set<CreditNote>();
+
+    /// <summary>Traspasos entre cuentas de efectivo propias (paquete v8, bloque 1).</summary>
+    public DbSet<CashTransfer> CashTransfers => Set<CashTransfer>();
 
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder builder)

@@ -1,0 +1,130 @@
+@using Microsoft.AspNetCore.Mvc.Rendering
+@using SistemaFinanciero.Application.CashTransfers
+@using SistemaFinanciero.Application.Security
+@using SistemaFinanciero.Domain.CashTransfers
+@using SistemaFinanciero.Web.Models.CashTransfers
+@model CashTransferIndexViewModel
+@{
+    ViewData["Title"] = "Traspasos";
+    bool canCreate = (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ConfirmFinancialTransactions)).Succeeded;
+    bool canCancel = (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.VoidFinancialTransactions)).Succeeded;
+    int columnCount = canCancel ? 6 : 5;
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+    <div>
+        <h1 class="h2 mb-1">Traspasos</h1>
+        <p class="text-body-secondary mb-0">
+            Movimientos de dinero entre cuentas de efectivo propias. No son ingresos ni gastos.
+        </p>
+    </div>
+    @if (canCreate)
+    {
+        <a asp-action="Create" class="btn btn-primary">Nuevo traspaso</a>
+    }
+</div>
+
+<form method="get" role="search">
+<div class="table-responsive bg-white border rounded">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th scope="col">Fecha</th>
+                <th scope="col">Origen</th>
+                <th scope="col">Destino</th>
+                <th scope="col" class="text-end">Monto</th>
+                <th scope="col">Estado</th>
+                @if (canCancel)
+                {
+                    <th scope="col" class="text-end">Acciones</th>
+                }
+            </tr>
+            <tr class="table-filter-row">
+                <th class="p-2">
+                    <div class="d-flex gap-1">
+                        <input name="transferDateFrom" type="date" value="@Model.Query.TransferDateFrom?.ToString("yyyy-MM-dd")" class="form-control form-control-sm" aria-label="Fecha desde" />
+                        <input name="transferDateTo" type="date" value="@Model.Query.TransferDateTo?.ToString("yyyy-MM-dd")" class="form-control form-control-sm" aria-label="Fecha hasta" />
+                    </div>
+                </th>
+                <th class="p-2">
+                    <select name="cashAccountId" class="form-select form-select-sm" aria-label="Filtrar por cuenta de origen o destino">
+                        <option value="">Origen o destino</option>
+                        @foreach (SelectListItem option in Model.CashAccountOptions)
+                        {
+                            <option value="@option.Value" selected="@option.Selected">@option.Text</option>
+                        }
+                    </select>
+                </th>
+                <th class="p-2">
+                    <input name="code" value="@Model.Query.Code" class="form-control form-control-sm" placeholder="Código" aria-label="Filtrar por código" />
+                </th>
+                <th class="p-2">
+                    <select name="status" class="form-select form-select-sm" aria-label="Filtrar por estado">
+                        @foreach (CashTransferStatusFilter status in Enum.GetValues<CashTransferStatusFilter>())
+                        {
+                            if (status == Model.Query.Status)
+                            {
+                                <option value="@status" selected>@status.ToDisplayName()</option>
+                            }
+                            else
+                            {
+                                <option value="@status">@status.ToDisplayName()</option>
+                            }
+                        }
+                    </select>
+                </th>
+                @if (canCancel)
+                {
+                    <th class="p-2"></th>
+                }
+            </tr>
+            <tr>
+                <th colspan="@columnCount" class="p-2 text-end">
+                    <button type="submit" class="btn btn-sm btn-primary" aria-label="Buscar traspasos" title="Buscar">
+                        <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5" /><path d="m10.5 10.5 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+                    </button>
+                    <a asp-action="Index" class="btn btn-sm btn-outline-secondary" aria-label="Limpiar filtros" title="Limpiar">
+                        <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 4h10M6 4V2.5h4V4m2 0-.6 9H4.6L4 4m2.5 2v4.5m3-4.5v4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                    </a>
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.Results.Items.Count == 0)
+            {
+                <tr><td colspan="@columnCount" class="text-center text-body-secondary py-4">No se encontraron traspasos.</td></tr>
+            }
+            @foreach (CashTransferModel transfer in Model.Results.Items)
+            {
+                <tr>
+                    <td class="fw-semibold">
+                        <a asp-action="Details" asp-route-id="@transfer.Id">@transfer.TransferDate.ToString("dd/MM/yyyy")</a>
+                        <br /><small class="text-body-secondary">@transfer.Code</small>
+                    </td>
+                    <td>@transfer.SourceCashAccountName</td>
+                    <td>@transfer.DestinationCashAccountName</td>
+                    <td class="text-end">₡@transfer.Amount.ToString("N2")</td>
+                    <td>
+                        @transfer.Status.ToDisplayName()
+                        @if (transfer.Status == CashTransferStatus.Cancelled && !string.IsNullOrWhiteSpace(transfer.CancellationReason))
+                        {
+                            <br /><small class="text-body-secondary">@transfer.CancellationReason</small>
+                        }
+                    </td>
+                    @if (canCancel)
+                    {
+                        <td class="text-end">
+                            @if (transfer.Status == CashTransferStatus.Active)
+                            {
+                                <a asp-action="Cancel" asp-route-id="@transfer.Id" class="btn btn-sm btn-outline-danger">Anular</a>
+                            }
+                        </td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+</form>
+
+<partial name="_Pagination" model="Model" />

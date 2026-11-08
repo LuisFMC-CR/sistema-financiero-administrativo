@@ -31,4 +31,7 @@ public enum JournalEntrySourceType
 
     /// <summary>Nota de crédito interna.</summary>
     CreditNote = 7,
+
+    /// <summary>Traspaso entre dos cuentas de efectivo propias.</summary>
+    CashTransfer = 8,
 }

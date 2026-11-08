@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SistemaFinanciero.Domain.Adjustments;
+using SistemaFinanciero.Domain.CashTransfers;
 using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.CreditNotes;
 using SistemaFinanciero.Domain.Expenses;
@@ -338,6 +339,32 @@ internal static class JournalPostingService
             JournalEntrySourceType.CreditNote,
             creditNote.Id,
             creditNote.IssueDate,
+            lines,
+            postedAtUtc,
+            actorId,
+            cancellationToken);
+    }
+
+    /// <summary>Traspaso entre cuentas de efectivo: débito cuenta de destino, crédito cuenta de origen.</summary>
+    public static async Task PostCashTransferAsync(
+        FinancialDbContext dbContext,
+        CashTransfer transfer,
+        DateTimeOffset postedAtUtc,
+        Guid actorId,
+        CancellationToken cancellationToken)
+    {
+        List<JournalEntryLineInput> lines =
+        [
+            new(transfer.DestinationCashAccountId, transfer.Amount, 0m),
+            new(transfer.SourceCashAccountId, 0m, transfer.Amount),
+        ];
+
+        await CreateEntryAsync(
+            dbContext,
+            $"Traspaso {transfer.Code}",
+            JournalEntrySourceType.CashTransfer,
+            transfer.Id,
+            transfer.TransferDate,
             lines,
             postedAtUtc,
             actorId,

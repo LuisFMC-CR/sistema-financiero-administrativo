@@ -246,7 +246,7 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_BitacoraOperaciones_Action", "[Action] BETWEEN 1 AND 3");
 
-                            t.HasCheckConstraint("CK_BitacoraOperaciones_EntityType", "[EntityType] BETWEEN 1 AND 8");
+                            t.HasCheckConstraint("CK_BitacoraOperaciones_EntityType", "[EntityType] BETWEEN 1 AND 9");
                         });
                 });
 
@@ -343,6 +343,102 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_PresupuestoCambios_NewAmount", "[NewAmount] >= 0");
 
                             t.HasCheckConstraint("CK_PresupuestoCambios_PreviousAmount", "[PreviousAmount] IS NULL OR [PreviousAmount] >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("SistemaFinanciero.Domain.CashTransfers.CashTransfer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateTimeOffset?>("CancelledAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CancelledByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<Guid>("DestinationCashAccountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<Guid>("SourceCashAccountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly>("TransferDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("UpdatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CancelledByUserId");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Traspasos_Code");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.HasIndex("DestinationCashAccountId", "Reference")
+                        .HasDatabaseName("IX_Traspasos_DestinationCashAccountId_Reference");
+
+                    b.HasIndex("SourceCashAccountId", "Reference")
+                        .HasDatabaseName("IX_Traspasos_SourceCashAccountId_Reference");
+
+                    b.HasIndex("Status", "TransferDate")
+                        .HasDatabaseName("IX_Traspasos_Status_TransferDate");
+
+                    b.ToTable("Traspasos", "finanzas", t =>
+                        {
+                            t.HasCheckConstraint("CK_Traspasos_Amount", "[Amount] > 0");
+
+                            t.HasCheckConstraint("CK_Traspasos_DifferentAccounts", "[SourceCashAccountId] <> [DestinationCashAccountId]");
+
+                            t.HasCheckConstraint("CK_Traspasos_Status", "[Status] IN (1, 2)");
                         });
                 });
 
@@ -1617,7 +1713,7 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_Asientos_Number", "[Number] > 0");
 
-                            t.HasCheckConstraint("CK_Asientos_SourceType", "[SourceType] BETWEEN 1 AND 7");
+                            t.HasCheckConstraint("CK_Asientos_SourceType", "[SourceType] BETWEEN 1 AND 8");
                         });
                 });
 
@@ -2713,6 +2809,43 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("FK_PresupuestoCambios_Usuarios_ChangedBy");
+                });
+
+            modelBuilder.Entity("SistemaFinanciero.Domain.CashTransfers.CashTransfer", b =>
+                {
+                    b.HasOne("SistemaFinanciero.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CancelledByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_Traspasos_Usuarios_CancelledBy");
+
+                    b.HasOne("SistemaFinanciero.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_Traspasos_Usuarios_CreatedBy");
+
+                    b.HasOne("SistemaFinanciero.Domain.Catalogs.LedgerAccount", null)
+                        .WithMany()
+                        .HasForeignKey("DestinationCashAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_Traspasos_CuentasContables_Destination");
+
+                    b.HasOne("SistemaFinanciero.Domain.Catalogs.LedgerAccount", null)
+                        .WithMany()
+                        .HasForeignKey("SourceCashAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_Traspasos_CuentasContables_Source");
+
+                    b.HasOne("SistemaFinanciero.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_Traspasos_Usuarios_UpdatedBy");
                 });
 
             modelBuilder.Entity("SistemaFinanciero.Domain.Catalogs.CatalogItem", b =>

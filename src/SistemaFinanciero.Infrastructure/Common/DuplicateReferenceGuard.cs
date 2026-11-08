@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SistemaFinanciero.Domain.CashTransfers;
 using SistemaFinanciero.Domain.Incomes;
 using SistemaFinanciero.Domain.Payables;
 using SistemaFinanciero.Domain.Receivables;
@@ -8,13 +9,15 @@ namespace SistemaFinanciero.Infrastructure.Common;
 
 /// <summary>
 /// Comprueba si una referencia ya se usó antes en la misma cuenta de efectivo (regla de negocio 10):
-/// advierte, sin bloquear, en un ingreso, un abono o un pago.
+/// advierte, sin bloquear, en un ingreso, un abono, un pago o un traspaso.
 /// </summary>
 /// <remarks>
 /// Conexiones: la usan <c>ReceivablePaymentService</c>, <c>SupplierPaymentService</c>,
-/// <c>IncomeService</c> e <c>InvoiceService</c> (factura de contado, que genera un ingreso igual que
-/// un abono); busca en las tres tablas de movimientos de efectivo, sin importar su estado, porque la
-/// regla solo exige advertir, no distinguir vigentes de anulados.
+/// <c>IncomeService</c>, <c>InvoiceService</c> (factura de contado, que genera un ingreso igual que
+/// un abono) y <c>CashTransferService</c>; busca en las cuatro tablas de movimientos de efectivo, sin
+/// importar su estado, porque la regla solo exige advertir, no distinguir vigentes de anulados. En
+/// <c>Traspasos</c> compara contra el origen y el destino, porque la referencia puede repetirse en
+/// cualquiera de las dos cuentas.
 /// </remarks>
 internal static class DuplicateReferenceGuard
 {
@@ -46,10 +49,22 @@ internal static class DuplicateReferenceGuard
             return true;
         }
 
-        return await dbContext.Set<Income>()
+        bool existsInIncomes = await dbContext.Set<Income>()
             .AsNoTracking()
             .AnyAsync(
                 income => income.CashAccountId == cashAccountId && income.Reference == reference,
+                cancellationToken);
+
+        if (existsInIncomes)
+        {
+            return true;
+        }
+
+        return await dbContext.Set<CashTransfer>()
+            .AsNoTracking()
+            .AnyAsync(
+                transfer => (transfer.SourceCashAccountId == cashAccountId || transfer.DestinationCashAccountId == cashAccountId)
+                    && transfer.Reference == reference,
                 cancellationToken);
     }
 }

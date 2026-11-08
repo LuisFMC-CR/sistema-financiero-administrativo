@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SistemaFinanciero.Application.Adjustments;
 using SistemaFinanciero.Application.Audit;
 using SistemaFinanciero.Application.Budgets;
+using SistemaFinanciero.Application.CashTransfers;
 using SistemaFinanciero.Application.Catalogs.Customers;
 using SistemaFinanciero.Application.Catalogs.Items;
 using SistemaFinanciero.Application.Catalogs.LedgerAccounts;
@@ -26,6 +27,7 @@ using SistemaFinanciero.Application.Security.Users;
 using SistemaFinanciero.Infrastructure.Adjustments;
 using SistemaFinanciero.Infrastructure.Audit;
 using SistemaFinanciero.Infrastructure.Budgets;
+using SistemaFinanciero.Infrastructure.CashTransfers;
 using SistemaFinanciero.Infrastructure.Catalogs.Customers;
 using SistemaFinanciero.Infrastructure.Catalogs.Items;
 using SistemaFinanciero.Infrastructure.Catalogs.LedgerAccounts;
@@ -152,6 +154,7 @@ public static class DependencyInjection
         services.AddScoped<IReportService, ReportService>();
         services.AddScoped<IBalanceAdjustmentService, BalanceAdjustmentService>();
         services.AddScoped<IJournalEntryService, JournalEntryService>();
+        services.AddScoped<ICashTransferService, CashTransferService>();
 
         return services;
     }
