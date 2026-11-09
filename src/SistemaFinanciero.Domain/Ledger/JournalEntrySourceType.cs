@@ -34,4 +34,7 @@ public enum JournalEntrySourceType
 
     /// <summary>Traspaso entre dos cuentas de efectivo propias.</summary>
     CashTransfer = 8,
+
+    /// <summary>Liquidación mensual del IVA.</summary>
+    VatSettlement = 9,
 }

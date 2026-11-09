@@ -246,7 +246,7 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_BitacoraOperaciones_Action", "[Action] BETWEEN 1 AND 3");
 
-                            t.HasCheckConstraint("CK_BitacoraOperaciones_EntityType", "[EntityType] BETWEEN 1 AND 9");
+                            t.HasCheckConstraint("CK_BitacoraOperaciones_EntityType", "[EntityType] BETWEEN 1 AND 10");
                         });
                 });
 
@@ -1713,7 +1713,7 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_Asientos_Number", "[Number] > 0");
 
-                            t.HasCheckConstraint("CK_Asientos_SourceType", "[SourceType] BETWEEN 1 AND 8");
+                            t.HasCheckConstraint("CK_Asientos_SourceType", "[SourceType] BETWEEN 1 AND 9");
                         });
                 });
 
@@ -2550,6 +2550,116 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_Retenciones_Amounts", "[Base] >= 0 AND [Amount] >= 0");
 
                             t.HasCheckConstraint("CK_Retenciones_Rate", "[Rate] >= 0 AND [Rate] <= 100");
+                        });
+                });
+
+            modelBuilder.Entity("SistemaFinanciero.Domain.VatSettlements.VatSettlement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateTimeOffset?>("CancelledAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CancelledByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CashAccountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("CreditCarriedForward")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("PaymentAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("PeriodMonth")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PeriodYear")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<DateOnly>("SettlementDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("UpdatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("VatCreditApplied")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("VatPayableAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CancelledByUserId");
+
+                    b.HasIndex("CashAccountId");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("UX_LiquidacionesIva_Code");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_LiquidacionesIva_Status");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.HasIndex("PeriodYear", "PeriodMonth")
+                        .IsUnique()
+                        .HasDatabaseName("UX_LiquidacionesIva_Period_Vigente")
+                        .HasFilter("[Status] = 1");
+
+                    b.ToTable("LiquidacionesIva", "finanzas", t =>
+                        {
+                            t.HasCheckConstraint("CK_LiquidacionesIva_NonNegativeAmounts", "[VatPayableAmount] >= 0 AND [VatCreditApplied] >= 0 AND [PaymentAmount] >= 0 AND [CreditCarriedForward] >= 0");
+
+                            t.HasCheckConstraint("CK_LiquidacionesIva_Payment", "([PaymentAmount] = 0 AND [CashAccountId] IS NULL AND [Reference] IS NULL) OR ([PaymentAmount] > 0 AND [CashAccountId] IS NOT NULL AND [Reference] IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_LiquidacionesIva_PeriodMonth", "[PeriodMonth] BETWEEN 1 AND 12");
+
+                            t.HasCheckConstraint("CK_LiquidacionesIva_Status", "[Status] IN (1, 2)");
+
+                            t.HasCheckConstraint("CK_LiquidacionesIva_Totals", "[VatPayableAmount] = [VatCreditApplied] + [PaymentAmount]");
                         });
                 });
 
@@ -3525,6 +3635,35 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("FK_Retenciones_TiposRetencion");
+                });
+
+            modelBuilder.Entity("SistemaFinanciero.Domain.VatSettlements.VatSettlement", b =>
+                {
+                    b.HasOne("SistemaFinanciero.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CancelledByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_LiquidacionesIva_Usuarios_CancelledBy");
+
+                    b.HasOne("SistemaFinanciero.Domain.Catalogs.LedgerAccount", null)
+                        .WithMany()
+                        .HasForeignKey("CashAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_LiquidacionesIva_CuentasContables");
+
+                    b.HasOne("SistemaFinanciero.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_LiquidacionesIva_Usuarios_CreatedBy");
+
+                    b.HasOne("SistemaFinanciero.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_LiquidacionesIva_Usuarios_UpdatedBy");
                 });
 
             modelBuilder.Entity("SistemaFinanciero.Infrastructure.Identity.SecurityAuditEvent", b =>

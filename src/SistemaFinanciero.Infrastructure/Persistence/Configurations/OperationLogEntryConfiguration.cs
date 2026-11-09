@@ -20,7 +20,7 @@ internal sealed class OperationLogEntryConfiguration : IEntityTypeConfiguration<
             "seguridad",
             table =>
             {
-                table.HasCheckConstraint("CK_BitacoraOperaciones_EntityType", "[EntityType] BETWEEN 1 AND 9");
+                table.HasCheckConstraint("CK_BitacoraOperaciones_EntityType", "[EntityType] BETWEEN 1 AND 10");
                 table.HasCheckConstraint("CK_BitacoraOperaciones_Action", "[Action] BETWEEN 1 AND 3");
             });
 

@@ -506,3 +506,4 @@ coverage/
 # Configuración local de asistentes de IA
 .claude/settings.local.json
 .claude/worktrees/
+.playwright-mcp/

@@ -1,0 +1,129 @@
+@using SistemaFinanciero.Application.Security
+@using SistemaFinanciero.Application.VatSettlements
+@using SistemaFinanciero.Domain.VatSettlements
+@using SistemaFinanciero.Web.Models.VatSettlements
+@model VatSettlementIndexViewModel
+@{
+    ViewData["Title"] = "Liquidación de IVA";
+    bool canCreate = (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ConfirmFinancialTransactions)).Succeeded;
+    bool canCancel = (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.VoidFinancialTransactions)).Succeeded;
+    int columnCount = canCancel ? 7 : 6;
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+    <div>
+        <h1 class="h2 mb-1">Liquidación de IVA</h1>
+        <p class="text-body-secondary mb-0">
+            Registro interno del pago del IVA. No sustituye la declaración ante Hacienda.
+        </p>
+    </div>
+    @if (canCreate)
+    {
+        <a asp-action="Create" class="btn btn-primary">Nueva liquidación</a>
+    }
+</div>
+
+<form method="get" role="search">
+<div class="table-responsive bg-white border rounded">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th scope="col">Período</th>
+                <th scope="col">Fecha</th>
+                <th scope="col" class="text-end">IVA por pagar</th>
+                <th scope="col" class="text-end">IVA acreditable aplicado</th>
+                <th scope="col" class="text-end">Pago / saldo a favor</th>
+                <th scope="col">Estado</th>
+                @if (canCancel)
+                {
+                    <th scope="col" class="text-end">Acciones</th>
+                }
+            </tr>
+            <tr class="table-filter-row">
+                <th class="p-2">
+                    <input name="periodYear" type="number" value="@Model.Query.PeriodYear" class="form-control form-control-sm" placeholder="Año" aria-label="Filtrar por año" />
+                </th>
+                <th class="p-2"></th>
+                <th class="p-2"></th>
+                <th class="p-2"></th>
+                <th class="p-2"></th>
+                <th class="p-2">
+                    <select name="status" class="form-select form-select-sm" aria-label="Filtrar por estado">
+                        @foreach (VatSettlementStatusFilter status in Enum.GetValues<VatSettlementStatusFilter>())
+                        {
+                            if (status == Model.Query.Status)
+                            {
+                                <option value="@status" selected>@status.ToDisplayName()</option>
+                            }
+                            else
+                            {
+                                <option value="@status">@status.ToDisplayName()</option>
+                            }
+                        }
+                    </select>
+                </th>
+                @if (canCancel)
+                {
+                    <th class="p-2"></th>
+                }
+            </tr>
+            <tr>
+                <th colspan="@columnCount" class="p-2 text-end">
+                    <button type="submit" class="btn btn-sm btn-primary" aria-label="Buscar liquidaciones" title="Buscar">
+                        <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5" /><path d="m10.5 10.5 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+                    </button>
+                    <a asp-action="Index" class="btn btn-sm btn-outline-secondary" aria-label="Limpiar filtros" title="Limpiar">
+                        <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 4h10M6 4V2.5h4V4m2 0-.6 9H4.6L4 4m2.5 2v4.5m3-4.5v4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                    </a>
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.Results.Items.Count == 0)
+            {
+                <tr><td colspan="@columnCount" class="text-center text-body-secondary py-4">No se encontraron liquidaciones.</td></tr>
+            }
+            @foreach (VatSettlementModel settlement in Model.Results.Items)
+            {
+                <tr>
+                    <td class="fw-semibold">
+                        <a asp-action="Details" asp-route-id="@settlement.Id">@settlement.PeriodMonth.ToString("D2")/@settlement.PeriodYear</a>
+                        <br /><small class="text-body-secondary">@settlement.Code</small>
+                    </td>
+                    <td>@settlement.SettlementDate.ToString("dd/MM/yyyy")</td>
+                    <td class="text-end">₡@settlement.VatPayableAmount.ToString("N2")</td>
+                    <td class="text-end">₡@settlement.VatCreditApplied.ToString("N2")</td>
+                    <td class="text-end">
+                        @if (settlement.PaymentAmount > 0)
+                        {
+                            <text>₡@settlement.PaymentAmount.ToString("N2")</text>
+                        }
+                        else
+                        {
+                            <span class="text-body-secondary">Saldo a favor ₡@settlement.CreditCarriedForward.ToString("N2")</span>
+                        }
+                    </td>
+                    <td>
+                        @settlement.Status.ToDisplayName()
+                        @if (settlement.Status == VatSettlementStatus.Cancelled && !string.IsNullOrWhiteSpace(settlement.CancellationReason))
+                        {
+                            <br /><small class="text-body-secondary">@settlement.CancellationReason</small>
+                        }
+                    </td>
+                    @if (canCancel)
+                    {
+                        <td class="text-end">
+                            @if (settlement.Status == VatSettlementStatus.Active)
+                            {
+                                <a asp-action="Cancel" asp-route-id="@settlement.Id" class="btn btn-sm btn-outline-danger">Anular</a>
+                            }
+                        </td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+</form>
+
+<partial name="_Pagination" model="Model" />

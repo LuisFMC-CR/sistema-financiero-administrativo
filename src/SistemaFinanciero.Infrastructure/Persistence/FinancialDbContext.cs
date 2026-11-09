@@ -14,6 +14,7 @@ using SistemaFinanciero.Domain.Ledger;
 using SistemaFinanciero.Domain.Parameters;
 using SistemaFinanciero.Domain.Payables;
 using SistemaFinanciero.Domain.Receivables;
+using SistemaFinanciero.Domain.VatSettlements;
 using SistemaFinanciero.Infrastructure.Identity;
 
 namespace SistemaFinanciero.Infrastructure.Persistence;
@@ -119,6 +120,9 @@ public sealed class FinancialDbContext(
 
     /// <summary>Traspasos entre cuentas de efectivo propias (paquete v8, bloque 1).</summary>
     public DbSet<CashTransfer> CashTransfers => Set<CashTransfer>();
+
+    /// <summary>Liquidaciones mensuales del IVA (paquete v8, bloque 2).</summary>
+    public DbSet<VatSettlement> VatSettlements => Set<VatSettlement>();
 
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder builder)

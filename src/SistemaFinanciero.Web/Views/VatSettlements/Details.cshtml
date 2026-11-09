@@ -1,0 +1,59 @@
+@using SistemaFinanciero.Application.Security
+@using SistemaFinanciero.Application.VatSettlements
+@using SistemaFinanciero.Domain.Ledger
+@using SistemaFinanciero.Domain.VatSettlements
+@using SistemaFinanciero.Web.Models.VatSettlements
+@model VatSettlementDetailsViewModel
+@{
+    ViewData["Title"] = "Detalle de liquidación de IVA";
+    VatSettlementModel settlement = Model.VatSettlement;
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+    <div>
+        <h1 class="h2 mb-1">Liquidación @settlement.Code — @settlement.PeriodMonth.ToString("D2")/@settlement.PeriodYear</h1>
+        <p class="text-body-secondary mb-0">
+            Estado: <strong>@settlement.Status.ToDisplayName()</strong>
+            @if (settlement.Status == VatSettlementStatus.Cancelled && !string.IsNullOrWhiteSpace(settlement.CancellationReason))
+            {
+                <text> — Motivo: @settlement.CancellationReason</text>
+            }
+        </p>
+    </div>
+    <div class="d-flex gap-2">
+        @if (Model.CanCancel)
+        {
+            <a asp-action="Cancel" asp-route-id="@settlement.Id" class="btn btn-danger">Anular</a>
+        }
+        @if ((await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ViewFinancialReports)).Succeeded)
+        {
+            <a asp-controller="JournalEntries" asp-action="Trace"
+               asp-route-sourceType="@((int)JournalEntrySourceType.VatSettlement)" asp-route-sourceId="@settlement.Id"
+               class="btn btn-outline-secondary">Ver asiento</a>
+        }
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card card-body h-100">
+            <h2 class="h5">Montos</h2>
+            <p class="mb-1">IVA por pagar liquidado: ₡@settlement.VatPayableAmount.ToString("N2")</p>
+            <p class="mb-1">IVA acreditable aplicado: ₡@settlement.VatCreditApplied.ToString("N2")</p>
+            <p class="mb-1">Pago a Hacienda: ₡@settlement.PaymentAmount.ToString("N2")</p>
+            <p class="mb-0">Saldo a favor que queda: ₡@settlement.CreditCarriedForward.ToString("N2")</p>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card card-body h-100">
+            <h2 class="h5">Pago</h2>
+            <p class="mb-1">Fecha: @settlement.SettlementDate.ToString("dd/MM/yyyy")</p>
+            <p class="mb-1">Cuenta de efectivo: @(settlement.CashAccountName ?? "—")</p>
+            <p class="mb-0">Referencia: @(settlement.Reference ?? "—")</p>
+        </div>
+    </div>
+</div>
+
+<p class="text-body-secondary small">
+    Registro interno del pago del IVA. No sustituye la declaración ante Hacienda.
+</p>

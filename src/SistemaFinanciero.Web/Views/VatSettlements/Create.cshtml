@@ -1,0 +1,114 @@
+@using SistemaFinanciero.Web.Models.VatSettlements
+@model RegisterVatSettlementViewModel
+@{
+    ViewData["Title"] = "Nueva liquidación de IVA";
+}
+
+<div class="catalog-form">
+    <h1 class="h2">Nueva liquidación de IVA</h1>
+    <p class="text-body-secondary">
+        Registro interno del pago del IVA. No sustituye la declaración ante Hacienda.
+    </p>
+
+    <div class="card card-body mb-4">
+        <form method="get" asp-action="Create" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label asp-for="PeriodYear" class="form-label"></label>
+                <input asp-for="PeriodYear" type="number" class="form-control" />
+            </div>
+            <div class="col-md-3">
+                <label asp-for="PeriodMonth" class="form-label"></label>
+                <select asp-for="PeriodMonth" class="form-select">
+                    @for (int month = 1; month <= 12; month++)
+                    {
+                        <option value="@month" selected="@(month == Model.PeriodMonth)">@month.ToString("D2")</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-outline-primary">Calcular vista previa</button>
+            </div>
+        </form>
+    </div>
+
+    @if (Model.Preview is not null)
+    {
+        <div class="card card-body mb-4">
+            <h2 class="h5">
+                Vista previa — @Model.PeriodMonth!.Value.ToString("D2")/@Model.PeriodYear
+                <a asp-controller="Reports" asp-action="VatPeriod"
+                   asp-route-periodFrom="@(new DateOnly(Model.PeriodYear!.Value, Model.PeriodMonth!.Value, 1).ToString("yyyy-MM-dd"))"
+                   asp-route-periodTo="@(new DateOnly(Model.PeriodYear!.Value, Model.PeriodMonth!.Value, 1).AddMonths(1).AddDays(-1).ToString("yyyy-MM-dd"))"
+                   class="link-secondary small ms-2">Ver reporte de IVA del período</a>
+            </h2>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <p class="mb-1">IVA por pagar del período: ₡@Model.Preview.VatPayableThisPeriod.ToString("N2")</p>
+                    <p class="mb-1">Arrastre de períodos anteriores: ₡@Model.Preview.VatPayableCarriedFromPreviousPeriods.ToString("N2")</p>
+                    <p class="mb-0 fw-semibold">IVA por pagar total: ₡@Model.Preview.VatPayableAmount.ToString("N2")</p>
+                </div>
+                <div class="col-md-6">
+                    <p class="mb-1">IVA acreditable del período: ₡@Model.Preview.VatCreditableThisPeriod.ToString("N2")</p>
+                    <p class="mb-1">Saldo a favor anterior: ₡@Model.Preview.PreviousCreditCarriedForward.ToString("N2")</p>
+                    <p class="mb-0 fw-semibold">IVA acreditable disponible: ₡@Model.Preview.VatCreditAvailable.ToString("N2")</p>
+                </div>
+            </div>
+            <hr />
+            @if (!Model.Preview.CanRegister)
+            {
+                <p class="text-body-secondary mb-0">@Model.Preview.BlockedMessage</p>
+            }
+            else
+            {
+                <p class="mb-1">IVA acreditable aplicado: ₡@Model.Preview.VatCreditApplied.ToString("N2")</p>
+                @if (Model.Preview.PaymentAmount > 0)
+                {
+                    <p class="mb-0 fw-semibold">Monto a pagar a Hacienda: ₡@Model.Preview.PaymentAmount.ToString("N2")</p>
+                }
+                else
+                {
+                    <p class="mb-0 fw-semibold">Sin pago; saldo a favor que queda: ₡@Model.Preview.CreditCarriedForward.ToString("N2")</p>
+                }
+            }
+        </div>
+
+        @if (Model.Preview.CanRegister)
+        {
+            <form method="post" asp-action="Register" class="card card-body">
+                <input type="hidden" asp-for="PeriodYear" />
+                <input type="hidden" asp-for="PeriodMonth" />
+                <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label asp-for="SettlementDate" class="form-label"></label>
+                        <input asp-for="SettlementDate" type="date" class="form-control" />
+                        <span asp-validation-for="SettlementDate" class="text-danger"></span>
+                    </div>
+                    @if (Model.Preview.PaymentAmount > 0)
+                    {
+                        <div class="col-md-4">
+                            <label asp-for="CashAccountId" class="form-label"></label>
+                            <select asp-for="CashAccountId" asp-items="Model.CashAccountOptions" class="form-select">
+                                <option value="">Seleccione una cuenta de efectivo</option>
+                            </select>
+                            <span asp-validation-for="CashAccountId" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Reference" class="form-label"></label>
+                            <input asp-for="Reference" class="form-control" placeholder="N.° del comprobante de pago" />
+                            <span asp-validation-for="Reference" class="text-danger"></span>
+                        </div>
+                    }
+                </div>
+                <div class="d-flex gap-2 mt-3">
+                    <button type="submit" class="btn btn-primary">Registrar liquidación</button>
+                    <a asp-action="Index" class="btn btn-outline-secondary">Cancelar</a>
+                </div>
+            </form>
+        }
+    }
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

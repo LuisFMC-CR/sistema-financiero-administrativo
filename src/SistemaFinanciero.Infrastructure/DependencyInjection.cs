@@ -24,6 +24,7 @@ using SistemaFinanciero.Application.Receivables;
 using SistemaFinanciero.Application.Reports;
 using SistemaFinanciero.Application.Security.Audit;
 using SistemaFinanciero.Application.Security.Users;
+using SistemaFinanciero.Application.VatSettlements;
 using SistemaFinanciero.Infrastructure.Adjustments;
 using SistemaFinanciero.Infrastructure.Audit;
 using SistemaFinanciero.Infrastructure.Budgets;
@@ -45,6 +46,7 @@ using SistemaFinanciero.Infrastructure.Payables;
 using SistemaFinanciero.Infrastructure.Persistence;
 using SistemaFinanciero.Infrastructure.Receivables;
 using SistemaFinanciero.Infrastructure.Reports;
+using SistemaFinanciero.Infrastructure.VatSettlements;
 
 namespace SistemaFinanciero.Infrastructure;
 
@@ -155,6 +157,7 @@ public static class DependencyInjection
         services.AddScoped<IBalanceAdjustmentService, BalanceAdjustmentService>();
         services.AddScoped<IJournalEntryService, JournalEntryService>();
         services.AddScoped<ICashTransferService, CashTransferService>();
+        services.AddScoped<IVatSettlementService, VatSettlementService>();
 
         return services;
     }

@@ -33,4 +33,7 @@ public enum OperationLogEntityType
 
     /// <summary>Traspaso entre dos cuentas de efectivo propias.</summary>
     CashTransfer = 9,
+
+    /// <summary>Liquidación mensual del IVA.</summary>
+    VatSettlement = 10,
 }

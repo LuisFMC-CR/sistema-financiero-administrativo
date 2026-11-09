@@ -15,6 +15,7 @@ public static class JournalEntryDisplayExtensions
         JournalEntrySourceType.BalanceAdjustment => "Ajuste de saldo",
         JournalEntrySourceType.CreditNote => "Nota de crédito",
         JournalEntrySourceType.CashTransfer => "Traspaso",
+        JournalEntrySourceType.VatSettlement => "Liquidación de IVA",
         _ => "Desconocido",
     };
 }

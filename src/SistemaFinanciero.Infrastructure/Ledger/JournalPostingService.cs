@@ -9,6 +9,7 @@ using SistemaFinanciero.Domain.Invoices;
 using SistemaFinanciero.Domain.Ledger;
 using SistemaFinanciero.Domain.Payables;
 using SistemaFinanciero.Domain.Receivables;
+using SistemaFinanciero.Domain.VatSettlements;
 using SistemaFinanciero.Infrastructure.Catalogs;
 using SistemaFinanciero.Infrastructure.Persistence;
 
@@ -365,6 +366,44 @@ internal static class JournalPostingService
             JournalEntrySourceType.CashTransfer,
             transfer.Id,
             transfer.TransferDate,
+            lines,
+            postedAtUtc,
+            actorId,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Liquidación mensual del IVA: débito IVA por pagar (monto liquidado), crédito IVA acreditable
+    /// (monto aplicado) y crédito cuenta de efectivo (monto pagado, si hubo pago). Las líneas en cero
+    /// se omiten (por ejemplo, el pago cuando el período queda con saldo a favor).
+    /// </summary>
+    public static async Task PostVatSettlementAsync(
+        FinancialDbContext dbContext,
+        VatSettlement settlement,
+        DateTimeOffset postedAtUtc,
+        Guid actorId,
+        CancellationToken cancellationToken)
+    {
+        Guid vatPayableAccountId = await GetSystemAccountIdAsync(dbContext, LedgerAccountSystemRole.VatPayable, cancellationToken);
+        Guid vatCreditableAccountId = await GetSystemAccountIdAsync(dbContext, LedgerAccountSystemRole.VatCreditable, cancellationToken);
+
+        List<JournalEntryLineInput> lines =
+        [
+            new(vatPayableAccountId, settlement.VatPayableAmount, 0m),
+            new(vatCreditableAccountId, 0m, settlement.VatCreditApplied),
+        ];
+
+        if (settlement.PaymentAmount > 0m)
+        {
+            lines.Add(new JournalEntryLineInput(settlement.CashAccountId!.Value, 0m, settlement.PaymentAmount));
+        }
+
+        await CreateEntryAsync(
+            dbContext,
+            $"Liquidación de IVA {settlement.PeriodMonth:D2}/{settlement.PeriodYear}",
+            JournalEntrySourceType.VatSettlement,
+            settlement.Id,
+            settlement.SettlementDate,
             lines,
             postedAtUtc,
             actorId,
