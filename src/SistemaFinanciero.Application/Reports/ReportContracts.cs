@@ -358,17 +358,30 @@ public sealed record AnnualBudgetReportResult(
     decimal TotalAnnualBudgeted);
 
 /// <summary>Las entradas y salidas de efectivo de un mes, dentro del flujo de efectivo mensual.</summary>
+/// <summary>
+/// <see cref="TransfersReceived"/> y <see cref="TransfersSent"/> solo se calculan cuando el reporte
+/// está filtrado a una cuenta de efectivo (bloque 3 del paquete v8, punto 1): sin filtro, un traspaso
+/// se compensa a sí mismo (entra a una cuenta propia y sale de otra propia) y se excluye por completo.
+/// <see cref="VatPayments"/> es el pago de liquidaciones de IVA a Hacienda del mes, siempre como
+/// salida, limitado a la cuenta filtrada cuando hay filtro. <see cref="TotalInflow"/> y
+/// <see cref="TotalOutflow"/> ya incluyen estos tres montos.
+/// </summary>
 public sealed record CashFlowReportLine(
     int PeriodYear,
     int PeriodMonth,
     decimal TotalInflow,
     decimal TotalOutflow,
+    decimal TransfersReceived,
+    decimal TransfersSent,
+    decimal VatPayments,
     decimal Net);
 
 /// <summary>
-/// Resultado del flujo de efectivo mensual (RF-86, bloque 7 del paquete de mejoras finales, punto 5):
-/// entradas (ingresos vigentes de facturas de contado, abonos e ingresos manuales) contra salidas
-/// (pagos vigentes y gastos de contado confirmados), con IVA, por mes, con el neto.
+/// Resultado del flujo de efectivo mensual (RF-86, bloque 7 del paquete de mejoras finales, punto 5;
+/// traspasos y pago de liquidaciones de IVA, bloque 3 del paquete v8): entradas (ingresos vigentes de
+/// facturas de contado, abonos e ingresos manuales, y traspasos recibidos cuando se filtra por cuenta)
+/// contra salidas (pagos vigentes, gastos de contado confirmados, pago de liquidaciones de IVA, y
+/// traspasos enviados cuando se filtra por cuenta), con IVA, por mes, con el neto.
 /// <see cref="CashAccountId"/> es nulo cuando el reporte incluye todas las cuentas de efectivo.
 /// </summary>
 public sealed record CashFlowReportResult(
@@ -400,13 +413,30 @@ public sealed record VatPeriodReportLine(
 /// excluye siempre borradores y anulados. Apoyo para la declaración; no sustituye la declaración ante
 /// Hacienda.
 /// </summary>
+/// <summary>
+/// La liquidación de IVA vigente del mes que resume un <see cref="VatPeriodReportResult"/> (bloque 3
+/// del paquete v8, punto 2), cuando <see cref="VatPeriodReportResult.PeriodFrom"/> y
+/// <see cref="VatPeriodReportResult.PeriodTo"/> cubren exactamente ese mes calendario.
+/// </summary>
+public sealed record VatPeriodSettlementSummary(
+    string Code,
+    decimal PaymentAmount,
+    decimal CreditCarriedForward);
+
+/// <summary>
+/// <see cref="Settlement"/> es nulo salvo que el rango cubra exactamente un mes calendario con una
+/// liquidación de IVA vigente; nunca descuenta ni altera <see cref="TotalVatCollected"/> ni
+/// <see cref="TotalVatPaid"/>, que siempre vienen de facturas y gastos, nunca de los asientos de
+/// liquidación.
+/// </summary>
 public sealed record VatPeriodReportResult(
     ReportHeader Header,
     DateOnly PeriodFrom,
     DateOnly PeriodTo,
     IReadOnlyList<VatPeriodReportLine> Lines,
     decimal TotalVatCollected,
-    decimal TotalVatPaid);
+    decimal TotalVatPaid,
+    VatPeriodSettlementSummary? Settlement);
 
 /// <summary>Una retención aplicada por un cliente al abonar una factura.</summary>
 public sealed record WithholdingByCustomerLine(

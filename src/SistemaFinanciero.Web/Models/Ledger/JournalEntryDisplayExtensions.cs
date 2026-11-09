@@ -1,3 +1,4 @@
+using SistemaFinanciero.Application.Ledger;
 using SistemaFinanciero.Domain.Ledger;
 
 namespace SistemaFinanciero.Web.Models.Ledger;
@@ -17,5 +18,35 @@ public static class JournalEntryDisplayExtensions
         JournalEntrySourceType.CashTransfer => "Traspaso",
         JournalEntrySourceType.VatSettlement => "Liquidación de IVA",
         _ => "Desconocido",
+    };
+
+    /// <summary>
+    /// El controlador y la acción Details del documento al que enlaza "ver documento" desde un
+    /// asiento (bloque 3 del paquete v8, trazabilidad en ambos sentidos).
+    /// </summary>
+    public static (string Controller, string Action) ToRoute(this JournalEntryDocumentKind kind) => kind switch
+    {
+        JournalEntryDocumentKind.Invoice => ("Invoices", "Details"),
+        JournalEntryDocumentKind.Receivable => ("Receivables", "Details"),
+        JournalEntryDocumentKind.Income => ("Incomes", "Details"),
+        JournalEntryDocumentKind.Expense => ("Expenses", "Details"),
+        JournalEntryDocumentKind.Payable => ("Payables", "Details"),
+        JournalEntryDocumentKind.CreditNote => ("CreditNotes", "Details"),
+        JournalEntryDocumentKind.CashTransfer => ("CashTransfers", "Details"),
+        JournalEntryDocumentKind.VatSettlement => ("VatSettlements", "Details"),
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
+    };
+
+    public static string ToLinkLabel(this JournalEntryDocumentKind kind) => kind switch
+    {
+        JournalEntryDocumentKind.Invoice => "Ver factura",
+        JournalEntryDocumentKind.Receivable => "Ver cuenta por cobrar",
+        JournalEntryDocumentKind.Income => "Ver ingreso",
+        JournalEntryDocumentKind.Expense => "Ver gasto",
+        JournalEntryDocumentKind.Payable => "Ver cuenta por pagar",
+        JournalEntryDocumentKind.CreditNote => "Ver nota de crédito",
+        JournalEntryDocumentKind.CashTransfer => "Ver traspaso",
+        JournalEntryDocumentKind.VatSettlement => "Ver liquidación de IVA",
+        _ => "Ver documento",
     };
 }

@@ -34,6 +34,21 @@
 
 @if (Model.Result is VatPeriodReportResult result)
 {
+    @if (result.Settlement is { } settlement)
+    {
+        <div class="alert alert-info">
+            Liquidación <strong>@settlement.Code</strong> vigente de este mes:
+            @if (settlement.PaymentAmount > 0)
+            {
+                <text>pago a Hacienda ₡@settlement.PaymentAmount.ToString("N2").</text>
+            }
+            else
+            {
+                <text>saldo a favor ₡@settlement.CreditCarriedForward.ToString("N2").</text>
+            }
+            <a asp-controller="VatSettlements" asp-action="Index" class="ms-1">Ver liquidaciones de IVA</a>
+        </div>
+    }
     <div class="table-responsive bg-white border rounded">
         <table class="table table-hover align-middle mb-0">
             <thead class="table-light">

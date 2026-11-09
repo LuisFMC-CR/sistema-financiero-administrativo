@@ -460,8 +460,8 @@ public sealed class ReportExportTests
         new DateOnly(2010, 2, 28),
         null,
         [
-            new CashFlowReportLine(2010, 1, 500m, 250m, 250m),
-            new CashFlowReportLine(2010, 2, 0m, 100m, -100m),
+            new CashFlowReportLine(2010, 1, 500m, 250m, 0m, 0m, 0m, 250m),
+            new CashFlowReportLine(2010, 2, 0m, 100m, 0m, 0m, 0m, -100m),
         ],
         500m,
         350m,
@@ -473,7 +473,8 @@ public sealed class ReportExportTests
         new DateOnly(2010, 1, 31),
         [new VatPeriodReportLine("08", "IVA 13%", 1000m, 130m, 400m, 52m)],
         130m,
-        52m);
+        52m,
+        null);
 
     private static readonly WithholdingByCustomerReportResult SampleWithholdingByCustomer = new(
         SampleHeader with { ReportName = "Retenciones aplicadas por clientes" },

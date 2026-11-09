@@ -2,6 +2,24 @@ using SistemaFinanciero.Domain.Ledger;
 
 namespace SistemaFinanciero.Application.Ledger;
 
+/// <summary>
+/// El documento al que se debe enlazar de vuelta desde un asiento ("ver documento"), independiente de
+/// <see cref="JournalEntrySourceType"/>: los abonos, los pagos a proveedores y los ajustes de saldo no
+/// tienen pantalla propia, así que su documento de navegación es la cuenta por cobrar o por pagar a la
+/// que pertenecen, no el abono/pago/ajuste mismo.
+/// </summary>
+public enum JournalEntryDocumentKind
+{
+    Invoice = 1,
+    Receivable = 2,
+    Income = 3,
+    Expense = 4,
+    Payable = 5,
+    CreditNote = 6,
+    CashTransfer = 7,
+    VatSettlement = 8,
+}
+
 /// <summary>Una línea de un asiento, lista para mostrar.</summary>
 public sealed record JournalEntryLineModel(
     int LineNumber,
@@ -22,7 +40,9 @@ public sealed record JournalEntryModel(
     Guid? ReversesEntryId,
     IReadOnlyList<JournalEntryLineModel> Lines,
     DateTimeOffset CreatedAtUtc,
-    string CreatedByFullName);
+    string CreatedByFullName,
+    JournalEntryDocumentKind DocumentKind,
+    Guid DocumentId);
 
 /// <summary>
 /// El asiento de un documento y, si existe, su reversión (RF-79), para la trazabilidad "Ver asiento"
@@ -67,7 +87,9 @@ public sealed record JournalEntryListItem(
     Guid SourceId,
     Guid? ReversesEntryId,
     decimal TotalAmount,
-    IReadOnlyList<JournalEntryListLine> Lines);
+    IReadOnlyList<JournalEntryListLine> Lines,
+    JournalEntryDocumentKind DocumentKind,
+    Guid DocumentId);
 
 /// <summary>
 /// Resultado de la consulta general de asientos: el conteo, el total de movimientos (la suma de los

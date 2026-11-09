@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SistemaFinanciero.Application.Budgets;
 using SistemaFinanciero.Application.Reports;
+using SistemaFinanciero.Domain.CashTransfers;
 using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.CreditNotes;
 using SistemaFinanciero.Domain.Expenses;
@@ -10,6 +11,7 @@ using SistemaFinanciero.Domain.Ledger;
 using SistemaFinanciero.Domain.Payables;
 using SistemaFinanciero.Domain.Parameters;
 using SistemaFinanciero.Domain.Receivables;
+using SistemaFinanciero.Domain.VatSettlements;
 using SistemaFinanciero.Infrastructure.Persistence;
 
 namespace SistemaFinanciero.Infrastructure.Reports;
@@ -810,6 +812,42 @@ internal sealed class ReportService(
 
         List<(DateOnly Date, decimal Amount)> outflows = [.. outflowPayments, .. outflowExpenses];
 
+        // Sin filtro de cuenta, un traspaso se compensa a sí mismo (entra a una cuenta propia y sale
+        // de otra propia): se excluye por completo. Con filtro, cuenta como entrada si la cuenta es el
+        // destino y como salida si es el origen (regla de negocio, bloque 3 del paquete v8).
+        List<(DateOnly Date, decimal Amount)> transfersReceived = [];
+        List<(DateOnly Date, decimal Amount)> transfersSent = [];
+        if (cashAccountId.HasValue)
+        {
+            transfersReceived = await dbContext.Set<CashTransfer>()
+                .AsNoTracking()
+                .Where(transfer => transfer.Status == CashTransferStatus.Active
+                    && transfer.TransferDate >= periodFrom
+                    && transfer.TransferDate <= periodTo
+                    && transfer.DestinationCashAccountId == cashAccountId.Value)
+                .Select(transfer => new ValueTuple<DateOnly, decimal>(transfer.TransferDate, transfer.Amount))
+                .ToListAsync(cancellationToken);
+
+            transfersSent = await dbContext.Set<CashTransfer>()
+                .AsNoTracking()
+                .Where(transfer => transfer.Status == CashTransferStatus.Active
+                    && transfer.TransferDate >= periodFrom
+                    && transfer.TransferDate <= periodTo
+                    && transfer.SourceCashAccountId == cashAccountId.Value)
+                .Select(transfer => new ValueTuple<DateOnly, decimal>(transfer.TransferDate, transfer.Amount))
+                .ToListAsync(cancellationToken);
+        }
+
+        List<(DateOnly Date, decimal Amount)> vatPayments = await dbContext.Set<VatSettlement>()
+            .AsNoTracking()
+            .Where(settlement => settlement.Status == VatSettlementStatus.Active
+                && settlement.PaymentAmount > 0
+                && settlement.SettlementDate >= periodFrom
+                && settlement.SettlementDate <= periodTo
+                && (!cashAccountId.HasValue || settlement.CashAccountId == cashAccountId.Value))
+            .Select(settlement => new ValueTuple<DateOnly, decimal>(settlement.SettlementDate, settlement.PaymentAmount))
+            .ToListAsync(cancellationToken);
+
         List<CashFlowReportLine> lines = [];
         DateOnly month = new(periodFrom.Year, periodFrom.Month, 1);
         DateOnly lastMonth = new(periodTo.Year, periodTo.Month, 1);
@@ -818,14 +856,24 @@ internal sealed class ReportService(
         {
             int year = month.Year;
             int monthNumber = month.Month;
-            decimal totalInflow = inflows
-                .Where(inflow => inflow.Date.Year == year && inflow.Date.Month == monthNumber)
-                .Sum(inflow => inflow.Amount);
-            decimal totalOutflow = outflows
-                .Where(outflow => outflow.Date.Year == year && outflow.Date.Month == monthNumber)
-                .Sum(outflow => outflow.Amount);
+            decimal monthInflow = SumForMonth(inflows, year, monthNumber);
+            decimal monthOutflow = SumForMonth(outflows, year, monthNumber);
+            decimal monthTransfersReceived = SumForMonth(transfersReceived, year, monthNumber);
+            decimal monthTransfersSent = SumForMonth(transfersSent, year, monthNumber);
+            decimal monthVatPayments = SumForMonth(vatPayments, year, monthNumber);
 
-            lines.Add(new CashFlowReportLine(year, monthNumber, totalInflow, totalOutflow, totalInflow - totalOutflow));
+            decimal totalInflow = monthInflow + monthTransfersReceived;
+            decimal totalOutflow = monthOutflow + monthTransfersSent + monthVatPayments;
+
+            lines.Add(new CashFlowReportLine(
+                year,
+                monthNumber,
+                totalInflow,
+                totalOutflow,
+                monthTransfersReceived,
+                monthTransfersSent,
+                monthVatPayments,
+                totalInflow - totalOutflow));
             month = month.AddMonths(1);
         }
 
@@ -952,13 +1000,46 @@ internal sealed class ReportService(
             timeProvider.GetUtcNow(),
             generatedByUserName);
 
+        VatPeriodSettlementSummary? settlement = await GetVatPeriodSettlementSummaryAsync(
+            periodFrom, periodTo, cancellationToken);
+
         return new VatPeriodReportResult(
             header,
             periodFrom,
             periodTo,
             lines,
             lines.Sum(line => line.VatCollected),
-            lines.Sum(line => line.VatPaid));
+            lines.Sum(line => line.VatPaid),
+            settlement);
+    }
+
+    /// <summary>
+    /// La liquidación de IVA vigente del mes, solo cuando el rango del reporte cubre exactamente ese
+    /// mes calendario completo (bloque 3 del paquete v8, punto 2); nunca descuenta los totales del
+    /// reporte, que siguen viniendo únicamente de facturas y gastos.
+    /// </summary>
+    private async Task<VatPeriodSettlementSummary?> GetVatPeriodSettlementSummaryAsync(
+        DateOnly periodFrom, DateOnly periodTo, CancellationToken cancellationToken)
+    {
+        bool isSingleCalendarMonth = periodFrom == new DateOnly(periodFrom.Year, periodFrom.Month, 1)
+            && periodTo == periodFrom.AddMonths(1).AddDays(-1);
+
+        if (!isSingleCalendarMonth)
+        {
+            return null;
+        }
+
+        VatSettlement? settlement = await dbContext.Set<VatSettlement>()
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                candidate => candidate.Status == VatSettlementStatus.Active
+                    && candidate.PeriodYear == periodFrom.Year
+                    && candidate.PeriodMonth == periodFrom.Month,
+                cancellationToken);
+
+        return settlement is null
+            ? null
+            : new VatPeriodSettlementSummary(settlement.Code, settlement.PaymentAmount, settlement.CreditCarriedForward);
     }
 
     public async Task<WithholdingByCustomerReportResult> GetWithholdingByCustomerReportAsync(
@@ -1090,6 +1171,9 @@ internal sealed class ReportService(
             .Where(account => ids.Contains(account.Id))
             .ToDictionaryAsync(account => account.Id, cancellationToken);
     }
+
+    private static decimal SumForMonth(IReadOnlyList<(DateOnly Date, decimal Amount)> amounts, int year, int month) =>
+        amounts.Where(entry => entry.Date.Year == year && entry.Date.Month == month).Sum(entry => entry.Amount);
 
     private static void ValidatePeriod(DateOnly periodFrom, DateOnly periodTo)
     {

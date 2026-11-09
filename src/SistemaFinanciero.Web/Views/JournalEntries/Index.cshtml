@@ -118,6 +118,14 @@
                             </tfoot>
                         </table>
                     </div>
+                    @{
+                        (string documentController, string documentAction) = entry.DocumentKind.ToRoute();
+                    }
+                    <div class="mt-2">
+                        <span class="text-body-secondary small">Origen: @entry.SourceType.ToDisplayName()</span>
+                        <a asp-controller="@documentController" asp-action="@documentAction" asp-route-id="@entry.DocumentId"
+                           class="btn btn-outline-secondary btn-sm ms-2">@entry.DocumentKind.ToLinkLabel()</a>
+                    </div>
                 </div>
             </details>
         }

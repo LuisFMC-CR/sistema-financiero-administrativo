@@ -80,6 +80,16 @@ public sealed class VatPeriodReportPdfDocument(VatPeriodReportResult result) : I
                         .FontSize(11).SemiBold();
                 });
 
+                if (result.Settlement is { } settlement)
+                {
+                    string settlementText = settlement.PaymentAmount > 0
+                        ? $"Liquidación {settlement.Code} vigente de este mes: pago a Hacienda "
+                            + $"{ReportDocumentStyles.FormatCrc(settlement.PaymentAmount)}."
+                        : $"Liquidación {settlement.Code} vigente de este mes: saldo a favor "
+                            + $"{ReportDocumentStyles.FormatCrc(settlement.CreditCarriedForward)}.";
+                    column.Item().PaddingTop(4).Element(innerContainer => ReportDocumentStyles.ComposeNote(innerContainer, settlementText));
+                }
+
                 column.Item().Element(innerContainer => ReportDocumentStyles.ComposeNote(innerContainer, Disclaimer));
             });
 

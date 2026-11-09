@@ -1,7 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using SistemaFinanciero.Application.Ledger;
+using SistemaFinanciero.Domain.Adjustments;
 using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Ledger;
+using SistemaFinanciero.Domain.Payables;
+using SistemaFinanciero.Domain.Receivables;
 using SistemaFinanciero.Infrastructure.Persistence;
 
 namespace SistemaFinanciero.Infrastructure.Ledger;
@@ -45,10 +48,12 @@ internal sealed class JournalEntryService(FinancialDbContext dbContext) : IJourn
         IReadOnlyDictionary<Guid, (string Code, string Name)> accounts = await GetAccountInfoAsync(both, cancellationToken);
         IReadOnlyDictionary<Guid, string> userNames = await GetUserNamesAsync(
             both.Select(entry => entry.CreatedByUserId), cancellationToken);
+        Dictionary<Guid, (JournalEntryDocumentKind Kind, Guid DocumentId)> documentLinks =
+            await ResolveDocumentLinksAsync(both, cancellationToken);
 
         return new JournalEntryTraceModel(
-            Map(original, accounts, userNames),
-            reversal is null ? null : Map(reversal, accounts, userNames));
+            Map(original, accounts, userNames, documentLinks),
+            reversal is null ? null : Map(reversal, accounts, userNames, documentLinks));
     }
 
     public async Task<JournalEntryListResult> SearchAsync(
@@ -83,6 +88,8 @@ internal sealed class JournalEntryService(FinancialDbContext dbContext) : IJourn
             .ToListAsync(cancellationToken);
 
         IReadOnlyDictionary<Guid, (string Code, string Name)> accounts = await GetAccountInfoAsync(entries, cancellationToken);
+        Dictionary<Guid, (JournalEntryDocumentKind Kind, Guid DocumentId)> documentLinks =
+            await ResolveDocumentLinksAsync(entries, cancellationToken);
 
         JournalEntryListItem[] items = entries
             .Select(entry =>
@@ -98,6 +105,10 @@ internal sealed class JournalEntryService(FinancialDbContext dbContext) : IJourn
                     })
                     .ToArray();
 
+                (JournalEntryDocumentKind documentKind, Guid documentId) = documentLinks.TryGetValue(entry.SourceId, out var link)
+                    ? link
+                    : (DefaultDocumentKind(entry.SourceType), entry.SourceId);
+
                 return new JournalEntryListItem(
                     entry.Id,
                     entry.Number,
@@ -107,7 +118,9 @@ internal sealed class JournalEntryService(FinancialDbContext dbContext) : IJourn
                     entry.SourceId,
                     entry.ReversesEntryId,
                     lines.Sum(line => line.Debit),
-                    lines);
+                    lines,
+                    documentKind,
+                    documentId);
             })
             .ToArray();
 
@@ -116,6 +129,85 @@ internal sealed class JournalEntryService(FinancialDbContext dbContext) : IJourn
             items.Sum(item => item.TotalAmount),
             items);
     }
+
+    /// <summary>
+    /// Resuelve el documento al que cada asiento debe enlazar de vuelta ("ver documento"): directo
+    /// para los orígenes con pantalla propia (<see cref="DefaultDocumentKind"/>), y a través de la
+    /// cuenta por cobrar o por pagar padre para abonos, pagos a proveedores y ajustes de saldo, que no
+    /// tienen una pantalla propia por id.
+    /// </summary>
+    private async Task<Dictionary<Guid, (JournalEntryDocumentKind Kind, Guid DocumentId)>> ResolveDocumentLinksAsync(
+        IReadOnlyCollection<JournalEntry> entries,
+        CancellationToken cancellationToken)
+    {
+        Dictionary<Guid, (JournalEntryDocumentKind Kind, Guid DocumentId)> links = [];
+
+        Guid[] receivablePaymentIds = SourceIds(entries, JournalEntrySourceType.ReceivablePayment);
+        if (receivablePaymentIds.Length > 0)
+        {
+            var payments = await dbContext.Set<ReceivablePayment>()
+                .AsNoTracking()
+                .Where(payment => receivablePaymentIds.Contains(payment.Id))
+                .Select(payment => new { payment.Id, payment.ReceivableId })
+                .ToListAsync(cancellationToken);
+            foreach (var payment in payments)
+            {
+                links[payment.Id] = (JournalEntryDocumentKind.Receivable, payment.ReceivableId);
+            }
+        }
+
+        Guid[] supplierPaymentIds = SourceIds(entries, JournalEntrySourceType.SupplierPayment);
+        if (supplierPaymentIds.Length > 0)
+        {
+            var payments = await dbContext.Set<SupplierPayment>()
+                .AsNoTracking()
+                .Where(payment => supplierPaymentIds.Contains(payment.Id))
+                .Select(payment => new { payment.Id, payment.PayableId })
+                .ToListAsync(cancellationToken);
+            foreach (var payment in payments)
+            {
+                links[payment.Id] = (JournalEntryDocumentKind.Payable, payment.PayableId);
+            }
+        }
+
+        Guid[] adjustmentIds = SourceIds(entries, JournalEntrySourceType.BalanceAdjustment);
+        if (adjustmentIds.Length > 0)
+        {
+            var adjustments = await dbContext.Set<BalanceAdjustment>()
+                .AsNoTracking()
+                .Where(adjustment => adjustmentIds.Contains(adjustment.Id))
+                .Select(adjustment => new { adjustment.Id, adjustment.ReceivableId, adjustment.PayableId })
+                .ToListAsync(cancellationToken);
+            foreach (var adjustment in adjustments)
+            {
+                links[adjustment.Id] = adjustment.ReceivableId is Guid receivableId
+                    ? (JournalEntryDocumentKind.Receivable, receivableId)
+                    : (JournalEntryDocumentKind.Payable, adjustment.PayableId!.Value);
+            }
+        }
+
+        return links;
+    }
+
+    private static Guid[] SourceIds(IReadOnlyCollection<JournalEntry> entries, JournalEntrySourceType sourceType) =>
+        entries.Where(entry => entry.SourceType == sourceType).Select(entry => entry.SourceId).Distinct().ToArray();
+
+    /// <summary>
+    /// El documento de navegación de un origen con pantalla propia por id: coincide siempre con
+    /// <see cref="JournalEntry.SourceId"/>. Los orígenes sin pantalla propia (abono, pago a proveedor,
+    /// ajuste de saldo) se resuelven en <see cref="ResolveDocumentLinksAsync"/>, nunca aquí.
+    /// </summary>
+    private static JournalEntryDocumentKind DefaultDocumentKind(JournalEntrySourceType sourceType) => sourceType switch
+    {
+        JournalEntrySourceType.Invoice => JournalEntryDocumentKind.Invoice,
+        JournalEntrySourceType.Income => JournalEntryDocumentKind.Income,
+        JournalEntrySourceType.Expense => JournalEntryDocumentKind.Expense,
+        JournalEntrySourceType.CreditNote => JournalEntryDocumentKind.CreditNote,
+        JournalEntrySourceType.CashTransfer => JournalEntryDocumentKind.CashTransfer,
+        JournalEntrySourceType.VatSettlement => JournalEntryDocumentKind.VatSettlement,
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(sourceType), sourceType, "Este origen no tiene una pantalla propia por id."),
+    };
 
     private async Task<IReadOnlyDictionary<Guid, (string Code, string Name)>> GetAccountInfoAsync(
         IReadOnlyCollection<JournalEntry> entries,
@@ -148,8 +240,13 @@ internal sealed class JournalEntryService(FinancialDbContext dbContext) : IJourn
     private static JournalEntryModel Map(
         JournalEntry entry,
         IReadOnlyDictionary<Guid, (string Code, string Name)> accounts,
-        IReadOnlyDictionary<Guid, string> userNames)
+        IReadOnlyDictionary<Guid, string> userNames,
+        Dictionary<Guid, (JournalEntryDocumentKind Kind, Guid DocumentId)> documentLinks)
     {
+        (JournalEntryDocumentKind documentKind, Guid documentId) = documentLinks.TryGetValue(entry.SourceId, out var link)
+            ? link
+            : (DefaultDocumentKind(entry.SourceType), entry.SourceId);
+
         return new JournalEntryModel(
             entry.Id,
             entry.Number,
@@ -169,6 +266,8 @@ internal sealed class JournalEntryService(FinancialDbContext dbContext) : IJourn
                 })
                 .ToArray(),
             entry.CreatedAtUtc,
-            userNames.GetValueOrDefault(entry.CreatedByUserId, "—"));
+            userNames.GetValueOrDefault(entry.CreatedByUserId, "—"),
+            documentKind,
+            documentId);
     }
 }

@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using SistemaFinanciero.Application.Budgets;
+using SistemaFinanciero.Application.CashTransfers;
+using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.CreditNotes;
 using SistemaFinanciero.Application.Expenses;
 using SistemaFinanciero.Application.Incomes;
@@ -10,6 +12,7 @@ using SistemaFinanciero.Application.Parameters;
 using SistemaFinanciero.Application.Payables;
 using SistemaFinanciero.Application.Receivables;
 using SistemaFinanciero.Application.Reports;
+using SistemaFinanciero.Application.VatSettlements;
 using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Common;
 using SistemaFinanciero.Domain.Invoices;
@@ -781,6 +784,165 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             Assert.Equal("IVA del período", result.Header.ReportName);
 
             _ = draftOnlyInvoice;
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task GetCashFlowReportAsync_IncludesTransfersOnlyWhenFilteredByAccountAndVatPaymentsAlwaysAsOutflow()
+    {
+        // Año fabricado (ver PrepareFabricatedPeriodAsync): no hay movimientos reales antes de él, así
+        // que los montos esperados son absolutos, no relativos a una base medida.
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            Guid mainAccountId = await CreateCashAccountAsync(services, actorId);
+            Guid otherAccountId = await CreateCashAccountAsync(services, actorId);
+            DateOnly transferDate = new(2014, 6, 15);
+            DateOnly settlementDate = new(2014, 7, 5);
+            await PrepareFabricatedPeriodAsync(services, actorId, transferDate, settlementDate);
+            await SetAuthorizationLimitAsync(services, actorId, 10_000m);
+
+            // Entrada manual de 1000 a mainAccount: a diferencia del ingreso que genera una factura de
+            // contado (cuya fecha es la de la confirmación, no la de la factura), el ingreso manual
+            // permite fijar la fecha, necesaria para que caiga dentro del rango fabricado de la prueba.
+            IIncomeService incomes = services.GetRequiredService<IIncomeService>();
+            Guid incomeAccountId = await CreateCategoryAsync(services, actorId, LedgerAccountType.Income);
+            await incomes.CreateManualAsync(
+                new CreateManualIncomeCommand(
+                    incomeAccountId, mainAccountId, 1000m, transferDate, PaymentMethod.Cash, "REC-CF-1", "Entrada de prueba de flujo de efectivo"),
+                actorId);
+
+            // Factura de contado con IVA, solo para generar el IVA por pagar de 130 que liquida la
+            // prueba; su propio ingreso (fechado a la confirmación) no es lo que esta prueba mide.
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            Guid customerId = await CreateCustomerAsync(services, actorId);
+            Guid catalogItemId = await CreateCatalogItemAsync(services, actorId, "Servicio con IVA de prueba de flujo de efectivo");
+
+            FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+            string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+            TaxType vatRate = new(
+                Guid.NewGuid(), $"IVA-{suffix}", "IVA 13% de prueba de flujo de efectivo", 13m, "08", null, DateTimeOffset.UtcNow, actorId);
+            context.TaxTypes.Add(vatRate);
+            await context.SaveChangesAsync();
+
+            InvoiceCreationResult createdInvoice = await invoices.CreateAsync(
+                new CreateInvoiceCommand(customerId, incomeAccountId, transferDate, PaymentTerm.Cash), actorId);
+            Guid invoiceId = createdInvoice.InvoiceId!.Value;
+            InvoiceModel invoiceDraft = (await invoices.GetAsync(invoiceId))!;
+            await invoices.AddLineAsync(
+                invoiceId, new InvoiceLineInputCommand(catalogItemId, 1m, 1000m, 0m, vatRate.Id), invoiceDraft.Version, actorId);
+            invoiceDraft = (await invoices.GetAsync(invoiceId))!;
+            CatalogOperationResult confirmed = await invoices.ConfirmAsync(
+                invoiceId, new ConfirmInvoiceCommand(mainAccountId, PaymentMethod.Cash, "F-CF-1"), invoiceDraft.Version, actorId);
+            Assert.True(confirmed.IsSuccess);
+
+            // Traspaso de 300 de mainAccount a otherAccount.
+            ICashTransferService transfers = services.GetRequiredService<ICashTransferService>();
+            RegisterCashTransferResult transfer = await transfers.RegisterAsync(
+                new RegisterCashTransferCommand(mainAccountId, otherAccountId, 300m, "TRA-CF-1", "Traspaso de prueba", transferDate),
+                actorId,
+                actorIsManagement: false);
+            Assert.True(transfer.Operation.IsSuccess);
+
+            // Liquidación de IVA del mes: paga los 130 desde mainAccount, con fecha del mes siguiente.
+            IVatSettlementService settlements = services.GetRequiredService<IVatSettlementService>();
+            RegisterVatSettlementResult settlement = await settlements.RegisterAsync(
+                new RegisterVatSettlementCommand(
+                    transferDate.Year, transferDate.Month, settlementDate, mainAccountId, "PAGO-CF-1"),
+                actorId,
+                actorIsManagement: true);
+            Assert.True(settlement.Operation.IsSuccess);
+
+            IReportService reports = services.GetRequiredService<IReportService>();
+            DateOnly rangeFrom = new(2014, 6, 1);
+            DateOnly rangeTo = new(2014, 7, 31);
+
+            CashFlowReportResult noFilter = await reports.GetCashFlowReportAsync(rangeFrom, rangeTo, null, "Usuario de prueba");
+            Assert.Equal(1000m, noFilter.GrandTotalInflow);
+            // Sin filtro, el traspaso se compensa (no aparece); el pago de IVA sí resta, siempre.
+            Assert.Equal(130m, noFilter.GrandTotalOutflow);
+            Assert.All(noFilter.Lines, line => Assert.Equal(0m, line.TransfersReceived + line.TransfersSent));
+
+            CashFlowReportResult mainFiltered = await reports.GetCashFlowReportAsync(rangeFrom, rangeTo, mainAccountId, "Usuario de prueba");
+            Assert.Equal(1000m, mainFiltered.GrandTotalInflow);
+            Assert.Equal(300m + 130m, mainFiltered.GrandTotalOutflow);
+            CashFlowReportLine mainJune = mainFiltered.Lines.Single(line => line.PeriodMonth == 6);
+            CashFlowReportLine mainJuly = mainFiltered.Lines.Single(line => line.PeriodMonth == 7);
+            Assert.Equal(300m, mainJune.TransfersSent);
+            Assert.Equal(0m, mainJune.TransfersReceived);
+            Assert.Equal(130m, mainJuly.VatPayments);
+
+            CashFlowReportResult otherFiltered = await reports.GetCashFlowReportAsync(rangeFrom, rangeTo, otherAccountId, "Usuario de prueba");
+            Assert.Equal(300m, otherFiltered.GrandTotalInflow);
+            Assert.Equal(0m, otherFiltered.GrandTotalOutflow);
+            CashFlowReportLine otherJune = otherFiltered.Lines.Single(line => line.PeriodMonth == 6);
+            Assert.Equal(300m, otherJune.TransfersReceived);
+            Assert.Equal(0m, otherJune.TransfersSent);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task GetVatPeriodReportAsync_ForAMonthWithAVigentSettlement_IncludesItsCodeAndResultWithoutAlteringTotals()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            Guid customerId = await CreateCustomerAsync(services, actorId);
+            Guid incomeAccountId = await CreateCategoryAsync(services, actorId, LedgerAccountType.Income);
+            Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
+            Guid catalogItemId = await CreateCatalogItemAsync(services, actorId, "Servicio con IVA de prueba de liquidación en reporte");
+
+            DateOnly entryDate = new(2015, 3, 10);
+            DateOnly settlementDate = new(2015, 4, 5);
+            await PrepareFabricatedPeriodAsync(services, actorId, entryDate, settlementDate);
+            await SetAuthorizationLimitAsync(services, actorId, 10_000m);
+
+            FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+            string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+            TaxType vatRate = new(
+                Guid.NewGuid(), $"IVA-{suffix}", "IVA 13% de prueba de liquidación en reporte", 13m, "08", null, DateTimeOffset.UtcNow, actorId);
+            context.TaxTypes.Add(vatRate);
+            await context.SaveChangesAsync();
+
+            InvoiceCreationResult createdInvoice = await invoices.CreateAsync(
+                new CreateInvoiceCommand(customerId, incomeAccountId, entryDate, PaymentTerm.Cash), actorId);
+            Guid invoiceId = createdInvoice.InvoiceId!.Value;
+            InvoiceModel invoiceDraft = (await invoices.GetAsync(invoiceId))!;
+            await invoices.AddLineAsync(
+                invoiceId, new InvoiceLineInputCommand(catalogItemId, 1m, 1000m, 0m, vatRate.Id), invoiceDraft.Version, actorId);
+            invoiceDraft = (await invoices.GetAsync(invoiceId))!;
+            await invoices.ConfirmAsync(
+                invoiceId, new ConfirmInvoiceCommand(cashAccountId, PaymentMethod.Cash, "F-VP-1"), invoiceDraft.Version, actorId);
+
+            IReportService reports = services.GetRequiredService<IReportService>();
+            DateOnly monthStart = new(entryDate.Year, entryDate.Month, 1);
+            DateOnly monthEnd = monthStart.AddMonths(1).AddDays(-1);
+
+            VatPeriodReportResult beforeSettlement = await reports.GetVatPeriodReportAsync(monthStart, monthEnd, "Usuario de prueba");
+            Assert.Null(beforeSettlement.Settlement);
+            Assert.Equal(130m, beforeSettlement.TotalVatCollected);
+
+            IVatSettlementService settlements = services.GetRequiredService<IVatSettlementService>();
+            RegisterVatSettlementResult registered = await settlements.RegisterAsync(
+                new RegisterVatSettlementCommand(entryDate.Year, entryDate.Month, settlementDate, cashAccountId, "PAGO-VP-1"),
+                actorId,
+                actorIsManagement: true);
+            Assert.True(registered.Operation.IsSuccess);
+
+            VatPeriodReportResult afterSettlement = await reports.GetVatPeriodReportAsync(monthStart, monthEnd, "Usuario de prueba");
+            Assert.NotNull(afterSettlement.Settlement);
+            Assert.Matches("^LIQ-\\d{6}$", afterSettlement.Settlement!.Code);
+            Assert.Equal(130m, afterSettlement.Settlement.PaymentAmount);
+            Assert.Equal(0m, afterSettlement.Settlement.CreditCarriedForward);
+            // Los totales del reporte nunca cambian por la liquidación: siguen viniendo solo de la factura.
+            Assert.Equal(130m, afterSettlement.TotalVatCollected);
+            Assert.Equal(0m, afterSettlement.TotalVatPaid);
+
+            // Un rango que no es exactamente un mes calendario nunca trae liquidación, aunque la cubra.
+            VatPeriodReportResult partialRange = await reports.GetVatPeriodReportAsync(
+                monthStart, monthStart.AddDays(10), "Usuario de prueba");
+            Assert.Null(partialRange.Settlement);
         });
     }
 

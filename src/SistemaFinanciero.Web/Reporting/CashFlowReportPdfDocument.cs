@@ -20,7 +20,7 @@ public sealed class CashFlowReportPdfDocument(CashFlowReportResult result) : IDo
         {
             page.Size(PageSizes.A4);
             page.Margin(30);
-            page.DefaultTextStyle(style => style.FontSize(9));
+            page.DefaultTextStyle(style => style.FontSize(8));
 
             page.Header().Element(header => ReportDocumentStyles.ComposeHeader(header, result.Header));
 
@@ -34,6 +34,9 @@ public sealed class CashFlowReportPdfDocument(CashFlowReportResult result) : IDo
                         columns.RelativeColumn(2);
                         columns.RelativeColumn(2);
                         columns.RelativeColumn(2);
+                        columns.RelativeColumn(2);
+                        columns.RelativeColumn(2);
+                        columns.RelativeColumn(2);
                     });
 
                     table.Header(header =>
@@ -41,6 +44,9 @@ public sealed class CashFlowReportPdfDocument(CashFlowReportResult result) : IDo
                         header.Cell().Element(ReportDocumentStyles.HeaderCellStyle).Text("Mes");
                         header.Cell().Element(ReportDocumentStyles.HeaderCellStyle).AlignRight().Text("Entradas");
                         header.Cell().Element(ReportDocumentStyles.HeaderCellStyle).AlignRight().Text("Salidas");
+                        header.Cell().Element(ReportDocumentStyles.HeaderCellStyle).AlignRight().Text("Traspasos recibidos");
+                        header.Cell().Element(ReportDocumentStyles.HeaderCellStyle).AlignRight().Text("Traspasos enviados");
+                        header.Cell().Element(ReportDocumentStyles.HeaderCellStyle).AlignRight().Text("Pago de IVA");
                         header.Cell().Element(ReportDocumentStyles.HeaderCellStyle).AlignRight().Text("Neto");
                     });
 
@@ -51,6 +57,12 @@ public sealed class CashFlowReportPdfDocument(CashFlowReportResult result) : IDo
                             .Text(ReportDocumentStyles.FormatCrc(line.TotalInflow));
                         table.Cell().Element(ReportDocumentStyles.BodyCellStyle).AlignRight()
                             .Text(ReportDocumentStyles.FormatCrc(line.TotalOutflow));
+                        table.Cell().Element(ReportDocumentStyles.BodyCellStyle).AlignRight()
+                            .Text(ReportDocumentStyles.FormatCrc(line.TransfersReceived));
+                        table.Cell().Element(ReportDocumentStyles.BodyCellStyle).AlignRight()
+                            .Text(ReportDocumentStyles.FormatCrc(line.TransfersSent));
+                        table.Cell().Element(ReportDocumentStyles.BodyCellStyle).AlignRight()
+                            .Text(ReportDocumentStyles.FormatCrc(line.VatPayments));
                         table.Cell().Element(ReportDocumentStyles.BodyCellStyle).AlignRight()
                             .Text(ReportDocumentStyles.FormatCrc(line.Net));
                     }

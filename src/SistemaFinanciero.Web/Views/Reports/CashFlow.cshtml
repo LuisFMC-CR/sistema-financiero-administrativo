@@ -9,8 +9,11 @@
 
 <h1 class="h2 mb-1">Flujo de efectivo mensual</h1>
 <p class="text-body-secondary mb-3">
-    Entradas (ingresos vigentes de facturas de contado, abonos e ingresos manuales) contra salidas
-    (pagos vigentes y gastos de contado confirmados), con IVA, por mes.
+    Entradas (ingresos vigentes de facturas de contado, abonos e ingresos manuales, y traspasos
+    recibidos cuando se filtra por cuenta) contra salidas (pagos vigentes, gastos de contado
+    confirmados, pago de liquidaciones de IVA, y traspasos enviados cuando se filtra por cuenta), con
+    IVA, por mes. Sin filtro de cuenta, los traspasos entre cuentas propias se excluyen porque se
+    compensan entre sí.
 </p>
 
 <form method="get" asp-action="CashFlow" class="row gy-2 gx-3 align-items-end mb-3">
@@ -49,13 +52,19 @@
                     <th scope="col">Mes</th>
                     <th scope="col" class="text-end">Entradas</th>
                     <th scope="col" class="text-end">Salidas</th>
+                    @if (Model.CashAccountId.HasValue)
+                    {
+                        <th scope="col" class="text-end">Traspasos recibidos</th>
+                        <th scope="col" class="text-end">Traspasos enviados</th>
+                    }
+                    <th scope="col" class="text-end">Pago de IVA</th>
                     <th scope="col" class="text-end">Neto</th>
                 </tr>
             </thead>
             <tbody>
                 @if (result.GrandTotalInflow == 0 && result.GrandTotalOutflow == 0)
                 {
-                    <tr><td colspan="4" class="text-center text-body-secondary py-4">No hay movimientos de efectivo en el período indicado.</td></tr>
+                    <tr><td colspan="7" class="text-center text-body-secondary py-4">No hay movimientos de efectivo en el período indicado.</td></tr>
                 }
                 else
                 {
@@ -65,6 +74,12 @@
                             <td class="text-capitalize">@(new DateOnly(line.PeriodYear, line.PeriodMonth, 1).ToString("MMMM yyyy", culture))</td>
                             <td class="text-end">₡@line.TotalInflow.ToString("N2")</td>
                             <td class="text-end">₡@line.TotalOutflow.ToString("N2")</td>
+                            @if (Model.CashAccountId.HasValue)
+                            {
+                                <td class="text-end">₡@line.TransfersReceived.ToString("N2")</td>
+                                <td class="text-end">₡@line.TransfersSent.ToString("N2")</td>
+                            }
+                            <td class="text-end">₡@line.VatPayments.ToString("N2")</td>
                             <td class="text-end @(line.Net < 0 ? "text-danger" : null)">₡@line.Net.ToString("N2")</td>
                         </tr>
                     }
@@ -77,6 +92,12 @@
                         <td class="text-end">Total</td>
                         <td class="text-end">₡@result.GrandTotalInflow.ToString("N2")</td>
                         <td class="text-end">₡@result.GrandTotalOutflow.ToString("N2")</td>
+                        @if (Model.CashAccountId.HasValue)
+                        {
+                            <td class="text-end">₡@result.Lines.Sum(line => line.TransfersReceived).ToString("N2")</td>
+                            <td class="text-end">₡@result.Lines.Sum(line => line.TransfersSent).ToString("N2")</td>
+                        }
+                        <td class="text-end">₡@result.Lines.Sum(line => line.VatPayments).ToString("N2")</td>
                         <td class="text-end">₡@result.GrandTotalNet.ToString("N2")</td>
                     </tr>
                 </tfoot>

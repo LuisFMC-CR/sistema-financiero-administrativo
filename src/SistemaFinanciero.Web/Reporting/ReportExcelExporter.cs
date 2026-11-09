@@ -606,7 +606,7 @@ public static class ReportExcelExporter
 
         int row = WriteHeader(sheet, result.Header);
 
-        string[] columns = ["Mes", "Entradas", "Salidas", "Neto"];
+        string[] columns = ["Mes", "Entradas", "Salidas", "Traspasos recibidos", "Traspasos enviados", "Pago de IVA", "Neto"];
         WriteColumnHeaders(sheet, row, columns);
         row++;
 
@@ -619,8 +619,14 @@ public static class ReportExcelExporter
             sheet.Cell(row, 2).Style.NumberFormat.Format = "#,##0.00";
             sheet.Cell(row, 3).Value = line.TotalOutflow;
             sheet.Cell(row, 3).Style.NumberFormat.Format = "#,##0.00";
-            sheet.Cell(row, 4).Value = line.Net;
+            sheet.Cell(row, 4).Value = line.TransfersReceived;
             sheet.Cell(row, 4).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Cell(row, 5).Value = line.TransfersSent;
+            sheet.Cell(row, 5).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Cell(row, 6).Value = line.VatPayments;
+            sheet.Cell(row, 6).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Cell(row, 7).Value = line.Net;
+            sheet.Cell(row, 7).Style.NumberFormat.Format = "#,##0.00";
             row++;
         }
 
@@ -629,8 +635,14 @@ public static class ReportExcelExporter
         sheet.Cell(row, 2).Style.NumberFormat.Format = "#,##0.00";
         sheet.Cell(row, 3).Value = result.GrandTotalOutflow;
         sheet.Cell(row, 3).Style.NumberFormat.Format = "#,##0.00";
-        sheet.Cell(row, 4).Value = result.GrandTotalNet;
+        sheet.Cell(row, 4).Value = result.Lines.Sum(line => line.TransfersReceived);
         sheet.Cell(row, 4).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Cell(row, 5).Value = result.Lines.Sum(line => line.TransfersSent);
+        sheet.Cell(row, 5).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Cell(row, 6).Value = result.Lines.Sum(line => line.VatPayments);
+        sheet.Cell(row, 6).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Cell(row, 7).Value = result.GrandTotalNet;
+        sheet.Cell(row, 7).Style.NumberFormat.Format = "#,##0.00";
         sheet.Row(row).Style.Font.SetBold();
 
         sheet.Columns().AdjustToContents();
@@ -674,6 +686,15 @@ public static class ReportExcelExporter
         sheet.Cell(row, 7).Style.NumberFormat.Format = "#,##0.00";
         sheet.Row(row).Style.Font.SetBold();
         row++;
+
+        if (result.Settlement is { } settlement)
+        {
+            string settlementText = settlement.PaymentAmount > 0
+                ? $"Liquidación {settlement.Code} vigente de este mes: pago a Hacienda {settlement.PaymentAmount:N2}."
+                : $"Liquidación {settlement.Code} vigente de este mes: saldo a favor {settlement.CreditCarriedForward:N2}.";
+            WriteNote(sheet, row, settlementText);
+            row++;
+        }
 
         WriteNote(sheet, row, "Apoyo para la declaración; no sustituye la declaración ante Hacienda.");
         sheet.Columns().AdjustToContents();

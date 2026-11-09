@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using SistemaFinanciero.Application.Adjustments;
+using SistemaFinanciero.Application.CashTransfers;
 using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Expenses;
 using SistemaFinanciero.Application.Incomes;
@@ -9,6 +10,7 @@ using SistemaFinanciero.Application.Invoices;
 using SistemaFinanciero.Application.Ledger;
 using SistemaFinanciero.Application.Payables;
 using SistemaFinanciero.Application.Receivables;
+using SistemaFinanciero.Application.VatSettlements;
 using SistemaFinanciero.Domain.Adjustments;
 using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Common;
@@ -501,6 +503,104 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
             AssertBalanced(increaseTrace.Entry);
             AssertLine(increaseTrace.Entry, adjustmentAccountId, debit: 300m, credit: 0m);
             AssertLine(increaseTrace.Entry, payablesAccountId, debit: 0m, credit: 300m);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task GetTraceAsync_ResolvesTheDocumentToNavigateBackToForEachSourceType()
+    {
+        // Bloque 3 del paquete v8: trazabilidad en ambos sentidos. Factura, gasto, traspaso y
+        // liquidación de IVA tienen pantalla propia por id (su documento de navegación es el mismo
+        // SourceId, DefaultDocumentKind, ya cubierto implícitamente por las demás pruebas de este
+        // archivo); lo que hace falta probar aquí es la resolución al padre de los tres orígenes que NO
+        // tienen pantalla propia: abono, pago a proveedor y ajuste de saldo (sobre cuenta por cobrar y
+        // sobre cuenta por pagar).
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            IExpenseService expenses = services.GetRequiredService<IExpenseService>();
+            IReceivablePaymentService receivablePayments = services.GetRequiredService<IReceivablePaymentService>();
+            ISupplierPaymentService supplierPayments = services.GetRequiredService<ISupplierPaymentService>();
+            IReceivableService receivables = services.GetRequiredService<IReceivableService>();
+            IPayableService payables = services.GetRequiredService<IPayableService>();
+            IBalanceAdjustmentService adjustments = services.GetRequiredService<IBalanceAdjustmentService>();
+            IJournalEntryService journal = services.GetRequiredService<IJournalEntryService>();
+            Guid customerId = await CreateCustomerAsync(services, actorId);
+            Guid supplierId = await CreateSupplierAsync(services, actorId);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
+            await SetAuthorizationLimitAsync(services, actorId, 10_000m);
+
+            Guid receivableId = await CreateConfirmedCreditReceivableAsync(
+                services, invoices, customerId, incomeAccountId, actorId, amount: 1000m);
+            RegisterReceivablePaymentResult paymentResult = await receivablePayments.RegisterAsync(
+                new RegisterReceivablePaymentCommand(
+                    customerId, cashAccountId, "AB-TRAZA-1", DateOnly.FromDateTime(DateTime.UtcNow),
+                    [new ReceivablePaymentAllocationCommand(receivableId, 100m, null)]),
+                actorId,
+                actorIsManagement: false);
+            Guid receivablePaymentId = paymentResult.ReceivablePaymentIds[0];
+
+            JournalEntryTraceModel paymentTrace = (await journal.GetTraceAsync(
+                JournalEntrySourceType.ReceivablePayment, receivablePaymentId))!;
+            Assert.Equal(JournalEntryDocumentKind.Receivable, paymentTrace.Entry.DocumentKind);
+            Assert.Equal(receivableId, paymentTrace.Entry.DocumentId);
+
+            Guid payableId = await CreateConfirmedCreditPayableAsync(services, expenses, supplierId, actorId, amount: 500m);
+            RegisterSupplierPaymentResult supplierPaymentResult = await supplierPayments.RegisterAsync(
+                new RegisterSupplierPaymentCommand(
+                    supplierId, cashAccountId, "PAG-TRAZA-1", DateOnly.FromDateTime(DateTime.UtcNow),
+                    [new SupplierPaymentAllocationCommand(payableId, 50m)]),
+                actorId,
+                actorIsManagement: false);
+            Guid supplierPaymentId = supplierPaymentResult.SupplierPaymentIds[0];
+
+            JournalEntryTraceModel supplierPaymentTrace = (await journal.GetTraceAsync(
+                JournalEntrySourceType.SupplierPayment, supplierPaymentId))!;
+            Assert.Equal(JournalEntryDocumentKind.Payable, supplierPaymentTrace.Entry.DocumentKind);
+            Assert.Equal(payableId, supplierPaymentTrace.Entry.DocumentId);
+
+            string receivableVersion = (await receivables.GetAsync(receivableId))!.Version;
+            await adjustments.AdjustReceivableAsync(
+                receivableId, 50m, BalanceAdjustmentDirection.Decrease, "Ajuste de prueba de trazabilidad", receivableVersion, actorId);
+            BalanceAdjustmentModel receivableAdjustment = (await adjustments.SearchByReceivableAsync(receivableId)).Single();
+            JournalEntryTraceModel receivableAdjustmentTrace = (await journal.GetTraceAsync(
+                JournalEntrySourceType.BalanceAdjustment, receivableAdjustment.Id))!;
+            Assert.Equal(JournalEntryDocumentKind.Receivable, receivableAdjustmentTrace.Entry.DocumentKind);
+            Assert.Equal(receivableId, receivableAdjustmentTrace.Entry.DocumentId);
+
+            string payableVersion = (await payables.GetAsync(payableId))!.Version;
+            await adjustments.AdjustPayableAsync(
+                payableId, 50m, BalanceAdjustmentDirection.Decrease, "Ajuste de prueba de trazabilidad", payableVersion, actorId);
+            BalanceAdjustmentModel payableAdjustment = (await adjustments.SearchByPayableAsync(payableId)).Single();
+            JournalEntryTraceModel payableAdjustmentTrace = (await journal.GetTraceAsync(
+                JournalEntrySourceType.BalanceAdjustment, payableAdjustment.Id))!;
+            Assert.Equal(JournalEntryDocumentKind.Payable, payableAdjustmentTrace.Entry.DocumentKind);
+            Assert.Equal(payableId, payableAdjustmentTrace.Entry.DocumentId);
+
+            // Un origen con pantalla propia (traspaso) enlaza directo a sí mismo: sin resolución de padre.
+            Guid otherCashAccountId = await CreateCashAccountAsync(services, actorId);
+            ICashTransferService transfers = services.GetRequiredService<ICashTransferService>();
+            RegisterCashTransferResult transferResult = await transfers.RegisterAsync(
+                new RegisterCashTransferCommand(
+                    cashAccountId, otherCashAccountId, 10m, "TRA-TRAZA-1", "Traspaso de prueba de trazabilidad",
+                    DateOnly.FromDateTime(DateTime.UtcNow)),
+                actorId,
+                actorIsManagement: false);
+            JournalEntryTraceModel transferTrace = (await journal.GetTraceAsync(
+                JournalEntrySourceType.CashTransfer, transferResult.CashTransferId!.Value))!;
+            Assert.Equal(JournalEntryDocumentKind.CashTransfer, transferTrace.Entry.DocumentKind);
+            Assert.Equal(transferResult.CashTransferId.Value, transferTrace.Entry.DocumentId);
+
+            // SearchAsync resuelve el mismo enlace que GetTraceAsync para el mismo origen.
+            JournalEntryListResult search = await journal.SearchAsync(
+                transferTrace.Entry.EntryDate.Year, transferTrace.Entry.EntryDate.Month, JournalEntryStateFilter.All);
+            JournalEntryListItem listedTransfer = Assert.Single(
+                search.Entries, entry => entry.SourceType == JournalEntrySourceType.CashTransfer
+                    && entry.SourceId == transferResult.CashTransferId.Value);
+            Assert.Equal(JournalEntryDocumentKind.CashTransfer, listedTransfer.DocumentKind);
+            Assert.Equal(transferResult.CashTransferId.Value, listedTransfer.DocumentId);
         });
     }
 
