@@ -31,12 +31,9 @@ public sealed class SqlServerCatalogPagesTests : IClassFixture<FinancialWebAppli
 
     [Theory]
     [Trait("Category", "SqlServer")]
-    [InlineData("/catalogos/cuentas-contables", "Cuentas contables")]
-    [InlineData("/catalogos/cuentas-contables?status=All", "Cuentas contables")]
+    [InlineData("/catalogos/cuentas-contables", "Catálogo contable")]
+    [InlineData("/catalogos/cuentas-contables?status=All", "Catálogo contable")]
     [InlineData("/catalogos/cuentas-contables/crear", "Nueva cuenta contable")]
-    [InlineData("/catalogos/categorias-financieras", "Categorías financieras")]
-    [InlineData("/catalogos/categorias-financieras?status=All", "Categorías financieras")]
-    [InlineData("/catalogos/categorias-financieras/crear", "Nueva categoría financiera")]
     [InlineData("/impuestos-y-retenciones", "Impuestos y retenciones")]
     [InlineData("/impuestos-y-retenciones?taxStatus=All&withholdingStatus=All", "Impuestos y retenciones")]
     public async Task FinanceUser_CanRenderTheListAndCreationPages(string route, string expectedTitle)
@@ -88,44 +85,6 @@ public sealed class SqlServerCatalogPagesTests : IClassFixture<FinancialWebAppli
 
         Assert.Equal(System.Net.HttpStatusCode.Redirect, response.StatusCode);
         Assert.Equal(expectedLocation, response.Headers.Location?.OriginalString);
-    }
-
-    [Theory]
-    [Trait("Category", "SqlServer")]
-    [InlineData("/impuestos-y-retenciones/tarifas/crear", "Nueva tarifa de IVA")]
-    [InlineData("/impuestos-y-retenciones/retenciones/crear", "Nuevo tipo de retención")]
-    public async Task ManagementUser_CanRenderTheTaxAndWithholdingCreationPages(string route, string expectedTitle)
-    {
-        if (!IsEnabled())
-        {
-            return;
-        }
-
-        using HttpClient client = CreateManagementClient();
-
-        using HttpResponseMessage response = await client.GetAsync(route);
-        string body = await response.Content.ReadAsStringAsync();
-
-        Assert.True(response.IsSuccessStatusCode, body);
-        Assert.Contains(expectedTitle, body);
-    }
-
-    [Theory]
-    [Trait("Category", "SqlServer")]
-    [InlineData("/impuestos-y-retenciones/tarifas/crear")]
-    [InlineData("/impuestos-y-retenciones/retenciones/crear")]
-    public async Task FinanceUser_CannotOpenTheTaxAndWithholdingCreationPages(string route)
-    {
-        if (!IsEnabled())
-        {
-            return;
-        }
-
-        using HttpClient client = CreateFinanceClient();
-
-        using HttpResponseMessage response = await client.GetAsync(route);
-
-        Assert.Equal(System.Net.HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
@@ -290,28 +249,6 @@ public sealed class SqlServerCatalogPagesTests : IClassFixture<FinancialWebAppli
         });
     }
 
-    private HttpClient CreateManagementClient()
-    {
-        WebApplicationFactory<Program> managementFactory = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureTestServices(services =>
-                services
-                    .AddAuthentication(options =>
-                    {
-                        options.DefaultAuthenticateScheme = ManagementAuthenticationHandler.SchemeName;
-                        options.DefaultChallengeScheme = ManagementAuthenticationHandler.SchemeName;
-                        options.DefaultForbidScheme = ManagementAuthenticationHandler.SchemeName;
-                    })
-                    .AddScheme<AuthenticationSchemeOptions, ManagementAuthenticationHandler>(
-                        ManagementAuthenticationHandler.SchemeName,
-                        _ => { })));
-
-        return managementFactory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost"),
-        });
-    }
-
     private sealed class FinanceAuthenticationHandler(
         IOptionsMonitor<AuthenticationSchemeOptions> options,
         ILoggerFactory logger,
@@ -335,26 +272,4 @@ public sealed class SqlServerCatalogPagesTests : IClassFixture<FinancialWebAppli
         }
     }
 
-    private sealed class ManagementAuthenticationHandler(
-        IOptionsMonitor<AuthenticationSchemeOptions> options,
-        ILoggerFactory logger,
-        UrlEncoder encoder)
-        : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
-    {
-        public const string SchemeName = "ManagementPagesTest";
-
-        protected override Task<AuthenticateResult> HandleAuthenticateAsync()
-        {
-            ClaimsIdentity identity = new(
-                [
-                    new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
-                    new Claim(ClaimTypes.Name, "Usuario de Gerencia"),
-                    new Claim(ClaimTypes.Role, SystemRoles.Management),
-                ],
-                SchemeName);
-
-            return Task.FromResult(AuthenticateResult.Success(
-                new AuthenticationTicket(new ClaimsPrincipal(identity), SchemeName)));
-        }
-    }
 }

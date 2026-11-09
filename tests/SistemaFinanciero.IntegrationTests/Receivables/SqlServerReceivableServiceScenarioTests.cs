@@ -6,6 +6,7 @@ using SistemaFinanciero.Application.Invoices;
 using SistemaFinanciero.Application.Receivables;
 using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Invoices;
+using SistemaFinanciero.Domain.Parameters;
 using SistemaFinanciero.Infrastructure.Identity;
 using SistemaFinanciero.Infrastructure.Persistence;
 
@@ -38,6 +39,11 @@ public sealed class SqlServerReceivableServiceScenarioTests : IClassFixture<Fina
             Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
 
             DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+            // -35 y -25 días pueden caer en un mes anterior al actual, cerrado automáticamente
+            // (regla 16); se reabren ambos meses antes de crear las facturas.
+            await ReopenMonthAsync(services, actorId, today.AddDays(-35));
+            await ReopenMonthAsync(services, actorId, today.AddDays(-25));
 
             // Crédito 30 días emitida hace 35 días: vence hace 5 días (vencida).
             await CreateConfirmedCreditReceivableAsync(
@@ -218,6 +224,28 @@ public sealed class SqlServerReceivableServiceScenarioTests : IClassFixture<Fina
         });
         await context.SaveChangesAsync();
         return userId;
+    }
+
+    private static async Task ReopenMonthAsync(IServiceProvider services, Guid actorId, DateOnly date)
+    {
+        FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+        SystemParameters? parameters = await context.SystemParameters.SingleOrDefaultAsync();
+
+        if (parameters is null)
+        {
+            context.SystemParameters.Add(new SystemParameters(500_000m, 7, DateTimeOffset.UtcNow, actorId));
+        }
+
+        bool alreadyReopened = await context.AccountingPeriodOverrides
+            .AnyAsync(period => period.Year == date.Year && period.Month == date.Month);
+
+        if (!alreadyReopened)
+        {
+            context.AccountingPeriodOverrides.Add(new AccountingPeriodOverride(
+                date.Year, date.Month, "Reapertura para la prueba", DateTimeOffset.UtcNow, actorId));
+        }
+
+        await context.SaveChangesAsync();
     }
 
     private async Task RunInRollbackTransactionAsync(Func<IServiceProvider, Guid, Task> scenario)

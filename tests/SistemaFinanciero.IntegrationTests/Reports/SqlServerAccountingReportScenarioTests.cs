@@ -595,6 +595,22 @@ public sealed class SqlServerAccountingReportScenarioTests : IClassFixture<Finan
         await using IDbContextTransaction transaction = await context.Database.BeginTransactionAsync();
         Guid actorId = await CreateUserAsync(scope.ServiceProvider);
 
+        // Las fechas de este archivo caen en 2027 a propósito (ver comentario de la clase); el
+        // período fiscal real del entorno de desarrollo es 2026, así que se desplaza aquí para que
+        // esas fechas no choquen con la validación de período fiscal (regla 16). No hace falta
+        // reabrir ningún mes: 2027 siempre es posterior al mes actual real, así que el cierre
+        // automático de meses pasados tampoco lo bloquea.
+        SystemParameters? parameters = await context.SystemParameters.SingleOrDefaultAsync();
+
+        if (parameters is null)
+        {
+            parameters = new SystemParameters(500_000m, 7, DateTimeOffset.UtcNow, actorId);
+            context.SystemParameters.Add(parameters);
+        }
+
+        parameters.UpdateFiscalPeriod(new DateOnly(2027, 1, 1), new DateOnly(2027, 12, 31), DateTimeOffset.UtcNow, actorId);
+        await context.SaveChangesAsync();
+
         try
         {
             await scenario(scope.ServiceProvider, actorId);

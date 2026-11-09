@@ -18,6 +18,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Las pruebas SqlServer comparten la fila singleton de ParametrosSistema y las filas de
+         AccountingPeriodOverride contra la misma base real; correrlas en paralelo entre clases
+         produce choques intermitentes entre transacciones concurrentes. -->
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\SistemaFinanciero.Web\SistemaFinanciero.Web.csproj" />
     <ProjectReference Include="..\..\src\SistemaFinanciero.Infrastructure\SistemaFinanciero.Infrastructure.csproj" />
   </ItemGroup>

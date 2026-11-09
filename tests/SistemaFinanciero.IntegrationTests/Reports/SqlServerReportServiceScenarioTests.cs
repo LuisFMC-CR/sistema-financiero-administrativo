@@ -48,6 +48,9 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             // Período lejano en el pasado para no coincidir con datos reales o de ejemplo de la base
             // de desarrollo: este reporte suma todos los ingresos vigentes del período, sin importar
             // su categoría ni su cuenta de efectivo.
+            await PrepareFabricatedPeriodAsync(
+                services, actorId, new DateOnly(2009, 12, 30), new DateOnly(2010, 1, 10), new DateOnly(2010, 1, 12));
+
             IncomeCreationResult insidePeriod = await incomes.CreateManualAsync(
                 new CreateManualIncomeCommand(
                     accountId, cashAccountId, 500m, new DateOnly(2010, 1, 10),
@@ -114,6 +117,8 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
 
             // Período lejano en el pasado, además de limitar el reporte a la categoría recién creada,
             // para no coincidir con datos reales o de ejemplo de la base de desarrollo.
+            await PrepareFabricatedPeriodAsync(services, actorId, new DateOnly(2010, 1, 5));
+
             await CreateAndConfirmCashExpenseAsync(
                 expenses, supplierId, accountId, taxTypeId, cashAccountId, new DateOnly(2010, 1, 5), 1000m, actorId);
             await CreateAndConfirmCashExpenseAsync(
@@ -198,6 +203,8 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             Guid supplierId = await CreateSupplierAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
+            await PrepareFabricatedPeriodAsync(
+                services, actorId, new DateOnly(2010, 1, 10), new DateOnly(2010, 3, 15));
 
             await incomes.CreateManualAsync(
                 new CreateManualIncomeCommand(
@@ -257,6 +264,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
 
             DateOnly saleDate = new(2027, 2, 10);
             DateOnly collectionDate = new(2027, 2, 20);
+            await PrepareFabricatedPeriodAsync(services, actorId, saleDate, collectionDate);
 
             InvoiceCreationResult created = await invoices.CreateAsync(
                 new CreateInvoiceCommand(customerId, incomeAccountId, saleDate, PaymentTerm.Credit30),
@@ -412,6 +420,8 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             Guid supplierId = await CreateSupplierAsync(services, actorId);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
+            await PrepareFabricatedPeriodAsync(
+                services, actorId, new DateOnly(2010, 1, 10), new DateOnly(2010, 2, 10), new DateOnly(2010, 3, 10));
 
             Guid earlierPayableId = await CreateConfirmedCreditPayableAsync(
                 services, expenses, supplierId, actorId, new DateOnly(2010, 1, 10), amount: 300m);
@@ -419,6 +429,10 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
                 services, expenses, supplierId, actorId, new DateOnly(2010, 2, 10), amount: 200m);
             Guid toBePaidPayableId = await CreateConfirmedCreditPayableAsync(
                 services, expenses, supplierId, actorId, new DateOnly(2010, 3, 10), amount: 150m);
+
+            // El pago se registra con la fecha real de hoy, fuera del período fiscal fabricado de
+            // 2010: se restaura la cobertura de hoy antes de registrarlo.
+            await PrepareFabricatedPeriodAsync(services, actorId, DateOnly.FromDateTime(DateTime.UtcNow));
 
             await supplierPayments.RegisterAsync(
                 new RegisterSupplierPaymentCommand(
@@ -483,6 +497,8 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             Guid incomeAccountId = await CreateCategoryAsync(services, actorId, LedgerAccountType.Income);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
+            await PrepareFabricatedPeriodAsync(
+                services, actorId, new DateOnly(2010, 1, 10), new DateOnly(2010, 2, 10), new DateOnly(2010, 3, 10));
 
             Guid earlierReceivableId = await CreateConfirmedCreditReceivableAsync(
                 services, invoices, customerId, incomeAccountId, actorId, 300m, new DateOnly(2010, 1, 10));
@@ -490,6 +506,10 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
                 services, invoices, customerId, incomeAccountId, actorId, 200m, new DateOnly(2010, 2, 10));
             Guid toBePaidReceivableId = await CreateConfirmedCreditReceivableAsync(
                 services, invoices, customerId, incomeAccountId, actorId, 150m, new DateOnly(2010, 3, 10));
+
+            // El abono se registra con la fecha real de hoy, fuera del período fiscal fabricado de
+            // 2010: se restaura la cobertura de hoy antes de registrarlo.
+            await PrepareFabricatedPeriodAsync(services, actorId, DateOnly.FromDateTime(DateTime.UtcNow));
 
             await receivablePayments.RegisterAsync(
                 new RegisterReceivablePaymentCommand(
@@ -597,8 +617,10 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             DateOnly secondFiscalMonth = fiscalStart.AddMonths(1);
 
             ISystemParametersService settings = services.GetRequiredService<ISystemParametersService>();
-            Assert.True((await settings.CreateAsync(
-                new SaveSystemParametersCommand(500_000m, 7), actorId)).IsSuccess);
+            SystemParametersModel? existingSettings = await settings.GetAsync();
+            Assert.True((existingSettings is null
+                ? await settings.CreateAsync(new SaveSystemParametersCommand(500_000m, 7), actorId)
+                : await settings.UpdateAsync(new SaveSystemParametersCommand(500_000m, 7), existingSettings.Version, actorId)).IsSuccess);
             SystemParametersModel configured = (await settings.GetAsync())!;
             Assert.True((await settings.UpdateFiscalPeriodAsync(
                 fiscalStart, fiscalEnd, null, configured.Version, actorId)).IsSuccess);
@@ -643,6 +665,8 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
             Guid otherCashAccountId = await CreateCashAccountAsync(services, actorId);
+            await PrepareFabricatedPeriodAsync(
+                services, actorId, new DateOnly(2012, 1, 10), new DateOnly(2012, 1, 20));
 
             await incomes.CreateManualAsync(
                 new CreateManualIncomeCommand(
@@ -696,6 +720,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             await context.SaveChangesAsync();
 
             DateOnly entryDate = new(2013, 5, 10);
+            await PrepareFabricatedPeriodAsync(services, actorId, entryDate);
 
             // Factura confirmada de contado: neto 1000, IVA 130.
             InvoiceCreationResult createdInvoice = await invoices.CreateAsync(
@@ -780,6 +805,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
 
             DateOnly paymentDateActive = new(2014, 4, 1);
             DateOnly paymentDateCancelled = new(2014, 4, 2);
+            await PrepareFabricatedPeriodAsync(services, actorId, paymentDateActive, paymentDateCancelled);
 
             RegisterReceivablePaymentResult activeResult = await payments.RegisterAsync(
                 new RegisterReceivablePaymentCommand(
@@ -1104,6 +1130,39 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
         });
         await context.SaveChangesAsync();
         return userId;
+    }
+
+    /// <summary>
+    /// Las fechas de negocio de este archivo son siempre de un año fabricado (pasado o futuro, nunca
+    /// usado en datos reales) para que las aserciones de un período no dependan de qué otros datos
+    /// existan ya en la base de desarrollo. La fecha de cierre automática (regla 16) y el período
+    /// fiscal son más nuevos que estas pruebas: esto deja el año fabricado dentro de un período fiscal
+    /// propio y reabre sus meses exactos, para que ninguno de los dos guardianes los bloquee.
+    /// </summary>
+    private static async Task PrepareFabricatedPeriodAsync(
+        IServiceProvider services, Guid actorId, params DateOnly[] dates)
+    {
+        FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+        SystemParameters? parameters = await context.SystemParameters.SingleOrDefaultAsync();
+
+        if (parameters is null)
+        {
+            parameters = new SystemParameters(500_000m, 7, DateTimeOffset.UtcNow, actorId);
+            context.SystemParameters.Add(parameters);
+        }
+
+        DateOnly earliest = dates.Min();
+        DateOnly fiscalStart = new(earliest.Year, earliest.Month, 1);
+        parameters.UpdateFiscalPeriod(
+            fiscalStart, fiscalStart.AddYears(1).AddDays(-1), DateTimeOffset.UtcNow, actorId);
+
+        foreach (var yearMonth in dates.Select(d => (d.Year, d.Month)).Distinct())
+        {
+            context.AccountingPeriodOverrides.Add(new AccountingPeriodOverride(
+                yearMonth.Year, yearMonth.Month, "Reapertura para la prueba", DateTimeOffset.UtcNow, actorId));
+        }
+
+        await context.SaveChangesAsync();
     }
 
     private async Task RunInRollbackTransactionAsync(Func<IServiceProvider, Guid, Task> scenario)
