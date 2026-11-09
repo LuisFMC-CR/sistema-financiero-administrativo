@@ -543,7 +543,17 @@ public sealed class SqlServerAccountingReportScenarioTests : IClassFixture<Finan
     private static async Task SetAuthorizationLimitAsync(IServiceProvider services, Guid actorId, decimal limit)
     {
         FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
-        context.SystemParameters.Add(new SystemParameters(limit, 7, DateTimeOffset.UtcNow, actorId));
+        SystemParameters? parameters = await context.SystemParameters.SingleOrDefaultAsync();
+
+        if (parameters is null)
+        {
+            context.SystemParameters.Add(new SystemParameters(limit, 7, DateTimeOffset.UtcNow, actorId));
+        }
+        else
+        {
+            parameters.UpdateValues(limit, parameters.OverdueAlertDays, DateTimeOffset.UtcNow, actorId);
+        }
+
         await context.SaveChangesAsync();
     }
 

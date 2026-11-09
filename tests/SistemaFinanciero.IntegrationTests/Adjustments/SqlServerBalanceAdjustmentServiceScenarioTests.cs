@@ -175,7 +175,12 @@ public sealed class SqlServerBalanceAdjustmentServiceScenarioTests : IClassFixtu
                 services, invoiceService, customerId, actorId, amount: 1000m);
             string version = (await receivableService.GetAsync(receivableId))!.Version;
 
-            await SetClosingDateAsync(services, actorId, DateOnly.FromDateTime(DateTime.UtcNow));
+            // Un ajuste siempre usa la fecha de HOY para el guardián de cierre (no una fecha de
+            // negocio propia), y el mes actual nunca se cierra automáticamente (regla 16 solo cierra
+            // meses anteriores). La única forma real de rechazar una operación fechada hoy es que
+            // quede fuera del período fiscal vigente, así que se acota el período fiscal a un año
+            // anterior que no incluya la fecha de hoy.
+            await ExcludeTodayFromTheFiscalPeriodAsync(services, actorId);
 
             CatalogOperationResult result = await adjustments.AdjustReceivableAsync(
                 receivableId, 100m, BalanceAdjustmentDirection.Decrease, "Ajuste de prueba", version, actorId);
@@ -185,7 +190,7 @@ public sealed class SqlServerBalanceAdjustmentServiceScenarioTests : IClassFixtu
         });
     }
 
-    private static async Task SetClosingDateAsync(IServiceProvider services, Guid actorId, DateOnly closingDate)
+    private static async Task ExcludeTodayFromTheFiscalPeriodAsync(IServiceProvider services, Guid actorId)
     {
         FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
         SystemParameters? parameters = await context.SystemParameters.SingleOrDefaultAsync();
@@ -196,8 +201,10 @@ public sealed class SqlServerBalanceAdjustmentServiceScenarioTests : IClassFixtu
             context.SystemParameters.Add(parameters);
         }
 
-        context.AccountingPeriodOverrides.Add(new AccountingPeriodOverride(
-            closingDate.Year, closingDate.Month, "Período cerrado para la prueba", DateTimeOffset.UtcNow, actorId));
+        DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+        DateOnly lastYearStart = new(today.Year - 1, 1, 1);
+        DateOnly lastYearEnd = new(today.Year - 1, 12, 31);
+        parameters.UpdateFiscalPeriod(lastYearStart, lastYearEnd, DateTimeOffset.UtcNow, actorId);
         await context.SaveChangesAsync();
     }
 

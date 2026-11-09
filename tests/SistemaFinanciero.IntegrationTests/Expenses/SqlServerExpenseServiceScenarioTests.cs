@@ -253,19 +253,23 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
             Guid supplierId = await CreateSupplierAsync(services, actorId);
             Guid accountId = await CreateExpenseCategoryAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
+
+            // Un mes anterior al actual se cierra automáticamente (regla 16); no hace falta ningún
+            // AccountingPeriodOverride, que solo sirve para REABRIR un mes ya cerrado, nunca para
+            // cerrar el mes actual.
             DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
-            await SetClosingDateAsync(services, actorId, today);
+            DateOnly lastMonth = today.AddMonths(-1);
 
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
             ExpenseCreationResult closed = await expenses.CreateAsync(
                 new SaveExpenseCommand(
-                    supplierId, accountId, "Compra de prueba", "VC-0001", today, PaymentTerm.Cash, 1000m, taxTypeId, true, PaymentMethod.Cash),
+                    supplierId, accountId, "Compra de prueba", "VC-0001", lastMonth, PaymentTerm.Cash, 1000m, taxTypeId, true, PaymentMethod.Cash),
                 actorId);
             Assert.Equal(CatalogOperationStatus.Invalid, closed.Operation.Status);
 
             ExpenseCreationResult open = await expenses.CreateAsync(
                 new SaveExpenseCommand(
-                    supplierId, accountId, "Compra de prueba", "VC-0001", today.AddDays(1), PaymentTerm.Cash, 1000m, taxTypeId, true, PaymentMethod.Cash),
+                    supplierId, accountId, "Compra de prueba", "VC-0001", today, PaymentTerm.Cash, 1000m, taxTypeId, true, PaymentMethod.Cash),
                 actorId);
             Assert.True(open.Operation.IsSuccess);
         });
@@ -281,7 +285,11 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
             Guid supplierId = await CreateSupplierAsync(services, actorId);
             Guid accountId = await CreateExpenseCategoryAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
-            DateOnly issueDate = new(2026, 1, 15);
+
+            // Un mes pasado está cerrado por defecto: se reabre para poder crear el gasto, y se
+            // vuelve a cerrar antes de confirmarlo, para probar el rechazo con el reloj real.
+            DateOnly issueDate = PastDateWithinAReopenableMonth();
+            await ReopenMonthAsync(services, actorId, issueDate);
 
             ExpenseCreationResult created = await expenses.CreateAsync(
                 new SaveExpenseCommand(
@@ -290,7 +298,7 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
             Guid expenseId = created.ExpenseId!.Value;
             ExpenseModel draft = (await expenses.GetAsync(expenseId))!;
 
-            await SetClosingDateAsync(services, actorId, new DateOnly(2026, 1, 31));
+            await CloseMonthAsync(services, actorId, issueDate);
 
             CatalogOperationResult confirm = await expenses.ConfirmAsync(
                 expenseId, new ConfirmExpenseCommand(null, null), draft.Version, actorId, actorIsManagement: false);
@@ -312,7 +320,11 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
             Guid supplierId = await CreateSupplierAsync(services, actorId);
             Guid accountId = await CreateExpenseCategoryAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
-            DateOnly issueDate = new(2026, 1, 15);
+
+            // Un mes pasado está cerrado por defecto: se reabre para poder crear y confirmar el
+            // gasto, y se vuelve a cerrar antes de intentar anularlo.
+            DateOnly issueDate = PastDateWithinAReopenableMonth();
+            await ReopenMonthAsync(services, actorId, issueDate);
 
             ExpenseCreationResult created = await expenses.CreateAsync(
                 new SaveExpenseCommand(
@@ -321,12 +333,12 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
             Guid expenseId = created.ExpenseId!.Value;
             ExpenseModel draft = (await expenses.GetAsync(expenseId))!;
 
-            // Se confirma antes de cerrar su período (regla 16 solo bloquea desde el cierre).
+            // Se confirma mientras el período sigue reabierto.
             await expenses.ConfirmAsync(
                 expenseId, new ConfirmExpenseCommand(null, null), draft.Version, actorId, actorIsManagement: false);
             ExpenseModel confirmed = (await expenses.GetAsync(expenseId))!;
 
-            await SetClosingDateAsync(services, actorId, new DateOnly(2026, 1, 31));
+            await CloseMonthAsync(services, actorId, issueDate);
 
             CatalogOperationResult cancel = await expenses.CancelAsync(
                 expenseId, "Error de digitación", confirmed.Version, actorId);
@@ -338,19 +350,34 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
         });
     }
 
-    private static async Task SetClosingDateAsync(IServiceProvider services, Guid actorId, DateOnly closingDate)
+    /// <summary>Un día de un mes genuinamente pasado respecto al reloj real, dentro del año fiscal.</summary>
+    private static DateOnly PastDateWithinAReopenableMonth()
+    {
+        DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+        return new DateOnly(today.Year, today.Month, 1).AddMonths(-1).AddDays(14);
+    }
+
+    private static async Task ReopenMonthAsync(IServiceProvider services, Guid actorId, DateOnly date)
     {
         FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
         SystemParameters? parameters = await context.SystemParameters.SingleOrDefaultAsync();
 
         if (parameters is null)
         {
-            parameters = new SystemParameters(500_000m, 7, DateTimeOffset.UtcNow, actorId);
-            context.SystemParameters.Add(parameters);
+            context.SystemParameters.Add(new SystemParameters(500_000m, 7, DateTimeOffset.UtcNow, actorId));
         }
 
         context.AccountingPeriodOverrides.Add(new AccountingPeriodOverride(
-            closingDate.Year, closingDate.Month, "Período cerrado para la prueba", DateTimeOffset.UtcNow, actorId));
+            date.Year, date.Month, "Reapertura para la prueba", DateTimeOffset.UtcNow, actorId));
+        await context.SaveChangesAsync();
+    }
+
+    private static async Task CloseMonthAsync(IServiceProvider services, Guid actorId, DateOnly date)
+    {
+        FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+        AccountingPeriodOverride override_ = await context.AccountingPeriodOverrides
+            .SingleAsync(period => period.Year == date.Year && period.Month == date.Month);
+        override_.Close(DateTimeOffset.UtcNow, actorId);
         await context.SaveChangesAsync();
     }
 
@@ -464,7 +491,17 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
     private static async Task SetAuthorizationLimitAsync(IServiceProvider services, Guid actorId, decimal limit)
     {
         FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
-        context.SystemParameters.Add(new SystemParameters(limit, 7, DateTimeOffset.UtcNow, actorId));
+        SystemParameters? parameters = await context.SystemParameters.SingleOrDefaultAsync();
+
+        if (parameters is null)
+        {
+            context.SystemParameters.Add(new SystemParameters(limit, 7, DateTimeOffset.UtcNow, actorId));
+        }
+        else
+        {
+            parameters.UpdateValues(limit, parameters.OverdueAlertDays, DateTimeOffset.UtcNow, actorId);
+        }
+
         await context.SaveChangesAsync();
     }
 

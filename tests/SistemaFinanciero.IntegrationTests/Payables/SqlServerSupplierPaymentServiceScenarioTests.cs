@@ -222,12 +222,14 @@ public sealed class SqlServerSupplierPaymentServiceScenarioTests : IClassFixture
 
             Guid payableId = await CreateConfirmedCreditPayableAsync(services, expenses, supplierId, actorId, amount: 100m);
 
-            DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
-            await SetClosingDateAsync(services, actorId, today);
+            // Un mes anterior al actual se cierra automáticamente (regla 16); no hace falta ningún
+            // AccountingPeriodOverride, que solo sirve para REABRIR un mes ya cerrado, nunca para
+            // cerrar el mes actual.
+            DateOnly lastMonth = DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-1);
 
             RegisterSupplierPaymentResult result = await payments.RegisterAsync(
                 new RegisterSupplierPaymentCommand(
-                    supplierId, cashAccountId, "PAG-CIERRE-1", today,
+                    supplierId, cashAccountId, "PAG-CIERRE-1", lastMonth,
                     [new SupplierPaymentAllocationCommand(payableId, 50m)]),
                 actorId,
                 actorIsManagement: false);
@@ -238,22 +240,6 @@ public sealed class SqlServerSupplierPaymentServiceScenarioTests : IClassFixture
             Payable unchanged = await context.Payables.SingleAsync(p => p.Id == payableId);
             Assert.Equal(100m, unchanged.Balance);
         });
-    }
-
-    private static async Task SetClosingDateAsync(IServiceProvider services, Guid actorId, DateOnly closingDate)
-    {
-        FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
-        SystemParameters? parameters = await context.SystemParameters.SingleOrDefaultAsync();
-
-        if (parameters is null)
-        {
-            parameters = new SystemParameters(10_000m, 7, DateTimeOffset.UtcNow, actorId);
-            context.SystemParameters.Add(parameters);
-        }
-
-        context.AccountingPeriodOverrides.Add(new AccountingPeriodOverride(
-            closingDate.Year, closingDate.Month, "Período cerrado para la prueba", DateTimeOffset.UtcNow, actorId));
-        await context.SaveChangesAsync();
     }
 
     private static async Task<Guid> CreateConfirmedCreditPayableAsync(
@@ -376,7 +362,17 @@ public sealed class SqlServerSupplierPaymentServiceScenarioTests : IClassFixture
     private static async Task SetAuthorizationLimitAsync(IServiceProvider services, Guid actorId, decimal limit)
     {
         FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
-        context.SystemParameters.Add(new SystemParameters(limit, 7, DateTimeOffset.UtcNow, actorId));
+        SystemParameters? parameters = await context.SystemParameters.SingleOrDefaultAsync();
+
+        if (parameters is null)
+        {
+            context.SystemParameters.Add(new SystemParameters(limit, 7, DateTimeOffset.UtcNow, actorId));
+        }
+        else
+        {
+            parameters.UpdateValues(limit, parameters.OverdueAlertDays, DateTimeOffset.UtcNow, actorId);
+        }
+
         await context.SaveChangesAsync();
     }
 
