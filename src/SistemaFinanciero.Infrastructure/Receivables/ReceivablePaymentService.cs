@@ -8,7 +8,6 @@ using SistemaFinanciero.Domain.Incomes;
 using SistemaFinanciero.Domain.Invoices;
 using SistemaFinanciero.Domain.Ledger;
 using SistemaFinanciero.Domain.Parameters;
-using SistemaFinanciero.Domain.Payables;
 using SistemaFinanciero.Domain.Receivables;
 using SistemaFinanciero.Infrastructure.Catalogs;
 using SistemaFinanciero.Infrastructure.Common;

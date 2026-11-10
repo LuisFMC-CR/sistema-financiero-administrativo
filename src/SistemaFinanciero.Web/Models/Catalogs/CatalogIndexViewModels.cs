@@ -8,18 +8,11 @@ namespace SistemaFinanciero.Web.Models.Catalogs;
 /// <remarks>
 /// Conexiones: lo construye la acción <c>Index</c> de cada controlador de catálogo a partir del
 /// <see cref="PagedResult{T}"/> que devuelve su servicio; lo consumen las vistas <c>Index.cshtml</c>
-/// junto con <c>_CatalogFilters.cshtml</c> y <c>_CatalogPagination.cshtml</c>.
+/// junto con <c>_CatalogPagination.cshtml</c>; cada listado define sus propios filtros por columna.
 /// </remarks>
 public sealed record CatalogIndexViewModel<T>(
     PagedResult<T> Results,
     CatalogQuery Query);
-
-/// <summary>
-/// Datos compartidos por el formulario de filtros de los catálogos.
-/// </summary>
-public sealed record CatalogFilterViewModel(
-    string? Search,
-    CatalogStatusFilter? Status = null);
 
 public sealed record CatalogItemFilterViewModel(
     CatalogQuery Query,

@@ -246,7 +246,7 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_BitacoraOperaciones_Action", "[Action] BETWEEN 1 AND 3");
 
-                            t.HasCheckConstraint("CK_BitacoraOperaciones_EntityType", "[EntityType] BETWEEN 1 AND 10");
+                            t.HasCheckConstraint("CK_BitacoraOperaciones_EntityType", "[EntityType] BETWEEN 1 AND 11");
                         });
                 });
 
@@ -742,7 +742,7 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_CuentasContables_Parent", "[ParentId] IS NULL OR [ParentId] <> [Id]");
 
-                            t.HasCheckConstraint("CK_CuentasContables_SystemRole", "[SystemRole] IS NULL OR [SystemRole] IN (1, 2, 3, 4, 5, 6, 7, 8)");
+                            t.HasCheckConstraint("CK_CuentasContables_SystemRole", "[SystemRole] IS NULL OR [SystemRole] IN (1, 2, 3, 4, 5, 6, 7, 8, 9)");
 
                             t.HasCheckConstraint("CK_CuentasContables_Type", "[Type] IN (1, 2, 3, 4, 5)");
                         });
@@ -1327,6 +1327,108 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SistemaFinanciero.Domain.IncomeTax.IncomeTaxPayment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateTimeOffset?>("CancelledAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid?>("CancelledByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CashAccountId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateOnly>("FiscalPeriodEndDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("FiscalPeriodStartDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("PaymentDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("PaymentMethod")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("UpdatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CancelledByUserId");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("UX_PagosImpuestoRenta_Code");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.HasIndex("CashAccountId", "Reference")
+                        .HasDatabaseName("IX_PagosImpuestoRenta_CashAccountId_Reference");
+
+                    b.HasIndex("FiscalPeriodStartDate", "Status")
+                        .HasDatabaseName("IX_PagosImpuestoRenta_FiscalPeriodStartDate_Status");
+
+                    b.ToTable("PagosImpuestoRenta", "finanzas", t =>
+                        {
+                            t.HasCheckConstraint("CK_PagosImpuestoRenta_Amount", "[Amount] > 0");
+
+                            t.HasCheckConstraint("CK_PagosImpuestoRenta_FiscalPeriod", "DAY([FiscalPeriodStartDate]) = 1 AND [FiscalPeriodEndDate] = DATEADD(day, -1, DATEADD(year, 1, [FiscalPeriodStartDate]))");
+
+                            t.HasCheckConstraint("CK_PagosImpuestoRenta_PaymentDate", "[PaymentDate] >= [FiscalPeriodStartDate]");
+
+                            t.HasCheckConstraint("CK_PagosImpuestoRenta_PaymentMethod", "[PaymentMethod] IN (1, 2, 3, 4, 5)");
+
+                            t.HasCheckConstraint("CK_PagosImpuestoRenta_Status", "[Status] IN (1, 2)");
+                        });
+                });
+
             modelBuilder.Entity("SistemaFinanciero.Domain.Incomes.Income", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1713,7 +1815,7 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_Asientos_Number", "[Number] > 0");
 
-                            t.HasCheckConstraint("CK_Asientos_SourceType", "[SourceType] BETWEEN 1 AND 9");
+                            t.HasCheckConstraint("CK_Asientos_SourceType", "[SourceType] BETWEEN 1 AND 10");
                         });
                 });
 
@@ -2001,6 +2103,63 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("SistemaFinanciero.Domain.Parameters.IncomeTaxScaleChange", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Bracket1Rate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal>("Bracket1UpperLimit")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("Bracket2Rate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal>("Bracket2UpperLimit")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("Bracket3Rate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal>("Bracket3UpperLimit")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("Bracket4Rate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<DateTimeOffset>("ChangedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("ChangedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("GeneralRate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal>("GrossIncomeThreshold")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChangedAtUtc")
+                        .HasDatabaseName("IX_EscalaRentaHistorial_ChangedAtUtc");
+
+                    b.HasIndex("ChangedByUserId");
+
+                    b.ToTable("EscalaRentaHistorial", "finanzas");
+                });
+
             modelBuilder.Entity("SistemaFinanciero.Domain.Parameters.SystemParameterChange", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2118,6 +2277,42 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                     b.Property<DateOnly?>("FiscalPeriodStartDate")
                         .HasColumnType("date");
 
+                    b.Property<decimal>("IncomeTaxBracket1Rate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal>("IncomeTaxBracket1UpperLimit")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("IncomeTaxBracket2Rate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal>("IncomeTaxBracket2UpperLimit")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("IncomeTaxBracket3Rate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal>("IncomeTaxBracket3UpperLimit")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("IncomeTaxBracket4Rate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal>("IncomeTaxGeneralRate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal>("IncomeTaxGrossIncomeThreshold")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<int>("OverdueAlertDays")
                         .HasColumnType("int");
 
@@ -2154,6 +2349,10 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_ParametrosSistema_CompanyTerminalCode", "[CompanyTerminalCode] IS NULL OR LEN([CompanyTerminalCode]) = 5");
 
                             t.HasCheckConstraint("CK_ParametrosSistema_FiscalPeriod", "([FiscalPeriodStartDate] IS NULL AND [FiscalPeriodEndDate] IS NULL) OR ([FiscalPeriodStartDate] IS NOT NULL AND DAY([FiscalPeriodStartDate]) = 1 AND [FiscalPeriodEndDate] = DATEADD(day, -1, DATEADD(year, 1, [FiscalPeriodStartDate])))");
+
+                            t.HasCheckConstraint("CK_ParametrosSistema_IncomeTaxBrackets", "[IncomeTaxBracket1UpperLimit] > 0 AND [IncomeTaxBracket2UpperLimit] > [IncomeTaxBracket1UpperLimit] AND [IncomeTaxBracket3UpperLimit] > [IncomeTaxBracket2UpperLimit] AND [IncomeTaxGrossIncomeThreshold] > 0");
+
+                            t.HasCheckConstraint("CK_ParametrosSistema_IncomeTaxRates", "[IncomeTaxBracket1Rate] BETWEEN 0 AND 100 AND [IncomeTaxBracket2Rate] BETWEEN 0 AND 100 AND [IncomeTaxBracket3Rate] BETWEEN 0 AND 100 AND [IncomeTaxBracket4Rate] BETWEEN 0 AND 100 AND [IncomeTaxGeneralRate] BETWEEN 0 AND 100");
 
                             t.HasCheckConstraint("CK_ParametrosSistema_OverdueAlertDays", "[OverdueAlertDays] > 0");
                         });
@@ -3180,6 +3379,36 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .HasConstraintName("FK_Gastos_Usuarios_UpdatedBy");
                 });
 
+            modelBuilder.Entity("SistemaFinanciero.Domain.IncomeTax.IncomeTaxPayment", b =>
+                {
+                    b.HasOne("SistemaFinanciero.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CancelledByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_PagosImpuestoRenta_Usuarios_CancelledBy");
+
+                    b.HasOne("SistemaFinanciero.Domain.Catalogs.LedgerAccount", null)
+                        .WithMany()
+                        .HasForeignKey("CashAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_PagosImpuestoRenta_CuentasContables_CashAccount");
+
+                    b.HasOne("SistemaFinanciero.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_PagosImpuestoRenta_Usuarios_CreatedBy");
+
+                    b.HasOne("SistemaFinanciero.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_PagosImpuestoRenta_Usuarios_UpdatedBy");
+                });
+
             modelBuilder.Entity("SistemaFinanciero.Domain.Incomes.Income", b =>
                 {
                     b.HasOne("SistemaFinanciero.Domain.Catalogs.LedgerAccount", null)
@@ -3436,6 +3665,16 @@ namespace SistemaFinanciero.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("FK_PeriodoFiscalHistorial_Usuarios_ChangedBy");
+                });
+
+            modelBuilder.Entity("SistemaFinanciero.Domain.Parameters.IncomeTaxScaleChange", b =>
+                {
+                    b.HasOne("SistemaFinanciero.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ChangedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_EscalaRentaHistorial_Usuarios_ChangedBy");
                 });
 
             modelBuilder.Entity("SistemaFinanciero.Domain.Parameters.SystemParameterChange", b =>

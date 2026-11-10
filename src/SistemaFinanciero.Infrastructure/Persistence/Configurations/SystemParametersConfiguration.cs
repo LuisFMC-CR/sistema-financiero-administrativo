@@ -48,6 +48,17 @@ internal sealed class SystemParametersConfiguration : IEntityTypeConfiguration<S
                     + "([FiscalPeriodStartDate] IS NOT NULL AND DAY([FiscalPeriodStartDate]) = 1 "
                     + "AND [FiscalPeriodEndDate] = "
                     + "DATEADD(day, -1, DATEADD(year, 1, [FiscalPeriodStartDate])))");
+                table.HasCheckConstraint(
+                    "CK_ParametrosSistema_IncomeTaxBrackets",
+                    "[IncomeTaxBracket1UpperLimit] > 0 "
+                    + "AND [IncomeTaxBracket2UpperLimit] > [IncomeTaxBracket1UpperLimit] "
+                    + "AND [IncomeTaxBracket3UpperLimit] > [IncomeTaxBracket2UpperLimit] "
+                    + "AND [IncomeTaxGrossIncomeThreshold] > 0");
+                table.HasCheckConstraint(
+                    "CK_ParametrosSistema_IncomeTaxRates",
+                    "[IncomeTaxBracket1Rate] BETWEEN 0 AND 100 AND [IncomeTaxBracket2Rate] BETWEEN 0 AND 100 "
+                    + "AND [IncomeTaxBracket3Rate] BETWEEN 0 AND 100 AND [IncomeTaxBracket4Rate] BETWEEN 0 AND 100 "
+                    + "AND [IncomeTaxGeneralRate] BETWEEN 0 AND 100");
             });
 
         builder.HasKey(parameters => parameters.Id);
@@ -78,6 +89,15 @@ internal sealed class SystemParametersConfiguration : IEntityTypeConfiguration<S
             .HasMaxLength(SystemParameters.CompanyBranchCodeLength);
         builder.Property(parameters => parameters.CompanyTerminalCode)
             .HasMaxLength(SystemParameters.CompanyTerminalCodeLength);
+        builder.Property(parameters => parameters.IncomeTaxBracket1UpperLimit).HasPrecision(18, 2).IsRequired();
+        builder.Property(parameters => parameters.IncomeTaxBracket2UpperLimit).HasPrecision(18, 2).IsRequired();
+        builder.Property(parameters => parameters.IncomeTaxBracket3UpperLimit).HasPrecision(18, 2).IsRequired();
+        builder.Property(parameters => parameters.IncomeTaxBracket1Rate).HasPrecision(5, 2).IsRequired();
+        builder.Property(parameters => parameters.IncomeTaxBracket2Rate).HasPrecision(5, 2).IsRequired();
+        builder.Property(parameters => parameters.IncomeTaxBracket3Rate).HasPrecision(5, 2).IsRequired();
+        builder.Property(parameters => parameters.IncomeTaxBracket4Rate).HasPrecision(5, 2).IsRequired();
+        builder.Property(parameters => parameters.IncomeTaxGrossIncomeThreshold).HasPrecision(18, 2).IsRequired();
+        builder.Property(parameters => parameters.IncomeTaxGeneralRate).HasPrecision(5, 2).IsRequired();
         builder.Property(parameters => parameters.CreatedAtUtc).IsRequired();
         builder.Property(parameters => parameters.UpdatedAtUtc).IsRequired();
         builder.Property(parameters => parameters.RowVersion).IsRowVersion();

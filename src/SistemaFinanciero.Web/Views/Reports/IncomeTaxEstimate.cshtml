@@ -1,0 +1,163 @@
+@using SistemaFinanciero.Application.IncomeTax
+@using SistemaFinanciero.Domain.IncomeTax
+@using SistemaFinanciero.Web.Models.IncomeTax
+@using SistemaFinanciero.Web.Models.Reports
+@using SistemaFinanciero.Web.Reporting
+@model IncomeTaxEstimateReportViewModel
+@{
+    ViewData["Title"] = "Estimación del impuesto sobre la renta";
+    IncomeTaxEstimateReportResult? result = Model.Result;
+    string selectedPeriod = Model.FiscalPeriodStartDate.ToString("yyyy-MM-dd");
+}
+
+<h1 class="h2 mb-1">Estimación del impuesto sobre la renta</h1>
+<p class="text-body-secondary mb-3">
+    Impuesto estimado de un período fiscal a partir del estado de resultados y de la escala vigente,
+    menos las retenciones del 2 % y los pagos hechos a Hacienda para ese período.
+</p>
+
+<form method="get" asp-action="IncomeTaxEstimate" class="row gy-2 gx-3 align-items-end mb-3">
+    <div class="col-auto">
+        <label class="form-label small mb-0" for="fiscalPeriodStartDate">Período fiscal</label>
+        <select class="form-select form-select-sm" id="fiscalPeriodStartDate" name="fiscalPeriodStartDate">
+            @foreach (DateOnly start in Model.FiscalPeriodOptions)
+            {
+                string value = start.ToString("yyyy-MM-dd");
+                <option value="@value" selected="@(value == selectedPeriod)">@start.ToFiscalPeriodLabel()</option>
+            }
+        </select>
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-primary btn-sm">Consultar</button>
+    </div>
+    @if (result?.HasData == true)
+    {
+        <div class="col-auto">
+            <a class="btn btn-outline-secondary btn-sm" asp-action="IncomeTaxEstimatePdf" asp-route-fiscalPeriodStartDate="@selectedPeriod">Exportar PDF</a>
+            <a class="btn btn-outline-secondary btn-sm" asp-action="IncomeTaxEstimateExcel" asp-route-fiscalPeriodStartDate="@selectedPeriod">Exportar Excel</a>
+        </div>
+    }
+</form>
+
+@if (result is null)
+{
+    <div class="alert alert-info" role="status">
+        Los parámetros del sistema aún no están configurados; la escala del impuesto sobre la renta se define allí.
+    </div>
+}
+else if (!result.HasData)
+{
+    <p class="text-body-secondary text-center py-4">No hay movimientos ni pagos de renta en el período fiscal indicado.</p>
+}
+else
+{
+    <div class="row g-3 mb-3">
+        <div class="col-md-4">
+            <div class="card card-body h-100">
+                <div class="text-body-secondary small">Renta bruta (total de ingresos)</div>
+                <div class="fs-5 fw-semibold">₡@result.GrossIncome.ToString("N2")</div>
+                <div class="text-body-secondary small mt-2">Gastos: ₡@result.TotalExpense.ToString("N2")</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card card-body h-100">
+                <div class="text-body-secondary small">@(result.NetIncome >= 0 ? "Renta neta (utilidad)" : "Pérdida del período")</div>
+                <div class="fs-5 fw-semibold">₡@Math.Abs(result.NetIncome).ToString("N2")</div>
+                <div class="text-body-secondary small mt-2">Forma de cálculo: @result.Regime.ToDisplayName()</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card card-body h-100 @(result.AmountInFavor > 0 ? "border-success" : "border-primary")">
+                <div class="text-body-secondary small">@(result.AmountInFavor > 0 ? "Saldo estimado a favor" : "Saldo estimado por pagar")</div>
+                <div class="fs-5 fw-bold">₡@(result.AmountInFavor > 0 ? result.AmountInFavor.ToString("N2") : result.AmountDue.ToString("N2"))</div>
+                <div class="text-body-secondary small mt-2">Impuesto estimado: ₡@result.EstimatedTax.ToString("N2")</div>
+            </div>
+        </div>
+    </div>
+
+    @if (result.Regime == IncomeTaxRegime.General)
+    {
+        <div class="alert alert-warning" role="status">
+            La renta bruta supera ₡@result.Scale.GrossIncomeThreshold.ToString("N2"): no aplican los tramos para pequeñas
+            empresas y se usa la tarifa general del @result.Scale.GeneralRate.ToString("N2") % sobre toda la renta neta.
+        </div>
+    }
+
+    <h2 class="h5 mb-2">Cálculo del impuesto</h2>
+    <div class="table-responsive bg-white border rounded mb-3">
+        <table class="table align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th scope="col">Tramo</th>
+                    <th scope="col" class="text-end">%</th>
+                    <th scope="col" class="text-end">Renta en el tramo</th>
+                    <th scope="col" class="text-end">Impuesto</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (IncomeTaxBracketLine line in result.Brackets)
+                {
+                    <tr>
+                        <td>@IncomeTaxEstimateReportPdfDocument.DescribeBracket(line)</td>
+                        <td class="text-end">@line.Rate.ToString("N2")</td>
+                        <td class="text-end">₡@line.TaxableAmount.ToString("N2")</td>
+                        <td class="text-end">₡@line.Tax.ToString("N2")</td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot class="table-light fw-semibold">
+                <tr>
+                    <td colspan="3">Impuesto estimado del período</td>
+                    <td class="text-end">₡@result.EstimatedTax.ToString("N2")</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <h2 class="h5 mb-2">Saldo estimado</h2>
+    <div class="table-responsive bg-white border rounded mb-3">
+        <table class="table align-middle mb-0">
+            <tbody>
+                <tr><td>Impuesto estimado</td><td class="text-end">₡@result.EstimatedTax.ToString("N2")</td></tr>
+                <tr><td>Menos: retenciones del 2 % del sector público</td><td class="text-end">₡@result.Withholdings.ToString("N2")</td></tr>
+                <tr><td>Menos: pagos a Hacienda del período</td><td class="text-end">₡@result.PaymentsTotal.ToString("N2")</td></tr>
+            </tbody>
+            <tfoot class="table-light fw-bold">
+                <tr>
+                    <td>@(result.AmountInFavor > 0 ? "Saldo estimado a favor" : "Saldo estimado por pagar")</td>
+                    <td class="text-end">₡@(result.AmountInFavor > 0 ? result.AmountInFavor.ToString("N2") : result.AmountDue.ToString("N2"))</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    @if (result.Payments.Count > 0)
+    {
+        <h2 class="h5 mb-2">Pagos a Hacienda del período</h2>
+        <div class="table-responsive bg-white border rounded mb-3">
+            <table class="table align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col">Código</th>
+                        <th scope="col">Fecha</th>
+                        <th scope="col">Referencia</th>
+                        <th scope="col" class="text-end">Monto</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (IncomeTaxEstimatePaymentLine payment in result.Payments)
+                    {
+                        <tr>
+                            <td>@payment.Code</td>
+                            <td>@payment.PaymentDate.ToString("dd/MM/yyyy")</td>
+                            <td>@payment.Reference</td>
+                            <td class="text-end">₡@payment.Amount.ToString("N2")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <p class="text-body-secondary"><small>@ReportDocumentStyles.IncomeTaxEstimateNote</small></p>
+}

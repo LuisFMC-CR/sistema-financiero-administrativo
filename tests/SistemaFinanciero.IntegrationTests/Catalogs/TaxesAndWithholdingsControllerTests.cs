@@ -7,7 +7,6 @@ using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Catalogs.TaxTypes;
 using SistemaFinanciero.Application.Catalogs.WithholdingTypes;
 using SistemaFinanciero.Application.Security;
-using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Web.Controllers;
 using SistemaFinanciero.Web.Models.Catalogs;
 

@@ -7,7 +7,6 @@ using SistemaFinanciero.Application.Catalogs.LedgerAccounts;
 using SistemaFinanciero.Application.CreditNotes;
 using SistemaFinanciero.Application.Parameters;
 using SistemaFinanciero.Application.Security;
-using SistemaFinanciero.Domain.CreditNotes;
 using SistemaFinanciero.Web.Models.CreditNotes;
 using SistemaFinanciero.Web.Reporting;
 

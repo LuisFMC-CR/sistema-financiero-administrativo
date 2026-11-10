@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using QuestPDF.Fluent;
 using SistemaFinanciero.Application.Catalogs.Customers;
 using SistemaFinanciero.Application.Catalogs.LedgerAccounts;
+using SistemaFinanciero.Application.IncomeTax;
 using SistemaFinanciero.Application.Parameters;
 using SistemaFinanciero.Application.Reports;
 using SistemaFinanciero.Application.Security;
@@ -660,6 +661,99 @@ public sealed class ReportsController(
             excel,
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             "estado-de-resultados.xlsx");
+    }
+
+    /// <summary>
+    /// Estimación del impuesto sobre la renta de un período fiscal (RF-99). Sin período indicado, usa
+    /// el período fiscal vigente; se ofrecen el vigente y los dos anteriores.
+    /// </summary>
+    [HttpGet("estimacion-renta")]
+    public async Task<IActionResult> IncomeTaxEstimate(
+        DateOnly? fiscalPeriodStartDate,
+        [FromServices] IIncomeTaxService incomeTaxService,
+        CancellationToken cancellationToken)
+    {
+        DateOnly current = await GetCurrentFiscalPeriodStartAsync(cancellationToken);
+        DateOnly selected = NormalizeFiscalPeriodStart(fiscalPeriodStartDate) ?? current;
+
+        IncomeTaxEstimateReportResult? result = await incomeTaxService.GetEstimateAsync(
+            selected, CurrentUserName(), cancellationToken);
+
+        DateOnly[] options = [current, current.AddYears(-1), current.AddYears(-2)];
+        if (!options.Contains(selected))
+        {
+            options = [.. options, selected];
+        }
+
+        return View(new IncomeTaxEstimateReportViewModel(selected, options, result));
+    }
+
+    [HttpGet("estimacion-renta/pdf")]
+    public async Task<IActionResult> IncomeTaxEstimatePdf(
+        DateOnly fiscalPeriodStartDate,
+        [FromServices] IIncomeTaxService incomeTaxService,
+        CancellationToken cancellationToken)
+    {
+        IncomeTaxEstimateReportResult? result = await GetIncomeTaxEstimateOrNullAsync(
+            fiscalPeriodStartDate, incomeTaxService, cancellationToken);
+
+        if (result is null || !result.HasData)
+        {
+            return IncomeTaxEstimateNoData(fiscalPeriodStartDate);
+        }
+
+        byte[] pdf = new IncomeTaxEstimateReportPdfDocument(result).GeneratePdf();
+        return File(pdf, "application/pdf", "estimacion-impuesto-renta.pdf");
+    }
+
+    [HttpGet("estimacion-renta/excel")]
+    public async Task<IActionResult> IncomeTaxEstimateExcel(
+        DateOnly fiscalPeriodStartDate,
+        [FromServices] IIncomeTaxService incomeTaxService,
+        CancellationToken cancellationToken)
+    {
+        IncomeTaxEstimateReportResult? result = await GetIncomeTaxEstimateOrNullAsync(
+            fiscalPeriodStartDate, incomeTaxService, cancellationToken);
+
+        if (result is null || !result.HasData)
+        {
+            return IncomeTaxEstimateNoData(fiscalPeriodStartDate);
+        }
+
+        byte[] excel = ReportExcelExporter.BuildIncomeTaxEstimateWorkbook(result);
+        return File(
+            excel,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "estimacion-impuesto-renta.xlsx");
+    }
+
+    private async Task<IncomeTaxEstimateReportResult?> GetIncomeTaxEstimateOrNullAsync(
+        DateOnly fiscalPeriodStartDate,
+        IIncomeTaxService incomeTaxService,
+        CancellationToken cancellationToken)
+    {
+        return NormalizeFiscalPeriodStart(fiscalPeriodStartDate) is DateOnly start
+            ? await incomeTaxService.GetEstimateAsync(start, CurrentUserName(), cancellationToken)
+            : null;
+    }
+
+    private RedirectToActionResult IncomeTaxEstimateNoData(DateOnly fiscalPeriodStartDate)
+    {
+        TempData["ErrorMessage"] = "No hay datos para los parámetros indicados; no se generó ningún archivo.";
+        return RedirectToAction(
+            nameof(IncomeTaxEstimate),
+            new { fiscalPeriodStartDate = fiscalPeriodStartDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) });
+    }
+
+    /// <summary>Un período fiscal válido inicia el primer día de un mes; cualquier otro valor se descarta.</summary>
+    private static DateOnly? NormalizeFiscalPeriodStart(DateOnly? value) =>
+        value is DateOnly date && date.Day == 1 && date.Year < DateOnly.MaxValue.Year ? date : null;
+
+    private async Task<DateOnly> GetCurrentFiscalPeriodStartAsync(CancellationToken cancellationToken)
+    {
+        SystemParametersModel? parameters = await systemParametersService.GetAsync(cancellationToken);
+        return parameters?.FiscalPeriodStartDate
+            ?? new DateOnly(timeProvider.GetLocalNow().Year, 1, 1);
     }
 
     [HttpGet("presupuesto-anual")]

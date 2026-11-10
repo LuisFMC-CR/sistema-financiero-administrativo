@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SistemaFinanciero.Application.Catalogs.Common;
+using SistemaFinanciero.Application.IncomeTax;
 using SistemaFinanciero.Application.Parameters;
 using SistemaFinanciero.Application.Security;
+using SistemaFinanciero.Web.Models.IncomeTax;
 using SistemaFinanciero.Web.Models.Parameters;
 
 namespace SistemaFinanciero.Web.Controllers;
@@ -240,6 +242,55 @@ public sealed class SystemParametersController(ISystemParametersService service)
         return FormFailure(result, errorPage, nameof(Index));
     }
 
+    /// <summary>
+    /// Reemplaza la escala del impuesto sobre la renta (RF-99). Solo Gerencia: usa la misma política
+    /// que el período fiscal, exclusiva de Gerencia.
+    /// </summary>
+    [Authorize(Policy = SystemPolicies.ManageAccountingPeriods)]
+    [HttpPost("escala-renta")]
+    public async Task<IActionResult> UpdateIncomeTaxScale(
+        [Bind(Prefix = "IncomeTaxScaleForm")] IncomeTaxScaleViewModel model,
+        [FromServices] IIncomeTaxService incomeTaxService,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            SystemParametersPageViewModel page = await ToPageViewModelAsync(
+                await service.GetAsync(cancellationToken), cancellationToken);
+            page.IncomeTaxScaleForm = model;
+            return View(nameof(Index), page);
+        }
+
+        if (!TryGetActorId(out Guid actorId))
+        {
+            return Forbid();
+        }
+
+        CatalogOperationResult result = await incomeTaxService.UpdateScaleAsync(
+            model.ToCommand(),
+            model.Version,
+            actorId,
+            cancellationToken);
+
+        if (result.IsSuccess)
+        {
+            SetSuccessMessage("La escala del impuesto sobre la renta se actualizó correctamente.");
+            return RedirectToAction(nameof(Index));
+        }
+
+        SystemParametersModel? latest = await service.GetAsync(cancellationToken);
+
+        if (result.Status == CatalogOperationStatus.ConcurrencyConflict && latest?.IncomeTaxScale is { } latestScale)
+        {
+            model.Version = latestScale.Version;
+            ModelState.Remove(nameof(model.Version));
+        }
+
+        SystemParametersPageViewModel errorPage = await ToPageViewModelAsync(latest, cancellationToken);
+        errorPage.IncomeTaxScaleForm = model;
+        return FormFailure(result, errorPage, nameof(Index));
+    }
+
     private async Task<SystemParametersPageViewModel> ToPageViewModelAsync(
         SystemParametersModel? current,
         CancellationToken cancellationToken) => new()
@@ -249,6 +300,7 @@ public sealed class SystemParametersController(ISystemParametersService service)
         FiscalPeriodForm = ToFiscalPeriodViewModel(current),
         ReopenedAccountingPeriods = await service.GetReopenedAccountingPeriodsAsync(cancellationToken),
         CompanyDataForm = ToCompanyDataViewModel(current),
+        IncomeTaxScaleForm = current?.IncomeTaxScale is { } scale ? IncomeTaxScaleViewModel.From(scale) : null,
     };
 
     private static SystemParametersViewModel ToViewModel(SystemParametersModel? current)

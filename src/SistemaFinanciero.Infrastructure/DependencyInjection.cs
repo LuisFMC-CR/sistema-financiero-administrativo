@@ -16,6 +16,7 @@ using SistemaFinanciero.Application.Catalogs.WithholdingTypes;
 using SistemaFinanciero.Application.CreditNotes;
 using SistemaFinanciero.Application.Expenses;
 using SistemaFinanciero.Application.Incomes;
+using SistemaFinanciero.Application.IncomeTax;
 using SistemaFinanciero.Application.Invoices;
 using SistemaFinanciero.Application.Ledger;
 using SistemaFinanciero.Application.Parameters;
@@ -39,6 +40,7 @@ using SistemaFinanciero.Infrastructure.CreditNotes;
 using SistemaFinanciero.Infrastructure.Expenses;
 using SistemaFinanciero.Infrastructure.Identity;
 using SistemaFinanciero.Infrastructure.Incomes;
+using SistemaFinanciero.Infrastructure.IncomeTax;
 using SistemaFinanciero.Infrastructure.Invoices;
 using SistemaFinanciero.Infrastructure.Ledger;
 using SistemaFinanciero.Infrastructure.Parameters;
@@ -158,6 +160,7 @@ public static class DependencyInjection
         services.AddScoped<IJournalEntryService, JournalEntryService>();
         services.AddScoped<ICashTransferService, CashTransferService>();
         services.AddScoped<IVatSettlementService, VatSettlementService>();
+        services.AddScoped<IIncomeTaxService, IncomeTaxService>();
 
         return services;
     }

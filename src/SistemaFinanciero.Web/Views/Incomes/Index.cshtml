@@ -7,7 +7,7 @@
 @{
     ViewData["Title"] = "Ingresos";
     bool canCreate = (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.RegisterManualIncome)).Succeeded;
-    bool canRegisterReceivablePayment = (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ConfirmFinancialTransactions)).Succeeded;
+    bool canRegisterReceivablePayment = (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.RegisterReceivablePayments)).Succeeded;
     bool canCancel = (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.VoidFinancialTransactions)).Succeeded;
     int columnCount = canCancel ? 8 : 7;
 }

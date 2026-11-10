@@ -205,6 +205,7 @@ internal sealed class JournalEntryService(FinancialDbContext dbContext) : IJourn
         JournalEntrySourceType.CreditNote => JournalEntryDocumentKind.CreditNote,
         JournalEntrySourceType.CashTransfer => JournalEntryDocumentKind.CashTransfer,
         JournalEntrySourceType.VatSettlement => JournalEntryDocumentKind.VatSettlement,
+        JournalEntrySourceType.IncomeTaxPayment => JournalEntryDocumentKind.IncomeTaxPayment,
         _ => throw new ArgumentOutOfRangeException(
             nameof(sourceType), sourceType, "Este origen no tiene una pantalla propia por id."),
     };

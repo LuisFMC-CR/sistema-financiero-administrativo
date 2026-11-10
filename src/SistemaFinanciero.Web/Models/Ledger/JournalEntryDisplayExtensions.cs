@@ -17,6 +17,7 @@ public static class JournalEntryDisplayExtensions
         JournalEntrySourceType.CreditNote => "Nota de crédito",
         JournalEntrySourceType.CashTransfer => "Traspaso",
         JournalEntrySourceType.VatSettlement => "Liquidación de IVA",
+        JournalEntrySourceType.IncomeTaxPayment => "Pago de impuesto sobre la renta",
         _ => "Desconocido",
     };
 
@@ -34,6 +35,7 @@ public static class JournalEntryDisplayExtensions
         JournalEntryDocumentKind.CreditNote => ("CreditNotes", "Details"),
         JournalEntryDocumentKind.CashTransfer => ("CashTransfers", "Details"),
         JournalEntryDocumentKind.VatSettlement => ("VatSettlements", "Details"),
+        JournalEntryDocumentKind.IncomeTaxPayment => ("IncomeTaxPayments", "Details"),
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
     };
 
@@ -47,6 +49,7 @@ public static class JournalEntryDisplayExtensions
         JournalEntryDocumentKind.CreditNote => "Ver nota de crédito",
         JournalEntryDocumentKind.CashTransfer => "Ver traspaso",
         JournalEntryDocumentKind.VatSettlement => "Ver liquidación de IVA",
+        JournalEntryDocumentKind.IncomeTaxPayment => "Ver pago de renta",
         _ => "Ver documento",
     };
 }

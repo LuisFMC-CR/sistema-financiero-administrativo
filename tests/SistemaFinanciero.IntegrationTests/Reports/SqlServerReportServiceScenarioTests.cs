@@ -17,7 +17,6 @@ using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Common;
 using SistemaFinanciero.Domain.Invoices;
 using SistemaFinanciero.Domain.Parameters;
-using SistemaFinanciero.Domain.Payables;
 using SistemaFinanciero.Domain.Receivables;
 using SistemaFinanciero.Infrastructure.Identity;
 using SistemaFinanciero.Infrastructure.Persistence;

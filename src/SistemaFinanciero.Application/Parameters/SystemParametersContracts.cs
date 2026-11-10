@@ -47,7 +47,8 @@ public sealed record SystemParametersModel(
     string UpdatedByUserName,
     string Version,
     DateOnly? FiscalPeriodStartDate = null,
-    DateOnly? FiscalPeriodEndDate = null);
+    DateOnly? FiscalPeriodEndDate = null,
+    SistemaFinanciero.Application.IncomeTax.IncomeTaxScaleModel? IncomeTaxScale = null);
 
 /// <summary>Proyección de un período anterior que Gerencia reabrió manualmente.</summary>
 public sealed record ReopenedAccountingPeriodModel(

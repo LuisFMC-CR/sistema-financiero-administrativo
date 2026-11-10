@@ -37,4 +37,7 @@ public enum JournalEntrySourceType
 
     /// <summary>Liquidación mensual del IVA.</summary>
     VatSettlement = 9,
+
+    /// <summary>Pago de impuesto sobre la renta a Hacienda (RF-99).</summary>
+    IncomeTaxPayment = 10,
 }

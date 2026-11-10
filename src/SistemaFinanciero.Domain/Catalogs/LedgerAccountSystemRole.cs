@@ -37,4 +37,7 @@ public enum LedgerAccountSystemRole
 
     /// <summary>4.4.01 Devoluciones y descuentos sobre ventas.</summary>
     SalesReturnsAndAllowances = 8,
+
+    /// <summary>1.3.03 Impuesto sobre la renta pagado por anticipado (RF-99).</summary>
+    IncomeTaxPrepaid = 9,
 }

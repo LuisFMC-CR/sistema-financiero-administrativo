@@ -30,7 +30,9 @@ dotnet run --project src\SistemaFinanciero.Web
 ```
 
 Migraciones siempre explícitas (nunca `EnsureCreated` ni al arrancar). Pruebas contra SQL Server:
-`$env:SISTEMA_FINANCIERO_RUN_SQL_TESTS = "1"`.
+`$env:SISTEMA_FINANCIERO_RUN_SQL_TESTS = "1"`. La herramienta `dotnet-ef` está fijada en
+`.config/dotnet-tools.json` (`dotnet tool restore`). Si la aplicación está abierta, bloquea la
+compilación del proyecto Web: ciérrala antes de compilar o migrar.
 
 ## Arquitectura (no cambiar sin ADR)
 
@@ -75,7 +77,10 @@ Si una tarea requiere algo de esta lista, detente y pregúntame. Fuera del siste
   de factura 4.4 del paquete de mejoras finales); la **liquidación interna del IVA** ya no está fuera:
   es un registro interno del pago o del saldo a favor, ver la regla 3 (IVA) y el bloque de liquidación
   del IVA del paquete v7;
-- impuestos distintos del IVA y retenciones a terceros;
+- impuestos distintos del IVA y retenciones a terceros; la **estimación del impuesto sobre la renta**
+  y el registro de sus pagos a Hacienda ya no están fuera (regla 17), pero siguen fuera el cálculo
+  fiscal oficial (ajustes de renta gravable, depreciación, gastos no deducibles), la declaración y la
+  provisión contable del impuesto;
 - dólares u otras monedas (el sistema opera **solo en colones**) y planilla;
 - saldos iniciales, integración y conciliación bancarias (los traspasos entre cuentas de efectivo
   propias ya no están fuera: ver la regla 2 y el bloque de traspasos del paquete v7);
@@ -122,7 +127,8 @@ Facturación · Presupuesto · Impuestos y Retenciones · Mantenimiento · Consu
    - El dinero que pasa de una cuenta de efectivo a otra es un **traspaso** (bloque de traspasos del
      paquete v7), nunca un ingreso ni un gasto: no toca categorías, presupuesto ni estado de
      resultados. El pago del IVA a Hacienda es una **liquidación** (bloque de liquidación del IVA del
-     paquete v7), nunca un gasto.
+     paquete v7), nunca un gasto. El pago del impuesto sobre la renta a Hacienda es un **pago de
+     renta** (regla 17): anticipo del impuesto, nunca un gasto.
 3. **IVA y retenciones.**
    - Tarifas precargadas: IVA 13 %, IVA 2 %, Exento y No sujeto; Gerencia puede agregar o actualizar
      otras tarifas (bloque de IVA y retenciones del paquete v7). Cada cliente tiene una **condición de
@@ -175,8 +181,8 @@ Facturación · Presupuesto · Impuestos y Retenciones · Mantenimiento · Consu
    bloquear; si no hay presupuesto, se indica y se permite continuar. Monto 0 válido. Cada cambio
    guarda monto anterior, nuevo, usuario y fecha. Disponible = presupuestado − ejecutado (mínimo 0);
    variación = ejecutado − presupuestado; variación % = variación / presupuestado.
-7. **Límite de autorización.** Parámetro. Abonos, pagos y traspasos sobre el límite solo los registra
-   Gerencia; los cambios solo afectan operaciones posteriores. Un gasto de contado sobre el límite no
+7. **Límite de autorización.** Parámetro. Abonos (individuales o repartidos; en el reparto se compara
+   el total), pagos, traspasos y pagos de renta sobre el límite solo los registra Gerencia; los cambios solo afectan operaciones posteriores. Un gasto de contado sobre el límite no
    se confirma de contado: va a crédito y Gerencia registra el pago. Al confirmar un gasto de contado
    se indican cuenta de efectivo y referencia; el medio de pago es el del gasto.
 8. **Reportes** (PDF y Excel): ingresos recibidos por período; gastos por período y categoría;
@@ -185,7 +191,8 @@ Facturación · Presupuesto · Impuestos y Retenciones · Mantenimiento · Consu
    efectivo mensual (desde los asientos); y los contables y tributarios del paquete de mejoras
    finales: libro diario, libro mayor, balanza de comprobación, estado de resultados, IVA del período
    y retenciones aplicadas por clientes. El paquete v7 agrega cuentas por cobrar por cliente con
-   antigüedad de saldos y antigüedad en el reporte de cuentas por pagar por proveedor. Cada reporte
+   antigüedad de saldos y antigüedad en el reporte de cuentas por pagar por proveedor. RF-99 agrega la
+   estimación del impuesto sobre la renta por período fiscal (regla 17). Cada reporte
    muestra nombre, parámetros, fecha y hora y usuario. En Excel los montos van como números. Sin
    datos: mensaje y no se genera archivo.
 9. **Cuentas vencidas.** Indicador en inicio y en Consultas para Finanzas y Gerencia, con cantidad y
@@ -193,8 +200,8 @@ Facturación · Presupuesto · Impuestos y Retenciones · Mantenimiento · Consu
    (parámetro, 7 por defecto).
 10. **Numeración y referencias.** Consecutivo interno de facturas, no fiscal. Al confirmar una
     factura de contado se indican cuenta de efectivo, medio de pago y referencia. Solo se exportan a
-    PDF facturas confirmadas o anuladas. Advertir, sin bloquear, si un ingreso, abono, pago o traspaso
-    repite la referencia en la misma cuenta de efectivo.
+    PDF facturas confirmadas o anuladas. Advertir, sin bloquear, si un ingreso, abono, pago, traspaso o
+    pago de renta repite la referencia en la misma cuenta de efectivo.
 11. **Consultas y filtros.** Pantalla de Consultas con filtros combinados (fecha, estado, cliente,
     proveedor, categoría, cuenta contable), detalle con registros relacionados e historial. Además,
     cada listado tiene filtros sobre su propia tabla, al menos los de su RF: cuentas contables (RF-06),
@@ -202,14 +209,16 @@ Facturación · Presupuesto · Impuestos y Retenciones · Mantenimiento · Consu
     IVA y retenciones (RF-49). Los filtros de los listados no reemplazan la pantalla de Consultas.
 12. **Códigos automáticos**, asignados al crear y no editables: `CLI-0001`, `PRV-0001`, `PRD-0001`,
     `SRV-0001`, `REC-000001`, `GTO-000001`, `ABO-000001`, `PAG-000001` (y los nuevos del paquete v7:
-    `TRA-000001` traspaso, `LIQ-000001` liquidación de IVA y `NCR-000001` nota de crédito). Cuentas
+    `TRA-000001` traspaso, `LIQ-000001` liquidación de IVA y `NCR-000001` nota de crédito; y
+    `PIR-000001` pago de impuesto sobre la renta, RF-99). Cuentas
     contables: código jerárquico (`3.1.07`) = siguiente hijo libre de la superior; después solo
     cambian nombre y referencia bancaria. Generación segura ante concurrencia (secuencia o índice
     único con reintento).
 13. **Datos iniciales (RF-54)**, cargados por migración (nunca al arrancar): catálogo base, una
     categoría por cuenta de detalle (mismo nombre), tarifas de IVA 13 %, IVA 2 %, Exento y No sujeto,
     tipo de retención "Retención 2 % sector público" precargado, plazos de pago y parámetros por
-    defecto. Las cuentas de grupo están protegidas; las de detalle se pueden renombrar o inactivar, y
+    defecto (incluida la escala del impuesto sobre la renta de 2026 y la cuenta de sistema 1.3.03,
+    regla 17). Las cuentas de grupo están protegidas; las de detalle se pueden renombrar o inactivar, y
     se agregan nuevas dentro de los grupos. Catálogo base:
     - 1 Activo › 1.1 Efectivo › 1.1.01 Caja chica, 1.1.02 Cuenta bancaria principal.
     - 2 Ingresos › 2.1 Ingresos por servicios › 2.1.01 Soporte técnico, 2.1.02 Mantenimiento y
@@ -235,14 +244,34 @@ Facturación · Presupuesto · Impuestos y Retenciones · Mantenimiento · Consu
     cerrarlo. Cada cambio de estado queda en una bitácora inmutable. El período fiscal, exclusivo de
     Gerencia, inicia el primer día de un mes y termina el último día de doce meses después; cambiarlo
     admite motivo opcional y conserva historial. Los reportes anuales usan ese rango. El período
-    inicial acordado es 01/01/2026–31/12/2026.
+    inicial acordado es 01/01/2026–31/12/2026. Ninguna operación se registra con fecha fuera del
+    período fiscal vigente.
+17. **Impuesto sobre la renta (RF-99).** Es una **estimación**, no un cálculo oficial; los textos de
+    pantalla y reportes la llaman así y no mencionan declaraciones oficiales.
+    - Escala única vigente en `ParametrosSistema` (Gerencia la cambia; cada cambio queda en
+      `EscalaRentaHistorial`; al cambiarla, toda estimación se recalcula, incluso la de períodos
+      anteriores). Valores 2026: hasta ₡5.621.000 al 5 %; sobre el exceso hasta ₡8.433.000 al 10 %;
+      sobre el exceso hasta ₡11.243.000 al 15 %; sobre el exceso de ₡11.243.000 al 20 %. Si la renta
+      bruta del período **supera** ₡119.174.000 no aplican los tramos y se usa la tarifa general del
+      30 % sobre toda la renta neta. No hay tramo exento (escala de persona jurídica); si se requiere,
+      Gerencia pone 0 % en el primer tramo.
+    - Renta bruta = total de ingresos y renta neta = utilidad del estado de resultados del período
+      fiscal (ya sin IVA; el IVA no acreditable cuenta como gasto). Con pérdida, el impuesto es 0.
+      Cada tramo se redondea a 2 decimales.
+    - Saldo estimado = impuesto − retenciones del 2 % (movimientos netos de la cuenta 1.3.02 en el
+      período) − pagos de renta vigentes del período; positivo por pagar, negativo a favor.
+    - Pago de renta: período fiscal al que se aplica (explícito, porque la declaración se paga cuando
+      el período ya terminó), cuenta de efectivo, medio de pago, monto, referencia y fecha (no anterior
+      al inicio de ese período). Asiento: débito 1.3.03 "Impuesto sobre la renta pagado por
+      anticipado", crédito efectivo. Vigente → Anulado solo por Gerencia, con reversión del asiento. No
+      toca categorías, presupuesto ni estado de resultados.
 
-Trazabilidad: usa los códigos RF-01 a RF-98 (RF-15 = pago a varias cuentas; RF-54 = datos iniciales;
+Trazabilidad: usa los códigos RF-01 a RF-99 (RF-15 = pago a varias cuentas; RF-54 = datos iniciales;
 RF-78 a RF-92 del paquete de mejoras finales; RF-93 a RF-98 del paquete v7: condición de IVA del
 cliente y tarifa automática por línea, IVA no acreditable en gastos, retención del 2 % del sector
 público, traspaso entre cuentas de efectivo, liquidación mensual del IVA, cuentas por cobrar por
-cliente con antigüedad de saldos) y CU-01 a CU-22 en `docs/` y en las pruebas; los flujos alternos de
-cada CU definen sus validaciones.
+cliente con antigüedad de saldos; RF-99 estimación del impuesto sobre la renta y pagos a Hacienda) y
+CU-01 a CU-22 en `docs/` y en las pruebas; los flujos alternos de cada CU definen sus validaciones.
 
 ## Modelo de datos aprobado
 
@@ -256,9 +285,13 @@ tablas y columnas. Si el código difiere, explícame la diferencia antes de migr
   CuentasPorCobrar, Abonos, Retenciones, Ingresos, Gastos, CuentasPorPagar, Pagos, AjustesSaldo,
   Presupuestos, PresupuestoCambios, Asientos, AsientoLineas, y del paquete v7: Traspasos,
   LiquidacionesIva, NotasCredito, NotaCreditoLineas, PeriodosContablesReabiertos,
-  PeriodosContablesHistorial, PeriodoFiscalHistorial). `ParametrosSistema` conserva las columnas
-  históricas `ClosingDate` y su tabla `ClosingDateChanges`, pero el cierre automático ya no las usa;
-  agrega `FiscalPeriodStartDate` y `FiscalPeriodEndDate`.
+  PeriodosContablesHistorial, PeriodoFiscalHistorial; y de RF-99: PagosImpuestoRenta,
+  EscalaRentaHistorial). `ParametrosSistema` conserva las columnas históricas `ClosingDate` y su
+  tabla `ClosingDateChanges`, pero el cierre automático ya no las usa; agrega `FiscalPeriodStartDate`
+  y `FiscalPeriodEndDate`, y la escala de renta (`IncomeTaxBracket1UpperLimit` a
+  `IncomeTaxBracket3UpperLimit`, `IncomeTaxBracket1Rate` a `IncomeTaxBracket4Rate`,
+  `IncomeTaxGrossIncomeThreshold` e `IncomeTaxGeneralRate`). Nota: en la base real
+  `CuentasContables` vive en el esquema `catalogos`.
 - **Tipos:** `CHAR(36)` → `uniqueidentifier`; `VARCHAR(n)` → `nvarchar(n)`; `TEXT` → `nvarchar(max)`;
   `DATETIME` → `datetimeoffset` (UTC); `BIT` → `bit`; `BINARY(8)` → `rowversion`. Importes
   `decimal(18,2)`, cantidades y precios `decimal(18,4)`, porcentajes `decimal(5,2)`, fechas `date`.
@@ -271,10 +304,12 @@ tablas y columnas. Si el código difiere, explícame la diferencia antes de migr
   4 Ingreso, 5 Gasto; CategoriasFinancieras.Kind 1 Ingreso, 2 Gasto; ProductosServicios.Type
   1 Producto, 2 Servicio; AjustesSaldo.Direction 1 Disminución, 2 Aumento; Asientos.SourceType
   1 Factura, 2 Abono, 3 Ingreso manual, 4 Gasto, 5 Pago, 6 Ajuste de saldo, 7 Nota de crédito,
-  8 Traspaso, 9 Liquidación de IVA (el 7 queda reservado para nota de crédito aunque los bloques de
-  traspasos y liquidación se construyan antes); Traspasos.Status y LiquidacionesIva.Status 1 Vigente,
-  2 Anulada; NotasCredito.Status 1 Vigente, 2 Anulada; Clientes.VatCondition 1 Normal,
-  2 Institución estatal de educación superior, 3 No sujeto.
+  8 Traspaso, 9 Liquidación de IVA, 10 Pago de impuesto sobre la renta; Traspasos.Status y
+  LiquidacionesIva.Status 1 Vigente, 2 Anulada; NotasCredito.Status 1 Vigente, 2 Anulada;
+  PagosImpuestoRenta.Status 1 Vigente, 2 Anulado; Clientes.VatCondition 1 Normal, 2 Institución
+  estatal de educación superior, 3 No sujeto; CuentasContables.SystemRole 1 a 9 (9 = 1.3.03 Impuesto
+  sobre la renta pagado por anticipado); BitacoraOperaciones.EntityType 1 a 11 (11 = pago de renta).
+  Los valores ya asignados no se renumeran.
 - **Únicos:** Facturas.Number (nulo en borradores), CuentasPorCobrar.InvoiceId,
   CuentasPorPagar.ExpenseId, Retenciones.ReceivablePaymentId, Ingresos.ReceivablePaymentId,
   UsuariosRoles.UserId, (InvoiceId, LineNumber), (ExpenseCategoryId, PeriodYear, PeriodMonth), Code
@@ -287,13 +322,16 @@ tablas y columnas. Si el código difiere, explícame la diferencia antes de migr
   Gasto, igual que dice la regla 7; corregido respecto a una versión anterior de esta línea, ADR-0028);
   Traspasos con origen distinto de destino; LiquidacionesIva.VatPayableAmount =
   VatCreditApplied + PaymentAmount, con CashAccountId obligatoria solo si PaymentAmount > 0;
-  NotasCredito.TotalAmount = AppliedToBalance + RefundedAmount.
+  NotasCredito.TotalAmount = AppliedToBalance + RefundedAmount; PagosImpuestoRenta con período fiscal
+  de doce meses que inicia el día 1 y PaymentDate ≥ FiscalPeriodStartDate; escala de renta con límites
+  crecientes y porcentajes entre 0 y 100.
 - **Auditoría:** CreatedAtUtc, CreatedByUserId, UpdatedAtUtc, UpdatedByUserId y RowVersion en
   catálogos y documentos, con FK reales a Usuarios (el diagrama no las dibuja). En catálogos con
   datos iniciales, los usuarios de auditoría admiten nulo para las filas de la migración.
 - **Secuencias SQL Server:** número de factura (se pide después de validar la confirmación);
-  códigos CLI, PRV, PRD, SRV, REC, GTO, ABO y PAG; número de asiento; y las nuevas del paquete v7
-  para traspaso, liquidación de IVA y nota de crédito.
+  códigos CLI, PRV, PRD, SRV, REC, GTO, ABO y PAG; número de asiento; las nuevas del paquete v7
+  para traspaso, liquidación de IVA y nota de crédito; y `Seq_PagoRentaCodigo` (PIR). Las secuencias
+  se crean a mano en la migración: no están en el modelo de EF Core.
 - **Clases (diagramas UML):** ApplicationUser, Role, SecurityAuditEvent, OperationLogEntry
   (BitacoraOperaciones), SystemSettings (Parametros), Customer, Supplier, CatalogItem,
   AccountingAccount (LedgerAccount), FinancialCategory, VatRate (TaxType), WithholdingType,
@@ -302,7 +340,9 @@ tablas y columnas. Si el código difiere, explícame la diferencia antes de migr
   (Asientos), JournalEntryLine (AsientoLineas), y del paquete v7: CashTransfer (Traspasos),
   VatSettlement (LiquidacionesIva), CreditNote (NotasCredito), CreditNoteLine (NotaCreditoLineas);
   AccountingPeriodOverride (PeriodosContablesReabiertos), AccountingPeriodChange
-  (PeriodosContablesHistorial), FiscalPeriodChange (PeriodoFiscalHistorial).
+  (PeriodosContablesHistorial), FiscalPeriodChange (PeriodoFiscalHistorial); y de RF-99:
+  IncomeTaxPayment (PagosImpuestoRenta), IncomeTaxScaleChange (EscalaRentaHistorial), y los valores
+  sin tabla IncomeTaxScale e IncomeTaxEstimate.
 - **Operaciones publicadas:** Invoice.AddLine, RemoveLine, Confirm(closingDate), AssignNumber,
   Cancel; InvoiceLine.Recalculate; Receivable y Payable.ApplyPayment, RevertPayment, Adjust, Cancel;
   Expense.Recalculate, Confirm(closingDate, authorizationLimit), Cancel; ReceivablePayment,
@@ -313,7 +353,9 @@ tablas y columnas. Si el código difiere, explícame la diferencia antes de migr
   ReceivablePaymentService.RegisterAsync, ExpenseService.CheckBudgetAsync y ConfirmAsync. El paquete
   v7 agrega: CashTransfer.Cancel y el registro de CashTransferService; VatSettlement.Cancel y el
   cálculo de VatSettlementService; CreditNote.Cancel y el reparto automático de
-  CreditNoteService.RegisterAsync.
+  CreditNoteService.RegisterAsync. RF-99 agrega: IncomeTaxPayment.Cancel,
+  SystemParameters.GetIncomeTaxScale/UpdateIncomeTaxScale, IncomeTaxEstimate.Calculate e
+  IncomeTaxService (RegisterPaymentAsync, CancelPaymentAsync, UpdateScaleAsync, GetEstimateAsync).
 - **Asientos (JournalEntry/JournalEntryLine):** inmutables (no se editan ni eliminan): una anulación
   genera un asiento de reversión nuevo, nunca modifica el original. NotasCredito, Traspasos y
   LiquidacionesIva siguen el mismo patrón Vigente/Anulada que los demás documentos financieros (nunca
@@ -323,17 +365,21 @@ tablas y columnas. Si el código difiere, explícame la diferencia antes de migr
 
 | Perfil | Permisos |
 |---|---|
-| Asistente | Consulta catálogos; mantiene clientes y proveedores; consulta facturas y gastos de todos los usuarios y mantiene únicamente sus propios borradores; consulta y registra ingresos manuales; consulta cuentas por cobrar y por pagar, y ve sus indicadores de vencimientos en el inicio. No confirma documentos, no registra abonos ni pagos, no anula movimientos ni ve asientos, reportes o presupuesto. |
-| Finanzas | Catálogos financieros (cuentas, categorías, tarifas, retenciones, productos); confirma documentos; ingresos manuales; abonos, pagos y traspasos hasta el límite; liquidación del IVA hasta el límite; notas de crédito; presupuesto; consultas y reportes. |
-| Gerencia | Todo lo de Finanzas y Asistente (ve los borradores de todos), más lo exclusivo: abonos, pagos y traspasos sobre el límite, pagos de liquidación de IVA sobre el límite, anulaciones (incluidas notas de crédito, traspasos y liquidaciones), ajustes de saldo y parámetros (límite, días de alerta, datos de la empresa, fecha de cierre). No administra usuarios. |
+| Asistente | Consulta catálogos; mantiene clientes y proveedores; consulta facturas y gastos de todos los usuarios y mantiene únicamente sus propios borradores; consulta y registra ingresos manuales; consulta cuentas por cobrar y por pagar, y ve sus indicadores de vencimientos en el inicio; registra abonos a cuentas por cobrar, individuales o repartidos entre varias facturas (ingreso dividido), hasta el límite. No confirma documentos, no registra pagos a proveedores ni pagos de renta, no anula movimientos ni ve asientos, reportes o presupuesto. |
+| Finanzas | Catálogos financieros (cuentas, categorías, tarifas, retenciones, productos); confirma documentos; ingresos manuales; abonos, pagos, traspasos y pagos de renta hasta el límite; liquidación del IVA hasta el límite; notas de crédito; presupuesto; consultas y reportes (incluida la estimación de renta); ve la escala de renta en solo lectura. |
+| Gerencia | Todo lo de Finanzas y Asistente (ve los borradores de todos), más lo exclusivo: abonos, pagos, traspasos y pagos de renta sobre el límite, pagos de liquidación de IVA sobre el límite, anulaciones (incluidas notas de crédito, traspasos, liquidaciones y pagos de renta), ajustes de saldo y parámetros (límite, días de alerta, datos de la empresa, período fiscal, reaperturas y escala de renta). No administra usuarios. |
 | Administrador | Solo usuarios y configuración técnica; sin acceso a información financiera. |
 
 - Gerencia entra en toda política que permita a Finanzas o Asistente; solo las de administración de
   usuarios la excluyen. Lo exclusivo de Gerencia sigue siendo exclusivo.
 - Permisos validados siempre en el servidor, además de ocultar opciones; pantalla de solo consulta con
   esta matriz.
+- Políticas: los abonos usan `RegisterReceivablePayments` (Gerencia, Finanzas y Asistente), separada
+  de `ConfirmFinancialTransactions` (Gerencia y Finanzas); la escala de renta usa
+  `ManageAccountingPeriods` (solo Gerencia).
 - El documento aún no refleja los permisos ampliados de Gerencia (corrección pendiente en CU-04, 05,
-  07, 08, 09, 10, 13, 14, 15 y 19, Tabla 10 y análisis de módulos). Si comparas, manda este archivo.
+  07, 08, 09, 10, 13, 14, 15 y 19, Tabla 10 y análisis de módulos) ni los abonos del Asistente
+  (casos de uso de abonos y matriz de perfiles). Si comparas, manda este archivo.
 
 ## Estado y orden de trabajo
 
@@ -383,7 +429,7 @@ revisado: `26a71fe`, reportes contables y exportaciones):
 El paquete v2 quedaba con los bloques 7 (presupuesto y reportes) y 8 (nota de crédito) pendientes; el
 bloque 7 se avanzó parcialmente (semáforo de ejecución, indicador de inicio, filtro de presupuesto,
 comparativo mensual desde los asientos, reporte "Ingresos recibidos", reportes de IVA del período y
-de retenciones por cliente). El **paquete v7** (`prompt_claude_code_mejoras_finales_v7.md`)
+de retenciones por cliente). El **paquete v7** (`docs/paquetes/prompt_claude_code_mejoras_finales_v7.md`)
 **reemplaza** al v2 para todo lo que falta: retoma ese trabajo pendiente sin rehacerlo y agrega
 decisiones nuevas sobre lo ya construido (condición de IVA del cliente, IVA no acreditable, retención
 del 2 % del sector público, regla de creación de cuentas contables) y tres funciones nuevas
@@ -405,6 +451,28 @@ confirmación entre cada uno:
    antigüedad de cuentas por cobrar y por pagar).
 7. Nota de crédito interna con devolución de dinero al cliente.
 8. Cierre del paquete (documentación, prueba de extremo a extremo, resumen final).
+
+Los traspasos, la liquidación del IVA y sus reportes se construyeron con el **paquete v8**
+(`docs/paquetes/prompt_claude_code_traspasos_iva_v8.md`, bloques 1 a 3, commits `127ae0e`,
+`5809846` y `dd79d4c`). Los archivos de paquetes en `docs/paquetes/` son historial de instrucciones
+ya aplicadas.
+
+Trabajo posterior (09/11/2026), con código y pruebas pero **sin documentación en `docs/` todavía**:
+- RF-99, estimación del impuesto sobre la renta y pagos a Hacienda (regla 17): migración
+  `AddIncomeTaxEstimate`; pantallas en `/pagos-renta`, escala en Parámetros y reporte
+  `/reportes/estimacion-renta` en pantalla, PDF y Excel.
+- Abonos del Asistente (individuales y repartidos) hasta el límite, con la política
+  `RegisterReceivablePayments`.
+- Limpieza del repositorio: sin salidas de compilación en `artifacts/` (excluidas en
+  `Directory.Build.props`), bibliotecas de `wwwroot/lib` reducidas a los archivos que se cargan,
+  `README.md` reescrito como resumen del sistema actual.
+
+Pendientes conocidos:
+- Documentar RF-99 y los abonos del Asistente en `docs/02-requisitos-trazabilidad.md`,
+  `docs/04-casos-de-uso.md` y `docs/05-modelo-datos.md`, con un ADR (el siguiente libre es ADR-0059).
+- Con `SISTEMA_FINANCIERO_RUN_SQL_TESTS=1` fallan 22 de 411 pruebas de integración, todas anteriores
+  a RF-99: 14 por datos acumulados en la base de desarrollo, fechas fijas y reglas posteriores a la
+  prueba, y 8 de la liquidación del IVA sin diagnosticar. La suite normal (sin SQL) pasa completa.
 
 ## Lo que el documento necesita del prototipo
 

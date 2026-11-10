@@ -51,7 +51,7 @@ public sealed class InvoiceElectronicDataExportTests
     {
         InvoiceModel invoice = CreateInvoice();
 
-        string json = InvoiceElectronicDataExport.BuildJson(invoice, SampleCompanyData, "Usuario de prueba");
+        string json = InvoiceElectronicDataExport.BuildJson(invoice, SampleCompanyData);
         using JsonDocument document = JsonDocument.Parse(json);
         JsonElement root = document.RootElement;
 
@@ -92,7 +92,7 @@ public sealed class InvoiceElectronicDataExportTests
     {
         InvoiceModel invoice = CreateInvoice() with { PaymentTerm = PaymentTerm.Cash, PaymentMethod = PaymentMethod.SinpeMobile };
 
-        string json = InvoiceElectronicDataExport.BuildJson(invoice, SampleCompanyData, "Usuario de prueba");
+        string json = InvoiceElectronicDataExport.BuildJson(invoice, SampleCompanyData);
         using JsonDocument document = JsonDocument.Parse(json);
 
         Assert.Equal("01", document.RootElement.GetProperty("condicionVenta").GetProperty("codigo").GetString());

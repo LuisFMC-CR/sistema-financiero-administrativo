@@ -63,6 +63,7 @@ public static class AuditDisplayExtensions
             OperationLogEntityType.CreditNote => "Nota de crédito",
             OperationLogEntityType.CashTransfer => "Traspaso",
             OperationLogEntityType.VatSettlement => "Liquidación de IVA",
+            OperationLogEntityType.IncomeTaxPayment => "Pago de impuesto sobre la renta",
             _ => entityType.ToString(),
         };
     }

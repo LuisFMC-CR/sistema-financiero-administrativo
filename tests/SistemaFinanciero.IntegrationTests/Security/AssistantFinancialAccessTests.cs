@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using SistemaFinanciero.Application.Security;
@@ -13,6 +13,7 @@ public sealed class AssistantFinancialAccessTests(FinancialWebApplicationFactory
     [InlineData(SystemPolicies.CreateFinancialDrafts)]
     [InlineData(SystemPolicies.RegisterManualIncome)]
     [InlineData(SystemPolicies.ViewReceivablesAndPayables)]
+    [InlineData(SystemPolicies.RegisterReceivablePayments)]
     public async Task Assistant_IsAllowedForRequestedFinancialCapabilities(string policyName)
     {
         AuthorizationResult result = await AuthorizeAssistantAsync(policyName);

@@ -3,19 +3,17 @@ using Microsoft.EntityFrameworkCore.Storage;
 using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.CreditNotes;
 using SistemaFinanciero.Domain.Audit;
-using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Common;
 using SistemaFinanciero.Domain.CreditNotes;
 using SistemaFinanciero.Domain.Incomes;
 using SistemaFinanciero.Domain.Invoices;
-using SistemaFinanciero.Domain.Ledger;
 using SistemaFinanciero.Domain.Parameters;
 using SistemaFinanciero.Domain.Receivables;
 using SistemaFinanciero.Infrastructure.Catalogs;
 using SistemaFinanciero.Infrastructure.Common;
 using SistemaFinanciero.Infrastructure.Ledger;
-using SistemaFinanciero.Infrastructure.Persistence;
 using SistemaFinanciero.Infrastructure.Parameters;
+using SistemaFinanciero.Infrastructure.Persistence;
 
 namespace SistemaFinanciero.Infrastructure.CreditNotes;
 

@@ -1,4 +1,5 @@
 using SistemaFinanciero.Domain.Common;
+using SistemaFinanciero.Domain.IncomeTax;
 
 namespace SistemaFinanciero.Domain.Parameters;
 
@@ -90,6 +91,7 @@ public sealed class SystemParameters
         AuthorizationLimitCrc = RequireNonNegativeLimit(authorizationLimitCrc, nameof(authorizationLimitCrc));
         OverdueAlertDays = RequirePositiveDays(overdueAlertDays, nameof(overdueAlertDays));
         ClosingDate = NoClosingDate;
+        ApplyIncomeTaxScale(IncomeTaxScale.Default);
         CreatedAtUtc = DomainRules.RequiredUtcTimestamp(createdAtUtc, nameof(createdAtUtc));
         CreatedByUserId = DomainRules.RequiredId(createdByUserId, nameof(createdByUserId));
         UpdatedAtUtc = CreatedAtUtc;
@@ -186,6 +188,76 @@ public sealed class SystemParameters
 
     /// <summary>Último día del período fiscal de doce meses vigente.</summary>
     public DateOnly? FiscalPeriodEndDate { get; private set; }
+
+    /// <summary>Límite del primer tramo del impuesto sobre la renta (RF-99).</summary>
+    public decimal IncomeTaxBracket1UpperLimit { get; private set; }
+
+    /// <summary>Límite del segundo tramo del impuesto sobre la renta.</summary>
+    public decimal IncomeTaxBracket2UpperLimit { get; private set; }
+
+    /// <summary>Límite del tercer tramo del impuesto sobre la renta.</summary>
+    public decimal IncomeTaxBracket3UpperLimit { get; private set; }
+
+    /// <summary>Porcentaje del primer tramo.</summary>
+    public decimal IncomeTaxBracket1Rate { get; private set; }
+
+    /// <summary>Porcentaje del segundo tramo.</summary>
+    public decimal IncomeTaxBracket2Rate { get; private set; }
+
+    /// <summary>Porcentaje del tercer tramo.</summary>
+    public decimal IncomeTaxBracket3Rate { get; private set; }
+
+    /// <summary>Porcentaje sobre el exceso del tercer límite.</summary>
+    public decimal IncomeTaxBracket4Rate { get; private set; }
+
+    /// <summary>Renta bruta anual por encima de la cual se aplica la tarifa general.</summary>
+    public decimal IncomeTaxGrossIncomeThreshold { get; private set; }
+
+    /// <summary>Tarifa general del impuesto sobre las utilidades.</summary>
+    public decimal IncomeTaxGeneralRate { get; private set; }
+
+    /// <summary>Devuelve la escala del impuesto sobre la renta vigente (RF-99).</summary>
+    public IncomeTaxScale GetIncomeTaxScale() => new(
+        IncomeTaxBracket1UpperLimit,
+        IncomeTaxBracket2UpperLimit,
+        IncomeTaxBracket3UpperLimit,
+        IncomeTaxBracket1Rate,
+        IncomeTaxBracket2Rate,
+        IncomeTaxBracket3Rate,
+        IncomeTaxBracket4Rate,
+        IncomeTaxGrossIncomeThreshold,
+        IncomeTaxGeneralRate);
+
+    /// <summary>
+    /// Reemplaza la escala del impuesto sobre la renta (RF-99). Solo Gerencia; el servicio registra el
+    /// cambio en la bitácora. La escala ya viene validada por <see cref="IncomeTaxScale"/>.
+    /// </summary>
+    public void UpdateIncomeTaxScale(IncomeTaxScale scale, DateTimeOffset updatedAtUtc, Guid updatedByUserId)
+    {
+        ArgumentNullException.ThrowIfNull(scale);
+        Guid normalizedUserId = DomainRules.RequiredId(updatedByUserId, nameof(updatedByUserId));
+        DateTimeOffset normalizedUpdatedAtUtc = DomainRules.RequiredUtcTimestamp(
+            updatedAtUtc,
+            nameof(updatedAtUtc),
+            UpdatedAtUtc);
+
+        ApplyIncomeTaxScale(scale);
+        UpdatedAtUtc = normalizedUpdatedAtUtc;
+        UpdatedByUserId = normalizedUserId;
+    }
+
+    private void ApplyIncomeTaxScale(IncomeTaxScale scale)
+    {
+        IncomeTaxBracket1UpperLimit = scale.Bracket1UpperLimit;
+        IncomeTaxBracket2UpperLimit = scale.Bracket2UpperLimit;
+        IncomeTaxBracket3UpperLimit = scale.Bracket3UpperLimit;
+        IncomeTaxBracket1Rate = scale.Bracket1Rate;
+        IncomeTaxBracket2Rate = scale.Bracket2Rate;
+        IncomeTaxBracket3Rate = scale.Bracket3Rate;
+        IncomeTaxBracket4Rate = scale.Bracket4Rate;
+        IncomeTaxGrossIncomeThreshold = scale.GrossIncomeThreshold;
+        IncomeTaxGeneralRate = scale.GeneralRate;
+    }
 
     /// <summary>
     /// Actualiza los datos de la empresa (RF-55). Nombre y cédula jurídica son obligatorios; el resto,

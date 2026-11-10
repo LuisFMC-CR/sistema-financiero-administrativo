@@ -20,6 +20,11 @@ internal static class ReportDocumentStyles
     public const string AccountingNote =
         "Saldos calculados a partir de las operaciones registradas en el sistema; no incluye saldos iniciales.";
 
+    /// <summary>Pie del reporte "Estimación del impuesto sobre la renta" (RF-99).</summary>
+    public const string IncomeTaxEstimateNote =
+        "Montos estimados a partir de las operaciones registradas en el sistema y de la escala del impuesto "
+        + "sobre la renta vigente en Parámetros.";
+
     public static void ComposeAccountingNote(IContainer container) => ComposeNote(container, AccountingNote);
 
     /// <summary>Pie de un reporte con una nota propia (por ejemplo, el aviso de apoyo para la declaración de IVA).</summary>

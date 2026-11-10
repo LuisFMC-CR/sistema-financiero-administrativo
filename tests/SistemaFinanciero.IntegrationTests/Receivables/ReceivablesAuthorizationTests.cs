@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,8 +9,8 @@ namespace SistemaFinanciero.IntegrationTests.Receivables;
 /// <summary>
 /// Verifica, sin tocar SQL Server, que las rutas de <c>ReceivablesController</c> y
 /// <c>ReceivablePaymentsController</c> exigen exactamente las políticas de la matriz de perfiles:
-/// Gerencia, Finanzas y Asistente consultan cuentas por cobrar; Asistente no registra abonos y solo
-/// Gerencia los anula.
+/// Gerencia, Finanzas y Asistente consultan cuentas por cobrar y registran abonos, individuales o
+/// repartidos (el límite de autorización lo valida el servicio); solo Gerencia los anula.
 /// Sigue el mismo patrón que <c>InvoiceAuthorizationTests</c>.
 /// </summary>
 public sealed class ReceivablesAuthorizationTests : IClassFixture<FinancialWebApplicationFactory>
@@ -92,6 +92,11 @@ public sealed class ReceivablesAuthorizationTests : IClassFixture<FinancialWebAp
             registerEndpoints,
             endpoint => Assert.Contains(
                 endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>(),
+                data => data.Policy == SystemPolicies.RegisterReceivablePayments));
+        Assert.All(
+            registerEndpoints,
+            endpoint => Assert.DoesNotContain(
+                endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>(),
                 data => data.Policy == SystemPolicies.ConfirmFinancialTransactions));
         Assert.All(
             registerEndpoints,
@@ -122,7 +127,22 @@ public sealed class ReceivablesAuthorizationTests : IClassFixture<FinancialWebAp
             cancelEndpoints,
             endpoint => Assert.DoesNotContain(
                 endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>(),
-                data => data.Policy == SystemPolicies.ConfirmFinancialTransactions));
+                data => data.Policy == SystemPolicies.RegisterReceivablePayments));
+    }
+
+    [Fact]
+    public void RegisterReceivablePaymentsPolicy_AllowsManagementFinanceAndAssistantOnly()
+    {
+        AuthorizationPolicy policy = factory.Services
+            .GetRequiredService<Microsoft.Extensions.Options.IOptions<AuthorizationOptions>>()
+            .Value
+            .GetPolicy(SystemPolicies.RegisterReceivablePayments)!;
+        Microsoft.AspNetCore.Authorization.Infrastructure.RolesAuthorizationRequirement requirement = Assert.Single(
+            policy.Requirements.OfType<Microsoft.AspNetCore.Authorization.Infrastructure.RolesAuthorizationRequirement>());
+
+        Assert.Equal(
+            new[] { SystemRoles.Assistant, SystemRoles.Finance, SystemRoles.Management }.Order(StringComparer.Ordinal),
+            requirement.AllowedRoles.Order(StringComparer.Ordinal));
     }
 
     private RouteEndpoint[] GetEndpointsStartingWith(string prefix)

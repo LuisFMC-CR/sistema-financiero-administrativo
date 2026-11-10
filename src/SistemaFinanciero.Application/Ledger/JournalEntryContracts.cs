@@ -18,6 +18,7 @@ public enum JournalEntryDocumentKind
     CreditNote = 6,
     CashTransfer = 7,
     VatSettlement = 8,
+    IncomeTaxPayment = 9,
 }
 
 /// <summary>Una línea de un asiento, lista para mostrar.</summary>

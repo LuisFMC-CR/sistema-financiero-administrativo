@@ -36,4 +36,7 @@ public enum OperationLogEntityType
 
     /// <summary>Liquidación mensual del IVA.</summary>
     VatSettlement = 10,
+
+    /// <summary>Pago de impuesto sobre la renta a Hacienda (RF-99).</summary>
+    IncomeTaxPayment = 11,
 }

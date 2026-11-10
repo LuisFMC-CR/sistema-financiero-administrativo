@@ -69,7 +69,7 @@ public sealed class ReceivablesController(
 
         bool canRegisterPayment = (await authorizationService.AuthorizeAsync(
             User,
-            SystemPolicies.ConfirmFinancialTransactions)).Succeeded;
+            SystemPolicies.RegisterReceivablePayments)).Succeeded;
         bool canCancelPayment = (await authorizationService.AuthorizeAsync(
             User,
             SystemPolicies.VoidFinancialTransactions)).Succeeded;

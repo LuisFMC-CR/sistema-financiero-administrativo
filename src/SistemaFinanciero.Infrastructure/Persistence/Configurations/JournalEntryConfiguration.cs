@@ -20,7 +20,7 @@ internal sealed class JournalEntryConfiguration : IEntityTypeConfiguration<Journ
             "finanzas",
             table =>
             {
-                table.HasCheckConstraint("CK_Asientos_SourceType", "[SourceType] BETWEEN 1 AND 9");
+                table.HasCheckConstraint("CK_Asientos_SourceType", "[SourceType] BETWEEN 1 AND 10");
                 table.HasCheckConstraint("CK_Asientos_Number", "[Number] > 0");
             });
 

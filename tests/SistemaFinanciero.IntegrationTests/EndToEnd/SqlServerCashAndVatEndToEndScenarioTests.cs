@@ -5,7 +5,6 @@ using SistemaFinanciero.Application.CashTransfers;
 using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Expenses;
 using SistemaFinanciero.Application.Invoices;
-using SistemaFinanciero.Application.Ledger;
 using SistemaFinanciero.Application.Reports;
 using SistemaFinanciero.Application.VatSettlements;
 using SistemaFinanciero.Domain.Catalogs;

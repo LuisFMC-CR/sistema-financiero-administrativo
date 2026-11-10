@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SistemaFinanciero.Domain.CashTransfers;
 using SistemaFinanciero.Domain.Incomes;
+using SistemaFinanciero.Domain.IncomeTax;
 using SistemaFinanciero.Domain.Payables;
 using SistemaFinanciero.Domain.Receivables;
 using SistemaFinanciero.Infrastructure.Persistence;
@@ -14,7 +15,8 @@ namespace SistemaFinanciero.Infrastructure.Common;
 /// <remarks>
 /// Conexiones: la usan <c>ReceivablePaymentService</c>, <c>SupplierPaymentService</c>,
 /// <c>IncomeService</c>, <c>InvoiceService</c> (factura de contado, que genera un ingreso igual que
-/// un abono) y <c>CashTransferService</c>; busca en las cuatro tablas de movimientos de efectivo, sin
+/// un abono), <c>CashTransferService</c> e <c>IncomeTaxService</c>; busca en las cinco tablas de
+/// movimientos de efectivo con referencia (incluidos los pagos de renta, RF-99), sin
 /// importar su estado, porque la regla solo exige advertir, no distinguir vigentes de anulados. En
 /// <c>Traspasos</c> compara contra el origen y el destino, porque la referencia puede repetirse en
 /// cualquiera de las dos cuentas.
@@ -60,11 +62,22 @@ internal static class DuplicateReferenceGuard
             return true;
         }
 
-        return await dbContext.Set<CashTransfer>()
+        bool existsInCashTransfers = await dbContext.Set<CashTransfer>()
             .AsNoTracking()
             .AnyAsync(
                 transfer => (transfer.SourceCashAccountId == cashAccountId || transfer.DestinationCashAccountId == cashAccountId)
                     && transfer.Reference == reference,
+                cancellationToken);
+
+        if (existsInCashTransfers)
+        {
+            return true;
+        }
+
+        return await dbContext.Set<IncomeTaxPayment>()
+            .AsNoTracking()
+            .AnyAsync(
+                payment => payment.CashAccountId == cashAccountId && payment.Reference == reference,
                 cancellationToken);
     }
 }

@@ -68,6 +68,15 @@ public sealed record IncomeStatementReportViewModel(
     DateOnly PeriodTo,
     IncomeStatementReportResult? Result);
 
+/// <summary>
+/// Parámetros y resultado de la estimación del impuesto sobre la renta (RF-99): el período fiscal
+/// elegido, las opciones disponibles y el resultado (nulo si los parámetros no están configurados).
+/// </summary>
+public sealed record IncomeTaxEstimateReportViewModel(
+    DateOnly FiscalPeriodStartDate,
+    IReadOnlyList<DateOnly> FiscalPeriodOptions,
+    SistemaFinanciero.Application.IncomeTax.IncomeTaxEstimateReportResult? Result);
+
 /// <summary>Parámetros y resultado del presupuesto anual a la fecha.</summary>
 public sealed record AnnualBudgetReportViewModel(
     int PeriodYear,

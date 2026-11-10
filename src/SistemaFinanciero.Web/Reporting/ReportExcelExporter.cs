@@ -1,9 +1,12 @@
 using System.Globalization;
 using ClosedXML.Excel;
 using SistemaFinanciero.Application.Budgets;
+using SistemaFinanciero.Application.IncomeTax;
 using SistemaFinanciero.Application.Reports;
+using SistemaFinanciero.Domain.IncomeTax;
 using SistemaFinanciero.Web.Models.Budgets;
 using SistemaFinanciero.Web.Models.Incomes;
+using SistemaFinanciero.Web.Models.IncomeTax;
 using SistemaFinanciero.Web.Models.Ledger;
 
 namespace SistemaFinanciero.Web.Reporting;
@@ -506,6 +509,104 @@ public static class ReportExcelExporter
         WriteAccountingNote(sheet, row);
         sheet.Columns().AdjustToContents();
         return ToBytes(workbook);
+    }
+
+    /// <summary>Estimación del impuesto sobre la renta (RF-99); los montos van como números.</summary>
+    public static byte[] BuildIncomeTaxEstimateWorkbook(IncomeTaxEstimateReportResult result)
+    {
+        using XLWorkbook workbook = new();
+        IXLWorksheet sheet = workbook.Worksheets.Add("Estimación de renta");
+
+        int row = WriteHeader(sheet, result.Header);
+
+        row = WriteLabeledAmounts(sheet, row, "Renta del período",
+        [
+            ("Renta bruta (total de ingresos)", result.GrossIncome),
+            ("Gastos", result.TotalExpense),
+            (result.NetIncome >= 0 ? "Renta neta (utilidad)" : "Pérdida del período", Math.Abs(result.NetIncome)),
+        ]);
+
+        row++;
+        sheet.Cell(row, 1).Value = $"Cálculo del impuesto — {result.Regime.ToDisplayName()}";
+        sheet.Row(row).Style.Font.SetBold();
+        row++;
+        WriteColumnHeaders(sheet, row, ["Tramo", "%", "Renta en el tramo", "Impuesto"]);
+        row++;
+
+        foreach (IncomeTaxBracketLine line in result.Brackets)
+        {
+            sheet.Cell(row, 1).Value = IncomeTaxEstimateReportPdfDocument.DescribeBracket(line);
+            sheet.Cell(row, 2).Value = line.Rate;
+            sheet.Cell(row, 2).Style.NumberFormat.Format = "0.00";
+            sheet.Cell(row, 3).Value = line.TaxableAmount;
+            sheet.Cell(row, 3).Style.NumberFormat.Format = "#,##0.00";
+            sheet.Cell(row, 4).Value = line.Tax;
+            sheet.Cell(row, 4).Style.NumberFormat.Format = "#,##0.00";
+            row++;
+        }
+
+        sheet.Cell(row, 1).Value = "Impuesto estimado del período";
+        sheet.Cell(row, 4).Value = result.EstimatedTax;
+        sheet.Cell(row, 4).Style.NumberFormat.Format = "#,##0.00";
+        sheet.Row(row).Style.Font.SetBold();
+        row += 2;
+
+        row = WriteLabeledAmounts(sheet, row, "Saldo estimado",
+        [
+            ("Impuesto estimado", result.EstimatedTax),
+            ("Menos: retenciones del 2 % del sector público", result.Withholdings),
+            ("Menos: pagos a Hacienda del período", result.PaymentsTotal),
+            (result.AmountInFavor > 0 ? "Saldo estimado a favor" : "Saldo estimado por pagar",
+                result.AmountInFavor > 0 ? result.AmountInFavor : result.AmountDue),
+        ]);
+        sheet.Row(row - 1).Style.Font.SetBold();
+
+        if (result.Payments.Count > 0)
+        {
+            row++;
+            sheet.Cell(row, 1).Value = "Pagos a Hacienda del período";
+            sheet.Row(row).Style.Font.SetBold();
+            row++;
+            WriteColumnHeaders(sheet, row, ["Código", "Fecha", "Referencia", "Monto"]);
+            row++;
+
+            foreach (IncomeTaxEstimatePaymentLine payment in result.Payments)
+            {
+                sheet.Cell(row, 1).Value = payment.Code;
+                sheet.Cell(row, 2).Value = payment.PaymentDate.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
+                sheet.Cell(row, 3).Value = payment.Reference;
+                sheet.Cell(row, 4).Value = payment.Amount;
+                sheet.Cell(row, 4).Style.NumberFormat.Format = "#,##0.00";
+                row++;
+            }
+        }
+
+        row++;
+        WriteNote(sheet, row, ReportDocumentStyles.IncomeTaxEstimateNote);
+        sheet.Columns().AdjustToContents();
+        return ToBytes(workbook);
+    }
+
+    /// <summary>Un título y una lista de pares etiqueta–monto; devuelve la fila siguiente a la última.</summary>
+    private static int WriteLabeledAmounts(
+        IXLWorksheet sheet,
+        int row,
+        string title,
+        (string Label, decimal Amount)[] rows)
+    {
+        sheet.Cell(row, 1).Value = title;
+        sheet.Row(row).Style.Font.SetBold();
+        row++;
+
+        foreach ((string label, decimal amount) in rows)
+        {
+            sheet.Cell(row, 1).Value = label;
+            sheet.Cell(row, 2).Value = amount;
+            sheet.Cell(row, 2).Style.NumberFormat.Format = "#,##0.00";
+            row++;
+        }
+
+        return row;
     }
 
     private static int WriteIncomeStatementSide(

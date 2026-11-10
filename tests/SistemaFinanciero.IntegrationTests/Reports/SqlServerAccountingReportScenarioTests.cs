@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
-using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Expenses;
 using SistemaFinanciero.Application.Invoices;
 using SistemaFinanciero.Application.Reports;

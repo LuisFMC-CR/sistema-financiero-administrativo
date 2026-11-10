@@ -160,4 +160,7 @@ public sealed class SystemParametersPageViewModel
         ReopenedAccountingPeriods { get; set; } = [];
 
     public CompanyDataViewModel CompanyDataForm { get; set; } = new();
+
+    /// <summary>Escala del impuesto sobre la renta (RF-99); nula si los parámetros no están configurados.</summary>
+    public SistemaFinanciero.Web.Models.IncomeTax.IncomeTaxScaleViewModel? IncomeTaxScaleForm { get; set; }
 }

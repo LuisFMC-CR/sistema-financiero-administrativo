@@ -202,7 +202,7 @@ public sealed class InvoicesController(
         }
 
         SystemParametersModel? companyData = await systemParametersService.GetAsync(cancellationToken);
-        string json = InvoiceElectronicDataExport.BuildJson(invoice, companyData, User.Identity?.Name ?? "—");
+        string json = InvoiceElectronicDataExport.BuildJson(invoice, companyData);
         string fileName = invoice.Number is long number
             ? $"factura-{number}-datos.json"
             : "factura-datos.json";

@@ -415,6 +415,17 @@ internal sealed class SystemParametersService(
             updatedByUserName,
             CatalogPersistence.EncodeVersion(parameters.RowVersion),
             parameters.FiscalPeriodStartDate,
-            parameters.FiscalPeriodEndDate);
+            parameters.FiscalPeriodEndDate,
+            new SistemaFinanciero.Application.IncomeTax.IncomeTaxScaleModel(
+                parameters.IncomeTaxBracket1UpperLimit,
+                parameters.IncomeTaxBracket2UpperLimit,
+                parameters.IncomeTaxBracket3UpperLimit,
+                parameters.IncomeTaxBracket1Rate,
+                parameters.IncomeTaxBracket2Rate,
+                parameters.IncomeTaxBracket3Rate,
+                parameters.IncomeTaxBracket4Rate,
+                parameters.IncomeTaxGrossIncomeThreshold,
+                parameters.IncomeTaxGeneralRate,
+                CatalogPersistence.EncodeVersion(parameters.RowVersion)));
     }
 }

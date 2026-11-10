@@ -1,0 +1,35 @@
+@using SistemaFinanciero.Web.Models.IncomeTax
+@model IncomeTaxPaymentIndexViewModel
+
+@if (Model.Results.TotalPages > 1)
+{
+    <nav aria-label="Paginación de pagos de renta" class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+        <span class="text-body-secondary">Página @Model.Results.Page de @Model.Results.TotalPages</span>
+        <ul class="pagination mb-0">
+            <li class="page-item @(!Model.Results.HasPreviousPage ? "disabled" : null)">
+                <a class="page-link"
+                   asp-action="Index"
+                   asp-route-code="@Model.Query.Code"
+                   asp-route-fiscalPeriodStartDate="@Model.Query.FiscalPeriodStartDate?.ToString("yyyy-MM-dd")"
+                   asp-route-paymentDateFrom="@Model.Query.PaymentDateFrom?.ToString("yyyy-MM-dd")"
+                   asp-route-paymentDateTo="@Model.Query.PaymentDateTo?.ToString("yyyy-MM-dd")"
+                   asp-route-cashAccountId="@Model.Query.CashAccountId"
+                   asp-route-status="@Model.Query.Status"
+                   asp-route-page="@(Model.Results.Page - 1)"
+                   aria-disabled="@(!Model.Results.HasPreviousPage)">Anterior</a>
+            </li>
+            <li class="page-item @(!Model.Results.HasNextPage ? "disabled" : null)">
+                <a class="page-link"
+                   asp-action="Index"
+                   asp-route-code="@Model.Query.Code"
+                   asp-route-fiscalPeriodStartDate="@Model.Query.FiscalPeriodStartDate?.ToString("yyyy-MM-dd")"
+                   asp-route-paymentDateFrom="@Model.Query.PaymentDateFrom?.ToString("yyyy-MM-dd")"
+                   asp-route-paymentDateTo="@Model.Query.PaymentDateTo?.ToString("yyyy-MM-dd")"
+                   asp-route-cashAccountId="@Model.Query.CashAccountId"
+                   asp-route-status="@Model.Query.Status"
+                   asp-route-page="@(Model.Results.Page + 1)"
+                   aria-disabled="@(!Model.Results.HasNextPage)">Siguiente</a>
+            </li>
+        </ul>
+    </nav>
+}

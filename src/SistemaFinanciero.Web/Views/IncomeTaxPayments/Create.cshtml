@@ -1,0 +1,78 @@
+@using SistemaFinanciero.Domain.Common
+@using SistemaFinanciero.Web.Models.IncomeTax
+@using SistemaFinanciero.Web.Models.Invoices
+@model CreateIncomeTaxPaymentViewModel
+@{
+    ViewData["Title"] = "Nuevo pago de renta";
+}
+
+<div class="catalog-form">
+    <h1 class="h2">Nuevo pago de impuesto sobre la renta</h1>
+    <p class="text-body-secondary">
+        Registra un pago parcial o el pago de la declaración hecho a Hacienda. Sale de la cuenta de
+        efectivo indicada y se resta en la estimación del período fiscal elegido. No es un gasto: no
+        afecta categorías, presupuesto ni estado de resultados.
+    </p>
+    <form method="post" class="card card-body">
+        <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label asp-for="FiscalPeriodStartDate" class="form-label"></label>
+                @* Sin asp-for: el valor ISO de cada opción no coincide con el formato de fecha de la cultura. *@
+                <select id="FiscalPeriodStartDate" name="FiscalPeriodStartDate" class="form-select">
+                    @foreach (Microsoft.AspNetCore.Mvc.Rendering.SelectListItem option in Model.FiscalPeriodOptions)
+                    {
+                        <option value="@option.Value" selected="@option.Selected">@option.Text</option>
+                    }
+                </select>
+                <span asp-validation-for="FiscalPeriodStartDate" class="text-danger"></span>
+                <div class="form-text">Para el pago de la declaración, elija el período que terminó.</div>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="CashAccountId" class="form-label"></label>
+                <select asp-for="CashAccountId" asp-items="Model.CashAccountOptions" class="form-select">
+                    <option value="">Seleccione una cuenta de efectivo</option>
+                </select>
+                <span asp-validation-for="CashAccountId" class="text-danger"></span>
+            </div>
+            <div class="col-md-4">
+                <label asp-for="Amount" class="form-label"></label>
+                <input asp-for="Amount" type="number" step="0.01" min="0.01" class="form-control" />
+                <span asp-validation-for="Amount" class="text-danger"></span>
+            </div>
+            <div class="col-md-4">
+                <label asp-for="PaymentDate" class="form-label"></label>
+                <input asp-for="PaymentDate" type="date" class="form-control" />
+                <span asp-validation-for="PaymentDate" class="text-danger"></span>
+            </div>
+            <div class="col-md-4">
+                <label asp-for="PaymentMethod" class="form-label"></label>
+                <select asp-for="PaymentMethod" class="form-select">
+                    @foreach (PaymentMethod method in Enum.GetValues<PaymentMethod>())
+                    {
+                        <option value="@method">@method.ToDisplayName()</option>
+                    }
+                </select>
+                <span asp-validation-for="PaymentMethod" class="text-danger"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="Reference" class="form-label"></label>
+                <input asp-for="Reference" class="form-control" placeholder="N.° de recibo o de transferencia" />
+                <span asp-validation-for="Reference" class="text-danger"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="Description" class="form-label"></label>
+                <input asp-for="Description" class="form-control" placeholder="Por ejemplo: pago parcial de junio" />
+                <span asp-validation-for="Description" class="text-danger"></span>
+            </div>
+        </div>
+        <div class="d-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-primary">Registrar</button>
+            <a asp-action="Index" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

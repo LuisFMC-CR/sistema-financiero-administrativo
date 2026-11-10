@@ -29,7 +29,7 @@ public static class InvoiceElectronicDataExport
         WriteIndented = true,
     };
 
-    public static string BuildJson(InvoiceModel invoice, SystemParametersModel? companyData, string generatedByUserName)
+    public static string BuildJson(InvoiceModel invoice, SystemParametersModel? companyData)
     {
         ArgumentNullException.ThrowIfNull(invoice);
 

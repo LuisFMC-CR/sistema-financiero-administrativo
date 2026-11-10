@@ -9,6 +9,7 @@ using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.CreditNotes;
 using SistemaFinanciero.Domain.Expenses;
 using SistemaFinanciero.Domain.Incomes;
+using SistemaFinanciero.Domain.IncomeTax;
 using SistemaFinanciero.Domain.Invoices;
 using SistemaFinanciero.Domain.Ledger;
 using SistemaFinanciero.Domain.Parameters;
@@ -124,6 +125,12 @@ public sealed class FinancialDbContext(
     /// <summary>Liquidaciones mensuales del IVA (paquete v8, bloque 2).</summary>
     public DbSet<VatSettlement> VatSettlements => Set<VatSettlement>();
 
+    /// <summary>Pagos de impuesto sobre la renta hechos a Hacienda (RF-99).</summary>
+    public DbSet<IncomeTaxPayment> IncomeTaxPayments => Set<IncomeTaxPayment>();
+
+    /// <summary>Bitácora inmutable de cambios en la escala del impuesto sobre la renta (RF-99).</summary>
+    public DbSet<IncomeTaxScaleChange> IncomeTaxScaleChanges => Set<IncomeTaxScaleChange>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -226,6 +233,15 @@ public sealed class FinancialDbContext(
         {
             throw new InvalidOperationException(
                 "El historial de parámetros es inmutable y solo admite nuevos registros.");
+        }
+
+        bool incomeTaxScaleHistoryMutated = ChangeTracker.Entries<IncomeTaxScaleChange>()
+            .Any(entry => entry.State is EntityState.Modified or EntityState.Deleted);
+
+        if (incomeTaxScaleHistoryMutated)
+        {
+            throw new InvalidOperationException(
+                "El historial de la escala del impuesto sobre la renta es inmutable y solo admite nuevos registros.");
         }
 
         bool operationLogMutated = ChangeTracker.Entries<OperationLogEntry>()

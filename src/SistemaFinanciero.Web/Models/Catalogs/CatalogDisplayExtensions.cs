@@ -50,6 +50,7 @@ public static class CatalogDisplayExtensions
         LedgerAccountSystemRole.ReceivableAdjustments => "Ajustes a cuentas por cobrar",
         LedgerAccountSystemRole.PayableAdjustmentsInFavor => "Ajustes a favor en cuentas por pagar",
         LedgerAccountSystemRole.SalesReturnsAndAllowances => "Devoluciones y descuentos sobre ventas",
+        LedgerAccountSystemRole.IncomeTaxPrepaid => "Impuesto sobre la renta pagado por anticipado",
         _ => "Desconocido",
     };
 

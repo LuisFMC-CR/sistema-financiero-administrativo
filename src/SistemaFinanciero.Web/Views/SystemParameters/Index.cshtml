@@ -363,6 +363,65 @@
                 }
             </form>
         </div>
+
+        @if (Model.IncomeTaxScaleForm is not null)
+        {
+            SistemaFinanciero.Web.Models.IncomeTax.IncomeTaxScaleViewModel scale = Model.IncomeTaxScaleForm;
+            (string Field, string Label, bool IsRate, decimal Value)[] scaleFields =
+            [
+                (nameof(scale.Bracket1UpperLimit), "Límite del primer tramo (₡)", false, scale.Bracket1UpperLimit),
+                (nameof(scale.Bracket1Rate), "Porcentaje del primer tramo (%)", true, scale.Bracket1Rate),
+                (nameof(scale.Bracket2UpperLimit), "Límite del segundo tramo (₡)", false, scale.Bracket2UpperLimit),
+                (nameof(scale.Bracket2Rate), "Porcentaje del segundo tramo (%)", true, scale.Bracket2Rate),
+                (nameof(scale.Bracket3UpperLimit), "Límite del tercer tramo (₡)", false, scale.Bracket3UpperLimit),
+                (nameof(scale.Bracket3Rate), "Porcentaje del tercer tramo (%)", true, scale.Bracket3Rate),
+                (nameof(scale.Bracket4Rate), "Porcentaje sobre el exceso del tercer tramo (%)", true, scale.Bracket4Rate),
+                (nameof(scale.GrossIncomeThreshold), "Renta bruta máxima para aplicar los tramos (₡)", false, scale.GrossIncomeThreshold),
+                (nameof(scale.GeneralRate), "Tarifa general (%)", true, scale.GeneralRate),
+            ];
+
+            <div class="catalog-form mt-4">
+                <h2 class="h5">Escala del impuesto sobre la renta</h2>
+                <p class="text-body-secondary small">
+                    Se usa en el reporte "Estimación del impuesto sobre la renta". Cada porcentaje se aplica
+                    solo a la parte de la renta neta que cae en su tramo. Si la renta bruta del período supera
+                    el máximo indicado, se aplica la tarifa general a toda la renta neta. Hay una sola escala
+                    vigente: al cambiarla, las estimaciones se recalculan con los valores nuevos. Solo
+                    Gerencia la modifica.
+                </p>
+                <form asp-action="UpdateIncomeTaxScale" method="post" class="card card-body">
+                    <input name="IncomeTaxScaleForm.Version" value="@scale.Version" type="hidden" />
+                    <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+                    <div class="row g-3">
+                        @foreach ((string field, string label, bool isRate, decimal value) in scaleFields)
+                        {
+                            string inputName = $"IncomeTaxScaleForm.{field}";
+                            <div class="col-md-6">
+                                <label for="@inputName.Replace('.', '_')" class="form-label">@label</label>
+                                @if (canManageAccountingPeriods)
+                                {
+                                    <input id="@inputName.Replace('.', '_')" name="@inputName" type="number"
+                                           step="0.01" min="0" max="@(isRate ? "100" : null)"
+                                           value="@value.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                           class="form-control" required />
+                                }
+                                else
+                                {
+                                    <input value="@(isRate ? value.ToString("N2") + " %" : "₡" + value.ToString("N2"))" class="form-control" readonly />
+                                }
+                                <span class="text-danger" data-valmsg-for="@inputName" data-valmsg-replace="true">@ViewData.ModelState[inputName]?.Errors.FirstOrDefault()?.ErrorMessage</span>
+                            </div>
+                        }
+                    </div>
+                    @if (canManageAccountingPeriods)
+                    {
+                        <div class="d-flex gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary">Guardar escala</button>
+                        </div>
+                    }
+                </form>
+            </div>
+        }
     }
 
 @section Scripts {

@@ -17,7 +17,9 @@ namespace SistemaFinanciero.Web.Controllers;
 /// Conexiones: usa <c>IReceivableService</c> para cargar la cuenta seleccionada y proponer reparto
 /// (de la más antigua a la más nueva, regla 2), e <c>IReceivablePaymentService</c> para registrar o
 /// anular abonos. El formulario individual obtiene cliente y factura del registro en el servidor;
-/// el asistente de reparto múltiple se inicia desde Ingresos.
+/// el asistente de reparto múltiple se inicia desde Ingresos. Registrar exige
+/// <c>RegisterReceivablePayments</c> (Gerencia, Finanzas y Asistente); el servicio rechaza los montos
+/// sobre el límite de autorización salvo para Gerencia. Anular exige <c>VoidFinancialTransactions</c>.
 /// </remarks>
 [Route("ingresos/abonos")]
 public sealed class ReceivablePaymentsController(
@@ -27,7 +29,7 @@ public sealed class ReceivablePaymentsController(
     ILedgerAccountService ledgerAccountService,
     IWithholdingTypeService withholdingTypeService) : CatalogControllerBase
 {
-    [Authorize(Policy = SystemPolicies.ConfirmFinancialTransactions)]
+    [Authorize(Policy = SystemPolicies.RegisterReceivablePayments)]
     [HttpGet("cuenta/{id:guid}")]
     public async Task<IActionResult> RegisterSingle(Guid id, CancellationToken cancellationToken)
     {
@@ -54,7 +56,7 @@ public sealed class ReceivablePaymentsController(
         return View("RegisterSingle", model);
     }
 
-    [Authorize(Policy = SystemPolicies.ConfirmFinancialTransactions)]
+    [Authorize(Policy = SystemPolicies.RegisterReceivablePayments)]
     [HttpPost("cuenta/{id:guid}")]
     public async Task<IActionResult> RegisterSingle(
         Guid id,
@@ -114,7 +116,7 @@ public sealed class ReceivablePaymentsController(
         return RedirectToAction("Details", "Receivables", new { id = receivable.Id });
     }
 
-    [Authorize(Policy = SystemPolicies.ConfirmFinancialTransactions)]
+    [Authorize(Policy = SystemPolicies.RegisterReceivablePayments)]
     [HttpGet("nuevo")]
     public async Task<IActionResult> Start(Guid? clienteId, CancellationToken cancellationToken)
     {
@@ -123,7 +125,7 @@ public sealed class ReceivablePaymentsController(
         return View(model);
     }
 
-    [Authorize(Policy = SystemPolicies.ConfirmFinancialTransactions)]
+    [Authorize(Policy = SystemPolicies.RegisterReceivablePayments)]
     [HttpPost("nuevo")]
     public async Task<IActionResult> Start(
         RegisterReceivablePaymentStartViewModel model,
@@ -160,7 +162,7 @@ public sealed class ReceivablePaymentsController(
         return View("Allocate", allocateModel);
     }
 
-    [Authorize(Policy = SystemPolicies.ConfirmFinancialTransactions)]
+    [Authorize(Policy = SystemPolicies.RegisterReceivablePayments)]
     [HttpPost("aplicar")]
     public async Task<IActionResult> Register(
         RegisterReceivablePaymentAllocateViewModel model,

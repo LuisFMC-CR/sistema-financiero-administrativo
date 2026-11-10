@@ -5,6 +5,7 @@ using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.CreditNotes;
 using SistemaFinanciero.Domain.Expenses;
 using SistemaFinanciero.Domain.Incomes;
+using SistemaFinanciero.Domain.IncomeTax;
 using SistemaFinanciero.Domain.Invoices;
 using SistemaFinanciero.Domain.Ledger;
 using SistemaFinanciero.Domain.Payables;
@@ -404,6 +405,41 @@ internal static class JournalPostingService
             JournalEntrySourceType.VatSettlement,
             settlement.Id,
             settlement.SettlementDate,
+            lines,
+            postedAtUtc,
+            actorId,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Pago de impuesto sobre la renta a Hacienda (RF-99): débito "Impuesto sobre la renta pagado por
+    /// anticipado", crédito cuenta de efectivo. No toca cuentas de gasto: el pago es un anticipo del
+    /// impuesto, no un gasto de la operación.
+    /// </summary>
+    public static async Task PostIncomeTaxPaymentAsync(
+        FinancialDbContext dbContext,
+        IncomeTaxPayment payment,
+        DateTimeOffset postedAtUtc,
+        Guid actorId,
+        CancellationToken cancellationToken)
+    {
+        Guid prepaidAccountId = await GetSystemAccountIdAsync(
+            dbContext,
+            LedgerAccountSystemRole.IncomeTaxPrepaid,
+            cancellationToken);
+
+        List<JournalEntryLineInput> lines =
+        [
+            new(prepaidAccountId, payment.Amount, 0m),
+            new(payment.CashAccountId, 0m, payment.Amount),
+        ];
+
+        await CreateEntryAsync(
+            dbContext,
+            $"Pago de impuesto sobre la renta {payment.Code}",
+            JournalEntrySourceType.IncomeTaxPayment,
+            payment.Id,
+            payment.PaymentDate,
             lines,
             postedAtUtc,
             actorId,

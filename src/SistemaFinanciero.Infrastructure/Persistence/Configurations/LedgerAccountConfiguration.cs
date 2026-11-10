@@ -38,7 +38,7 @@ internal sealed class LedgerAccountConfiguration : IEntityTypeConfiguration<Ledg
                     "[ParentId] IS NULL OR [ParentId] <> [Id]");
                 table.HasCheckConstraint(
                     "CK_CuentasContables_SystemRole",
-                    "[SystemRole] IS NULL OR [SystemRole] IN (1, 2, 3, 4, 5, 6, 7, 8)");
+                    "[SystemRole] IS NULL OR [SystemRole] IN (1, 2, 3, 4, 5, 6, 7, 8, 9)");
             });
 
         builder.HasKey(account => account.Id);

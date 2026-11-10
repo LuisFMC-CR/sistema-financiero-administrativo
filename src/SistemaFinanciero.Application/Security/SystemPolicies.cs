@@ -22,6 +22,13 @@ public static class SystemPolicies
     public const string CreateFinancialDrafts = "Movimientos.CrearBorrador";
     public const string RegisterManualIncome = "Ingresos.RegistrarManual";
     public const string ConfirmFinancialTransactions = "Movimientos.Confirmar";
+
+    /// <summary>
+    /// Registrar abonos a cuentas por cobrar, individuales o repartidos entre varias facturas (ingreso
+    /// dividido). Incluye al Asistente; el límite de autorización lo valida el servicio: sobre el
+    /// límite, solo Gerencia.
+    /// </summary>
+    public const string RegisterReceivablePayments = "Abonos.Registrar";
     public const string VoidFinancialTransactions = "Movimientos.Anular";
     public const string AdjustFinancialBalances = "Movimientos.Ajustar";
     public const string ViewFinancialReports = "Reportes.Ver";

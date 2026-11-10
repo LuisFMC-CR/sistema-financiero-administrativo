@@ -71,6 +71,12 @@ public static class AuthorizationExtensions
                 SystemPolicies.ConfirmFinancialTransactions,
                 policy => policy.RequireRole(SystemRoles.Management, SystemRoles.Finance))
             .AddPolicy(
+                SystemPolicies.RegisterReceivablePayments,
+                policy => policy.RequireRole(
+                    SystemRoles.Management,
+                    SystemRoles.Finance,
+                    SystemRoles.Assistant))
+            .AddPolicy(
                 SystemPolicies.VoidFinancialTransactions,
                 policy => policy.RequireRole(SystemRoles.Management))
             .AddPolicy(
