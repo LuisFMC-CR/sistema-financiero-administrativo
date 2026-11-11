@@ -41,7 +41,7 @@ public sealed class CreateManualIncomeViewModel
     [Required(ErrorMessage = "La fecha es obligatoria.")]
     [DataType(DataType.Date)]
     [Display(Name = "Fecha")]
-    public DateOnly IncomeDate { get; set; } = DateOnly.FromDateTime(DateTime.Now);
+    public DateOnly IncomeDate { get; set; }
 
     [Display(Name = "Medio de pago")]
     public PaymentMethod PaymentMethod { get; set; } = PaymentMethod.BankTransfer;

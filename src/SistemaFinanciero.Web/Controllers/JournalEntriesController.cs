@@ -21,7 +21,7 @@ namespace SistemaFinanciero.Web.Controllers;
 /// </remarks>
 [Authorize(Policy = SystemPolicies.ViewFinancialReports)]
 [Route("contabilidad/asientos")]
-public sealed class JournalEntriesController(IJournalEntryService service) : Controller
+public sealed class JournalEntriesController(IJournalEntryService service, TimeProvider timeProvider) : Controller
 {
     [HttpGet("")]
     public async Task<IActionResult> Index(
@@ -58,9 +58,9 @@ public sealed class JournalEntriesController(IJournalEntryService service) : Con
         return View(trace);
     }
 
-    private static (int Year, int Month) NormalizeMonth(int? periodYear, int? periodMonth)
+    private (int Year, int Month) NormalizeMonth(int? periodYear, int? periodMonth)
     {
-        DateOnly today = DateOnly.FromDateTime(DateTime.Now);
+        DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
         return (periodYear ?? today.Year, periodMonth ?? today.Month);
     }
 }

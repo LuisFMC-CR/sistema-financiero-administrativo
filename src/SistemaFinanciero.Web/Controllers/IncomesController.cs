@@ -23,7 +23,8 @@ namespace SistemaFinanciero.Web.Controllers;
 public sealed class IncomesController(
     IIncomeService service,
     ILedgerAccountService ledgerAccountService,
-    IAuthorizationService authorizationService) : CatalogControllerBase
+    IAuthorizationService authorizationService,
+    TimeProvider timeProvider) : CatalogControllerBase
 {
     [HttpGet("")]
     public async Task<IActionResult> Index(
@@ -77,7 +78,7 @@ public sealed class IncomesController(
     [HttpGet("nuevo")]
     public async Task<IActionResult> Create(CancellationToken cancellationToken)
     {
-        CreateManualIncomeViewModel model = new();
+        CreateManualIncomeViewModel model = new() { IncomeDate = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime) };
         await PopulateOptionsAsync(model, cancellationToken);
         return View(model);
     }

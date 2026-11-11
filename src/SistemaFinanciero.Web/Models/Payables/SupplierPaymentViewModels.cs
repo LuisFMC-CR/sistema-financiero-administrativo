@@ -37,7 +37,7 @@ public sealed class RegisterSupplierPaymentStartViewModel
     [Required(ErrorMessage = "La fecha del pago es obligatoria.")]
     [DataType(DataType.Date)]
     [Display(Name = "Fecha del pago")]
-    public DateOnly PaymentDate { get; set; } = DateOnly.FromDateTime(DateTime.Now);
+    public DateOnly PaymentDate { get; set; }
 }
 
 /// <summary>Línea editable del reparto propuesto para una cuenta por pagar.</summary>

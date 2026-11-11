@@ -26,7 +26,8 @@ namespace SistemaFinanciero.Web.Controllers;
 public sealed class VatSettlementsController(
     IVatSettlementService service,
     ILedgerAccountService ledgerAccountService,
-    IAuthorizationService authorizationService) : CatalogControllerBase
+    IAuthorizationService authorizationService,
+    TimeProvider timeProvider) : CatalogControllerBase
 {
     [HttpGet("")]
     public async Task<IActionResult> Index(
@@ -67,7 +68,7 @@ public sealed class VatSettlementsController(
         int? periodMonth,
         CancellationToken cancellationToken)
     {
-        DateOnly today = DateOnly.FromDateTime(DateTime.Now);
+        DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
         RegisterVatSettlementViewModel model = new()
         {
             PeriodYear = periodYear ?? today.Year,

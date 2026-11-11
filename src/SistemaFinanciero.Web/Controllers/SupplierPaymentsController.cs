@@ -23,13 +23,18 @@ public sealed class SupplierPaymentsController(
     IPayableService payableService,
     ISupplierPaymentService paymentService,
     ISupplierCatalogService supplierService,
-    ILedgerAccountService ledgerAccountService) : CatalogControllerBase
+    ILedgerAccountService ledgerAccountService,
+    TimeProvider timeProvider) : CatalogControllerBase
 {
     [Authorize(Policy = SystemPolicies.ConfirmFinancialTransactions)]
     [HttpGet("nuevo")]
     public async Task<IActionResult> Start(Guid? proveedorId, CancellationToken cancellationToken)
     {
-        RegisterSupplierPaymentStartViewModel model = new() { SupplierId = proveedorId };
+        RegisterSupplierPaymentStartViewModel model = new()
+        {
+            SupplierId = proveedorId,
+            PaymentDate = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime),
+        };
         await PopulateStartOptionsAsync(model, cancellationToken);
         return View(model);
     }

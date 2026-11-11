@@ -28,7 +28,8 @@ public sealed class IncomeTaxPaymentsController(
     IIncomeTaxService service,
     ILedgerAccountService ledgerAccountService,
     ISystemParametersService parametersService,
-    IAuthorizationService authorizationService) : CatalogControllerBase
+    IAuthorizationService authorizationService,
+    TimeProvider timeProvider) : CatalogControllerBase
 {
     [HttpGet("")]
     public async Task<IActionResult> Index(
@@ -82,7 +83,7 @@ public sealed class IncomeTaxPaymentsController(
     [HttpGet("nuevo")]
     public async Task<IActionResult> Create(CancellationToken cancellationToken)
     {
-        CreateIncomeTaxPaymentViewModel model = new();
+        CreateIncomeTaxPaymentViewModel model = new() { PaymentDate = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime) };
         await PopulateOptionsAsync(model, cancellationToken);
         model.FiscalPeriodStartDate ??= await GetCurrentFiscalPeriodStartAsync(cancellationToken);
         return View(model);
@@ -244,6 +245,6 @@ public sealed class IncomeTaxPaymentsController(
     private async Task<DateOnly> GetCurrentFiscalPeriodStartAsync(CancellationToken cancellationToken)
     {
         SystemParametersModel? parameters = await parametersService.GetAsync(cancellationToken);
-        return parameters?.FiscalPeriodStartDate ?? new DateOnly(DateTime.Now.Year, 1, 1);
+        return parameters?.FiscalPeriodStartDate ?? new DateOnly(timeProvider.GetLocalNow().Year, 1, 1);
     }
 }

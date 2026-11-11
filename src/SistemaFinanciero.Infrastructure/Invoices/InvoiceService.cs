@@ -700,7 +700,7 @@ internal sealed class InvoiceService(
                     invoice.IncomeAccountId,
                     command.CashAccountId!.Value,
                     invoice.TotalAmount,
-                    DateOnly.FromDateTime(confirmedAtUtc.UtcDateTime),
+                    invoice.IssueDate,
                     command.PaymentMethod!.Value,
                     command.Reference!,
                     confirmedAtUtc,

@@ -37,7 +37,7 @@ public sealed class RegisterReceivablePaymentStartViewModel
     [Required(ErrorMessage = "La fecha del abono es obligatoria.")]
     [DataType(DataType.Date)]
     [Display(Name = "Fecha del abono")]
-    public DateOnly PaymentDate { get; set; } = DateOnly.FromDateTime(DateTime.Now);
+    public DateOnly PaymentDate { get; set; }
 }
 
 /// <summary>Entrada de un abono dirigido a una cuenta por cobrar seleccionada.</summary>
@@ -74,7 +74,7 @@ public sealed class RegisterSingleReceivablePaymentViewModel
     [Required(ErrorMessage = "La fecha del abono es obligatoria.")]
     [DataType(DataType.Date)]
     [Display(Name = "Fecha del abono")]
-    public DateOnly PaymentDate { get; set; } = DateOnly.FromDateTime(DateTime.Now);
+    public DateOnly PaymentDate { get; set; }
 
     [Display(Name = "Tipo de retención")]
     public Guid? WithholdingTypeId { get; set; }

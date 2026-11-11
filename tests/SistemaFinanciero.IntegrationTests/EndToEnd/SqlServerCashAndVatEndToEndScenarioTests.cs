@@ -26,14 +26,9 @@ namespace SistemaFinanciero.IntegrationTests.EndToEnd;
 /// </summary>
 /// <remarks>
 /// La factura de contado se confirma con una cuenta de efectivo propia, aparte de las dos del flujo
-/// principal (banco y caja chica), y se excluye a propósito de la comprobación "flujo de efectivo
-/// contra libro mayor": el ingreso que genera una factura de contado queda fechado al momento de la
-/// confirmación (<c>TimeProvider.GetUtcNow()</c>), no a la fecha de la factura, mientras que su asiento
-/// sí usa la fecha de la factura — una diferencia de diseño ya existente (el ingreso refleja cuándo se
-/// recibió el efectivo), ajena a este paquete, que haría fallar esa comprobación si se mezclara con los
-/// movimientos fechados de traspasos, gastos y liquidación. El traspaso, los dos gastos y el pago de la
-/// liquidación sí quedan fechados de forma consistente entre el reporte y el asiento, que es lo que esta
-/// prueba verifica.
+/// principal (banco y caja chica), y se excluye de la comprobación "flujo de efectivo contra libro
+/// mayor" para que esa comprobación solo mire los movimientos de este paquete. Desde el paquete v9
+/// (bloque 1) el ingreso de la factura de contado toma la fecha de la factura, la misma de su asiento.
 /// </remarks>
 public sealed class SqlServerCashAndVatEndToEndScenarioTests : IClassFixture<FinancialWebApplicationFactory>
 {

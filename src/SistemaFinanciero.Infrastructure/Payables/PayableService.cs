@@ -117,7 +117,7 @@ internal sealed class PayableService(
         int alertDays,
         CancellationToken cancellationToken = default)
     {
-        DateOnly today = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
+        DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
         DateOnly upcomingThreshold = today.AddDays(alertDays);
 
         IQueryable<Payable> pending = dbContext.Set<Payable>()

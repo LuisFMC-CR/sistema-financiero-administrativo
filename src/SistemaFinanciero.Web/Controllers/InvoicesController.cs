@@ -40,7 +40,8 @@ public sealed class InvoicesController(
     ITaxTypeService taxTypeService,
     ILedgerAccountService ledgerAccountService,
     IAuthorizationService authorizationService,
-    ISystemParametersService systemParametersService) : CatalogControllerBase
+    ISystemParametersService systemParametersService,
+    TimeProvider timeProvider) : CatalogControllerBase
 {
     [HttpGet("")]
     public async Task<IActionResult> Index(
@@ -84,7 +85,7 @@ public sealed class InvoicesController(
     [HttpGet("crear")]
     public async Task<IActionResult> Create(CancellationToken cancellationToken)
     {
-        InvoiceCreateViewModel model = new();
+        InvoiceCreateViewModel model = new() { IssueDate = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime) };
         await PopulateCustomerOptionsAsync(model, cancellationToken);
         return View(model);
     }

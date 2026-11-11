@@ -75,7 +75,7 @@ public sealed class CreateIncomeTaxPaymentViewModel
     [Required(ErrorMessage = "La fecha es obligatoria.")]
     [DataType(DataType.Date)]
     [Display(Name = "Fecha del pago")]
-    public DateOnly PaymentDate { get; set; } = DateOnly.FromDateTime(DateTime.Now);
+    public DateOnly PaymentDate { get; set; }
 
     [Required(ErrorMessage = "La referencia es obligatoria.")]
     [StringLength(100, ErrorMessage = "La referencia no puede superar 100 caracteres.")]

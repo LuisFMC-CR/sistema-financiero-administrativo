@@ -67,7 +67,7 @@ public class InvoiceCreateViewModel
     [Required(ErrorMessage = "La fecha de emisión es obligatoria.")]
     [DataType(DataType.Date)]
     [Display(Name = "Fecha de emisión")]
-    public DateOnly IssueDate { get; set; } = DateOnly.FromDateTime(DateTime.Now);
+    public DateOnly IssueDate { get; set; }
 
     [EnumDataType(typeof(PaymentTerm), ErrorMessage = "Seleccione un plazo de pago válido.")]
     [Display(Name = "Plazo de pago")]

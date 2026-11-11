@@ -31,7 +31,8 @@ public sealed class HomeController(
     IPayableService payableService,
     IBudgetService budgetService,
     ISystemParametersService systemParametersService,
-    IAuthorizationService authorizationService) : Controller
+    IAuthorizationService authorizationService,
+    TimeProvider timeProvider) : Controller
 {
     /// <summary>Días de alerta por defecto (regla 9) cuando Gerencia no ha configurado parámetros.</summary>
     private const int DefaultOverdueAlertDays = 7;
@@ -50,7 +51,7 @@ public sealed class HomeController(
             return View();
         }
 
-        DateOnly today = DateOnly.FromDateTime(DateTime.Now);
+        DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
         OverdueIndicatorViewModel? overdue = null;
         if (canViewOverdueAccounts)
         {

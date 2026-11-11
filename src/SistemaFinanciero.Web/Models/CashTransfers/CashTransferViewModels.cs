@@ -47,7 +47,7 @@ public sealed class CreateCashTransferViewModel
     [Required(ErrorMessage = "La fecha es obligatoria.")]
     [DataType(DataType.Date)]
     [Display(Name = "Fecha")]
-    public DateOnly TransferDate { get; set; } = DateOnly.FromDateTime(DateTime.Now);
+    public DateOnly TransferDate { get; set; }
 
     [Required(ErrorMessage = "La referencia es obligatoria.")]
     [StringLength(100, ErrorMessage = "La referencia no puede superar 100 caracteres.")]

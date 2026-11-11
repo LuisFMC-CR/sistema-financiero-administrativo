@@ -27,7 +27,8 @@ public sealed class ReceivablePaymentsController(
     IReceivablePaymentService paymentService,
     ICustomerCatalogService customerService,
     ILedgerAccountService ledgerAccountService,
-    IWithholdingTypeService withholdingTypeService) : CatalogControllerBase
+    IWithholdingTypeService withholdingTypeService,
+    TimeProvider timeProvider) : CatalogControllerBase
 {
     [Authorize(Policy = SystemPolicies.RegisterReceivablePayments)]
     [HttpGet("cuenta/{id:guid}")]
@@ -49,6 +50,7 @@ public sealed class ReceivablePaymentsController(
         RegisterSingleReceivablePaymentViewModel model = new()
         {
             ReceivableId = receivable.Id,
+            PaymentDate = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime),
             Amount = receivable.Balance,
             WithholdingBase = ProposeWithholdingBase(receivable, receivable.Balance),
         };
@@ -120,7 +122,11 @@ public sealed class ReceivablePaymentsController(
     [HttpGet("nuevo")]
     public async Task<IActionResult> Start(Guid? clienteId, CancellationToken cancellationToken)
     {
-        RegisterReceivablePaymentStartViewModel model = new() { CustomerId = clienteId };
+        RegisterReceivablePaymentStartViewModel model = new()
+        {
+            CustomerId = clienteId,
+            PaymentDate = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime),
+        };
         await PopulateStartOptionsAsync(model, cancellationToken);
         return View(model);
     }

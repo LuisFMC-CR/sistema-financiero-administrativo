@@ -31,7 +31,8 @@ public sealed class ExpensesController(
     ISupplierCatalogService supplierService,
     ITaxTypeService taxTypeService,
     ILedgerAccountService ledgerAccountService,
-    IAuthorizationService authorizationService) : CatalogControllerBase
+    IAuthorizationService authorizationService,
+    TimeProvider timeProvider) : CatalogControllerBase
 {
     [HttpGet("")]
     public async Task<IActionResult> Index(
@@ -66,7 +67,7 @@ public sealed class ExpensesController(
     [HttpGet("crear")]
     public async Task<IActionResult> Create(CancellationToken cancellationToken)
     {
-        ExpenseCreateViewModel model = new();
+        ExpenseCreateViewModel model = new() { IssueDate = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime) };
         await PopulateHeaderOptionsAsync(model, cancellationToken);
         return View(model);
     }

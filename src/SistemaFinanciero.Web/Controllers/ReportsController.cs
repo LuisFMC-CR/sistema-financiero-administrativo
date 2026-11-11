@@ -569,7 +569,7 @@ public sealed class ReportsController(
     [HttpGet("balanza-comprobacion")]
     public async Task<IActionResult> TrialBalance(DateOnly? cutoffDate, CancellationToken cancellationToken)
     {
-        DateOnly date = cutoffDate ?? DateOnly.FromDateTime(DateTime.Now);
+        DateOnly date = cutoffDate ?? DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
         TrialBalanceReportResult result = await reportService.GetTrialBalanceReportAsync(
             date, CurrentUserName(), cancellationToken);
 
@@ -1010,9 +1010,9 @@ public sealed class ReportsController(
             "retenciones-por-clientes.xlsx");
     }
 
-    private static (int Year, int Month) NormalizeMonth(int? periodYear, int? periodMonth)
+    private (int Year, int Month) NormalizeMonth(int? periodYear, int? periodMonth)
     {
-        DateOnly today = DateOnly.FromDateTime(DateTime.Now);
+        DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
         return (periodYear ?? today.Year, periodMonth ?? today.Month);
     }
 
@@ -1052,10 +1052,10 @@ public sealed class ReportsController(
         return (today.Year - fiscalStart.Year) * 12 + today.Month - fiscalStart.Month + 1;
     }
 
-    private static (int YearFrom, int MonthFrom, int YearTo, int MonthTo) NormalizeMonthRange(
+    private (int YearFrom, int MonthFrom, int YearTo, int MonthTo) NormalizeMonthRange(
         int? periodYearFrom, int? periodMonthFrom, int? periodYearTo, int? periodMonthTo)
     {
-        DateOnly today = DateOnly.FromDateTime(DateTime.Now);
+        DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
         DateOnly defaultFrom = new DateOnly(today.Year, today.Month, 1).AddMonths(-5);
 
         return (
@@ -1116,9 +1116,9 @@ public sealed class ReportsController(
     private string CurrentUserName() =>
         User.FindFirst(SystemClaimTypes.FullName)?.Value ?? User.Identity?.Name ?? "—";
 
-    private static (DateOnly From, DateOnly To) NormalizePeriod(DateOnly? periodFrom, DateOnly? periodTo)
+    private (DateOnly From, DateOnly To) NormalizePeriod(DateOnly? periodFrom, DateOnly? periodTo)
     {
-        DateOnly today = DateOnly.FromDateTime(DateTime.Now);
+        DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
         DateOnly defaultFrom = new(today.Year, today.Month, 1);
         DateOnly defaultTo = defaultFrom.AddMonths(1).AddDays(-1);
 

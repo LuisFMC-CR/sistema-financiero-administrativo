@@ -28,7 +28,8 @@ namespace SistemaFinanciero.Web.Controllers;
 public sealed class CashTransfersController(
     ICashTransferService service,
     ILedgerAccountService ledgerAccountService,
-    IAuthorizationService authorizationService) : CatalogControllerBase
+    IAuthorizationService authorizationService,
+    TimeProvider timeProvider) : CatalogControllerBase
 {
     [HttpGet("")]
     public async Task<IActionResult> Index(
@@ -84,7 +85,11 @@ public sealed class CashTransfersController(
     [HttpGet("nuevo")]
     public async Task<IActionResult> Create(Guid? sourceCashAccountId, CancellationToken cancellationToken)
     {
-        CreateCashTransferViewModel model = new() { SourceCashAccountId = sourceCashAccountId };
+        CreateCashTransferViewModel model = new()
+        {
+            SourceCashAccountId = sourceCashAccountId,
+            TransferDate = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime),
+        };
         await PopulateOptionsAsync(model, cancellationToken);
         return View(model);
     }
