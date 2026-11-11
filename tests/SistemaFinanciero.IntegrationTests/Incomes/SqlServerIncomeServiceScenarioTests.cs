@@ -185,8 +185,8 @@ public sealed class SqlServerIncomeServiceScenarioTests : IClassFixture<Financia
             SaveSystemParametersCommand parametersCommand = new(500_000m, 7);
             SystemParametersModel? existingSettings = await settings.GetAsync();
             CatalogOperationResult parametersResult = existingSettings is null
-                ? await settings.CreateAsync(parametersCommand, actorId)
-                : await settings.UpdateAsync(parametersCommand, existingSettings.Version, actorId);
+                ? await settings.CreateAsync(parametersCommand, actorId, actorIsManagement: true)
+                : await settings.UpdateAsync(parametersCommand, existingSettings.Version, actorId, actorIsManagement: true);
             Assert.True(parametersResult.IsSuccess);
 
             DateOnly currentMonth = DateOnly.FromDateTime(

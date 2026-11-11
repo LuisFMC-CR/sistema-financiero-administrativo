@@ -24,6 +24,53 @@ public sealed class SqlServerSystemParametersScenarioTests : IClassFixture<Finan
 
     [Fact]
     [Trait("Category", "SqlServer")]
+    public Task Finance_OnlyChangesTheAlertDays_WhileManagementDefinesTheLimit()
+    {
+        // Paquete v9, bloque 6 (CU-06, Tabla 10): Finanzas solo cambia los días de anticipación; el
+        // límite de autorización y la creación inicial de los parámetros son exclusivos de Gerencia.
+        return RunInRollbackTransactionAsync(async (context, services, actorId) =>
+        {
+            ISystemParametersService parameters = services.GetRequiredService<ISystemParametersService>();
+
+            CatalogOperationResult financeCreate = await parameters.CreateAsync(
+                new SaveSystemParametersCommand(500_000m, 7), actorId, actorIsManagement: false);
+            Assert.Equal(CatalogOperationStatus.Invalid, financeCreate.Status);
+            Assert.Equal("Solo Gerencia puede registrar los parámetros iniciales del sistema.", financeCreate.Message);
+            Assert.Null(await parameters.GetAsync());
+
+            Assert.True((await parameters.CreateAsync(
+                new SaveSystemParametersCommand(500_000m, 7), actorId, actorIsManagement: true)).IsSuccess);
+            SystemParametersModel created = (await parameters.GetAsync())!;
+
+            // Finanzas cambia los días (con el mismo límite): se acepta.
+            CatalogOperationResult financeDays = await parameters.UpdateAsync(
+                new SaveSystemParametersCommand(500_000m, 12), created.Version, actorId, actorIsManagement: false);
+            Assert.True(financeDays.IsSuccess, financeDays.Message);
+            context.ChangeTracker.Clear();
+            SystemParametersModel afterDays = (await parameters.GetAsync())!;
+            Assert.Equal(12, afterDays.OverdueAlertDays);
+
+            // Finanzas envía un límite distinto: se rechaza y nada cambia.
+            CatalogOperationResult financeLimit = await parameters.UpdateAsync(
+                new SaveSystemParametersCommand(5_000_000m, 15), afterDays.Version, actorId, actorIsManagement: false);
+            Assert.Equal(CatalogOperationStatus.Invalid, financeLimit.Status);
+            Assert.Equal("Solo Gerencia puede cambiar el límite de autorización.", financeLimit.Message);
+            context.ChangeTracker.Clear();
+            SystemParametersModel afterRejection = (await parameters.GetAsync())!;
+            Assert.Equal(500_000m, afterRejection.AuthorizationLimitCrc);
+            Assert.Equal(12, afterRejection.OverdueAlertDays);
+
+            // Gerencia cambia el límite: se acepta.
+            CatalogOperationResult managementLimit = await parameters.UpdateAsync(
+                new SaveSystemParametersCommand(5_000_000m, 12), afterRejection.Version, actorId, actorIsManagement: true);
+            Assert.True(managementLimit.IsSuccess, managementLimit.Message);
+            context.ChangeTracker.Clear();
+            Assert.Equal(5_000_000m, (await parameters.GetAsync())!.AuthorizationLimitCrc);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
     public Task Scenario_CreatesUpdatesAndKeepsAHistoryOfEachChange()
     {
         return RunInRollbackTransactionAsync(async (context, services, actorId) =>
@@ -34,11 +81,11 @@ public sealed class SqlServerSystemParametersScenarioTests : IClassFixture<Finan
             Assert.Null(await parameters.GetAsync());
 
             Assert.True((await parameters.CreateAsync(
-                new SaveSystemParametersCommand(500_000m, 7), actorId)).IsSuccess);
+                new SaveSystemParametersCommand(500_000m, 7), actorId, actorIsManagement: true)).IsSuccess);
 
             // Crear una segunda vez se rechaza: ya existe.
             CatalogOperationResult duplicate = await parameters.CreateAsync(
-                new SaveSystemParametersCommand(1m, 1), actorId);
+                new SaveSystemParametersCommand(1m, 1), actorId, actorIsManagement: true);
             Assert.Equal(CatalogOperationStatus.Duplicate, duplicate.Status);
             context.ChangeTracker.Clear();
 
@@ -47,11 +94,11 @@ public sealed class SqlServerSystemParametersScenarioTests : IClassFixture<Finan
             Assert.Equal(7, created.OverdueAlertDays);
 
             Assert.True((await parameters.UpdateAsync(
-                new SaveSystemParametersCommand(750_000m, 10), created.Version, actorId)).IsSuccess);
+                new SaveSystemParametersCommand(750_000m, 10), created.Version, actorId, actorIsManagement: true)).IsSuccess);
 
             // Un token de concurrencia obsoleto se rechaza.
             CatalogOperationResult stale = await parameters.UpdateAsync(
-                new SaveSystemParametersCommand(900_000m, 15), created.Version, actorId);
+                new SaveSystemParametersCommand(900_000m, 15), created.Version, actorId, actorIsManagement: true);
             Assert.Equal(CatalogOperationStatus.ConcurrencyConflict, stale.Status);
 
             SystemParametersModel current = (await parameters.GetAsync())!;
@@ -82,7 +129,7 @@ public sealed class SqlServerSystemParametersScenarioTests : IClassFixture<Finan
         {
             ISystemParametersService parameters = services.GetRequiredService<ISystemParametersService>();
             Assert.True((await parameters.CreateAsync(
-                new SaveSystemParametersCommand(500_000m, 7), actorId)).IsSuccess);
+                new SaveSystemParametersCommand(500_000m, 7), actorId, actorIsManagement: true)).IsSuccess);
             context.ChangeTracker.Clear();
 
             Exception negativeLimit = await Assert.ThrowsAnyAsync<Exception>(() =>
@@ -105,7 +152,7 @@ public sealed class SqlServerSystemParametersScenarioTests : IClassFixture<Finan
         {
             ISystemParametersService parameters = services.GetRequiredService<ISystemParametersService>();
             Assert.True((await parameters.CreateAsync(
-                new SaveSystemParametersCommand(500_000m, 7), actorId)).IsSuccess);
+                new SaveSystemParametersCommand(500_000m, 7), actorId, actorIsManagement: true)).IsSuccess);
 
             SystemParameterChange entry = await context.Set<SystemParameterChange>()
                 .SingleAsync(change => change.ChangedByUserId == actorId);
@@ -124,7 +171,7 @@ public sealed class SqlServerSystemParametersScenarioTests : IClassFixture<Finan
         return RunInRollbackTransactionAsync(async (context, services, actorId) =>
         {
             ISystemParametersService parameters = services.GetRequiredService<ISystemParametersService>();
-            await parameters.CreateAsync(new SaveSystemParametersCommand(500_000m, 7), actorId);
+            await parameters.CreateAsync(new SaveSystemParametersCommand(500_000m, 7), actorId, actorIsManagement: true);
             SystemParametersModel created = (await parameters.GetAsync())!;
             CatalogOperationResult invalid = await parameters.UpdateFiscalPeriodAsync(
                 new DateOnly(2026, 1, 1),
@@ -209,7 +256,7 @@ public sealed class SqlServerSystemParametersScenarioTests : IClassFixture<Finan
         return RunInRollbackTransactionAsync(async (context, services, actorId) =>
         {
             ISystemParametersService parameters = services.GetRequiredService<ISystemParametersService>();
-            await parameters.CreateAsync(new SaveSystemParametersCommand(500_000m, 7), actorId);
+            await parameters.CreateAsync(new SaveSystemParametersCommand(500_000m, 7), actorId, actorIsManagement: true);
             SystemParametersModel created = (await parameters.GetAsync())!;
             Assert.Null(created.CompanyName);
 
@@ -260,7 +307,7 @@ public sealed class SqlServerSystemParametersScenarioTests : IClassFixture<Finan
         return RunInRollbackTransactionAsync(async (context, services, actorId) =>
         {
             ISystemParametersService parameters = services.GetRequiredService<ISystemParametersService>();
-            await parameters.CreateAsync(new SaveSystemParametersCommand(500_000m, 7), actorId);
+            await parameters.CreateAsync(new SaveSystemParametersCommand(500_000m, 7), actorId, actorIsManagement: true);
             SystemParametersModel created = (await parameters.GetAsync())!;
 
             CatalogOperationResult result = await parameters.UpdateCompanyAsync(
@@ -281,7 +328,7 @@ public sealed class SqlServerSystemParametersScenarioTests : IClassFixture<Finan
         return RunInRollbackTransactionAsync(async (context, services, actorId) =>
         {
             ISystemParametersService parameters = services.GetRequiredService<ISystemParametersService>();
-            await parameters.CreateAsync(new SaveSystemParametersCommand(500_000m, 7), actorId);
+            await parameters.CreateAsync(new SaveSystemParametersCommand(500_000m, 7), actorId, actorIsManagement: true);
             SystemParametersModel created = (await parameters.GetAsync())!;
 
             CatalogOperationResult result = await parameters.UpdateCompanyAsync(

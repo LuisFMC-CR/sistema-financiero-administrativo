@@ -621,8 +621,8 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             ISystemParametersService settings = services.GetRequiredService<ISystemParametersService>();
             SystemParametersModel? existingSettings = await settings.GetAsync();
             Assert.True((existingSettings is null
-                ? await settings.CreateAsync(new SaveSystemParametersCommand(500_000m, 7), actorId)
-                : await settings.UpdateAsync(new SaveSystemParametersCommand(500_000m, 7), existingSettings.Version, actorId)).IsSuccess);
+                ? await settings.CreateAsync(new SaveSystemParametersCommand(500_000m, 7), actorId, actorIsManagement: true)
+                : await settings.UpdateAsync(new SaveSystemParametersCommand(500_000m, 7), existingSettings.Version, actorId, actorIsManagement: true)).IsSuccess);
             SystemParametersModel configured = (await settings.GetAsync())!;
             Assert.True((await settings.UpdateFiscalPeriodAsync(
                 fiscalStart, fiscalEnd, null, configured.Version, actorId)).IsSuccess);

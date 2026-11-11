@@ -109,7 +109,7 @@ public sealed class SqlServerCashAndVatEndToEndScenarioTests : IClassFixture<Fin
                 new RegisterVatSettlementCommand(monthStart.Year, monthStart.Month, settlementDate, bankAccountId, "PAGO-E2E-1"),
                 actorId,
                 actorIsManagement: true);
-            Assert.True(settlement.Operation.IsSuccess);
+            Assert.True(settlement.Operation.IsSuccess, settlement.Operation.Message);
 
             FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
             IReportService reports = services.GetRequiredService<IReportService>();

@@ -44,9 +44,15 @@ internal sealed class SystemParametersService(
     public async Task<CatalogOperationResult> CreateAsync(
         SaveSystemParametersCommand command,
         Guid actorId,
+        bool actorIsManagement,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
+
+        if (!actorIsManagement)
+        {
+            return CatalogOperationResult.Invalid("Solo Gerencia puede registrar los parámetros iniciales del sistema.");
+        }
 
         bool alreadyExists = await dbContext.Set<SystemParameters>()
             .AsNoTracking()
@@ -93,6 +99,7 @@ internal sealed class SystemParametersService(
         SaveSystemParametersCommand command,
         string version,
         Guid actorId,
+        bool actorIsManagement,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
@@ -112,6 +119,14 @@ internal sealed class SystemParametersService(
 
         decimal previousLimit = parameters.AuthorizationLimitCrc;
         int previousDays = parameters.OverdueAlertDays;
+
+        // El límite de autorización solo lo cambia Gerencia (CU-06, Tabla 10; paquete v9, bloque 6):
+        // Finanzas no puede subir el límite que la restringe a ella misma.
+        if (!actorIsManagement && command.AuthorizationLimitCrc != previousLimit)
+        {
+            dbContext.ChangeTracker.Clear();
+            return CatalogOperationResult.Invalid("Solo Gerencia puede cambiar el límite de autorización.");
+        }
 
         try
         {

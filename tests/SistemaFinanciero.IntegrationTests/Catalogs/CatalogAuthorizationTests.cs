@@ -107,7 +107,7 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
     }
 
     [Fact]
-    public async Task FinanceUser_SeesCurrentAuthorizationLimitInAnEditableField()
+    public async Task FinanceUser_SeesCurrentAuthorizationLimitReadOnly()
     {
         CurrentSystemParametersService parametersService = new();
         using WebApplicationFactory<Program> financeFactory = factory.WithWebHostBuilder(builder =>
@@ -139,7 +139,8 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
             .Matches(responseBody, "<input\\b[^>]*>")
             .Select(match => match.Value)
             .Single(input => input.Contains("name=\"Parameters.AuthorizationLimitCrc\"", StringComparison.Ordinal));
-        Assert.DoesNotContain("readonly", limitInput, StringComparison.OrdinalIgnoreCase);
+        // Paquete v9, bloque 6: solo Gerencia cambia el límite; Finanzas lo ve en solo lectura.
+        Assert.Contains("readonly", limitInput, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(
             "value=\"750000\"",
             System.Text.RegularExpressions.Regex.Match(limitInput, "value=\"[^\"]*\"").Value);
@@ -188,7 +189,7 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
         using FormUrlEncodedContent content = new(
         [
             new KeyValuePair<string, string>("Parameters.Version", "version-actual"),
-            new KeyValuePair<string, string>("Parameters.AuthorizationLimitCrc", "1000000"),
+            new KeyValuePair<string, string>("Parameters.AuthorizationLimitCrc", "750000"),
             new KeyValuePair<string, string>("Parameters.OverdueAlertDays", "10"),
         ]);
         using HttpResponseMessage postResponse = await client.PostAsync("/parametros", content);
@@ -197,8 +198,10 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
         Assert.Equal("/parametros", postResponse.Headers.Location?.OriginalString);
         Assert.Equal(0, parametersService.CreateCalls);
         Assert.Equal(1, parametersService.UpdateCalls);
-        Assert.Equal(new SaveSystemParametersCommand(1_000_000m, 10), parametersService.LastUpdateCommand);
+        Assert.Equal(new SaveSystemParametersCommand(750_000m, 10), parametersService.LastUpdateCommand);
         Assert.Equal("version-actual", parametersService.LastUpdateVersion);
+        // El controlador informa al servicio que Finanzas no es Gerencia (paquete v9, bloque 6).
+        Assert.False(parametersService.LastUpdateIsManagement);
     }
 
     [Fact]
@@ -433,6 +436,8 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
 
         public string? LastUpdateVersion { get; private set; }
 
+        public bool? LastUpdateIsManagement { get; private set; }
+
         public Task<SystemParametersModel?> GetAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<SystemParametersModel?>(new SystemParametersModel(
                 750_000m,
@@ -460,6 +465,7 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
         public Task<CatalogOperationResult> CreateAsync(
             SaveSystemParametersCommand command,
             Guid actorId,
+            bool actorIsManagement,
             CancellationToken cancellationToken = default)
         {
             CreateCalls++;
@@ -470,11 +476,13 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
             SaveSystemParametersCommand command,
             string version,
             Guid actorId,
+            bool actorIsManagement,
             CancellationToken cancellationToken = default)
         {
             UpdateCalls++;
             LastUpdateCommand = command;
             LastUpdateVersion = version;
+            LastUpdateIsManagement = actorIsManagement;
             return Task.FromResult(CatalogOperationResult.Succeeded());
         }
 

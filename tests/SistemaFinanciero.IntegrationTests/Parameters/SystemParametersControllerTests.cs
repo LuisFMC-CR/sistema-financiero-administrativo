@@ -371,6 +371,7 @@ public sealed class SystemParametersControllerTests
         public Task<CatalogOperationResult> CreateAsync(
             SaveSystemParametersCommand command,
             Guid actorId,
+            bool actorIsManagement,
             CancellationToken cancellationToken = default)
         {
             CreateCalls++;
@@ -382,6 +383,7 @@ public sealed class SystemParametersControllerTests
             SaveSystemParametersCommand command,
             string version,
             Guid actorId,
+            bool actorIsManagement,
             CancellationToken cancellationToken = default)
         {
             UpdateCalls++;

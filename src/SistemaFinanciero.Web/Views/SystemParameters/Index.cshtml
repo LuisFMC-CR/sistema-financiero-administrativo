@@ -2,7 +2,6 @@
 @model SystemParametersPageViewModel
 @{
     ViewData["Title"] = "Parámetros del sistema";
-    bool canManage = (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ManageSystemParameters)).Succeeded;
     bool canManageAccountingPeriods = (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ManageAccountingPeriods)).Succeeded;
     bool isConfigured = Model.CurrentConfiguration is not null;
 
@@ -34,6 +33,12 @@
 
 <div class="catalog-form mb-4">
         <h2 class="h5">@(isConfigured ? "Editar parámetros" : "Configurar parámetros iniciales")</h2>
+        @if (!isConfigured && !canManageAccountingPeriods)
+        {
+            <div class="alert alert-warning" role="status">Solo Gerencia puede registrar los parámetros iniciales del sistema.</div>
+        }
+        else
+        {
         <form asp-action="Save" method="post" class="card card-body">
             <input asp-for="Parameters.Version" type="hidden" />
             <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
@@ -48,7 +53,15 @@
                     <label asp-for="Parameters.AuthorizationLimitCrc" class="form-label"></label>
                     <div class="input-group">
                         <span class="input-group-text">CRC</span>
-                        <input asp-for="Parameters.AuthorizationLimitCrc" type="number" min="0" step="0.01" class="form-control" />
+                        @if (canManageAccountingPeriods)
+                        {
+                            <input asp-for="Parameters.AuthorizationLimitCrc" type="number" min="0" step="0.01" class="form-control" />
+                        }
+                        else
+                        {
+                            @* Solo Gerencia cambia el límite (paquete v9, bloque 6): Finanzas lo ve en solo lectura. *@
+                            <input asp-for="Parameters.AuthorizationLimitCrc" type="number" min="0" step="0.01" class="form-control" readonly />
+                        }
 </div>
                     <span asp-validation-for="Parameters.AuthorizationLimitCrc" class="text-danger"></span>
                     <div class="form-text">Los abonos y pagos por encima de este monto solo los registra Gerencia.</div>
@@ -70,6 +83,7 @@
                 <button type="submit" class="btn btn-primary">Guardar parámetros</button>
             </div>
         </form>
+        }
     </div>
 
     @if (isConfigured)
@@ -201,7 +215,7 @@
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label asp-for="CompanyDataForm.Name" class="form-label"></label>
-                        @if (canManage)
+                        @if (canManageAccountingPeriods)
                         {
                             <input asp-for="CompanyDataForm.Name" class="form-control" />
                         }
@@ -213,7 +227,7 @@
                     </div>
                     <div class="col-md-6">
                         <label asp-for="CompanyDataForm.LegalId" class="form-label"></label>
-                        @if (canManage)
+                        @if (canManageAccountingPeriods)
                         {
                             <input asp-for="CompanyDataForm.LegalId" class="form-control" />
                         }
@@ -225,7 +239,7 @@
                     </div>
                     <div class="col-md-6">
                         <label asp-for="CompanyDataForm.TradeName" class="form-label"></label>
-                        @if (canManage)
+                        @if (canManageAccountingPeriods)
                         {
                             <input asp-for="CompanyDataForm.TradeName" class="form-control" maxlength="100" />
                         }
@@ -238,7 +252,7 @@
                     </div>
                     <div class="col-md-4">
                         <label asp-for="CompanyDataForm.ProvinceCode" class="form-label"></label>
-                        @if (canManage)
+                        @if (canManageAccountingPeriods)
                         {
                             <select asp-for="CompanyDataForm.ProvinceCode" class="form-select">
                                 <option value="">(Sin indicar)</option>
@@ -256,7 +270,7 @@
                     </div>
                     <div class="col-md-4">
                         <label asp-for="CompanyDataForm.CantonCode" class="form-label"></label>
-                        @if (canManage)
+                        @if (canManageAccountingPeriods)
                         {
                             <input asp-for="CompanyDataForm.CantonCode" class="form-control" maxlength="2" placeholder="2 dígitos" />
                         }
@@ -269,7 +283,7 @@
                     </div>
                     <div class="col-md-4">
                         <label asp-for="CompanyDataForm.DistrictCode" class="form-label"></label>
-                        @if (canManage)
+                        @if (canManageAccountingPeriods)
                         {
                             <input asp-for="CompanyDataForm.DistrictCode" class="form-control" maxlength="2" placeholder="2 dígitos" />
                         }
@@ -282,7 +296,7 @@
                     </div>
                     <div class="col-md-12">
                         <label asp-for="CompanyDataForm.Address" class="form-label"></label>
-                        @if (canManage)
+                        @if (canManageAccountingPeriods)
                         {
                             <input asp-for="CompanyDataForm.Address" class="form-control" />
                         }
@@ -294,7 +308,7 @@
                     </div>
                     <div class="col-md-6">
                         <label asp-for="CompanyDataForm.Phone" class="form-label"></label>
-                        @if (canManage)
+                        @if (canManageAccountingPeriods)
                         {
                             <input asp-for="CompanyDataForm.Phone" class="form-control" />
                         }
@@ -306,7 +320,7 @@
                     </div>
                     <div class="col-md-6">
                         <label asp-for="CompanyDataForm.Email" class="form-label"></label>
-                        @if (canManage)
+                        @if (canManageAccountingPeriods)
                         {
                             <input asp-for="CompanyDataForm.Email" class="form-control" />
                         }
@@ -318,7 +332,7 @@
                     </div>
                     <div class="col-md-6">
                         <label asp-for="CompanyDataForm.ActivityCode" class="form-label"></label>
-                        @if (canManage)
+                        @if (canManageAccountingPeriods)
                         {
                             <input asp-for="CompanyDataForm.ActivityCode" class="form-control" maxlength="10" />
                         }
@@ -330,7 +344,7 @@
                     </div>
                     <div class="col-md-3">
                         <label asp-for="CompanyDataForm.BranchCode" class="form-label"></label>
-                        @if (canManage)
+                        @if (canManageAccountingPeriods)
                         {
                             <input asp-for="CompanyDataForm.BranchCode" class="form-control" maxlength="3" placeholder="3 dígitos" />
                         }
@@ -343,7 +357,7 @@
                     </div>
                     <div class="col-md-3">
                         <label asp-for="CompanyDataForm.TerminalCode" class="form-label"></label>
-                        @if (canManage)
+                        @if (canManageAccountingPeriods)
                         {
                             <input asp-for="CompanyDataForm.TerminalCode" class="form-control" maxlength="5" placeholder="5 dígitos" />
                         }
@@ -355,7 +369,7 @@
                         <div class="form-text">Para la clave del comprobante electrónico de Hacienda.</div>
                     </div>
                 </div>
-                @if (canManage)
+                @if (canManageAccountingPeriods)
                 {
                     <div class="d-flex gap-2 mt-4">
                         <button type="submit" class="btn btn-primary">Guardar datos de la empresa</button>

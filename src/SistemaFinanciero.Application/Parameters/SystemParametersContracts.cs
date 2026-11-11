@@ -68,19 +68,29 @@ public interface ISystemParametersService
     /// <summary>Obtiene los parámetros vigentes, o nulo si todavía no se han configurado.</summary>
     public Task<SystemParametersModel?> GetAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Configura los parámetros por primera vez.</summary>
+    /// <summary>
+    /// Configura los parámetros por primera vez. Solo Gerencia (paquete v9, bloque 6): con
+    /// <paramref name="actorIsManagement"/> en falso se rechaza.
+    /// </summary>
     public Task<CatalogOperationResult> CreateAsync(
         SaveSystemParametersCommand command,
         Guid actorId,
+        bool actorIsManagement,
         CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Actualiza los parámetros existentes y deja un registro del cambio con los valores anteriores.
     /// </summary>
+    /// <remarks>
+    /// Finanzas solo cambia los días de anticipación: si <paramref name="actorIsManagement"/> es falso
+    /// y el comando trae un límite de autorización distinto del vigente, se rechaza sin guardar nada
+    /// (paquete v9, bloque 6).
+    /// </remarks>
     public Task<CatalogOperationResult> UpdateAsync(
         SaveSystemParametersCommand command,
         string version,
         Guid actorId,
+        bool actorIsManagement,
         CancellationToken cancellationToken = default);
 
     /// <summary>Define o cambia el período fiscal de doce meses con motivo opcional.</summary>

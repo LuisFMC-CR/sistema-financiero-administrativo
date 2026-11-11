@@ -11,8 +11,9 @@ namespace SistemaFinanciero.Web.Controllers;
 
 /// <summary>
 /// Presenta los parámetros únicos del sistema: el límite de autorización, los días de alerta de
-/// vencimiento, el período fiscal y los datos de la empresa. El período fiscal y las reaperturas
-/// mensuales son exclusivos de Gerencia.
+/// vencimiento, el período fiscal y los datos de la empresa. Gerencia define el límite, los datos de la
+/// empresa, el período fiscal, la escala de renta y las reaperturas; Finanzas solo cambia los días de
+/// anticipación y consulta lo demás (paquete v9, bloque 6).
 /// </summary>
 /// <remarks>
 /// El período fiscal, las reaperturas mensuales y los datos de la empresa tienen formularios separados
@@ -50,9 +51,10 @@ public sealed class SystemParametersController(ISystemParametersService service)
 
         SaveSystemParametersCommand command = new(model.AuthorizationLimitCrc, model.OverdueAlertDays);
 
+        bool actorIsManagement = User.IsInRole(SystemRoles.Management);
         CatalogOperationResult result = string.IsNullOrEmpty(model.Version)
-            ? await service.CreateAsync(command, actorId, cancellationToken)
-            : await service.UpdateAsync(command, model.Version, actorId, cancellationToken);
+            ? await service.CreateAsync(command, actorId, actorIsManagement, cancellationToken)
+            : await service.UpdateAsync(command, model.Version, actorId, actorIsManagement, cancellationToken);
 
         if (result.IsSuccess)
         {
@@ -186,7 +188,9 @@ public sealed class SystemParametersController(ISystemParametersService service)
         return FormFailure(result, errorPage, nameof(Index));
     }
 
-    [Authorize(Policy = SystemPolicies.ManageSystemParameters)]
+    // Los datos de la empresa forman la clave y el consecutivo de los comprobantes: solo Gerencia
+    // (paquete v9, bloque 6).
+    [Authorize(Policy = SystemPolicies.ManageAccountingPeriods)]
     [HttpPost("datos-empresa")]
     public async Task<IActionResult> UpdateCompany(
         [Bind(Prefix = "CompanyDataForm")] CompanyDataViewModel model,
