@@ -32,6 +32,8 @@ public sealed class SqlServerReceivableServiceScenarioTests : IClassFixture<Fina
     {
         return RunInRollbackTransactionAsync(async (services, actorId) =>
         {
+            // Aislamiento (paquete v9, bloque 9): el resumen cuenta todas las cuentas abiertas del sistema.
+            await SqlTestIsolation.HideExistingOpenReceivablesAndPayablesAsync(services);
             IReceivableService receivables = services.GetRequiredService<IReceivableService>();
             IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
             Guid customerId = await CreateCustomerAsync(services, actorId);
@@ -104,6 +106,7 @@ public sealed class SqlServerReceivableServiceScenarioTests : IClassFixture<Fina
         InvoiceCreationResult created = await invoices.CreateAsync(
             new CreateInvoiceCommand(customerId, incomeAccountId, issueDate, PaymentTerm.Credit30),
             actorId);
+        Assert.True(created.Operation.IsSuccess, created.Operation.Message);
         Guid invoiceId = created.InvoiceId!.Value;
 
         InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
@@ -135,6 +138,7 @@ public sealed class SqlServerReceivableServiceScenarioTests : IClassFixture<Fina
             Guid.NewGuid(), $"ING-{suffix}", "Cuenta de ingreso de pruebas de cuentas vencidas",
             LedgerAccountType.Income, null, null, null, null, now, actorId);
         context.LedgerAccounts.Add(ledgerAccount);
+        await context.SaveChangesAsync();
 
         return ledgerAccount.Id;
     }

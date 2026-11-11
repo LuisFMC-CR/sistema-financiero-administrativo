@@ -457,6 +457,10 @@ public sealed class SqlServerCashAndVatEndToEndScenarioTests : IClassFixture<Fin
         await using IDbContextTransaction transaction = await context.Database.BeginTransactionAsync();
         Guid actorId = await CreateUserAsync(scope.ServiceProvider);
 
+        // Aislamiento (paquete v9, bloque 9): una liquidación vigente de la base de desarrollo impide
+        // liquidar los meses de la prueba; se anula solo dentro de esta transacción.
+        await SqlTestIsolation.CancelExistingVatSettlementsAsync(scope.ServiceProvider, actorId);
+
         try
         {
             await scenario(scope.ServiceProvider, actorId);

@@ -166,8 +166,11 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
     [Trait("Category", "SqlServer")]
     public Task GetBudgetVsExecutedReportAsync_IncludesExecutedFromConfirmedExpensesForThatCategoryAndMonth()
     {
-        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        // Paquete v9, bloque 9: el presupuesto solo se registra para el mes actual o uno futuro (regla 6)
+        // y el gasto debe caer en el período fiscal; el reloj se fija en enero de 2010 (año fabricado).
+        return RunAtLocalDateInRollbackTransactionAsync(new DateOnly(2010, 1, 5), async (services, actorId, _) =>
         {
+            await PrepareFabricatedPeriodAsync(services, actorId, new DateOnly(2010, 1, 5));
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
             IBudgetService budgets = services.GetRequiredService<IBudgetService>();
             Guid accountId = await CreateCategoryAsync(services, actorId, LedgerAccountType.Expense);
@@ -417,6 +420,8 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
     {
         return RunInRollbackTransactionAsync(async (services, actorId) =>
         {
+            // Aislamiento (paquete v9, bloque 9): el reporte lista todas las cuentas abiertas del sistema.
+            await SqlTestIsolation.HideExistingOpenReceivablesAndPayablesAsync(services);
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
             ISupplierPaymentService supplierPayments = services.GetRequiredService<ISupplierPaymentService>();
             Guid supplierId = await CreateSupplierAsync(services, actorId);
@@ -479,6 +484,8 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
     {
         return RunInRollbackTransactionAsync(async (services, _) =>
         {
+            // Aislamiento (paquete v9, bloque 9): el reporte lista todas las cuentas abiertas del sistema.
+            await SqlTestIsolation.HideExistingOpenReceivablesAndPayablesAsync(services);
             IReportService reports = services.GetRequiredService<IReportService>();
             PayableBySupplierReportResult result = await reports.GetPayableBySupplierReportAsync("Usuario de prueba");
 
@@ -493,6 +500,8 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
     {
         return RunInRollbackTransactionAsync(async (services, actorId) =>
         {
+            // Aislamiento (paquete v9, bloque 9): el reporte lista todas las cuentas abiertas del sistema.
+            await SqlTestIsolation.HideExistingOpenReceivablesAndPayablesAsync(services);
             IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
             IReceivablePaymentService receivablePayments = services.GetRequiredService<IReceivablePaymentService>();
             Guid customerId = await CreateCustomerAsync(services, actorId);
@@ -556,6 +565,8 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
     {
         return RunInRollbackTransactionAsync(async (services, _) =>
         {
+            // Aislamiento (paquete v9, bloque 9): el reporte lista todas las cuentas abiertas del sistema.
+            await SqlTestIsolation.HideExistingOpenReceivablesAndPayablesAsync(services);
             IReportService reports = services.GetRequiredService<IReportService>();
             ReceivableByCustomerReportResult result = await reports.GetReceivableByCustomerReportAsync("Usuario de prueba");
 
@@ -568,8 +579,12 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
     [Trait("Category", "SqlServer")]
     public Task GetAnnualBudgetReportAsync_AccumulatesUpToTheGivenMonthAndKeepsTheAnnualReference()
     {
-        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        // Paquete v9, bloque 9: reloj fijo en enero de 2011 (año fabricado) para que enero, febrero y
+        // marzo sean meses actuales o futuros al registrar el presupuesto (regla 6); luego se mueve a
+        // febrero para registrar el gasto de ese mes.
+        return RunAtLocalDateInRollbackTransactionAsync(new DateOnly(2011, 1, 5), async (services, actorId, clock) =>
         {
+            await PrepareFabricatedPeriodAsync(services, actorId, new DateOnly(2011, 1, 5));
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
             IBudgetService budgets = services.GetRequiredService<IBudgetService>();
             Guid accountId = await CreateCategoryAsync(services, actorId, LedgerAccountType.Expense);
@@ -585,6 +600,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
 
             await CreateAndConfirmCashExpenseAsync(
                 expenses, supplierId, accountId, taxTypeId, cashAccountId, new DateOnly(year, 1, 5), 600m, actorId);
+            clock.SetLocalTime(new DateTime(year, 2, 5, 12, 0, 0));
             await CreateAndConfirmCashExpenseAsync(
                 expenses, supplierId, accountId, taxTypeId, cashAccountId, new DateOnly(year, 2, 5), 900m, actorId);
 
@@ -620,9 +636,10 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
 
             ISystemParametersService settings = services.GetRequiredService<ISystemParametersService>();
             SystemParametersModel? existingSettings = await settings.GetAsync();
-            Assert.True((existingSettings is null
+            CatalogOperationResult parametersResult = existingSettings is null
                 ? await settings.CreateAsync(new SaveSystemParametersCommand(500_000m, 7), actorId, actorIsManagement: true)
-                : await settings.UpdateAsync(new SaveSystemParametersCommand(500_000m, 7), existingSettings.Version, actorId, actorIsManagement: true)).IsSuccess);
+                : await settings.UpdateAsync(new SaveSystemParametersCommand(500_000m, 7), existingSettings.Version, actorId, actorIsManagement: true);
+            Assert.True(parametersResult.IsSuccess, parametersResult.Message);
             SystemParametersModel configured = (await settings.GetAsync())!;
             Assert.True((await settings.UpdateFiscalPeriodAsync(
                 fiscalStart, fiscalEnd, null, configured.Version, actorId)).IsSuccess);
@@ -643,7 +660,11 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             AnnualBudgetReportResult result = await reports.GetAnnualBudgetReportAsync(
                 fiscalStart.Year, 1, "Usuario de prueba");
 
-            AnnualBudgetReportLine line = Assert.Single(result.Lines);
+            // El reporte lista todas las cuentas de gasto de detalle del catálogo (con ceros si no tienen
+            // presupuesto): se toma la línea de la cuenta de la prueba (paquete v9, bloque 9).
+            string accountCode = (await services.GetRequiredService<FinancialDbContext>().Set<LedgerAccount>()
+                .AsNoTracking().SingleAsync(account => account.Id == accountId)).Code;
+            AnnualBudgetReportLine line = result.Lines.Single(l => l.AccountCode == accountCode);
             Assert.Equal(1_000m, line.AccumulatedBudgeted);
             Assert.Equal(3_000m, line.AnnualBudgeted);
             Assert.Contains(
@@ -801,9 +822,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             await PrepareFabricatedPeriodAsync(services, actorId, transferDate, settlementDate);
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
-            // Entrada manual de 1000 a mainAccount: a diferencia del ingreso que genera una factura de
-            // contado (cuya fecha es la de la confirmación, no la de la factura), el ingreso manual
-            // permite fijar la fecha, necesaria para que caiga dentro del rango fabricado de la prueba.
+            // Entrada manual de 1000 a mainAccount, fechada dentro del rango fabricado de la prueba.
             IIncomeService incomes = services.GetRequiredService<IIncomeService>();
             Guid incomeAccountId = await CreateCategoryAsync(services, actorId, LedgerAccountType.Income);
             await incomes.CreateManualAsync(
@@ -811,8 +830,9 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
                     incomeAccountId, mainAccountId, 1000m, transferDate, PaymentMethod.Cash, "REC-CF-1", "Entrada de prueba de flujo de efectivo"),
                 actorId);
 
-            // Factura de contado con IVA, solo para generar el IVA por pagar de 130 que liquida la
-            // prueba; su propio ingreso (fechado a la confirmación) no es lo que esta prueba mide.
+            // Factura de contado con IVA que genera el IVA por pagar de 130 que liquida la prueba. Desde
+            // el paquete v9 (bloques 1 y 3) su ingreso y su asiento toman la fecha de la factura, así que
+            // sus 1130 también entran a mainAccount en junio.
             IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
             Guid customerId = await CreateCustomerAsync(services, actorId);
             Guid catalogItemId = await CreateCatalogItemAsync(services, actorId, "Servicio con IVA de prueba de flujo de efectivo");
@@ -850,20 +870,20 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
                     transferDate.Year, transferDate.Month, settlementDate, mainAccountId, "PAGO-CF-1"),
                 actorId,
                 actorIsManagement: true);
-            Assert.True(settlement.Operation.IsSuccess);
+            Assert.True(settlement.Operation.IsSuccess, settlement.Operation.Message);
 
             IReportService reports = services.GetRequiredService<IReportService>();
             DateOnly rangeFrom = new(2014, 6, 1);
             DateOnly rangeTo = new(2014, 7, 31);
 
             CashFlowReportResult noFilter = await reports.GetCashFlowReportAsync(rangeFrom, rangeTo, null, "Usuario de prueba");
-            Assert.Equal(1000m, noFilter.GrandTotalInflow);
+            Assert.Equal(1000m + 1130m, noFilter.GrandTotalInflow);
             // Sin filtro, el traspaso se compensa (no aparece); el pago de IVA sí resta, siempre.
             Assert.Equal(130m, noFilter.GrandTotalOutflow);
             Assert.All(noFilter.Lines, line => Assert.Equal(0m, line.TransfersReceived + line.TransfersSent));
 
             CashFlowReportResult mainFiltered = await reports.GetCashFlowReportAsync(rangeFrom, rangeTo, mainAccountId, "Usuario de prueba");
-            Assert.Equal(1000m, mainFiltered.GrandTotalInflow);
+            Assert.Equal(1000m + 1130m, mainFiltered.GrandTotalInflow);
             Assert.Equal(300m + 130m, mainFiltered.GrandTotalOutflow);
             CashFlowReportLine mainJune = mainFiltered.Lines.Single(line => line.PeriodMonth == 6);
             CashFlowReportLine mainJuly = mainFiltered.Lines.Single(line => line.PeriodMonth == 7);
@@ -927,7 +947,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
                 new RegisterVatSettlementCommand(entryDate.Year, entryDate.Month, settlementDate, cashAccountId, "PAGO-VP-1"),
                 actorId,
                 actorIsManagement: true);
-            Assert.True(registered.Operation.IsSuccess);
+            Assert.True(registered.Operation.IsSuccess, registered.Operation.Message);
 
             VatPeriodReportResult afterSettlement = await reports.GetVatPeriodReportAsync(monthStart, monthEnd, "Usuario de prueba");
             Assert.NotNull(afterSettlement.Settlement);
@@ -1135,6 +1155,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
                 supplierId, accountId, "Gasto de prueba de reportes", "VC-0001", issueDate, PaymentTerm.Cash,
                 netAmount, taxTypeId, true, PaymentMethod.Cash),
             actorId);
+        Assert.True(created.Operation.IsSuccess, created.Operation.Message);
         Guid expenseId = created.ExpenseId!.Value;
 
         ExpenseModel draft = (await expenses.GetAsync(expenseId))!;
@@ -1326,6 +1347,43 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
         await context.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// Igual que <see cref="RunInRollbackTransactionAsync"/>, pero con el reloj de la aplicación fijo al
+    /// mediodía (hora de Costa Rica) de la fecha indicada; la prueba puede moverlo.
+    /// </summary>
+    private async Task RunAtLocalDateInRollbackTransactionAsync(
+        DateOnly localDate,
+        Func<IServiceProvider, Guid, FixedLocalTimeProvider, Task> scenario)
+    {
+        if (!string.Equals(
+            Environment.GetEnvironmentVariable(EnableVariable),
+            "1",
+            StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        FixedLocalTimeProvider clock = FixedLocalTimeProvider.AtCostaRicaLocalTime(localDate.ToDateTime(new TimeOnly(12, 0)));
+        await using Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> clockedFactory =
+            factory.WithWebHostBuilder(builder => Microsoft.AspNetCore.TestHost.WebHostBuilderExtensions
+                .ConfigureTestServices(builder, services => services.AddSingleton<TimeProvider>(clock)));
+
+        using IServiceScope scope = clockedFactory.Services.CreateScope();
+        FinancialDbContext context = scope.ServiceProvider.GetRequiredService<FinancialDbContext>();
+        await using IDbContextTransaction transaction = await context.Database.BeginTransactionAsync();
+        Guid actorId = await CreateUserAsync(scope.ServiceProvider);
+        await SqlTestIsolation.CancelExistingVatSettlementsAsync(scope.ServiceProvider, actorId);
+
+        try
+        {
+            await scenario(scope.ServiceProvider, actorId, clock);
+        }
+        finally
+        {
+            await transaction.RollbackAsync();
+        }
+    }
+
     private async Task RunInRollbackTransactionAsync(Func<IServiceProvider, Guid, Task> scenario)
     {
         if (!string.Equals(
@@ -1340,6 +1398,10 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
         FinancialDbContext context = scope.ServiceProvider.GetRequiredService<FinancialDbContext>();
         await using IDbContextTransaction transaction = await context.Database.BeginTransactionAsync();
         Guid actorId = await CreateUserAsync(scope.ServiceProvider);
+
+        // Aislamiento (paquete v9, bloque 9): una liquidación vigente de la base de desarrollo impide
+        // liquidar los meses de la prueba; se anula solo dentro de esta transacción.
+        await SqlTestIsolation.CancelExistingVatSettlementsAsync(scope.ServiceProvider, actorId);
 
         try
         {

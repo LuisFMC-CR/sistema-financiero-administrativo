@@ -1100,6 +1100,17 @@ public sealed class SqlServerInvoiceServiceScenarioTests : IClassFixture<Financi
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "13");
             Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
 
+            // La migración DeactivateNotSubjectVatRate dejó inactiva la tarifa "No sujeto"; la prueba la
+            // reactiva solo dentro de su transacción para verificar el recálculo (paquete v9, bloque 9).
+            FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+            TaxType notSubjectRate = await context.TaxTypes.SingleAsync(
+                taxType => taxType.SystemRole == TaxTypeSystemRole.NotSubject);
+            if (!notSubjectRate.IsActive)
+            {
+                notSubjectRate.Activate(DateTimeOffset.UtcNow, actorId);
+                await context.SaveChangesAsync();
+            }
+
             Guid invoiceId = await CreateInvoiceWithLineAsync(
                 services, invoices, normalCustomerId, incomeAccountId, taxTypeId, actorId);
             InvoiceModel beforeChange = (await invoices.GetAsync(invoiceId))!;

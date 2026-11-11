@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using SistemaFinanciero.Domain.Payables;
+using SistemaFinanciero.Domain.Receivables;
 using SistemaFinanciero.Domain.VatSettlements;
 using SistemaFinanciero.Infrastructure.Persistence;
 
@@ -30,5 +32,24 @@ public static class SqlTestIsolation
         }
 
         await context.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Marca como anuladas, solo dentro de la transacción de la prueba, las cuentas por cobrar y por
+    /// pagar abiertas que ya existen en la base. Los reportes de antigüedad listan todas las cuentas
+    /// pendientes del sistema; sin esto, los datos reales de la base de desarrollo aparecen junto a
+    /// los de la prueba.
+    /// </summary>
+    public static async Task HideExistingOpenReceivablesAndPayablesAsync(IServiceProvider services)
+    {
+        FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+        await context.Set<Receivable>()
+            .Where(receivable => receivable.Status == ReceivableStatus.Pending
+                || receivable.Status == ReceivableStatus.PartiallyPaid)
+            .ExecuteUpdateAsync(update => update.SetProperty(receivable => receivable.Status, ReceivableStatus.Cancelled));
+        await context.Set<Payable>()
+            .Where(payable => payable.Status == PayableStatus.Pending
+                || payable.Status == PayableStatus.PartiallyPaid)
+            .ExecuteUpdateAsync(update => update.SetProperty(payable => payable.Status, PayableStatus.Cancelled));
     }
 }

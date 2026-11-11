@@ -37,7 +37,9 @@ public sealed class SqlServerLedgerAccountScenarioTests : IClassFixture<Financia
             string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
 
             LedgerAccountModel cashGroup = await GetByCodeAsync(accounts, "1.1");
-            LedgerAccountModel expenseRoot = await GetByCodeAsync(accounts, "5");
+            // Paquete v9, bloque 9: desde la regla de creación del paquete v7 las cuentas nuevas solo se
+            // crean, de tercer nivel, dentro de un grupo de segundo nivel habilitado (5.1, no la raíz 5).
+            LedgerAccountModel expenseGroup = await GetByCodeAsync(accounts, "5.1");
 
             // Una cuenta de efectivo cuelga del grupo de efectivo del catálogo base.
             Assert.True((await accounts.CreateAsync(
@@ -70,13 +72,13 @@ public sealed class SqlServerLedgerAccountScenarioTests : IClassFixture<Financia
             // La regla de efectivo la aplica el dominio: un grupo de Gasto no admite cuentas de efectivo.
             AssertInvalid(
                 await accounts.CreateAsync(
-                    Command($"Gasto de efectivo {suffix}", expenseRoot.Id, cashKind: CashAccountKind.Cash),
+                    Command($"Gasto de efectivo {suffix}", expenseGroup.Id, cashKind: CashAccountKind.Cash),
                     actorId),
                 "Activo");
 
             // Actualización con control de concurrencia; código, tipo y cuenta superior no forman parte del comando.
             Assert.True((await accounts.CreateAsync(
-                Command($"Detalle de gasto {suffix}", expenseRoot.Id), actorId)).IsSuccess);
+                Command($"Detalle de gasto {suffix}", expenseGroup.Id), actorId)).IsSuccess);
             LedgerAccountModel detail = await GetByNameAsync(accounts, $"Detalle de gasto {suffix}");
             UpdateLedgerAccountCommand update = new("Detalle de gasto renombrado", null, "Nota de prueba");
             Assert.True((await accounts.UpdateAsync(detail.Id, update, detail.Version, actorId)).IsSuccess);
@@ -87,12 +89,12 @@ public sealed class SqlServerLedgerAccountScenarioTests : IClassFixture<Financia
             LedgerAccountModel updatedDetail = (await accounts.GetAsync(detail.Id))!;
             Assert.Equal("Detalle de gasto renombrado", updatedDetail.Name);
             Assert.Equal(detail.Code, updatedDetail.Code);
-            Assert.Equal(expenseRoot.Id, updatedDetail.ParentId);
+            Assert.Equal(expenseGroup.Id, updatedDetail.ParentId);
 
-            // Una cuenta de detalle también puede ser cuenta superior de otra (regla 13 solo limita lo
-            // que agrega la interfaz; el dominio no restringe la profundidad).
-            Assert.True((await accounts.CreateAsync(
-                Command($"Nieta {suffix}", updatedDetail.Id), actorId)).IsSuccess);
+            // Toda cuenta nueva es de tercer nivel: una cuenta de detalle no admite cuentas hijas.
+            AssertInvalid(
+                await accounts.CreateAsync(Command($"Nieta {suffix}", updatedDetail.Id), actorId),
+                "segundo nivel");
         });
     }
 
@@ -106,9 +108,19 @@ public sealed class SqlServerLedgerAccountScenarioTests : IClassFixture<Financia
             string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
             LedgerAccountModel incomeRoot = await GetByCodeAsync(accounts, "4");
 
-            await CreateAsync(accounts, actorId, Command($"Grupo {suffix}", incomeRoot.Id));
+            // Paquete v9, bloque 9: desde la regla de creación del paquete v7 el usuario no puede crear
+            // una cuenta con hijas (toda cuenta nueva es de tercer nivel); el par padre e hija se
+            // inserta directamente para probar solo las reglas de activación del servicio.
+            LedgerAccount groupEntity = new(
+                Guid.NewGuid(), $"T{suffix}", $"Grupo {suffix}", LedgerAccountType.Income, incomeRoot.Id,
+                null, null, null, DateTimeOffset.UtcNow, actorId);
+            context.LedgerAccounts.Add(groupEntity);
+            context.LedgerAccounts.Add(new LedgerAccount(
+                Guid.NewGuid(), $"T{suffix}.01", $"Hijo {suffix}", LedgerAccountType.Income, groupEntity.Id,
+                null, null, null, DateTimeOffset.UtcNow, actorId));
+            await context.SaveChangesAsync();
+            context.ChangeTracker.Clear();
             LedgerAccountModel group = await GetByNameAsync(accounts, $"Grupo {suffix}");
-            await CreateAsync(accounts, actorId, Command($"Hijo {suffix}", group.Id));
             LedgerAccountModel child = await GetByNameAsync(accounts, $"Hijo {suffix}");
 
             Assert.Equal(
@@ -140,15 +152,18 @@ public sealed class SqlServerLedgerAccountScenarioTests : IClassFixture<Financia
             ILedgerAccountService accounts = services.GetRequiredService<ILedgerAccountService>();
             string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
 
+            // Paquete v9, bloque 9: las cuentas nuevas se crean dentro de los grupos habilitados.
             LedgerAccountModel incomeRoot = await GetByCodeAsync(accounts, "4");
-            LedgerAccountModel expenseRoot = await GetByCodeAsync(accounts, "5");
+            LedgerAccountModel servicesGroup = await GetByCodeAsync(accounts, "4.1");
+            LedgerAccountModel salesGroup = await GetByCodeAsync(accounts, "4.2");
+            LedgerAccountModel expenseGroup = await GetByCodeAsync(accounts, "5.1");
             LedgerAccountModel cashGroup = await GetByCodeAsync(accounts, "1.1");
 
-            await CreateAsync(accounts, actorId, Command($"Ingresos por servicios {suffix}", incomeRoot.Id));
+            await CreateAsync(accounts, actorId, Command($"Ingresos por servicios {suffix}", servicesGroup.Id));
             LedgerAccountModel incomeChild = await GetByNameAsync(accounts, $"Ingresos por servicios {suffix}");
-            await CreateAsync(accounts, actorId, Command($"Ingresos por ventas {suffix}", incomeRoot.Id));
+            await CreateAsync(accounts, actorId, Command($"Ingresos por ventas {suffix}", salesGroup.Id));
             LedgerAccountModel incomeSibling = await GetByNameAsync(accounts, $"Ingresos por ventas {suffix}");
-            await CreateAsync(accounts, actorId, Command($"Gasto nuevo {suffix}", expenseRoot.Id));
+            await CreateAsync(accounts, actorId, Command($"Gasto nuevo {suffix}", expenseGroup.Id));
             LedgerAccountModel expense = await GetByNameAsync(accounts, $"Gasto nuevo {suffix}");
             await CreateAsync(
                 accounts,
@@ -161,20 +176,19 @@ public sealed class SqlServerLedgerAccountScenarioTests : IClassFixture<Financia
                 Command($"Banco {suffix}", cashGroup.Id, cashKind: CashAccountKind.Bank));
             LedgerAccountModel banco = await GetByNameAsync(accounts, $"Banco {suffix}");
 
-            // Las opciones de cuenta superior excluyen otros tipos, la cuenta misma y sus descendientes.
-            IReadOnlyList<LedgerAccountOption> parents = await accounts.GetParentOptionsAsync(
-                LedgerAccountType.Income,
-                excludedAccountId: incomeRoot.Id);
+            // Las opciones de cuenta superior son solo los grupos habilitados del tipo: ni la raíz, ni
+            // las cuentas de detalle, ni cuentas de otro tipo; y excluyen la cuenta indicada.
+            IReadOnlyList<LedgerAccountOption> parents = await accounts.GetParentOptionsAsync(LedgerAccountType.Income);
+            Assert.Equal(["4.1", "4.2", "4.3"], parents.Select(option => option.Code).ToArray());
             Assert.DoesNotContain(parents, option => option.Id == incomeRoot.Id);
             Assert.DoesNotContain(parents, option => option.Id == incomeChild.Id);
             Assert.DoesNotContain(parents, option => option.Id == expense.Id);
 
-            IReadOnlyList<LedgerAccountOption> siblingParents = await accounts.GetParentOptionsAsync(
+            IReadOnlyList<LedgerAccountOption> withoutServices = await accounts.GetParentOptionsAsync(
                 LedgerAccountType.Income,
-                excludedAccountId: incomeSibling.Id);
-            Assert.Contains(siblingParents, option => option.Id == incomeRoot.Id);
-            Assert.Contains(siblingParents, option => option.Id == incomeChild.Id);
-            Assert.DoesNotContain(siblingParents, option => option.Id == incomeSibling.Id);
+                excludedAccountId: servicesGroup.Id);
+            Assert.DoesNotContain(withoutServices, option => option.Id == servicesGroup.Id);
+            Assert.Contains(withoutServices, option => option.Id == salesGroup.Id);
 
             // Las cajas y los bancos nunca se ofrecen como cuenta superior.
             IReadOnlyList<LedgerAccountOption> assetParents = await accounts.GetParentOptionsAsync(LedgerAccountType.Asset);
@@ -213,17 +227,17 @@ public sealed class SqlServerLedgerAccountScenarioTests : IClassFixture<Financia
             LedgerAccountModel equityRoot = await GetByCodeAsync(accounts, "3");
             LedgerAccountModel receivablesFromCustomers = await GetByCodeAsync(accounts, "1.2.01");
 
-            // El usuario solo crea cuentas de detalle dentro de 1.1 Efectivo, Ingresos y Gastos: ni
-            // siquiera dentro de "1 Activo" directamente, ni de Pasivo o Patrimonio.
+            // El usuario solo crea cuentas de detalle dentro de un grupo de segundo nivel habilitado:
+            // nunca directamente bajo una raíz (Activo, Pasivo o Patrimonio).
             AssertInvalid(
                 await accounts.CreateAsync(Command($"Bajo activo {suffix}", assetRoot.Id), actorId),
-                "Efectivo, Ingresos o Gastos");
+                "segundo nivel");
             AssertInvalid(
                 await accounts.CreateAsync(Command($"Bajo pasivo {suffix}", liabilityRoot.Id), actorId),
-                "Efectivo, Ingresos o Gastos");
+                "segundo nivel");
             AssertInvalid(
                 await accounts.CreateAsync(Command($"Bajo patrimonio {suffix}", equityRoot.Id), actorId),
-                "Efectivo, Ingresos o Gastos");
+                "segundo nivel");
 
             // Una cuenta de sistema tampoco admite cuentas hijas.
             AssertInvalid(
@@ -234,6 +248,11 @@ public sealed class SqlServerLedgerAccountScenarioTests : IClassFixture<Financia
             // Pasivo y Patrimonio nunca ofrecen cuentas superior para el usuario.
             Assert.Empty(await accounts.GetParentOptionsAsync(LedgerAccountType.Liability));
             Assert.Empty(await accounts.GetParentOptionsAsync(LedgerAccountType.Equity));
+
+            // Gastos ofrece sus tres grupos, incluido 5.3 Costo de ventas (regla 1; paquete v9, bloque 9).
+            Assert.Equal(
+                ["5.1", "5.2", "5.3"],
+                (await accounts.GetParentOptionsAsync(LedgerAccountType.Expense)).Select(option => option.Code).ToArray());
 
             // Dentro de Activo, solo 1.1 Efectivo aparece como cuenta superior posible.
             IReadOnlyList<LedgerAccountOption> assetParentOptions =
@@ -307,10 +326,10 @@ public sealed class SqlServerLedgerAccountScenarioTests : IClassFixture<Financia
         {
             ILedgerAccountService accounts = services.GetRequiredService<ILedgerAccountService>();
             string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
-            LedgerAccountModel expenseRoot = await GetByCodeAsync(accounts, "5");
+            LedgerAccountModel expenseGroup = await GetByCodeAsync(accounts, "5.1");
             LedgerAccountModel cashGroup = await GetByCodeAsync(accounts, "1.1");
 
-            await CreateAsync(accounts, actorId, Command($"Sin efectivo {suffix}", expenseRoot.Id));
+            await CreateAsync(accounts, actorId, Command($"Sin efectivo {suffix}", expenseGroup.Id));
             await CreateAsync(
                 accounts,
                 actorId,

@@ -75,7 +75,7 @@ public sealed class SqlServerVatSettlementServiceScenarioTests : IClassFixture<F
                 actorId,
                 actorIsManagement: true);
 
-            Assert.True(result.Operation.IsSuccess);
+            Assert.True(result.Operation.IsSuccess, result.Operation.Message);
             Assert.NotNull(result.VatSettlementId);
 
             FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
@@ -147,7 +147,7 @@ public sealed class SqlServerVatSettlementServiceScenarioTests : IClassFixture<F
                     periodDate.Year, periodDate.Month, DateOnly.FromDateTime(DateTime.UtcNow), cashAccountId, "PAGO-OCT"),
                 actorId,
                 actorIsManagement: true);
-            Assert.True(first.Operation.IsSuccess);
+            Assert.True(first.Operation.IsSuccess, first.Operation.Message);
 
             // Entra tarde, con fecha del mes ya liquidado: el mes sigue reabierto, así que se puede
             // registrar; su efecto debe pasar automáticamente a la siguiente liquidación, nunca a la
@@ -166,7 +166,7 @@ public sealed class SqlServerVatSettlementServiceScenarioTests : IClassFixture<F
                 actorId,
                 actorIsManagement: true);
 
-            Assert.True(second.Operation.IsSuccess);
+            Assert.True(second.Operation.IsSuccess, second.Operation.Message);
             FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
             VatSettlement secondSettlement = await context.VatSettlements.SingleAsync(s => s.Id == second.VatSettlementId);
             // Lo exacto a verificar es que la entrada tardía quedó incluida una sola vez, en la
@@ -193,7 +193,7 @@ public sealed class SqlServerVatSettlementServiceScenarioTests : IClassFixture<F
                     periodDate.Year, periodDate.Month, DateOnly.FromDateTime(DateTime.UtcNow), cashAccountId, "PAGO-0001"),
                 actorId,
                 actorIsManagement: true);
-            Assert.True(first.Operation.IsSuccess);
+            Assert.True(first.Operation.IsSuccess, first.Operation.Message);
 
             RegisterVatSettlementResult repeated = await settlements.RegisterAsync(
                 new RegisterVatSettlementCommand(
@@ -225,7 +225,7 @@ public sealed class SqlServerVatSettlementServiceScenarioTests : IClassFixture<F
             Assert.Equal(CatalogOperationStatus.Invalid, blocked.Operation.Status);
 
             RegisterVatSettlementResult allowed = await settlements.RegisterAsync(command, actorId, actorIsManagement: true);
-            Assert.True(allowed.Operation.IsSuccess);
+            Assert.True(allowed.Operation.IsSuccess, allowed.Operation.Message);
         });
     }
 
@@ -275,7 +275,7 @@ public sealed class SqlServerVatSettlementServiceScenarioTests : IClassFixture<F
                     firstPeriod.Year, firstPeriod.Month, DateOnly.FromDateTime(DateTime.UtcNow), cashAccountId, "PAGO-0001"),
                 actorId,
                 actorIsManagement: true);
-            Assert.True(first.Operation.IsSuccess);
+            Assert.True(first.Operation.IsSuccess, first.Operation.Message);
 
             DateOnly secondPeriod = firstPeriod.AddMonths(1);
             DateOnly secondSettlementDate = new DateOnly(secondPeriod.Year, secondPeriod.Month, 1).AddMonths(1);
@@ -286,7 +286,7 @@ public sealed class SqlServerVatSettlementServiceScenarioTests : IClassFixture<F
                     secondPeriod.Year, secondPeriod.Month, secondSettlementDate, cashAccountId, "PAGO-0002"),
                 actorId,
                 actorIsManagement: true);
-            Assert.True(second.Operation.IsSuccess);
+            Assert.True(second.Operation.IsSuccess, second.Operation.Message);
 
             VatSettlementModel? firstModel = await settlements.GetAsync(first.VatSettlementId!.Value);
             CatalogOperationResult cancelFirst = await settlements.CancelAsync(
@@ -602,6 +602,10 @@ public sealed class SqlServerVatSettlementServiceScenarioTests : IClassFixture<F
         FinancialDbContext context = scope.ServiceProvider.GetRequiredService<FinancialDbContext>();
         await using IDbContextTransaction transaction = await context.Database.BeginTransactionAsync();
         Guid actorId = await CreateUserAsync(scope.ServiceProvider);
+
+        // Aislamiento (paquete v9, bloque 9): una liquidación vigente de la base de desarrollo impide
+        // liquidar los meses de la prueba; se anula solo dentro de esta transacción.
+        await SqlTestIsolation.CancelExistingVatSettlementsAsync(scope.ServiceProvider, actorId);
 
         try
         {
