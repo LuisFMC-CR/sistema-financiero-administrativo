@@ -21,7 +21,9 @@ namespace SistemaFinanciero.Web.Controllers;
 /// vigente más reciente). Ruta propia (<c>/liquidacion-iva</c>, como Traspasos), fuera de
 /// <c>/impuestos-y-retenciones</c> para no compartir su prefijo de rutas.
 /// </remarks>
-[Authorize(Policy = SystemPolicies.ViewBusinessCatalogs)]
+// Listado y detalle solo para Finanzas y Gerencia (CU-24, CU-25 y CU-26; paquete v9, bloque 7): el
+// Asistente no ve traspasos, liquidaciones ni pagos de renta aunque escriba la ruta.
+[Authorize(Policy = SystemPolicies.ConfirmFinancialTransactions)]
 [Route("liquidacion-iva")]
 public sealed class VatSettlementsController(
     IVatSettlementService service,

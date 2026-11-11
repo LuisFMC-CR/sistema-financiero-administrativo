@@ -23,7 +23,9 @@ namespace SistemaFinanciero.Web.Controllers;
 /// <c>ConfirmFinancialTransactions</c> (Finanzas y Gerencia); anular exige
 /// <c>VoidFinancialTransactions</c> (solo Gerencia).
 /// </remarks>
-[Authorize(Policy = SystemPolicies.ViewBusinessCatalogs)]
+// Listado y detalle solo para Finanzas y Gerencia (CU-24, CU-25 y CU-26; paquete v9, bloque 7): el
+// Asistente no ve traspasos, liquidaciones ni pagos de renta aunque escriba la ruta.
+[Authorize(Policy = SystemPolicies.ConfirmFinancialTransactions)]
 [Route("traspasos")]
 public sealed class CashTransfersController(
     ICashTransferService service,

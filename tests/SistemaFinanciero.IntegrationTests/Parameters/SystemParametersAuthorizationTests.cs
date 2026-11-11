@@ -1,14 +1,9 @@
 using System.Net;
-using System.Security.Claims;
-using System.Text.Encodings.Web;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Parameters;
 using SistemaFinanciero.Application.Security;
@@ -100,16 +95,7 @@ public sealed class SystemParametersAuthorizationTests : IClassFixture<Financial
                         options.Filters.Remove(antiforgeryFilter);
                     }
                 });
-                services
-                    .AddAuthentication(options =>
-                    {
-                        options.DefaultAuthenticateScheme = RoleAuthenticationHandler.SchemeName;
-                        options.DefaultChallengeScheme = RoleAuthenticationHandler.SchemeName;
-                        options.DefaultForbidScheme = RoleAuthenticationHandler.SchemeName;
-                    })
-                    .AddScheme<AuthenticationSchemeOptions, RoleAuthenticationHandler>(
-                        RoleAuthenticationHandler.SchemeName,
-                        _ => { });
+                RoleTestAuthentication.AddTo(services);
             }));
 
         HttpClient client = roleFactory.CreateClient(new WebApplicationFactoryClientOptions
@@ -117,34 +103,8 @@ public sealed class SystemParametersAuthorizationTests : IClassFixture<Financial
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost"),
         });
-        client.DefaultRequestHeaders.Add(RoleAuthenticationHandler.RoleHeader, role);
+        client.DefaultRequestHeaders.Add(RoleTestAuthentication.RoleHeader, role);
         return client;
-    }
-
-    /// <summary>Autentica con el perfil que indica el encabezado <see cref="RoleHeader"/>.</summary>
-    private sealed class RoleAuthenticationHandler(
-        IOptionsMonitor<AuthenticationSchemeOptions> options,
-        ILoggerFactory logger,
-        UrlEncoder encoder)
-        : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
-    {
-        public const string SchemeName = "ParametersRoleTest";
-        public const string RoleHeader = "X-Test-Role";
-
-        protected override Task<AuthenticateResult> HandleAuthenticateAsync()
-        {
-            string role = Request.Headers[RoleHeader].ToString();
-            ClaimsIdentity identity = new(
-                [
-                    new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
-                    new Claim(ClaimTypes.Name, $"Usuario de {role}"),
-                    new Claim(ClaimTypes.Role, role),
-                ],
-                SchemeName);
-
-            return Task.FromResult(AuthenticateResult.Success(
-                new AuthenticationTicket(new ClaimsPrincipal(identity), SchemeName)));
-        }
     }
 
     private sealed class RecordingParametersService : ISystemParametersService

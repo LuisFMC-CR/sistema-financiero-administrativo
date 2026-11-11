@@ -22,7 +22,9 @@ namespace SistemaFinanciero.Web.Controllers;
 /// valida el servicio); anular exige <c>VoidFinancialTransactions</c> (solo Gerencia). Mismo esquema
 /// de permisos que <c>VatSettlementsController</c>.
 /// </remarks>
-[Authorize(Policy = SystemPolicies.ViewBusinessCatalogs)]
+// Listado y detalle solo para Finanzas y Gerencia (CU-24, CU-25 y CU-26; paquete v9, bloque 7): el
+// Asistente no ve traspasos, liquidaciones ni pagos de renta aunque escriba la ruta.
+[Authorize(Policy = SystemPolicies.ConfirmFinancialTransactions)]
 [Route("pagos-renta")]
 public sealed class IncomeTaxPaymentsController(
     IIncomeTaxService service,
