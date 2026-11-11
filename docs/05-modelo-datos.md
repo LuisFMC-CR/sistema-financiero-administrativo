@@ -171,23 +171,12 @@ El precio puede ser nulo para servicios de precio variable. Cuando existe se con
 decimales; el redondeo del total monetario se realizará al crear documentos. El código ya no se escribe
 en el formulario: lo asigna el sistema según `Type` (migración `AdjustExistingCatalogs`).
 
-### `catalogos.CategoriasFinancieras`
+### `catalogos.CategoriasFinancieras` (retirada)
 
-| Campo | Tipo SQL | Nulo | Restricción | Descripción |
-|---|---|---:|---|---|
-| `Code` | `nvarchar(30)` | No | Único; inmutable | Código visible (`ING-001`/`GAS-001` según `Kind`, regla 12) que asigna el sistema al crear, a partir de `catalogos.Seq_CategoriaIngresoCodigo`/`Seq_CategoriaGastoCodigo` (arrancan en 6 y 11 para no chocar con el catálogo base `ING-001..005`/`GAS-001..010` de `SeedBaseChartOfAccounts`). |
-| `Name` | `nvarchar(120)` | No | — | Nombre de la categoría. |
-| `Kind` | Valor restringido | No | Ingreso/Gasto; inmutable | Naturaleza financiera administrativa. |
-| `ParentId` | `uniqueidentifier` | Sí | FK autorreferente restrictiva | Categoría padre del mismo tipo. |
-| `LedgerAccountId` | `uniqueidentifier` | No | FK restrictiva a `catalogos.CuentasContables` (`FK_CategoriasFinancieras_CuentasContables`) | Cuenta contable de la categoría, del tipo Ingreso para las de ingreso y Gasto para las de gasto. |
-| `Description` | `nvarchar(300)` | Sí | — | Explicación de uso. |
-
-La aplicación impide autorreferencias, ciclos y padres de un tipo distinto. También bloquea la baja de
-una categoría con hijas activas o artículos activos que la usan, y exige un padre activo al reactivar
-una hija. No hay desactivación en cascada. La base restringe el borrado para conservar la jerarquía.
-Que la cuenta sea del tipo que corresponde a la naturaleza lo valida la aplicación, porque involucra dos
-tablas: como ni la naturaleza de la categoría ni el tipo de la cuenta pueden cambiar, la relación se
-mantiene coherente después de validarla al asignarla.
+La tabla ya no existe en la base vigente. Ingresos, gastos, presupuestos y reportes usan directamente
+las cuentas de ingreso y de gasto de detalle de `catalogos.CuentasContables` (por ejemplo,
+`finanzas.Presupuestos.AccountId`). Las secciones históricas de este documento que mencionan
+categorías describen el diseño anterior.
 
 ### `catalogos.CuentasContables`
 
@@ -198,8 +187,8 @@ Comparte los campos comunes auditables de los catálogos: `Id`, `IsActive`, `Cre
 |---|---|---:|---|---|
 | `Code` | `nvarchar(30)` | No | Único (`UX_CuentasContables_Code`); no vacío; inmutable | Código jerárquico (`3.1.07`) que el sistema calcula como el siguiente hijo libre del padre (regla 12). |
 | `Name` | `nvarchar(120)` | No | — | Nombre de la cuenta. |
-| `Type` | Entero | No | 1 = Activo, 4 = Ingreso, 5 = Gasto; inmutable | Naturaleza de la cuenta; sin pasivo ni patrimonio (regla 1). Se hereda de la cuenta superior al crear. |
-| `ParentId` | `uniqueidentifier` | Sí | FK autorreferente restrictiva; distinta de `Id`; inmutable | Cuenta superior del mismo tipo, sin ciclos. Obligatoria al crear desde la interfaz (regla 13: el usuario solo agrega detalle dentro de un grupo). |
+| `Type` | Entero | No | 1 = Activo, 2 = Pasivo, 3 = Patrimonio, 4 = Ingreso, 5 = Gasto; inmutable | Naturaleza de la cuenta. Pasivo y Patrimonio solo tienen cuentas de sistema (regla 1). Se hereda de la cuenta superior al crear. |
+| `ParentId` | `uniqueidentifier` | Sí | FK autorreferente restrictiva; distinta de `Id`; inmutable | Cuenta superior del mismo tipo, sin ciclos. Al crear desde la interfaz es siempre un grupo habilitado (1.1, 4.1, 4.2, 4.3, 5.1, 5.2 o 5.3) y la cuenta nueva queda de tercer nivel (regla 1; ADR-0059). |
 | `CashKind` | Entero | Sí | 1 = Caja, 2 = Banco; inmutable | Subtipo cuando la cuenta es de efectivo; nulo en las demás. |
 | `Reference` | `nvarchar(100)` | Sí | — | Referencia no sensible; no debe almacenar credenciales bancarias. |
 | `Description` | `nvarchar(300)` | Sí | — | Explicación de uso. |
@@ -215,33 +204,49 @@ No existe un campo `Balance`: los saldos se calcularán en un incremento transac
 confirmados y saldos iniciales controlados. La tabla anterior `finanzas.CuentasFinancieras` se migró aquí
 y se eliminó (ADR-0012).
 
-#### Catálogo base (regla 13, migración `SeedBaseChartOfAccounts`)
+#### Catálogo base vigente (regla 13)
 
-El sistema se instala con 9 cuentas de grupo protegidas y 17 cuentas de detalle (2 de efectivo, 5 de
-ingreso y 10 de gasto), más una categoría financiera inicial por cada cuenta de detalle de ingreso o
-gasto (mismo nombre, códigos `ING-001`–`ING-005` y `GAS-001`–`GAS-010`). Como estas filas necesitan un
-usuario creador (FK obligatoria) y la migración corre antes de que exista cualquier usuario real, la
-misma migración inserta primero un usuario técnico "Sistema" (`sistema@interno.local`, inactivo, sin
-contraseña, sin rol) y lo usa como autor de todo el catálogo base.
+Lo siembran las migraciones `SeedBaseChartOfAccounts` y `ExpandChartOfAccountsWithSystemRoles` (esta
+última renumeró el catálogo a 1 Activo, 2 Pasivo, 3 Patrimonio, 4 Ingresos y 5 Gastos y agregó las
+cuentas de sistema). Como estas filas necesitan un usuario creador y la migración corre antes de que
+exista cualquier usuario real, la siembra usa un usuario técnico "Sistema" (`sistema@interno.local`,
+inactivo, sin contraseña, sin rol). Las cuentas marcadas "Sistema" tienen `SystemRole`.
 
 | Código | Cuenta | Tipo | Clase |
 |---|---|---|---|
 | 1 | Activo | Activo | Grupo |
 | 1.1 | Efectivo | Activo | Grupo |
-| 1.1.01 | Caja chica | Activo (efectivo) | Detalle |
-| 1.1.02 | Cuenta bancaria principal | Activo (efectivo) | Detalle |
-| 2 | Ingresos | Ingreso | Grupo |
-| 2.1 | Ingresos por servicios | Ingreso | Grupo |
-| 2.1.01–2.1.03 | Soporte técnico; Mantenimiento y reparación de equipos; Instalación de infraestructura informática | Ingreso | Detalle |
-| 2.2 | Ingresos por ventas | Ingreso | Grupo |
-| 2.2.01 | Venta de equipos y repuestos | Ingreso | Detalle |
-| 2.3 | Otros ingresos | Ingreso | Grupo |
-| 2.3.01 | Otros ingresos de la operación | Ingreso | Detalle |
-| 3 | Gastos | Gasto | Grupo |
-| 3.1 | Gastos de operación | Gasto | Grupo |
-| 3.1.01–3.1.06 | Alquiler; Electricidad y agua; Internet y telefonía; Materiales y repuestos; Software y licencias; Transporte y combustible | Gasto | Detalle |
-| 3.2 | Gastos administrativos | Gasto | Grupo |
-| 3.2.01–3.2.04 | Papelería y suministros de oficina; Servicios profesionales; Comisiones bancarias; Otros gastos administrativos | Gasto | Detalle |
+| 1.1.01, 1.1.02 | Caja chica; Cuenta bancaria principal | Activo (efectivo) | Detalle |
+| 1.2 | Cuentas por cobrar | Activo | Grupo |
+| 1.2.01 | Cuentas por cobrar a clientes | Activo | Sistema (1) |
+| 1.3 | Impuestos a favor | Activo | Grupo |
+| 1.3.01 | IVA acreditable | Activo | Sistema (2) |
+| 1.3.02 | Retenciones de renta a favor | Activo | Sistema (3) |
+| 1.3.03 | Impuesto sobre la renta pagado por anticipado | Activo | Sistema (9) |
+| 2 | Pasivo | Pasivo | Grupo |
+| 2.1 | Cuentas por pagar | Pasivo | Grupo |
+| 2.1.01 | Cuentas por pagar a proveedores | Pasivo | Sistema (4) |
+| 2.2 | Impuestos por pagar | Pasivo | Grupo |
+| 2.2.01 | IVA por pagar | Pasivo | Sistema (5) |
+| 3 | Patrimonio | Patrimonio | Grupo (sin detalle) |
+| 4 | Ingresos | Ingreso | Grupo |
+| 4.1 | Ingresos por servicios | Ingreso | Grupo |
+| 4.1.01–4.1.03 | Soporte técnico; Mantenimiento y reparación de equipos; Instalación de infraestructura informática | Ingreso | Detalle |
+| 4.2 | Ingresos por ventas | Ingreso | Grupo |
+| 4.2.01 | Venta de equipos y repuestos | Ingreso | Detalle |
+| 4.3 | Otros ingresos | Ingreso | Grupo |
+| 4.3.01 | Otros ingresos de la operación | Ingreso | Detalle |
+| 4.3.02 | Ajustes a favor en cuentas por pagar | Ingreso | Sistema (7) |
+| 4.4 | Devoluciones y descuentos sobre ventas | Ingreso | Grupo |
+| 4.4.01 | Devoluciones y descuentos sobre ventas | Ingreso | Sistema (8) |
+| 5 | Gastos | Gasto | Grupo |
+| 5.1 | Gastos de operación | Gasto | Grupo |
+| 5.1.01–5.1.06 | Alquiler; Electricidad y agua; Internet y telefonía; Materiales y repuestos; Software y licencias; Transporte y combustible | Gasto | Detalle |
+| 5.2 | Gastos administrativos | Gasto | Grupo |
+| 5.2.01–5.2.04 | Papelería y suministros de oficina; Servicios profesionales; Comisiones bancarias; Otros gastos administrativos | Gasto | Detalle |
+| 5.2.05 | Ajustes a cuentas por cobrar | Gasto | Sistema (6) |
+| 5.3 | Costo de ventas | Gasto | Grupo |
+| 5.3.01 | Compras de equipos para la venta | Gasto | Detalle |
 
 Las cuentas de grupo (primer y segundo nivel) tienen `IsProtected = 1`. Las de detalle sembradas,
 incluidas las de efectivo, no están protegidas: se pueden renombrar o inactivar como cualquier cuenta
@@ -289,7 +294,19 @@ lo protege contra modificaciones y borrados (`FinancialDbContext.EnsureAppendOnl
 | `PreviousOverdueAlertDays` | `int` | Sí | `> 0` cuando existe | Días de alerta anteriores; nulos en la primera configuración. |
 | `NewOverdueAlertDays` | `int` | No | `> 0` | Días de alerta nuevos. |
 | `ChangedAtUtc` | `datetimeoffset` | No | Índice `IX_ParametrosSistemaHistorial_ChangedAtUtc` | Instante del cambio. |
-| `ChangedByUserId` | `uniqueidentifier` | No | FK restrictiva | Usuario de Gerencia que hizo el cambio. |
+| `ChangedByUserId` | `uniqueidentifier` | No | FK restrictiva | Usuario que hizo el cambio: Gerencia, o Finanzas cuando solo cambió los días de alerta (ADR-0059). |
+
+### `finanzas.PagosImpuestoRenta` y `finanzas.EscalaRentaHistorial`
+
+Estimación del impuesto sobre la renta (regla 17; RF-REN-001 a RF-REN-003 de `docs/02`; migración
+`AddIncomeTaxEstimate`). `PagosImpuestoRenta` guarda cada pago a Hacienda: código `PIR-000001`
+(`Seq_PagoRentaCodigo`), período fiscal al que se aplica (`FiscalPeriodStartDate` y
+`FiscalPeriodEndDate`, doce meses desde el día 1), cuenta de efectivo, medio de pago, monto,
+referencia, descripción opcional, fecha (`PaymentDate >= FiscalPeriodStartDate`), estado 1 Vigente o
+2 Anulado con motivo, y la auditoría común. `EscalaRentaHistorial` es de solo inserción: cada fila guarda
+la escala completa que quedó vigente (tres límites, cuatro tarifas, umbral de renta bruta y tarifa
+general), con quién y cuándo la cambió Gerencia. La escala vigente vive en las columnas
+`IncomeTax*` de `ParametrosSistema`.
 
 ## Incremento de facturación
 

@@ -362,7 +362,8 @@ institucional sin cambiar el comportamiento aquí definido.
 ## UC-CFG-001 — Definir parámetros del sistema
 
 - **Actor de consulta:** Gerencia y Finanzas.
-- **Actor de escritura:** Gerencia.
+- **Actor de escritura:** Gerencia (límite, datos de la empresa, período fiscal, escala de renta);
+  Finanzas solo los días de alerta (paquete v9, bloque 6; ADR-0059).
 - **Objetivo:** configurar el límite de autorización de abonos y pagos (regla de negocio 7) y los días
   de alerta de vencimiento próximo (regla de negocio 9).
 - **Precondición:** sesión activa con la capacidad correspondiente.
@@ -370,7 +371,8 @@ institucional sin cambiar el comportamiento aquí definido.
 ### Flujo principal
 
 1. El actor consulta los parámetros vigentes; si nadie los ha configurado todavía, el sistema lo indica.
-2. Gerencia indica el límite de autorización en CRC y los días de alerta.
+2. Gerencia indica el límite de autorización en CRC y los días de alerta; Finanzas solo cambia los
+   días de alerta y ve el límite en solo lectura.
 3. El sistema valida que el límite no sea negativo y que los días sean mayores que cero, y guarda la
    configuración con auditoría y control de concurrencia.
 4. El sistema conserva un registro del cambio con el valor anterior y el nuevo de cada campo.
@@ -379,7 +381,10 @@ institucional sin cambiar el comportamiento aquí definido.
 
 - Límite negativo o días de alerta en cero o negativos: el sistema rechaza la entrada.
 - Conflicto concurrente: no se sobrescribe el cambio de otro usuario; se informa el valor vigente.
-- Finanzas, Asistente o Administrador intentan escribir: el servidor rechaza la operación.
+- Finanzas envía un límite distinto del vigente: el servidor lo rechaza ("Solo Gerencia puede cambiar
+  el límite de autorización.") y no guarda nada; Finanzas no registra los parámetros iniciales ni los
+  datos de la empresa (403).
+- Asistente o Administrador intentan escribir: el servidor rechaza la operación.
 
 - **Postcondición:** existe como máximo una configuración vigente, y su historial completo queda
   disponible para revisión futura.

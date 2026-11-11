@@ -8,6 +8,9 @@ Cada operación genera su asiento contable automático (partida doble). El siste
 comprobantes electrónicos, no genera balance general y no administra préstamos, planilla, inventario
 ni otras monedas.
 
+**Versión final.** El documento del TFG está en su versión final y el sistema quedó congelado con el
+paquete v9 (ADR-0059): solo se aceptan correcciones que no cambien lo que el documento describe.
+
 ## Qué hace
 
 | Módulo | Funciones principales |
@@ -18,14 +21,14 @@ ni otras monedas.
 | Ingresos | Ingresos de facturas de contado, de abonos y registros manuales |
 | Gastos | Gastos a proveedores con IVA acreditable o no acreditable y alerta de presupuesto |
 | Cuentas por Pagar | Saldos por gasto a crédito, pagos individuales o a varias cuentas y ajustes de saldo |
-| Presupuesto | Presupuesto mensual por categoría de gasto con semáforo de ejecución |
+| Presupuesto | Presupuesto mensual por cuenta de gasto con semáforo de ejecución; lo ejecutado es el monto sin IVA de los gastos confirmados |
 | Impuestos y Retenciones | Tarifas de IVA por condición del cliente, retención del 2 %, liquidación mensual del IVA y pagos de impuesto sobre la renta |
-| Consultas | Búsqueda combinada con detalle, registros relacionados e historial; indicador de cuentas vencidas |
+| Consultas | Listados con filtros propios y detalle con registros relacionados, asiento e historial; indicador de cuentas vencidas en el inicio |
 | Reportes | En pantalla, PDF y Excel (lista abajo) |
 | Mantenimiento | Clientes, proveedores, productos y servicios, parámetros del sistema, período fiscal y reapertura de meses |
 | Seguridad | Usuarios, perfiles, bitácora de operaciones y bitácora de seguridad |
 
-**Reportes:** ingresos recibidos, gastos por categoría, presupuesto contra lo ejecutado, presupuesto
+**Reportes:** ingresos recibidos, gastos por cuenta de gasto, presupuesto contra lo ejecutado, presupuesto
 anual a la fecha, comparativo mensual, flujo de efectivo mensual, estado de cuenta de cliente, cuentas
 por cobrar por cliente y cuentas por pagar por proveedor con antigüedad de saldos, libro diario, libro
 mayor, balanza de comprobación, estado de resultados, IVA del período, retenciones aplicadas por
@@ -35,9 +38,14 @@ clientes y estimación del impuesto sobre la renta.
 
 - **Estados:** los documentos pasan de Borrador a Confirmado y de ahí, solo con Gerencia y motivo, a
   Anulado. Nada financiero se borra: una anulación genera un asiento de reversión.
-- **Cierre mensual:** todo mes anterior al actual queda cerrado automáticamente; Gerencia puede
-  reabrirlo con motivo. Tampoco se opera fuera del período fiscal vigente.
-- **Límite de autorización:** abonos, pagos y traspasos sobre el límite solo los registra Gerencia.
+- **Cierre mensual:** todo mes anterior al actual (según la fecha local) queda cerrado
+  automáticamente; Gerencia puede reabrirlo con motivo. No se opera fuera del período fiscal vigente,
+  salvo en los meses aún abiertos del período inmediatamente anterior.
+- **Límite de autorización:** solo Gerencia lo cambia. Abonos, pagos, gastos de contado, traspasos,
+  devoluciones de notas de crédito, pagos de la liquidación del IVA y pagos de renta sobre el límite
+  solo los registra Gerencia.
+- **Ingresos y flujo de efectivo:** el ingreso de un abono es el dinero recibido, sin la retención; el
+  flujo de efectivo se calcula desde los asientos de las cuentas de efectivo.
 - **IVA:** precios sin IVA, una tarifa por línea según la condición de IVA del cliente; liquidación
   interna mes a mes.
 - **Impuesto sobre la renta:** se estima por período fiscal con la escala de tramos configurada en
@@ -50,9 +58,9 @@ clientes y estimación del impuesto sobre la renta.
 
 | Perfil | Alcance |
 |---|---|
-| Asistente | Consulta catálogos y documentos, mantiene clientes y proveedores y sus propios borradores, registra ingresos manuales. No confirma, no cobra ni paga, no ve reportes ni presupuesto. |
-| Finanzas | Catálogos financieros, confirmación de documentos, abonos, pagos y traspasos hasta el límite, liquidaciones, notas de crédito, presupuesto, consultas y reportes. |
-| Gerencia | Todo lo anterior, más operaciones sobre el límite, anulaciones, ajustes de saldo y parámetros exclusivos (período fiscal, reaperturas, escala de renta). |
+| Asistente | Consulta catálogos y documentos, mantiene clientes y proveedores y sus propios borradores, registra ingresos manuales y abonos hasta el límite. No confirma, no paga a proveedores, no ve traspasos, liquidaciones de IVA, pagos de renta, reportes ni presupuesto. |
+| Finanzas | Catálogos financieros, confirmación de documentos, abonos, pagos y traspasos hasta el límite, liquidaciones, notas de crédito, ajustes de saldo, presupuesto, consultas y reportes. En Parámetros solo cambia los días de anticipación. |
+| Gerencia | Todo lo anterior, más operaciones sobre el límite, anulaciones y los parámetros: límite de autorización, datos de la empresa, período fiscal, reaperturas y escala de renta. |
 | Administrador | Solo usuarios y configuración técnica; sin acceso a información financiera. |
 
 Los permisos se validan siempre en el servidor, además de ocultar opciones.
@@ -101,10 +109,12 @@ dotnet test SistemaFinanciero.sln
 ```
 
 Las migraciones se aplican siempre de forma explícita; la aplicación no modifica el esquema al
-arrancar. Las migraciones también cargan los datos iniciales: catálogo contable base, categorías,
-tarifas de IVA, retención del 2 %, plazos de pago y escala del impuesto sobre la renta.
+arrancar. Las migraciones también cargan los datos iniciales: catálogo contable base, tarifas de
+IVA, retención del 2 % y escala del impuesto sobre la renta; los plazos de pago son una lista fija.
 
-Las pruebas contra SQL Server se habilitan aparte y siempre revierten sus datos:
+Las pruebas contra SQL Server se habilitan aparte, siempre revierten sus datos y se aíslan de los
+datos ya cargados en la base de desarrollo. En la versión final pasan las 847 (417 unitarias y 430 de
+integración):
 
 ```powershell
 $env:SISTEMA_FINANCIERO_RUN_SQL_TESTS = "1"
@@ -164,7 +174,7 @@ mensajes de error sin detalles técnicos.
 - [Pruebas y evidencias](docs/06-pruebas-evidencias.md)
 - [Guía de desarrollo](docs/07-guia-desarrollo.md)
 - [Decisiones arquitectónicas (ADR)](docs/decisiones/)
-- [Paquetes de trabajo](docs/paquetes/): instrucciones de las mejoras finales ya aplicadas, como historial
+- [Paquetes de trabajo](docs/paquetes/) y el [paquete final v9](docs/prompt_claude_code_version_final_v9.md): instrucciones ya aplicadas, como historial
 
 ## Protección de información
 

@@ -89,7 +89,7 @@ debe ser revisado por la empresa y su asesoría contable antes de confirmar docu
 | RF-INV-004 | Gerencia consulta facturas, Gerencia y Finanzas las confirman y Gerencia anula documentos confirmados sin borrado físico; anular arrastra la cuenta por cobrar o el ingreso que la factura generó. | Políticas vigentes; ampliado a Gerencia por decisión del usuario (2026-10-21) | UC-INV-002, UC-INV-003 | Políticas `Movimientos.Ver`, `Movimientos.Confirmar` y `Movimientos.Anular`; `IInvoiceService.CancelAsync` | `InvoiceAuthorizationTests`, `SqlServerInvoiceServiceScenarioTests` | Verificado |
 | RF-INV-005 | La factura confirmada o anulada puede visualizarse y exportarse a PDF administrativo, con los datos vigentes de la empresa, el detalle por línea, el resumen de IVA por tarifa, el medio de pago si es de contado, la leyenda de documento interno y, si está anulada, "ANULADA" con el motivo; un borrador no se exporta. | Regla de negocio 15 | UC-INV-004 | Visualización: `InvoicesController.Details`. Exportación a PDF: `InvoicesController.Pdf`, `InvoicePdfDocument` (QuestPDF) | `InvoicePdfDocumentTests.InvoicePdfDocument_ForAConfirmedCashInvoice_GeneratesAValidPdfWithCompanyDataAndPaymentMethod`, `InvoicePdfDocument_ForACreditInvoice_GeneratesAValidPdfWithoutAPaymentMethod`, `InvoicePdfDocument_ForACancelledInvoice_GeneratesAValidPdfWithTheReason`, `InvoicePdfDocument_WithoutCompanyData_GeneratesAValidPdf`, `SqlServerInvoiceServiceScenarioTests.GetAsync_ForAConfirmedCashInvoice_IncludesThePaymentMethodFromItsIncome`, `GetAsync_ForACreditInvoice_HasNoPaymentMethod` | Verificado |
 | RF-55 | Gerencia define los datos de la empresa (nombre, cédula jurídica, dirección, teléfono y correo); se muestran en Parámetros y alimentan el encabezado de la factura en PDF; cada cambio queda en su propio historial. | RF-55 | CU-06 | `SystemParameters.UpdateCompany`, `ISystemParametersService.UpdateCompanyAsync`, `CompanyDataChange`, `SystemParametersController.UpdateCompany` (ruta `/parametros`, formulario independiente), política `Parametros.Administrar` | `SystemParametersTests.UpdateCompany_SetsAllFieldsAndTheAudit`, `UpdateCompany_AllowsOptionalFieldsToBeNull`, `UpdateCompany_RejectsAMissingName`, `UpdateCompany_RejectsAMissingLegalId`, `SqlServerSystemParametersScenarioTests.UpdateCompanyAsync_SavesTheDataAndKeepsASnapshotHistory`, `UpdateCompanyAsync_RejectsAMissingLegalId`, `SystemParametersControllerTests.UpdateCompany_CallsServiceAndRedirectsOnSuccess`, `UpdateCompany_WithInvalidData_DoesNotCallTheService`, `UpdateCompany_WithoutAnAuthenticatedUser_IsForbidden` | Verificado |
-| RF-INV-006 | Finanzas registra abonos hasta el límite de autorización y Gerencia los que lo superan; el sistema informa el saldo pendiente. Asistente no registra abonos. El abono individual se inicia desde el detalle de una cuenta por cobrar. | ADR-0005, límite de autorización, ADR-0056 | UC-INV-005 | `IReceivablePaymentService.RegisterAsync` (parámetro `actorIsManagement`), `SystemParameters.AuthorizationLimitCrc`, `ReceivablePaymentsController.RegisterSingle` (ruta `/ingresos/abonos/cuenta/{id}`) | `SqlServerReceivablePaymentServiceScenarioTests.Register_ToASingleInvoice_AppliesThePaymentAndCreatesItsIncome`, `SqlServerReceivablePaymentServiceScenarioTests.Register_AboveTheAuthorizationLimitWithoutManagement_IsRejected`, `ReceivablesAuthorizationTests` | Verificado |
+| RF-INV-006 | Asistente, Finanzas y Gerencia registran abonos (política `RegisterReceivablePayments`); sobre el límite de autorización solo Gerencia; el sistema informa el saldo pendiente. El abono individual se inicia desde el detalle de una cuenta por cobrar. Actualizado: antes el Asistente no registraba abonos (cambio del 09/11/2026). | ADR-0005, límite de autorización, ADR-0056, ADR-0059 | UC-INV-005 | `IReceivablePaymentService.RegisterAsync` (parámetro `actorIsManagement`), `SystemParameters.AuthorizationLimitCrc`, `ReceivablePaymentsController.RegisterSingle` (ruta `/ingresos/abonos/cuenta/{id}`) | `SqlServerReceivablePaymentServiceScenarioTests.Register_ToASingleInvoice_AppliesThePaymentAndCreatesItsIncome`, `SqlServerReceivablePaymentServiceScenarioTests.Register_AboveTheAuthorizationLimitWithoutManagement_IsRejected`, `ReceivablesAuthorizationTests` | Verificado |
 | RF-INV-008 | Al confirmar una factura de contado se indican cuenta de efectivo, medio de pago, referencia y categoría, y el sistema genera su ingreso vigente por el total de la factura; a crédito no se pide nada adicional. | Regla de negocio 2 y 10 | UC-INV-002 | `ConfirmInvoiceCommand`, `IInvoiceService.ConfirmAsync`, `Income.FromInvoice`, `InvoicesController.Confirm` (GET/POST) | `IncomeTests`, `SqlServerInvoiceServiceScenarioTests.Lifecycle_CreatesEditsConfirmsAndCancelsThroughTheService` | Verificado |
 | RF-INV-009 | Desde el detalle de una cuenta por cobrar, el abono se aplica únicamente a esa cuenta y el cliente se obtiene de ella. El reparto de un cobro entre varias cuentas del mismo cliente se inicia como opción separada en Ingresos: propone de la más antigua a la más nueva, editable, con retención por línea; crea una fila por cuenta con referencia y grupo comunes, y cada abono se anula individualmente. | Regla de negocio 2 (RF-15), ADR-0056 | UC-INV-005 | `ReceivablePayment.GroupId`, `IReceivablePaymentService.RegisterAsync`/`CancelAsync`, `ReceivablePaymentsController.RegisterSingle` y `Start`/`Register` (flujo múltiple desde Ingresos) | `ReceivablePaymentTests`, `SqlServerReceivablePaymentServiceScenarioTests.Register_ToASingleInvoice_AppliesThePaymentAndCreatesItsIncome`, `SqlServerReceivablePaymentServiceScenarioTests.Register_ToSeveralInvoicesOfTheSameCustomer_SharesTheGroupIdAndCancelsIndividually`, `ReceivablesAuthorizationTests` | Verificado |
 | RF-INV-007 | Gerencia, Finanzas y Asistente pueden modificar el encabezado y agregar, reemplazar o quitar líneas mientras la factura es borrador. | ADR-0010; ampliado a Gerencia por decisión del usuario (2026-10-21) | UC-INV-001 | `Invoice.UpdateHeader`, `AddLine`, `ReplaceLine`, `RemoveLine`; `IInvoiceService`, `InvoicesController.EditHeader`/`AddLine`/`EditLine`/`RemoveLine` | `InvoiceDraftEditingTests`, `SqlServerInvoiceServiceScenarioTests` | Verificado |
@@ -186,9 +186,9 @@ bitácora de seguridad de cuentas de usuario.
 | ID | Enunciado verificable | Fuente | Caso de uso | Implementación | Prueba | Estado |
 |---|---|---|---|---|---|---|
 | RF-CFG-001 | Los campos del límite, los días de alerta, el período fiscal y los datos de empresa muestran la configuración vigente; los perfiles autorizados editan sus propios campos y el cambio solo se aplica al guardar. | Reglas de negocio 7 y 9; cambio solicitado (2026-11-07) | UC-CFG-001 | `SystemParametersController.Index` / `SystemParametersController.Save` / `SystemParametersService.GetAsync`, `Views/SystemParameters/Index.cshtml` | `SystemParametersControllerTests.Index_WhenConfigured_ShowsTheCurrentValues`, `CatalogAuthorizationTests.FinanceUser_SeesCurrentAuthorizationLimitInAnEditableField`, `CatalogAuthorizationTests.FinanceUser_CanSaveNestedSystemParametersForm` | Verificado |
-| RF-CFG-002 | Gerencia configura o corrige el límite de autorización en CRC y los días de alerta de vencimiento, con control de concurrencia. | Regla de negocio 7 y 9 | UC-CFG-001 | `SystemParametersController.Save` / `SystemParametersService` | `SystemParametersControllerTests`, `SqlServerSystemParametersScenarioTests` | Verificado |
+| RF-CFG-002 | Gerencia configura o corrige el límite de autorización en CRC; Gerencia y Finanzas cambian los días de alerta de vencimiento, con control de concurrencia. Si Finanzas envía un límite distinto del vigente, el servicio lo rechaza ("Solo Gerencia puede cambiar el límite de autorización.") y no guarda nada; la creación inicial de los parámetros es solo de Gerencia. | Regla de negocio 7 y 9; paquete v9, bloque 6 (ADR-0059) | UC-CFG-001 | `SystemParametersController.Save` / `SystemParametersService.CreateAsync`/`UpdateAsync` (`actorIsManagement`) | `SystemParametersControllerTests`, `SqlServerSystemParametersScenarioTests.Finance_OnlyChangesTheAlertDays_WhileManagementDefinesTheLimit`, `SystemParametersAuthorizationTests`, `CatalogAuthorizationTests.FinanceUser_SeesCurrentAuthorizationLimitReadOnly` | Verificado |
 | RN-CFG-001 | El límite de autorización no es negativo y se redondea a dos decimales; los días de alerta son un entero mayor que cero. | Regla de negocio 7 y 9 | UC-CFG-001 | `SystemParameters`, `CK_ParametrosSistema_AuthorizationLimit` y `CK_ParametrosSistema_OverdueAlertDays` | `SystemParametersTests`, `SqlServerSystemParametersScenarioTests` | Verificado |
-| RN-CFG-002 | Gerencia y Finanzas administran el límite, los días de alerta y los datos de la empresa. Solo Gerencia configura el período fiscal y administra reaperturas/cierres mensuales; Asistente y Administrador no acceden. | Tabla de perfiles; ADR-0049 y ADR-0054 | UC-CFG-001/002 | `SystemPolicies.ManageSystemParameters` y `SystemPolicies.ManageAccountingPeriods` | `CatalogAuthorizationTests` | Verificado |
+| RN-CFG-002 | Gerencia define el límite de autorización, los datos de la empresa, el período fiscal, la escala de renta y las reaperturas o cierres mensuales; Finanzas entra a Parámetros, cambia solo los días de anticipación y ve lo demás en solo lectura; Asistente y Administrador no acceden. | Tabla de perfiles; CU-06 y Tabla 10 del documento final; ADR-0049, ADR-0054 y ADR-0059 | UC-CFG-001/002 | `SystemPolicies.ManageSystemParameters`, `SystemPolicies.ManageAccountingPeriods` (también en `UpdateCompany`), `SystemParametersService` | `CatalogAuthorizationTests`, `SystemParametersAuthorizationTests` | Verificado |
 | RF-CFG-003 | Gerencia define un período fiscal de doce meses calendario, desde el primer día de un mes hasta el último día, con motivo opcional e historial inmutable; el período inicial es 01/01/2026–31/12/2026. | Cambio solicitado; ADR-0054 | UC-CFG-002 | `SystemParameters.UpdateFiscalPeriod`, `FiscalPeriodChange`, `SystemParametersController.UpdateFiscalPeriod` | `SystemParametersTests.UpdateFiscalPeriod_*`, `SystemParametersControllerTests.UpdateFiscalPeriod_*`, `SqlServerSystemParametersScenarioTests.UpdateFiscalPeriodAsync_*` | Parcial: unitarias/controlador verificadas; SQL pendiente |
 | RF-CFG-004 | El presupuesto anual a la fecha acumula desde el inicio del período fiscal hasta el mes seleccionado y toma los doce meses fiscales para el presupuesto anual de referencia. | Cambio solicitado; regla de negocio 8; ADR-0054 | UC-REP-007 | `ReportService.GetAnnualBudgetReportAsync`, `ReportsController.AnnualBudget`, `Views/Reports/AnnualBudget.cshtml` | `SqlServerReportServiceScenarioTests.GetAnnualBudgetReportAsync_UsesConfiguredFiscalMonths` | Parcial: compilación verificada; SQL pendiente |
 | RN-CFG-003 | Cada cambio queda en un historial de solo inserción, con el valor anterior y el nuevo de cada campo; el primer registro no tiene valor anterior. | Convenciones de datos («cambios de parámetros quedan en la bitácora») | UC-CFG-001 | `SystemParameterChange` y `FinancialDbContext.EnsureAppendOnlyLogsAreNotMutated` | `SystemParameterChangeTests`, `SqlServerSystemParametersScenarioTests` | Verificado |
@@ -253,7 +253,7 @@ al confirmar un gasto (ADR-0030, ADR-0031).
 |---|---|---|---|---|---|---|
 | RF-PRE-001 | Gerencia y Finanzas configuran o corrigen el monto presupuestado de una categoría de gasto de último nivel para un mes, con monto 0 válido; cada cambio guarda el monto anterior, el nuevo, quién y cuándo. | Regla de negocio 6 | UC-PRE-001 | `IBudgetService.SetAmountAsync`, `Budget`, `BudgetChange`, `BudgetsController.Edit` (ruta `/presupuesto`) | `BudgetTests`, `BudgetChangeTests`, `SqlServerBudgetServiceScenarioTests.SetAmount_FirstConfiguration_HasNoPreviousAmount`, `.SetAmount_SubsequentCorrection_KeepsThePreviousAmount` | Verificado |
 | RF-PRE-002 | Solo se presupuestan categorías de gasto de último nivel; una categoría con hijas se rechaza. Las categorías superiores no tienen fila propia: solo suman. | Regla de negocio 6 | UC-PRE-001 | `BudgetService` (validación de categoría hoja, misma consulta que `FinancialCategoryService`) | `SqlServerBudgetServiceScenarioTests.SetAmount_RejectsACategoryThatHasChildren` | Verificado |
-| RF-PRE-003 | Lo ejecutado es el total con IVA de los gastos confirmados de la categoría y el mes (sin borradores ni anulados; los pagos no lo cambian); disponible, variación y variación % se calculan a partir de ahí y nunca se almacenan. | Regla de negocio 6 | UC-PRE-001 | `IBudgetService.SearchByPeriodAsync`/`GetAsync`, `BudgetModel` | `SqlServerBudgetServiceScenarioTests.SearchByPeriod_OnlyConfirmedExpensesOfThatMonthCountAsExecuted` | Verificado |
+| RF-PRE-003 | Lo ejecutado es el monto sin IVA (`NetAmount`) de los gastos confirmados de la cuenta de gasto y el mes (sin borradores ni anulados; los pagos no lo cambian); disponible, variación y variación % se calculan a partir de ahí y nunca se almacenan. Corregido: decía "total con IVA" (RF-40 del documento final; el código ya usaba el neto). | Regla de negocio 6; RF-40 del documento final | UC-PRE-001 | `IBudgetService.SearchByPeriodAsync`/`GetAsync`, `BudgetModel`, `ExpenseService.CheckBudgetAsync` | `SqlServerBudgetServiceScenarioTests.SearchByPeriod_OnlyConfirmedExpensesOfThatMonthCountAsExecuted` | Verificado |
 | RF-PRE-004 | Al confirmar un gasto que supera lo disponible del presupuesto se muestra una alerta antes de guardar, sin bloquear; si no hay presupuesto configurado para esa categoría y ese mes, se indica y se permite continuar. | Regla de negocio 6 | UC-GAS-002 | `IExpenseService.CheckBudgetAsync`, `ExpensesController.Confirm` (banner informativo, GET y POST) | `SqlServerBudgetServiceScenarioTests.CheckBudgetAsync_WithoutABudget_ReportsNoBudgetAndNeverExceeds`, `.CheckBudgetAsync_WithABudget_ReportsWhetherItWouldExceedTheAvailableAmount` | Verificado |
 | RN-PRE-002 | Un presupuesto solo se puede crear o modificar para el mes actual o uno futuro. Los períodos anteriores se pueden consultar, pero no tienen acciones de alta o edición; la validación del servicio usa el reloj común `TimeProvider`. | Decisión aprobada por el usuario; ADR-0053 | UC-PRE-001 | `BudgetService.SetAmountAsync` (validación con `TimeProvider.GetLocalNow`), `BudgetsController` | `SqlServerBudgetServiceScenarioTests.SetAmount_RejectsPreviousMonth` | Verificado |
 | RN-PRE-001 | Solo Gerencia y Finanzas ven y editan el presupuesto; Asistente no lo ve. | Perfiles (Tabla de permisos) | UC-PRE-001 | Política `Reportes.Ver` en `BudgetsController` | `BudgetsAuthorizationTests` | Verificado |
@@ -284,7 +284,7 @@ validación en las demás operaciones se agregan a esta misma matriz a medida qu
 | RF-AJU-001 | Finanzas y Gerencia ajustan manualmente el saldo de una cuenta por cobrar o por pagar, con un sentido (aumento o disminución) y un motivo obligatorios, respetando 0 ≤ saldo ≤ monto original; el ajuste no genera ingresos ni pagos ni toca efectivo, documento o presupuesto. Asistente no tiene este permiso. | Regla de negocio 4; ADR-0057 | UC-AJU-001 | `Receivable.Adjust`/`Payable.Adjust`, `IBalanceAdjustmentService.AdjustReceivableAsync`/`AdjustPayableAsync`, `BalanceAdjustmentsController` (rutas `/cuentas-por-cobrar/{id}/ajustar` y `/cuentas-por-pagar/{id}/ajustar`), política `Movimientos.Ajustar` | `ReceivableTests.Adjust_*`, `PayableTests.Adjust_*`, `SqlServerBalanceAdjustmentServiceScenarioTests.AdjustReceivableAsync_ACorrectionInTheOppositeDirectionRestoresTheOriginalBalance`, `AdjustReceivableAsync_RejectsAnAdjustmentThatWouldExceedTheOriginalAmount`, `AdjustPayableAsync_WithDecrease_ReducesTheBalanceAndLogsTheAdjustment`, `AdjustPayableAsync_WithAStaleVersion_ReturnsConcurrencyConflict`, `ReceivablesAuthorizationTests.BalanceAdjustmentEndpoints_RequireAdjustFinancialBalancesNotTheOthers`, `PayablesAuthorizationTests.BalanceAdjustmentEndpoints_RequireAdjustFinancialBalancesNotTheOthers`, `BalanceAdjustmentAuthorizationTests` | Verificado |
 | RF-AJU-002 | Un ajuste registrado por error se corrige con otro ajuste en sentido contrario; ningún ajuste se edita ni se anula, y todos quedan visibles en el historial de la cuenta junto con su motivo y usuario. | Regla de negocio 4 | UC-AJU-001 | `BalanceAdjustment` (registro inmutable), `IBalanceAdjustmentService.SearchByReceivableAsync`/`SearchByPayableAsync`, sección "Ajustes de saldo" en `Views/Receivables/Details.cshtml` y `Views/Payables/Details.cshtml` | `SqlServerBalanceAdjustmentServiceScenarioTests.AdjustReceivableAsync_ACorrectionInTheOppositeDirectionRestoresTheOriginalBalance` | Verificado |
 | RF-CIE-001 | Los meses anteriores al mes actual, determinado con la fecha local del `TimeProvider`, quedan cerrados automáticamente. Gerencia puede reabrir uno con motivo, mantenerlo abierto hasta otro cambio y cerrarlo nuevamente; cada transición queda en una bitácora inmutable. | Regla de negocio 16; ADR-0054 | UC-CFG-002 | `ClosingDateGuard.GetViolationMessageAsync`, `AccountingPeriodOverride`, `AccountingPeriodChange`, `SystemParametersController.ReopenAccountingPeriod`/`CloseAccountingPeriod`, política `Parametros.PeriodosContables` | `AccountingPeriodOverrideTests`, `SqlServerSystemParametersScenarioTests.ReopenAndCloseAccountingPeriod_*`, escenarios `*IsNowClosed_IsRejected` | Parcial: unitarias/controlador y compilación verificadas; SQL pendiente |
-| RF-CIE-002 | No se registra, confirma, anula ni ajusta fuera del período fiscal ni en un mes pasado cerrado, salvo que Gerencia lo haya reabierto; reabrir no permite operar fuera del rango fiscal. Los meses actuales y futuros dentro del rango permanecen operables. | Regla de negocio 16; ADR-0054 | UC-CFG-002 | `ClosingDateGuard.GetViolationMessageAsync` valida primero las fechas fiscales y luego el estado mensual; se invoca desde facturas, gastos, abonos, pagos, ingresos y ajustes | Escenarios de integración SQL `*IsNowClosed_IsRejected` en servicios financieros y `SqlServerReportServiceScenarioTests` | Parcial: compilación verificada; SQL pendiente |
+| RF-CIE-002 | No se registra, confirma, anula ni ajusta fuera del período fiscal vigente ni en un mes pasado cerrado, salvo que Gerencia lo haya reabierto. Excepción: se acepta una fecha del período fiscal inmediatamente anterior si su mes sigue abierto (el mes actual o uno reabierto); el rango permitido es [inicio del período − 12 meses, fin del período]. Fuera de él: "No es posible operar con fecha dd/MM/yyyy: está fuera del período fiscal vigente y del período anterior." | Regla de negocio 16; RF-55 y CU-06 del documento final; ADR-0054 y ADR-0059 | UC-CFG-002 | `ClosingDateGuard.GetViolationMessageAsync` valida primero el rango fiscal y luego el estado mensual; se invoca desde facturas, gastos, abonos, pagos, ingresos, ajustes, traspasos, liquidaciones, notas de crédito y pagos de renta | `SqlServerPreviousFiscalPeriodScenarioTests`, escenarios `*IsNowClosed_IsRejected` de los servicios financieros | Verificado |
 
 ## Matriz del incremento de perfiles y permisos
 
@@ -327,4 +327,171 @@ pasa a administrar los parámetros del sistema, con la fecha de cierre reservada
 |---|---|---|---|---|---|---|
 | RF-MEN-001 | El menú lateral se organiza en cinco grupos: Dashboard; Ciclo Operativo Diario (facturas, cuentas por cobrar, ingresos, gastos y cuentas por pagar); Control Financiero Contable (presupuesto, asientos contables, reportes y bitácora de operaciones); Catálogos (clientes, proveedores, productos y servicios, categorías financieras con cuentas contables anidadas e impuestos y retenciones); y Configuración (parámetros del sistema). Cada enlace respeta la política de su pantalla y no se muestra a un perfil sin acceso. | Cambio solicitado; ADR-0049 | No aplica | `_Layout.cshtml`, `site.css` (`.sidebar-link--sub`) | `CatalogAuthorizationTests` (políticas por ruta), `JournalEntriesAuthorizationTests` | Verificado |
 | RF-MEN-002 | La pantalla de Consultas se retira por completo: no queda enlace, ruta, controlador, vistas, modelos ni pruebas; cada listado conserva sus propios filtros. | Cambio solicitado; ADR-0049 | No aplica | `QueriesController`, `Views/Queries/*`, `Models/Queries/*` y `QueriesAuthorizationTests` retirados | — | Descartado |
-| RF-MEN-003 | Gerencia y Finanzas administran límite, días y datos de empresa; solo Gerencia configura el período fiscal, reabre y cierra meses. | Cambio solicitado; regla 16; ADR-0049 y ADR-0054 | UC-CFG-001, UC-CFG-002 | `SystemPolicies.ManageSystemParameters`, `SystemPolicies.ManageAccountingPeriods`, `SystemParametersController`, `Views/SystemParameters/Index.cshtml` | `CatalogAuthorizationTests.ManageSystemParametersPolicy_AllowsManagementAndFinance`, `ManageAccountingPeriodsPolicy_AllowsManagementOnly`, `FiscalPeriodEndpoint_RequiresManageAccountingPeriods` | Verificado |
+| RF-MEN-003 | Gerencia y Finanzas entran a Parámetros; Finanzas solo cambia los días de anticipación. Solo Gerencia define el límite, los datos de la empresa, el período fiscal y la escala de renta, y reabre y cierra meses. | Cambio solicitado; regla 16; ADR-0049, ADR-0054 y ADR-0059 | UC-CFG-001, UC-CFG-002 | `SystemPolicies.ManageSystemParameters`, `SystemPolicies.ManageAccountingPeriods`, `SystemParametersController`, `Views/SystemParameters/Index.cshtml` | `CatalogAuthorizationTests.ManageSystemParametersPolicy_AllowsManagementAndFinance`, `ManageAccountingPeriodsPolicy_AllowsManagementOnly`, `FiscalPeriodEndpoint_RequiresManageAccountingPeriods`, `SystemParametersAuthorizationTests` | Verificado |
+
+## Matriz de la estimación del impuesto sobre la renta (RF-99 de CLAUDE.md)
+
+Trabajo del 09/11/2026 que quedaba sin documentar (regla 17 de `CLAUDE.md`, ADR-0059). En este archivo
+RF-99 ya nombraba el límite de crédito del cliente (matriz de facturación); para no renombrar códigos
+existentes, la estimación de renta se identifica aquí como RF-REN-001 a RF-REN-003, que corresponden al
+"RF-99" de `CLAUDE.md` y del código.
+
+| ID | Enunciado verificable | Fuente | Caso de uso | Implementación | Prueba | Estado |
+|---|---|---|---|---|---|---|
+| RF-REN-001 | Finanzas y Gerencia registran pagos del impuesto sobre la renta a Hacienda (período fiscal al que se aplican, cuenta de efectivo, medio de pago, monto, referencia y fecha no anterior al inicio de ese período); sobre el límite solo Gerencia; solo Gerencia anula, con reversión del asiento (débito 1.3.03, crédito efectivo). | Regla 17; RF-85 del documento final | CU-26 | `IncomeTaxPayment`, `IIncomeTaxService.RegisterPaymentAsync`/`CancelPaymentAsync`, `IncomeTaxPaymentsController` (ruta `/pagos-renta`), migración `AddIncomeTaxEstimate` | `SqlServerIncomeTaxServiceScenarioTests`, `IncomeTaxAuthorizationTests`, `AssistantRestrictedRoutesTests` | Verificado |
+| RF-REN-002 | La estimación del impuesto sobre la renta de un período fiscal toma la renta bruta (ingresos) y la renta neta (utilidad del estado de resultados), aplica la escala de tramos vigente o la tarifa general si la renta bruta supera el umbral, y resta retenciones del 2 % y pagos de renta vigentes; se consulta en pantalla, PDF y Excel. | Regla 17; RF-84 y RF-66 del documento final | CU-22, CU-26 | `IncomeTaxEstimate.Calculate`, `IIncomeTaxService.GetEstimateAsync`, `ReportsController` (ruta `/reportes/estimacion-renta`) | `IncomeTaxEstimateTests`, `SqlServerIncomeTaxServiceScenarioTests` | Verificado |
+| RF-REN-003 | Gerencia cambia la escala de renta en Parámetros; cada cambio queda en `EscalaRentaHistorial` y recalcula toda estimación. Finanzas la ve en solo lectura. | Regla 17; RF-84 y CU-06 del documento final | CU-06 | `SystemParameters.UpdateIncomeTaxScale`, `IIncomeTaxService.UpdateScaleAsync`, `SystemParametersController.UpdateIncomeTaxScale` (política `ManageAccountingPeriods`) | `IncomeTaxAuthorizationTests.Finance_CannotChangeTheIncomeTaxScale`, `SqlServerIncomeTaxServiceScenarioTests` | Verificado |
+
+## Matriz del paquete v9 (correcciones de cierre)
+
+Correcciones finales para que el código haga exactamente lo que dice el documento (ADR-0059). Ninguna
+agrega migraciones, pantallas, rutas, reportes ni columnas.
+
+| ID | Enunciado verificable | Fuente | Caso de uso | Implementación | Prueba | Estado |
+|---|---|---|---|---|---|---|
+| RN-V9-001 | Toda fecha de negocio sale de la hora local del `TimeProvider`: el ingreso de una factura de contado toma la fecha de la factura; "hoy" de cuentas vencidas y los valores por defecto de los formularios usan `GetLocalNow()`. | Bloque 1; RF-19 y RF-59 del documento | CU-10, CU-21 | `InvoiceService.ConfirmAsync`, `ReceivableService`/`PayableService.GetOverdueSummaryAsync`, controladores y acciones GET con `TimeProvider` | `SqlServerLocalBusinessDateScenarioTests` (23:30 del último día del mes en Costa Rica) | Verificado |
+| RN-V9-002 | El ingreso de un abono es el monto recibido (sin la retención); el saldo baja por monto + retención y el asiento no cambia. | Bloque 2; CU-12 paso 7 y diccionario `Ingresos.Amount` del documento | CU-12 | `ReceivablePaymentService.RegisterAsync` (`Income.FromReceivablePayment` con `payment.Amount`) | `SqlServerReceivablePaymentServiceScenarioTests.Register_WithWithholding_IncomeIsTheReceivedAmountAndEntryBalances`, `Register_WithAWithholding_ReducesTheBalanceByTheAmountPlusTheWithholding` | Verificado |
+| RN-V9-003 | El flujo de efectivo mensual sale de las líneas de asiento de las cuentas de efectivo (débitos = entradas, créditos = salidas), sin asientos anulados ni sus reversiones; sin filtro excluye los traspasos y con filtro los separa en recibidos y enviados; "Pagos de IVA" son los créditos a efectivo de las liquidaciones. Su neto cuadra con la variación del saldo de efectivo en la balanza. | Bloque 3; RF-66 del documento | CU-22 | `ReportService.GetCashFlowReportAsync` | `SqlServerCashFlowFromJournalScenarioTests`, `SqlServerReportServiceScenarioTests.GetCashFlowReportAsync_*`, `SqlServerCashAndVatEndToEndScenarioTests` | Verificado |
+| RN-V9-004 | La retención de un abono anulado deja de contar como ya retenida. | Bloque 4; RF-09 del documento | CU-12 | `ReceivablePaymentService` (`alreadyWithheld` solo con abonos vigentes) | `SqlServerReceivablePaymentServiceScenarioTests.Register_AfterCancellingAPaymentWithWithholding_AcceptsTheSameWithholdingAgain` | Verificado |
+| RN-V9-005 | El reporte "IVA del período" suma en compras solo el IVA acreditable; la base de compras incluye todos los gastos confirmados. | Bloque 5; CU-22 del documento | CU-22 | `ReportService.GetVatPeriodReportAsync` | `SqlServerVatPeriodCreditableScenarioTests` | Verificado |
+| RN-V9-006 | El límite de autorización y los datos de la empresa solo los cambia Gerencia; Finanzas solo los días de anticipación (ver RF-CFG-002 y RN-CFG-002). | Bloque 6; CU-06 y Tabla 10 del documento | CU-06 | `SystemParametersController.UpdateCompany` (`ManageAccountingPeriods`), `SystemParametersService` (`actorIsManagement`), vista de Parámetros | `SystemParametersAuthorizationTests`, `SqlServerSystemParametersScenarioTests.Finance_OnlyChangesTheAlertDays_WhileManagementDefinesTheLimit` | Verificado |
+| RN-V9-007 | El listado y el detalle de traspasos, liquidaciones de IVA y pagos de renta exigen `ConfirmFinancialTransactions` (Gerencia y Finanzas); el Asistente recibe 403. | Bloque 7; CU-24, CU-25 y CU-26 del documento | CU-24, CU-25, CU-26 | `CashTransfersController`, `VatSettlementsController`, `IncomeTaxPaymentsController` | `AssistantRestrictedRoutesTests` | Verificado |
+| RN-V9-008 | Se opera en los meses aún abiertos del período fiscal inmediatamente anterior (ver RF-CIE-002). | Bloque 8; RF-55 y CU-06 del documento | CU-06 | `ClosingDateGuard` | `SqlServerPreviousFiscalPeriodScenarioTests` | Verificado |
+| RN-V9-009 | El usuario crea cuentas contables nuevas solo de tercer nivel dentro de 1.1, 4.1, 4.2, 4.3, 5.1, 5.2 y 5.3 (sin Pasivo ni Patrimonio). Decisión del usuario del 10/11/2026 durante el bloque 9: el código permitía 2.1, 2.2 y 3.1 y no 5.3. | Regla 1 de `CLAUDE.md`; RF-01 del documento | CU-07 | `LedgerAccountGroups.DetailParentCodes`, `LedgerAccountService.CreateAsync`/`GetParentOptionsAsync` | `SqlServerLedgerAccountScenarioTests` | Verificado |
+| RN-V9-010 | Las pruebas SQL se aíslan de los datos de la base de desarrollo dentro de su transacción revertida (liquidaciones vigentes y cuentas abiertas) y usan un reloj fijo cuando la regla depende de la fecha. | Bloque 9 | No aplica | `SqlTestIsolation`, `FixedLocalTimeProvider` | Suite completa con `SISTEMA_FINANCIERO_RUN_SQL_TESTS=1`: 847 de 847 | Verificado |
+
+## Equivalencias con el documento final
+
+El repositorio conserva sus códigos (no se renombran en comentarios, pruebas ni `docs/`). Estas tablas
+hacen la correspondencia por contenido con los requerimientos del Anexo A (RF-01 a RF-85) y los casos
+de uso del Anexo B (CU-01 a CU-26) del documento final.
+
+### Requerimientos funcionales
+
+| Documento final | Repositorio |
+|---|---|
+| RF-01 | RF-CTA-001, RN-CTA-007, RN-CTA-008, RN-V9-009 |
+| RF-02 | RN-CTA-003, RN-CTA-002, RN-CTA-004 (cuentas de sistema) |
+| RF-03 | RN-CTA-001, RN-CTA-007 |
+| RF-04 | RN-CTA-002, RF-CTA-003 |
+| RF-05 | RN-CTA-004, RF-CTA-001 |
+| RF-06 | RF-CTA-001, RF-CAT-001 |
+| RF-07 | RF-INV-003 |
+| RF-08 | RF-INV-006, RF-INV-009 |
+| RF-09 | RN-INV-014, RF-95, RN-RET-003, RN-V9-004 |
+| RF-10 | RN-INV-006 |
+| RF-11 | RF-INV-011, RF-CON-001 |
+| RF-12 | RF-100 |
+| RF-13 | RF-GAS-002 |
+| RF-14 | RF-GAS-005 |
+| RF-15 | RF-GAS-006, RF-GAS-007 |
+| RF-16 | RF-GAS-005 y las reglas RN-GAS de saldo |
+| RF-17 | RF-GAS-008, RF-CON-001 |
+| RF-18 | RF-GAS-005 |
+| RF-19 | RF-INV-003, RF-INV-008, RF-INV-009, RN-V9-001, RN-V9-002 |
+| RF-20 | RF-INV-010 |
+| RF-21 | RF-INV-010, RF-CTA-003 |
+| RF-22 | RN-INV-015 |
+| RF-23 | RF-INV-011 |
+| RF-24 | RF-CON-003 |
+| RF-25 | RF-GAS-001, RF-94 |
+| RF-26 | RF-GAS-002, RF-GAS-003 |
+| RF-27 | RF-GAS-001, RF-GAS-002 |
+| RF-28 | RF-94 |
+| RF-29 | RF-PRE-004 |
+| RF-30 | RF-GAS-008 |
+| RF-31 | RF-INV-001, RN-INV-007 |
+| RF-32 | RF-INV-002, RF-INV-007 |
+| RF-33 | RN-INV-003, RN-INV-008, RN-INV-009 |
+| RF-34 | RF-34, RF-INV-003 |
+| RF-35 | RN-INV-001, RF-NCR-002 |
+| RF-36 | RF-INV-011 |
+| RF-37 | RF-INV-005, RF-88 |
+| RF-38 | RF-PRE-001, RF-PRE-002 |
+| RF-39 | RF-PRE-001 |
+| RF-40 | RF-PRE-003 |
+| RF-41 | RF-PRE-003, RF-CON-005 |
+| RF-42 | RF-CON-005 (el indicador de presupuesto del inicio no tiene fila propia) |
+| RF-43 | RF-IMP-001, RF-IMP-002, RN-IMP-006 |
+| RF-44 | RF-RET-001, RN-RET-003 |
+| RF-45 | RF-IMP-001, RF-RET-001, RN-IMP-003 |
+| RF-46 | RN-IMP-005, RN-INV-009, RF-93 |
+| RF-47 | RN-INV-014 |
+| RF-48 | RN-INV-002, RN-INV-003, RN-INV-014 |
+| RF-49 | RN-V9-005 (reportes de IVA del período y de retenciones por clientes; sin fila propia anterior) |
+| RF-50 | RF-CAT-002 a RF-CAT-004, RF-51 |
+| RF-51 | RF-CAT-001 a RF-CAT-004 |
+| RF-52 | RN-CAT-002, RF-50 |
+| RF-53 | RF-93, RF-99 (límite de crédito del cliente de la matriz de facturación) |
+| RF-54 | RN-CTA-008, RF-IMP-002 |
+| RF-55 | RF-55, RF-CFG-001 a RF-CFG-003, RF-CIE-002, RN-V9-008 |
+| RF-56 | RN-INV-001, RF-INV-004, RF-GAS-004, RF-NCR-001 |
+| RF-57 | RF-AJU-001, RF-AJU-002 |
+| RF-58 | RF-CAT-001, RF-INV-011, RF-GAS-008, RF-ASI-002 |
+| RF-59 | RF-CON-001, RN-V9-001 |
+| RF-60 | RF-100, RF-ASI-002 |
+| RF-61 | RN-INV-013, RNF-AUD-001 |
+| RF-62 | RF-CON-003, RF-CON-004 |
+| RF-63 | RF-CON-005, RF-CFG-004 |
+| RF-64 | RF-CON-007, RF-CON-008 (y la antigüedad de cuentas por cobrar, RF-98 de `CLAUDE.md`) |
+| RF-65 | Sin fila propia: libro diario, libro mayor, balanza y estado de resultados (bloque 6 del paquete de mejoras finales) |
+| RF-66 | RN-V9-003, RN-V9-005, RF-REN-002 |
+| RF-67 | RF-CON-006 |
+| RF-68 | RF-CON-003 a RF-CON-008 |
+| RF-69 | RF-SEG-001, RNF-SEG-002 |
+| RF-70 | RF-SEG-002 |
+| RF-71 | RF-USR-001 a RF-USR-004 |
+| RF-72 | RF-USR-005, RF-USR-007 |
+| RF-73 | RF-SEG-003 |
+| RF-74 | RN-SEG-003, RF-SEG-004, RN-V9-007 |
+| RF-75 | RF-MEN-001, RN-SEG-005 |
+| RF-76 | RF-INV-006, RF-GAS-003, RF-GAS-005, RF-CFG-002, RF-REN-001 |
+| RF-77 | RN-INV-013, RNF-AUD-001 |
+| RF-78 | RF-ASI-001 |
+| RF-79 | RF-ASI-001 |
+| RF-80 | RF-NCR-001 |
+| RF-81 | RF-NCR-001, RF-NCR-002 |
+| RF-82 | Traspasos (RF-96 de `CLAUDE.md`; paquete v8, bloque 1; sin fila propia anterior) |
+| RF-83 | Liquidación del IVA (RF-97 de `CLAUDE.md`; paquete v8, bloque 2; sin fila propia anterior) |
+| RF-84 | RF-REN-002, RF-REN-003 (RF-99 de `CLAUDE.md`) |
+| RF-85 | RF-REN-001 (RF-99 de `CLAUDE.md`) |
+
+Códigos del repositorio sin equivalente en el documento final: RF-SEG-005 (sin registro público),
+RF-SEG-006 (comando de arranque de seguridad), RF-SEG-007 (pantalla de la matriz de perfiles, apoyo de
+RF-74), RF-CAT-005 y RF-CTA-002 (categorías financieras, retiradas), RF-ASI-003, y los descartados
+RF-CAT-006, RF-MON-001, RF-MON-002, RF-IMP-002, RF-CON-002 y RF-MEN-002.
+
+### Casos de uso
+
+| Documento final | Repositorio |
+|---|---|
+| CU-01 Iniciar y cerrar sesión | UC-SEG-001, UC-SEG-002 |
+| CU-02 Cambiar contraseña | UC-SEG-003 |
+| CU-03 Administrar usuarios | UC-USR-001, UC-USR-002 |
+| CU-04 Gestionar clientes y proveedores | UC-CAT-001, UC-CAT-002, UC-CAT-003 |
+| CU-05 Gestionar productos y servicios | UC-CAT-001, UC-CAT-004 |
+| CU-06 Definir parámetros de operación | UC-CFG-001, UC-CFG-002 |
+| CU-07 Gestionar cuentas contables | UC-CAT-006, UC-ASI-001 |
+| CU-08 Gestionar tipos de impuesto y retención | UC-CAT-007, UC-CAT-008 |
+| CU-09 Registrar factura en borrador | UC-INV-001 |
+| CU-10 Confirmar factura | UC-INV-002 |
+| CU-11 Consultar y exportar facturas | UC-INV-004 |
+| CU-12 Registrar abono | UC-INV-005 |
+| CU-13 Registrar ingreso manual | UC-INV-005 |
+| CU-14 Registrar gasto en borrador | UC-GAS-001, UC-GTO-001 |
+| CU-15 Confirmar gasto | UC-GAS-002, UC-GTO-002 |
+| CU-16 Registrar pago a proveedor | UC-GAS-004 |
+| CU-17 Anular operación confirmada | UC-INV-003, UC-GAS-003 |
+| CU-18 Ajustar saldo de cuenta por cobrar o por pagar | UC-AJU-001 |
+| CU-19 Registrar presupuesto mensual | UC-PRE-001 |
+| CU-20 Consultar ejecución presupuestaria | UC-PRE-001, UC-REP-003 |
+| CU-21 Consultar operaciones y trazabilidad | UC-CON-001, UC-ASI-002 |
+| CU-22 Generar y exportar reportes | UC-REP-001 a UC-REP-007 |
+| CU-23 Registrar nota de crédito | UC-NCR-001 |
+| CU-24 Registrar traspaso entre cuentas de efectivo | Sin caso de uso propio en el repositorio (paquete v8, bloque 1) |
+| CU-25 Registrar liquidación mensual del IVA | Sin caso de uso propio en el repositorio (paquete v8, bloque 2) |
+| CU-26 Registrar pago del impuesto sobre la renta | Sin caso de uso propio en el repositorio (RF-REN-001) |
+
+Casos de uso del repositorio sin equivalente en el documento final: UC-SEG-004 (inicializar
+seguridad), UC-SEG-005 (consultar perfiles y permisos), UC-CAT-005 (categorías financieras, retiradas)
+y UC-MON-001 (tipos de cambio, descartado).
