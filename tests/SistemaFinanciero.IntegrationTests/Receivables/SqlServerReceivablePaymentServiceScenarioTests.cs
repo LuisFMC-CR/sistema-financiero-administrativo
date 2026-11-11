@@ -3,10 +3,13 @@ using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using SistemaFinanciero.Application.Catalogs.Common;
 using SistemaFinanciero.Application.Invoices;
+using SistemaFinanciero.Application.Ledger;
 using SistemaFinanciero.Application.Receivables;
+using SistemaFinanciero.Application.Reports;
 using SistemaFinanciero.Domain.Catalogs;
 using SistemaFinanciero.Domain.Incomes;
 using SistemaFinanciero.Domain.Invoices;
+using SistemaFinanciero.Domain.Ledger;
 using SistemaFinanciero.Domain.Parameters;
 using SistemaFinanciero.Domain.Receivables;
 using SistemaFinanciero.Infrastructure.Identity;
@@ -121,9 +124,78 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
                 w => w.ReceivablePaymentId == result.ReceivablePaymentIds[0]);
             Assert.Equal(20m, withholding.Amount);
 
+            // Paquete v9, bloque 2: el ingreso es el dinero recibido (980), sin la retención (20).
             Income income = await context.Incomes.SingleAsync(
                 i => i.ReceivablePaymentId == result.ReceivablePaymentIds[0]);
-            Assert.Equal(1000m, income.Amount);
+            Assert.Equal(980m, income.Amount);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
+    public Task Register_WithWithholding_IncomeIsTheReceivedAmountAndEntryBalances()
+    {
+        // Paquete v9, bloque 2 (CU-12, paso 7): abono de 98 000 con retención de 2 000 sobre una
+        // cuenta de 100 000. El ingreso y el reporte de ingresos muestran 98 000; el saldo baja a 0;
+        // el asiento debita efectivo 98 000 y 1.3.02 2 000, y acredita cuentas por cobrar 100 000.
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            IReceivablePaymentService payments = services.GetRequiredService<IReceivablePaymentService>();
+            IJournalEntryService journal = services.GetRequiredService<IJournalEntryService>();
+            IReportService reports = services.GetRequiredService<IReportService>();
+            Guid customerId = await CreateCustomerAsync(services, actorId, appliesStateWithholding: true);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
+            Guid withholdingTypeId = await CreateWithholdingTypeAsync(services, actorId, rate: 2m);
+            await SetAuthorizationLimitAsync(services, actorId, 1_000_000m);
+
+            Guid receivableId = await CreateConfirmedCreditReceivableAsync(
+                services, invoices, customerId, incomeAccountId, actorId, amount: 100_000m);
+            DateOnly paymentDate = DateOnly.FromDateTime(
+                services.GetRequiredService<TimeProvider>().GetLocalNow().DateTime);
+
+            RegisterReceivablePaymentResult result = await payments.RegisterAsync(
+                new RegisterReceivablePaymentCommand(
+                    customerId,
+                    cashAccountId,
+                    $"AB-{Guid.NewGuid():N}"[..20],
+                    paymentDate,
+                    [
+                        new ReceivablePaymentAllocationCommand(
+                            receivableId,
+                            98_000m,
+                            new WithholdingInputCommand(withholdingTypeId, 100_000m)),
+                    ]),
+                actorId,
+                actorIsManagement: false);
+            Assert.True(result.Operation.IsSuccess, result.Operation.Message);
+            Guid paymentId = result.ReceivablePaymentIds[0];
+
+            FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+            Income income = await context.Incomes.SingleAsync(i => i.ReceivablePaymentId == paymentId);
+            Assert.Equal(98_000m, income.Amount);
+
+            Receivable receivable = await context.Receivables.SingleAsync(r => r.Id == receivableId);
+            Assert.Equal(0m, receivable.Balance);
+
+            Guid withholdingAccountId = await context.LedgerAccounts
+                .Where(account => account.SystemRole == LedgerAccountSystemRole.WithholdingsReceivable)
+                .Select(account => account.Id)
+                .SingleAsync();
+            Guid receivablesAccountId = await context.LedgerAccounts
+                .Where(account => account.SystemRole == LedgerAccountSystemRole.ReceivablesFromCustomers)
+                .Select(account => account.Id)
+                .SingleAsync();
+            JournalEntryTraceModel trace = (await journal.GetTraceAsync(
+                JournalEntrySourceType.ReceivablePayment, paymentId))!;
+            IReadOnlyList<JournalEntryLineModel> lines = trace.Entry.Lines;
+            Assert.Equal(98_000m, lines.Single(line => line.AccountId == cashAccountId).Debit);
+            Assert.Equal(2_000m, lines.Single(line => line.AccountId == withholdingAccountId).Debit);
+            Assert.Equal(100_000m, lines.Single(line => line.AccountId == receivablesAccountId).Credit);
+
+            IncomeReportResult report = await reports.GetIncomeReportAsync(paymentDate, paymentDate, "Pruebas");
+            Assert.Equal(98_000m, report.Lines.Single(line => line.Code == income.Code).Amount);
         });
     }
 

@@ -213,7 +213,9 @@ internal sealed class ReceivablePaymentService(
                     allocation.Payment.Id,
                     allocation.IncomeAccountId,
                     command.CashAccountId,
-                    allocation.Total,
+                    // El ingreso es el dinero que entra a la caja o al banco: no incluye la retención,
+                    // que el asiento lleva a la cuenta 1.3.02 (CU-12, paso 7; paquete v9, bloque 2).
+                    allocation.Payment.Amount,
                     command.PaymentDate,
                     command.Reference,
                     preparedAtUtc,
