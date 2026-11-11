@@ -936,8 +936,10 @@ internal sealed class ReportService(
             {
                 Code = group.Key.TaxCode,
                 Name = group.Key.TaxName,
+                // La base incluye todos los gastos confirmados; el IVA solo el acreditable: el IVA no
+                // acreditable es costo del gasto y no va a la cuenta 1.3.01 (CU-22; paquete v9, bloque 5).
                 Base = group.Sum(expense => expense.NetAmount),
-                Vat = group.Sum(expense => expense.TaxAmount),
+                Vat = group.Sum(expense => expense.VatCreditable ? expense.TaxAmount : 0m),
             })
             .ToListAsync(cancellationToken);
 

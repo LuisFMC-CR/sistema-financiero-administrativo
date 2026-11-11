@@ -51,29 +51,29 @@ public sealed class SqlServerCashFlowFromJournalScenarioTests : IClassFixture<Fi
     {
         return RunInRollbackTransactionAsync(async (services, actorId) =>
         {
-            await PrepareFabricatedPeriodAsync(services, actorId);
+            await ReportScenarioData.PrepareFabricatedPeriodAsync(services, actorId, MayStart, MayStart, JuneStart);
             await SqlTestIsolation.CancelExistingVatSettlementsAsync(services, actorId);
 
-            Guid bankId = await CreateLedgerAccountAsync(services, actorId, LedgerAccountType.Asset, CashAccountKind.Bank, "Banco de flujo");
-            Guid pettyCashId = await CreateLedgerAccountAsync(services, actorId, LedgerAccountType.Asset, CashAccountKind.Cash, "Caja de flujo");
-            Guid incomeAccountId = await CreateLedgerAccountAsync(services, actorId, LedgerAccountType.Income, null, "Ingreso de flujo");
-            Guid expenseAccountId = await CreateLedgerAccountAsync(services, actorId, LedgerAccountType.Expense, null, "Gasto de flujo");
-            Guid vat13Id = await CreateTaxTypeAsync(services, actorId, 13m);
-            Guid vat0Id = await CreateTaxTypeAsync(services, actorId, 0m);
-            Guid customerId = await CreateCustomerAsync(services, actorId, appliesStateWithholding: true);
-            Guid supplierId = await CreateSupplierAsync(services, actorId);
-            Guid withholdingTypeId = await CreateWithholdingTypeAsync(services, actorId);
+            Guid bankId = await ReportScenarioData.CreateLedgerAccountAsync(services, actorId, LedgerAccountType.Asset, CashAccountKind.Bank, "Banco de flujo");
+            Guid pettyCashId = await ReportScenarioData.CreateLedgerAccountAsync(services, actorId, LedgerAccountType.Asset, CashAccountKind.Cash, "Caja de flujo");
+            Guid incomeAccountId = await ReportScenarioData.CreateLedgerAccountAsync(services, actorId, LedgerAccountType.Income, null, "Ingreso de flujo");
+            Guid expenseAccountId = await ReportScenarioData.CreateLedgerAccountAsync(services, actorId, LedgerAccountType.Expense, null, "Gasto de flujo");
+            Guid vat13Id = await ReportScenarioData.CreateTaxTypeAsync(services, actorId, 13m);
+            Guid vat0Id = await ReportScenarioData.CreateTaxTypeAsync(services, actorId, 0m);
+            Guid customerId = await ReportScenarioData.CreateCustomerAsync(services, actorId, appliesStateWithholding: true);
+            Guid supplierId = await ReportScenarioData.CreateSupplierAsync(services, actorId);
+            Guid withholdingTypeId = await ReportScenarioData.CreateWithholdingTypeAsync(services, actorId);
 
             IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
 
             // 1. Factura de contado con IVA 13 %: entran 11 300 al banco.
-            await CreateAndConfirmInvoiceAsync(
+            await ReportScenarioData.CreateAndConfirmInvoiceAsync(
                 services, invoices, customerId, incomeAccountId, vat13Id, new DateOnly(2014, 5, 3),
                 PaymentTerm.Cash, 10_000m, bankId, actorId);
 
             // 2. Abono con retención: factura a crédito de 50 000 (IVA 0 %), entran 49 000 y se retienen 1 000.
-            Guid creditInvoiceId = await CreateAndConfirmInvoiceAsync(
+            Guid creditInvoiceId = await ReportScenarioData.CreateAndConfirmInvoiceAsync(
                 services, invoices, customerId, incomeAccountId, vat0Id, new DateOnly(2014, 5, 4),
                 PaymentTerm.Credit30, 50_000m, null, actorId);
             FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
@@ -88,12 +88,12 @@ public sealed class SqlServerCashFlowFromJournalScenarioTests : IClassFixture<Fi
             Assert.True(receivablePayment.Operation.IsSuccess, receivablePayment.Operation.Message);
 
             // 3. Gasto de contado desde la caja: salen 1 130 (1 000 + IVA acreditable 130).
-            await CreateAndConfirmExpenseAsync(
+            await ReportScenarioData.CreateAndConfirmExpenseAsync(
                 expenses, supplierId, expenseAccountId, vat13Id, new DateOnly(2014, 5, 10),
                 PaymentTerm.Cash, 1_000m, pettyCashId, actorId);
 
             // 4. Pago a proveedor: gasto a crédito de 2 000 (IVA 0 %) pagado desde el banco.
-            Guid creditExpenseId = await CreateAndConfirmExpenseAsync(
+            Guid creditExpenseId = await ReportScenarioData.CreateAndConfirmExpenseAsync(
                 expenses, supplierId, expenseAccountId, vat0Id, new DateOnly(2014, 5, 11),
                 PaymentTerm.Credit30, 2_000m, null, actorId);
             Guid payableId = (await context.Payables.SingleAsync(p => p.ExpenseId == creditExpenseId)).Id;
@@ -107,7 +107,7 @@ public sealed class SqlServerCashFlowFromJournalScenarioTests : IClassFixture<Fi
             Assert.True(supplierPayment.Operation.IsSuccess, supplierPayment.Operation.Message);
 
             // 5. Nota de crédito con devolución: factura de contado de 3 000 (IVA 0 %) devuelta desde la caja.
-            Guid refundedInvoiceId = await CreateAndConfirmInvoiceAsync(
+            Guid refundedInvoiceId = await ReportScenarioData.CreateAndConfirmInvoiceAsync(
                 services, invoices, customerId, incomeAccountId, vat0Id, new DateOnly(2014, 5, 13),
                 PaymentTerm.Cash, 3_000m, pettyCashId, actorId);
             ICreditNoteService creditNotes = services.GetRequiredService<ICreditNoteService>();
@@ -217,214 +217,6 @@ public sealed class SqlServerCashFlowFromJournalScenarioTests : IClassFixture<Fi
     private static Task<string> CodeOfAsync(FinancialDbContext context, Guid accountId) =>
         context.LedgerAccounts.AsNoTracking().Where(account => account.Id == accountId).Select(account => account.Code).SingleAsync();
 
-    private static async Task<Guid> CreateAndConfirmInvoiceAsync(
-        IServiceProvider services,
-        IInvoiceService invoices,
-        Guid customerId,
-        Guid incomeAccountId,
-        Guid taxTypeId,
-        DateOnly issueDate,
-        PaymentTerm paymentTerm,
-        decimal amount,
-        Guid? cashAccountId,
-        Guid actorId)
-    {
-        InvoiceCreationResult created = await invoices.CreateAsync(
-            new CreateInvoiceCommand(customerId, incomeAccountId, issueDate, paymentTerm), actorId);
-        Assert.True(created.Operation.IsSuccess, created.Operation.Message);
-        Guid invoiceId = created.InvoiceId!.Value;
-
-        InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
-        Guid itemId = await CreateCatalogItemAsync(services, actorId);
-        CatalogOperationResult line = await invoices.AddLineAsync(
-            invoiceId, new InvoiceLineInputCommand(itemId, 1m, amount, 0m, taxTypeId), draft.Version, actorId);
-        Assert.True(line.IsSuccess, line.Message);
-
-        draft = (await invoices.GetAsync(invoiceId))!;
-        ConfirmInvoiceCommand confirm = cashAccountId is Guid cash
-            ? new ConfirmInvoiceCommand(cash, PaymentMethod.Cash, $"F-{Guid.NewGuid():N}"[..12])
-            : new ConfirmInvoiceCommand(null, null, null);
-        CatalogOperationResult confirmed = await invoices.ConfirmAsync(invoiceId, confirm, draft.Version, actorId);
-        Assert.True(confirmed.IsSuccess, confirmed.Message);
-        return invoiceId;
-    }
-
-    private static async Task<Guid> CreateAndConfirmExpenseAsync(
-        IExpenseService expenses,
-        Guid supplierId,
-        Guid accountId,
-        Guid taxTypeId,
-        DateOnly issueDate,
-        PaymentTerm paymentTerm,
-        decimal netAmount,
-        Guid? cashAccountId,
-        Guid actorId)
-    {
-        ExpenseCreationResult created = await expenses.CreateAsync(
-            new SaveExpenseCommand(
-                supplierId, accountId, "Compra de prueba de flujo", $"VC-{Guid.NewGuid():N}"[..10],
-                issueDate, paymentTerm, netAmount, taxTypeId, true, PaymentMethod.Cash),
-            actorId);
-        Assert.True(created.Operation.IsSuccess, created.Operation.Message);
-        Guid expenseId = created.ExpenseId!.Value;
-
-        ExpenseModel draft = (await expenses.GetAsync(expenseId))!;
-        ConfirmExpenseCommand confirm = cashAccountId is Guid cash
-            ? new ConfirmExpenseCommand(cash, $"G-{Guid.NewGuid():N}"[..10])
-            : new ConfirmExpenseCommand(null, null);
-        CatalogOperationResult confirmed = await expenses.ConfirmAsync(
-            expenseId, confirm, draft.Version, actorId, actorIsManagement: true);
-        Assert.True(confirmed.IsSuccess, confirmed.Message);
-        return expenseId;
-    }
-
-    /// <summary>
-    /// Período fiscal fabricado de mayo de 2014 a abril de 2015, con mayo y junio reabiertos.
-    /// </summary>
-    private static async Task PrepareFabricatedPeriodAsync(IServiceProvider services, Guid actorId)
-    {
-        FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
-        SystemParameters? parameters = await context.SystemParameters.SingleOrDefaultAsync();
-
-        if (parameters is null)
-        {
-            parameters = new SystemParameters(10_000_000m, 7, DateTimeOffset.UtcNow, actorId);
-            context.SystemParameters.Add(parameters);
-        }
-
-        parameters.UpdateFiscalPeriod(MayStart, MayStart.AddYears(1).AddDays(-1), DateTimeOffset.UtcNow, actorId);
-
-        foreach (DateOnly month in new[] { MayStart, JuneStart })
-        {
-            context.AccountingPeriodOverrides.Add(new AccountingPeriodOverride(
-                month.Year, month.Month, "Reapertura para la prueba", DateTimeOffset.UtcNow, actorId));
-        }
-
-        await context.SaveChangesAsync();
-    }
-
-    private static async Task<Guid> CreateLedgerAccountAsync(
-        IServiceProvider services, Guid actorId, LedgerAccountType type, CashAccountKind? cashKind, string name)
-    {
-        FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
-        string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
-        LedgerAccount account = new(
-            Guid.NewGuid(), $"CF-{suffix}", name, type, null, cashKind, null, null, DateTimeOffset.UtcNow, actorId);
-        context.LedgerAccounts.Add(account);
-        await context.SaveChangesAsync();
-        return account.Id;
-    }
-
-    private static async Task<Guid> CreateTaxTypeAsync(IServiceProvider services, Guid actorId, decimal rate)
-    {
-        FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
-        string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
-        TaxType taxType = new(Guid.NewGuid(), $"IVA-{suffix}", $"IVA {rate}% de flujo", rate, "08", null, DateTimeOffset.UtcNow, actorId);
-        context.TaxTypes.Add(taxType);
-        await context.SaveChangesAsync();
-        return taxType.Id;
-    }
-
-    private static async Task<Guid> CreateWithholdingTypeAsync(IServiceProvider services, Guid actorId)
-    {
-        FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
-        string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
-        WithholdingType type = new(Guid.NewGuid(), $"RET-{suffix}", "Retención 2 % de flujo", 2m, null, null, DateTimeOffset.UtcNow, actorId);
-        context.WithholdingTypes.Add(type);
-        await context.SaveChangesAsync();
-        return type.Id;
-    }
-
-    private static async Task<Guid> CreateCustomerAsync(IServiceProvider services, Guid actorId, bool appliesStateWithholding)
-    {
-        FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
-        string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
-        Customer customer = new(
-            Guid.NewGuid(),
-            $"CLI-{suffix}",
-            "Cliente de prueba de flujo",
-            IdentificationType.ForeignNonResident,
-            $"ID-{suffix}",
-            null,
-            null,
-            null,
-            null,
-            VatCondition.Normal,
-            appliesStateWithholding,
-            null,
-            DateTimeOffset.UtcNow,
-            actorId);
-        context.Customers.Add(customer);
-        await context.SaveChangesAsync();
-        return customer.Id;
-    }
-
-    private static async Task<Guid> CreateSupplierAsync(IServiceProvider services, Guid actorId)
-    {
-        FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
-        string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
-        Supplier supplier = new(
-            Guid.NewGuid(),
-            $"PRV-{suffix}",
-            "Proveedor de prueba de flujo",
-            IdentificationType.ForeignNonResident,
-            $"ID-{suffix}",
-            null,
-            null,
-            null,
-            null,
-            DateTimeOffset.UtcNow,
-            actorId);
-        context.Suppliers.Add(supplier);
-        await context.SaveChangesAsync();
-        return supplier.Id;
-    }
-
-    private static async Task<Guid> CreateCatalogItemAsync(IServiceProvider services, Guid actorId)
-    {
-        FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
-        string suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
-        CatalogItem item = new(
-            Guid.NewGuid(),
-            $"SRV-{suffix}",
-            "Servicio de prueba de flujo",
-            CatalogItemType.Service,
-            "8311500000000",
-            null,
-            UnitOfMeasureCode.Unit,
-            null,
-            null,
-            null,
-            DateTimeOffset.UtcNow,
-            actorId);
-        context.CatalogItems.Add(item);
-        await context.SaveChangesAsync();
-        return item.Id;
-    }
-
-    private static async Task<Guid> CreateUserAsync(IServiceProvider services)
-    {
-        FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
-        Guid userId = Guid.NewGuid();
-        string email = $"sql-test-{userId:N}@example.test";
-
-        context.Users.Add(new ApplicationUser
-        {
-            Id = userId,
-            FullName = "Usuario de integración SQL",
-            UserName = email,
-            NormalizedUserName = email.ToUpperInvariant(),
-            Email = email,
-            NormalizedEmail = email.ToUpperInvariant(),
-            EmailConfirmed = true,
-            IsActive = true,
-            SecurityStamp = Guid.NewGuid().ToString("N"),
-            ConcurrencyStamp = Guid.NewGuid().ToString("N"),
-        });
-        await context.SaveChangesAsync();
-        return userId;
-    }
-
     private async Task RunInRollbackTransactionAsync(Func<IServiceProvider, Guid, Task> scenario)
     {
         if (!string.Equals(
@@ -438,7 +230,7 @@ public sealed class SqlServerCashFlowFromJournalScenarioTests : IClassFixture<Fi
         using IServiceScope scope = factory.Services.CreateScope();
         FinancialDbContext context = scope.ServiceProvider.GetRequiredService<FinancialDbContext>();
         await using IDbContextTransaction transaction = await context.Database.BeginTransactionAsync();
-        Guid actorId = await CreateUserAsync(scope.ServiceProvider);
+        Guid actorId = await ReportScenarioData.CreateUserAsync(scope.ServiceProvider);
 
         try
         {
