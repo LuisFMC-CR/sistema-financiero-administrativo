@@ -201,6 +201,59 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
 
     [Fact]
     [Trait("Category", "SqlServer")]
+    public Task Register_AfterCancellingAPaymentWithWithholding_AcceptsTheSameWithholdingAgain()
+    {
+        // Paquete v9, bloque 4: la retención de un abono anulado deja de contar como "ya retenida".
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            IInvoiceService invoices = services.GetRequiredService<IInvoiceService>();
+            IReceivablePaymentService payments = services.GetRequiredService<IReceivablePaymentService>();
+            Guid customerId = await CreateCustomerAsync(services, actorId, appliesStateWithholding: true);
+            Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
+            Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
+            Guid withholdingTypeId = await CreateWithholdingTypeAsync(services, actorId, rate: 2m);
+            await SetAuthorizationLimitAsync(services, actorId, 10_000m);
+
+            Guid receivableId = await CreateConfirmedCreditReceivableAsync(
+                services, invoices, customerId, incomeAccountId, actorId, amount: 1000m);
+            DateOnly paymentDate = DateOnly.FromDateTime(
+                services.GetRequiredService<TimeProvider>().GetLocalNow().DateTime);
+
+            RegisterReceivablePaymentCommand Command(string reference) => new(
+                customerId,
+                cashAccountId,
+                reference,
+                paymentDate,
+                [
+                    new ReceivablePaymentAllocationCommand(
+                        receivableId,
+                        980m,
+                        new WithholdingInputCommand(withholdingTypeId, 1000m)),
+                ]);
+
+            RegisterReceivablePaymentResult first = await payments.RegisterAsync(
+                Command("AB-RET-1"), actorId, actorIsManagement: true);
+            Assert.True(first.Operation.IsSuccess, first.Operation.Message);
+
+            ReceivablePaymentModel firstModel = (await payments.GetAsync(first.ReceivablePaymentIds[0]))!;
+            CatalogOperationResult cancel = await payments.CancelAsync(
+                firstModel.Id, "Abono registrado por error", firstModel.Version, actorId);
+            Assert.True(cancel.IsSuccess, cancel.Message);
+
+            RegisterReceivablePaymentResult second = await payments.RegisterAsync(
+                Command("AB-RET-2"), actorId, actorIsManagement: true);
+            Assert.True(second.Operation.IsSuccess, second.Operation.Message);
+
+            FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
+            Withholding withholding = await context.Withholdings.SingleAsync(
+                w => w.ReceivablePaymentId == second.ReceivablePaymentIds[0]);
+            Assert.Equal(1000m, withholding.Base);
+            Assert.Equal(0m, (await context.Receivables.SingleAsync(r => r.Id == receivableId)).Balance);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
     public Task Register_WithAWithholdingForACustomerWithoutTheStateWithholdingMark_IsRejected()
     {
         // Bloque 1 del paquete v7, RF-95: el servidor rechaza la retención aunque se envíe, si el

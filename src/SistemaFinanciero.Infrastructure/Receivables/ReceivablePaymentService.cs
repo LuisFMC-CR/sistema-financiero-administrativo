@@ -435,11 +435,14 @@ internal sealed class ReceivablePaymentService(
                     withholdingTypes);
             }
 
+            // Solo cuentan las retenciones de abonos vigentes: al anular un abono, su retención se
+            // revierte y esa base vuelve a estar disponible (paquete v9, bloque 4).
             decimal alreadyWithheld = await dbContext.Set<Withholding>()
                 .AsNoTracking()
                 .Where(withholding => dbContext.Set<ReceivablePayment>()
                     .Any(payment => payment.Id == withholding.ReceivablePaymentId
-                        && payment.ReceivableId == allocation.ReceivableId))
+                        && payment.ReceivableId == allocation.ReceivableId
+                        && payment.Status == ReceivablePaymentStatus.Active))
                 .SumAsync(withholding => withholding.Base, cancellationToken);
 
             if (withholdingInput.Base > netAmount - alreadyWithheld)
