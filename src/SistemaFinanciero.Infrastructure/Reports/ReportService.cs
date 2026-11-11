@@ -782,71 +782,46 @@ internal sealed class ReportService(
     {
         ValidatePeriod(periodFrom, periodTo);
 
-        List<(DateOnly Date, decimal Amount)> inflows = await dbContext.Set<Income>()
-            .AsNoTracking()
-            .Where(income => income.Status == IncomeStatus.Active
-                && income.IncomeDate >= periodFrom
-                && income.IncomeDate <= periodTo
-                && (!cashAccountId.HasValue || income.CashAccountId == cashAccountId.Value))
-            .Select(income => new ValueTuple<DateOnly, decimal>(income.IncomeDate, income.Amount))
-            .ToListAsync(cancellationToken);
-
-        List<(DateOnly Date, decimal Amount)> outflowPayments = await dbContext.Set<SupplierPayment>()
-            .AsNoTracking()
-            .Where(payment => payment.Status == SupplierPaymentStatus.Active
-                && payment.PaymentDate >= periodFrom
-                && payment.PaymentDate <= periodTo
-                && (!cashAccountId.HasValue || payment.CashAccountId == cashAccountId.Value))
-            .Select(payment => new ValueTuple<DateOnly, decimal>(payment.PaymentDate, payment.Amount))
-            .ToListAsync(cancellationToken);
-
-        List<(DateOnly Date, decimal Amount)> outflowExpenses = await dbContext.Set<Expense>()
-            .AsNoTracking()
-            .Where(expense => expense.Status == ExpenseStatus.Confirmed
-                && expense.PaymentTerm == PaymentTerm.Cash
-                && expense.IssueDate >= periodFrom
-                && expense.IssueDate <= periodTo
-                && (!cashAccountId.HasValue || expense.CashAccountId == cashAccountId.Value))
-            .Select(expense => new ValueTuple<DateOnly, decimal>(expense.IssueDate, expense.TotalAmount))
-            .ToListAsync(cancellationToken);
-
-        List<(DateOnly Date, decimal Amount)> outflows = [.. outflowPayments, .. outflowExpenses];
-
-        // Sin filtro de cuenta, un traspaso se compensa a sí mismo (entra a una cuenta propia y sale
-        // de otra propia): se excluye por completo. Con filtro, cuenta como entrada si la cuenta es el
-        // destino y como salida si es el origen (regla de negocio, bloque 3 del paquete v8).
-        List<(DateOnly Date, decimal Amount)> transfersReceived = [];
-        List<(DateOnly Date, decimal Amount)> transfersSent = [];
-        if (cashAccountId.HasValue)
-        {
-            transfersReceived = await dbContext.Set<CashTransfer>()
+        // Paquete v9, bloque 3: el flujo sale de los asientos. Se toman las líneas de las cuentas de
+        // efectivo (o solo de la cuenta filtrada): un débito es una entrada y un crédito una salida,
+        // en el mes de la fecha del asiento. Así el neto cuadra con la variación del saldo de efectivo
+        // en la balanza e incluye todo lo que mueve dinero (retenciones fuera, devoluciones de notas de
+        // crédito y pagos de renta dentro).
+        List<Guid> cashAccountIds = cashAccountId.HasValue
+            ? [cashAccountId.Value]
+            : await dbContext.Set<LedgerAccount>()
                 .AsNoTracking()
-                .Where(transfer => transfer.Status == CashTransferStatus.Active
-                    && transfer.TransferDate >= periodFrom
-                    && transfer.TransferDate <= periodTo
-                    && transfer.DestinationCashAccountId == cashAccountId.Value)
-                .Select(transfer => new ValueTuple<DateOnly, decimal>(transfer.TransferDate, transfer.Amount))
+                .Where(account => account.CashKind != null)
+                .Select(account => account.Id)
                 .ToListAsync(cancellationToken);
 
-            transfersSent = await dbContext.Set<CashTransfer>()
-                .AsNoTracking()
-                .Where(transfer => transfer.Status == CashTransferStatus.Active
-                    && transfer.TransferDate >= periodFrom
-                    && transfer.TransferDate <= periodTo
-                    && transfer.SourceCashAccountId == cashAccountId.Value)
-                .Select(transfer => new ValueTuple<DateOnly, decimal>(transfer.TransferDate, transfer.Amount))
-                .ToListAsync(cancellationToken);
-        }
-
-        List<(DateOnly Date, decimal Amount)> vatPayments = await dbContext.Set<VatSettlement>()
+        // Un asiento anulado y su reversión (que usa la fecha original) se compensan en el mismo mes:
+        // se excluyen los dos para que no inflen entradas y salidas. Sin filtro de cuenta, un traspaso
+        // entra a una cuenta propia y sale de otra propia: se excluye por completo (bloque 3 del
+        // paquete v8).
+        List<JournalEntry> entries = await dbContext.Set<JournalEntry>()
             .AsNoTracking()
-            .Where(settlement => settlement.Status == VatSettlementStatus.Active
-                && settlement.PaymentAmount > 0
-                && settlement.SettlementDate >= periodFrom
-                && settlement.SettlementDate <= periodTo
-                && (!cashAccountId.HasValue || settlement.CashAccountId == cashAccountId.Value))
-            .Select(settlement => new ValueTuple<DateOnly, decimal>(settlement.SettlementDate, settlement.PaymentAmount))
+            .Include(entry => entry.Lines)
+            .Where(entry => entry.EntryDate >= periodFrom
+                && entry.EntryDate <= periodTo
+                && entry.ReversesEntryId == null
+                && !dbContext.Set<JournalEntry>().Any(reversal => reversal.ReversesEntryId == entry.Id)
+                && (cashAccountId.HasValue || entry.SourceType != JournalEntrySourceType.CashTransfer))
             .ToListAsync(cancellationToken);
+
+        HashSet<Guid> cashAccountSet = [.. cashAccountIds];
+        var cashMovements = entries
+            .SelectMany(entry => entry.Lines
+                .Where(line => cashAccountSet.Contains(line.AccountId))
+                .Select(line => new
+                {
+                    entry.EntryDate.Year,
+                    entry.EntryDate.Month,
+                    entry.SourceType,
+                    line.Debit,
+                    line.Credit,
+                }))
+            .ToList();
 
         List<CashFlowReportLine> lines = [];
         DateOnly month = new(periodFrom.Year, periodFrom.Month, 1);
@@ -856,14 +831,21 @@ internal sealed class ReportService(
         {
             int year = month.Year;
             int monthNumber = month.Month;
-            decimal monthInflow = SumForMonth(inflows, year, monthNumber);
-            decimal monthOutflow = SumForMonth(outflows, year, monthNumber);
-            decimal monthTransfersReceived = SumForMonth(transfersReceived, year, monthNumber);
-            decimal monthTransfersSent = SumForMonth(transfersSent, year, monthNumber);
-            decimal monthVatPayments = SumForMonth(vatPayments, year, monthNumber);
+            var monthMovements = cashMovements
+                .Where(movement => movement.Year == year && movement.Month == monthNumber)
+                .ToList();
 
-            decimal totalInflow = monthInflow + monthTransfersReceived;
-            decimal totalOutflow = monthOutflow + monthTransfersSent + monthVatPayments;
+            decimal totalInflow = monthMovements.Sum(movement => movement.Debit);
+            decimal totalOutflow = monthMovements.Sum(movement => movement.Credit);
+            decimal monthTransfersReceived = monthMovements
+                .Where(movement => movement.SourceType == JournalEntrySourceType.CashTransfer)
+                .Sum(movement => movement.Debit);
+            decimal monthTransfersSent = monthMovements
+                .Where(movement => movement.SourceType == JournalEntrySourceType.CashTransfer)
+                .Sum(movement => movement.Credit);
+            decimal monthVatPayments = monthMovements
+                .Where(movement => movement.SourceType == JournalEntrySourceType.VatSettlement)
+                .Sum(movement => movement.Credit);
 
             lines.Add(new CashFlowReportLine(
                 year,
@@ -1171,9 +1153,6 @@ internal sealed class ReportService(
             .Where(account => ids.Contains(account.Id))
             .ToDictionaryAsync(account => account.Id, cancellationToken);
     }
-
-    private static decimal SumForMonth(IReadOnlyList<(DateOnly Date, decimal Amount)> amounts, int year, int month) =>
-        amounts.Where(entry => entry.Date.Year == year && entry.Date.Month == month).Sum(entry => entry.Amount);
 
     private static void ValidatePeriod(DateOnly periodFrom, DateOnly periodTo)
     {
