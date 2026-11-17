@@ -1,14 +1,64 @@
+@using SistemaFinanciero.Application.Security.Audit
+@using SistemaFinanciero.Web.Models.Audit
 @using SistemaFinanciero.Web.Models.Overdue
 @model HomeIndicatorsViewModel?
 @{
     ViewData["Title"] = "Dashboard";
+    IReadOnlyList<SecurityAuditEntryModel>? recentSecurityEvents = Model?.RecentSecurityEvents;
+    bool isAdministratorHome = recentSecurityEvents is not null;
 }
 
 <div class="py-4">
     <div class="p-4 p-lg-5 bg-body-tertiary rounded-3 border">
         <p class="text-uppercase text-secondary small fw-semibold mb-2">Soporte Experto</p>
-        <h1 class="display-6 fw-semibold mb-0">Control financiero contable</h1>
+        @if (isAdministratorHome)
+        {
+            <h1 class="display-6 fw-semibold mb-0">Administración del sistema</h1>
+        }
+        else
+        {
+            <h1 class="display-6 fw-semibold mb-0">Control financiero contable</h1>
+        }
     </div>
+
+    @if (recentSecurityEvents is not null)
+    {
+        <section class="mt-3" aria-labelledby="recent-security-events-title">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                <h2 id="recent-security-events-title" class="h5 mb-0">Últimos registros de seguridad</h2>
+                <a asp-controller="SecurityAudit" asp-action="Index" class="btn btn-sm btn-outline-primary">Ver bitácora completa</a>
+            </div>
+            <div class="table-responsive bg-white border rounded">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th scope="col">Fecha y hora</th>
+                            <th scope="col">Acción</th>
+                            <th scope="col">Cuenta objetivo</th>
+                            <th scope="col">Rol</th>
+                            <th scope="col">Ejecutado por</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (recentSecurityEvents.Count == 0)
+                        {
+                            <tr><td colspan="5" class="text-center text-body-secondary py-4">No hay registros en la bitácora de seguridad.</td></tr>
+                        }
+                        @foreach (SecurityAuditEntryModel entry in recentSecurityEvents)
+                        {
+                            <tr>
+                                <td>@entry.OccurredAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                                <td>@entry.Action.ToDisplayName()</td>
+                                <td>@entry.TargetFullName</td>
+                                <td>@entry.Role.ToDisplayRole()</td>
+                                <td>@(entry.ActorFullName ?? "Sistema")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
 
     @if (Model is not null)
     {

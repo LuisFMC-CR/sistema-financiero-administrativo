@@ -7,6 +7,7 @@ using SistemaFinanciero.Application.Parameters;
 using SistemaFinanciero.Application.Payables;
 using SistemaFinanciero.Application.Receivables;
 using SistemaFinanciero.Application.Security;
+using SistemaFinanciero.Application.Security.Audit;
 using SistemaFinanciero.Web.Models;
 using SistemaFinanciero.Web.Models.Overdue;
 
@@ -23,7 +24,9 @@ namespace SistemaFinanciero.Web.Controllers;
 /// a Gerencia y Finanzas (<c>Reportes.Ver</c>). Usa
 /// <c>IReceivableService</c>/<c>IPayableService.GetOverdueSummaryAsync</c>, los mismos que alimentarán
 /// el indicador de la pantalla de Consultas, mediante la vista parcial compartida
-/// <c>_OverdueIndicator.cshtml</c>. <c>Error</c> es el destino de <c>app.UseExceptionHandler</c> en
+/// <c>_OverdueIndicator.cshtml</c>. Para el Administrador (<c>ManageUsers</c>) muestra los últimos
+/// registros de la bitácora de seguridad con <c>ISecurityAuditService.SearchAsync</c>, la misma consulta
+/// de <c>SecurityAuditController</c> (ADR-0060). <c>Error</c> es el destino de <c>app.UseExceptionHandler</c> en
 /// producción.
 /// </remarks>
 public sealed class HomeController(
@@ -31,11 +34,15 @@ public sealed class HomeController(
     IPayableService payableService,
     IBudgetService budgetService,
     ISystemParametersService systemParametersService,
+    ISecurityAuditService securityAuditService,
     IAuthorizationService authorizationService,
     TimeProvider timeProvider) : Controller
 {
     /// <summary>Días de alerta por defecto (regla 9) cuando Gerencia no ha configurado parámetros.</summary>
     private const int DefaultOverdueAlertDays = 7;
+
+    /// <summary>Cantidad de registros de seguridad que se muestran en el inicio del Administrador.</summary>
+    public const int RecentSecurityEventCount = 5;
 
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
     {
@@ -45,6 +52,22 @@ public sealed class HomeController(
         bool canViewFinancialReports = (await authorizationService.AuthorizeAsync(
             User,
             SystemPolicies.ViewFinancialReports)).Succeeded;
+
+        bool canManageUsers = (await authorizationService.AuthorizeAsync(
+            User,
+            SystemPolicies.ManageUsers)).Succeeded;
+
+        if (canManageUsers)
+        {
+            // La consulta devuelve la bitácora de la más reciente a la más antigua.
+            PagedResult<SecurityAuditEntryModel> securityEvents = await securityAuditService.SearchAsync(
+                new SecurityAuditQuery(1),
+                cancellationToken);
+            return View(new HomeIndicatorsViewModel(
+                null,
+                null,
+                securityEvents.Items.Take(RecentSecurityEventCount).ToList()));
+        }
 
         if (!canViewOverdueAccounts && !canViewFinancialReports)
         {
