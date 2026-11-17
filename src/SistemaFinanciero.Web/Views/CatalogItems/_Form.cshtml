@@ -46,7 +46,12 @@
     <div class="col-md-4">
         <label asp-for="UnitOfMeasure" class="form-label"></label>
         <select asp-for="UnitOfMeasure" class="form-select">
-            @foreach (UnitOfMeasureCode code in Enum.GetValues<UnitOfMeasureCode>())
+            @if (!Model.UnitOfMeasure.IsSelectable())
+            {
+                @* Unidad retirada de un artículo antiguo (ADR-0061): se muestra para que el usuario elija otra. *@
+                <option value="@Model.UnitOfMeasure">@Model.UnitOfMeasure.ToDisplayName() (retirada)</option>
+            }
+            @foreach (UnitOfMeasureCode code in UnitOfMeasureCodeExtensions.Selectable)
             {
                 <option value="@code">@code.ToDisplayName()</option>
             }

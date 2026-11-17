@@ -64,3 +64,5 @@ reescribe para ocultar el historial: una decisión posterior lo reemplaza median
 | [ADR-0057](ADR-0057-permiso-de-ajustes-de-saldo-para-finanzas.md) | Acceso de Finanzas a los ajustes de saldo | Aceptado |
 | [ADR-0058](ADR-0058-nota-de-credito-como-flujo-de-anulacion-de-facturas.md) | Nota de crédito como flujo de anulación de facturas | Aceptado |
 | [ADR-0059](ADR-0059-correcciones-de-cierre-y-congelamiento.md) | Correcciones de cierre (paquete v9) y congelamiento del sistema | Aceptado |
+| [ADR-0060](ADR-0060-inicio-del-administrador.md) | Inicio del Administrador con los últimos registros de seguridad | Aceptado |
+| [ADR-0061](ADR-0061-unidades-de-medida-unidad-y-hora.md) | Unidades de medida limitadas a Unidad y Hora | Aceptado |

@@ -39,7 +39,7 @@ public class CatalogItemInputViewModel
     [Display(Name = "Descripción")]
     public string? Description { get; set; }
 
-    [EnumDataType(typeof(UnitOfMeasureCode), ErrorMessage = "Seleccione una unidad de medida válida.")]
+    [SelectableUnitOfMeasure]
     [Display(Name = "Unidad de medida")]
     public UnitOfMeasureCode UnitOfMeasure { get; set; } = UnitOfMeasureCode.Unit;
 

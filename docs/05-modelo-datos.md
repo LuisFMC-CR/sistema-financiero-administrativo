@@ -162,7 +162,7 @@ Cambiar un registro no actualiza silenciosamente el otro. El código lo asigna e
 | `Name` | `nvarchar(150)` | No | — | Nombre facturable. |
 | `Type` | Valor restringido | No | Producto/Servicio | Clasifica el artículo; no habilita inventario. |
 | `Description` | `nvarchar(500)` | Sí | — | Descripción administrativa. |
-| `UnitOfMeasure` | `nvarchar(30)` | No | — | Unidad visible para capturas futuras. |
+| `UnitOfMeasure` | Entero | No | CHECK `IN (1, 2, 3, 4)` | Unidad de medida de lista fija (`UnitOfMeasureCode`). Solo se eligen 1 Unidad y 2 Hora; 3 Servicios profesionales y 4 Otros servicios quedan retiradas y se conservan para artículos antiguos (ADR-0061). |
 | `ReferencePriceCrc` | `decimal(18,4)` | Sí | Mayor que cero | Precio de referencia en CRC. |
 | `DefaultIncomeCategoryId` | `uniqueidentifier` | Sí | FK restrictiva a `catalogos.CategoriasFinancieras` | Categoría activa de ingreso sugerida; no obliga documentos futuros. |
 | `DefaultTaxTypeId` | `uniqueidentifier` | Sí | FK restrictiva a `catalogos.TiposImpuesto` (`FK_ProductosServicios_TiposImpuesto`) | Tarifa de IVA activa que se propone al agregar el artículo a una línea de factura (RF-52); la línea puede cambiarla. |

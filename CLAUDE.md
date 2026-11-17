@@ -16,7 +16,7 @@ el documento, este archivo y el código, avísame antes de cambiar nada.
 - No agregues paquetes NuGet sin preguntar ni uses versiones flotantes (`Directory.Packages.props`).
   Exportaciones: QuestPDF (licencia Community) para PDF y ClosedXML (MIT) para Excel.
 - Cada corrección incluye pruebas y actualiza `docs/02-requisitos-trazabilidad.md` y, si aplica, un
-  ADR en `docs/decisiones/` (el siguiente libre es ADR-0060).
+  ADR en `docs/decisiones/` (el siguiente libre es ADR-0062).
 - Interfaz, mensajes y documentación en español; identificadores de código en inglés.
 - Producción: IIS en Windows 11 con SQL Server 2025 Express en el mismo equipo, HTTPS con certificado
   interno e IP fija; el puerto de SQL Server no se expone a la red.
@@ -400,8 +400,8 @@ explícame la diferencia antes de migrar (el sistema está congelado: no se agre
 ## Estado
 
 Versión final (paquete v9, `docs/prompt_claude_code_version_final_v9.md`, aplicado el 10/11/2026;
-ADR-0059). El sistema está congelado. Pruebas: 417 unitarias y 430 de integración; con
-`SISTEMA_FINANCIERO_RUN_SQL_TESTS=1` pasan las 847, sin omitidas. Los archivos de `docs/paquetes/` y
+ADR-0059). El sistema está congelado. Pruebas: 424 unitarias y 437 de integración; con
+`SISTEMA_FINANCIERO_RUN_SQL_TESTS=1` pasan las 861, sin omitidas. Los archivos de `docs/paquetes/` y
 `docs/prompt_claude_code_version_final_v9.md` son historial de instrucciones ya aplicadas.
 
 ## Lo que el documento necesita del prototipo

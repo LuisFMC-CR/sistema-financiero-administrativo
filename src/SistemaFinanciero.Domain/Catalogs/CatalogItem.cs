@@ -68,7 +68,7 @@ public sealed class CatalogItem
             description,
             DescriptionMaxLength,
             nameof(description));
-        UnitOfMeasure = DomainRules.DefinedEnum(unitOfMeasure, nameof(unitOfMeasure));
+        UnitOfMeasure = NormalizeUnitOfMeasure(unitOfMeasure, nameof(unitOfMeasure));
         ReferencePriceCrc = NormalizeReferencePrice(referencePriceCrc, nameof(referencePriceCrc));
         DefaultIncomeAccountId = DomainRules.OptionalId(
             defaultIncomeAccountId,
@@ -158,7 +158,7 @@ public sealed class CatalogItem
             description,
             DescriptionMaxLength,
             nameof(description));
-        UnitOfMeasureCode normalizedUnitOfMeasure = DomainRules.DefinedEnum(unitOfMeasure, nameof(unitOfMeasure));
+        UnitOfMeasureCode normalizedUnitOfMeasure = NormalizeUnitOfMeasure(unitOfMeasure, nameof(unitOfMeasure));
         decimal? normalizedReferencePriceCrc = NormalizeReferencePrice(
             referencePriceCrc,
             nameof(referencePriceCrc));
@@ -188,6 +188,20 @@ public sealed class CatalogItem
     public void Deactivate(DateTimeOffset updatedAtUtc, Guid updatedByUserId)
     {
         SetActive(false, updatedAtUtc, updatedByUserId);
+    }
+
+    /// <summary>Solo admite las unidades vigentes, Unidad u Hora (ADR-0061).</summary>
+    private static UnitOfMeasureCode NormalizeUnitOfMeasure(UnitOfMeasureCode value, string parameterName)
+    {
+        if (!DomainRules.DefinedEnum(value, parameterName).IsSelectable())
+        {
+            throw new ArgumentOutOfRangeException(
+                parameterName,
+                value,
+                "Solo se admiten las unidades de medida Unidad u Hora.");
+        }
+
+        return value;
     }
 
     private static decimal? NormalizeReferencePrice(decimal? value, string parameterName)

@@ -134,6 +134,71 @@ public sealed class CatalogItemTests
             CreatorId));
     }
 
+    [Theory]
+    [InlineData(UnitOfMeasureCode.Unit)]
+    [InlineData(UnitOfMeasureCode.Hour)]
+    public void Constructor_AcceptsTheTwoSelectableUnitsOfMeasure(UnitOfMeasureCode unit)
+    {
+        CatalogItem item = CreateItem(unit);
+
+        Assert.Equal(unit, item.UnitOfMeasure);
+    }
+
+    [Theory]
+    [InlineData(UnitOfMeasureCode.ProfessionalService)]
+    [InlineData(UnitOfMeasureCode.OtherService)]
+    public void Constructor_RejectsARetiredUnitOfMeasure(UnitOfMeasureCode retiredUnit)
+    {
+        ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(
+            () => CreateItem(retiredUnit));
+
+        Assert.StartsWith("Solo se admiten las unidades de medida Unidad u Hora.", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(UnitOfMeasureCode.ProfessionalService)]
+    [InlineData(UnitOfMeasureCode.OtherService)]
+    public void UpdateDetails_RejectsARetiredUnitOfMeasureAndKeepsTheCurrentOne(UnitOfMeasureCode retiredUnit)
+    {
+        CatalogItem item = CreateItem(UnitOfMeasureCode.Hour);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => item.UpdateDetails(
+            "Elemento",
+            "8311500000000",
+            null,
+            retiredUnit,
+            null,
+            null,
+            null,
+            CreatedAtUtc.AddMinutes(1),
+            EditorId));
+
+        Assert.Equal(UnitOfMeasureCode.Hour, item.UnitOfMeasure);
+    }
+
+    [Fact]
+    public void SelectableUnitsOfMeasure_AreOnlyUnitAndHour()
+    {
+        Assert.Equal([UnitOfMeasureCode.Unit, UnitOfMeasureCode.Hour], UnitOfMeasureCodeExtensions.Selectable);
+    }
+
+    private static CatalogItem CreateItem(UnitOfMeasureCode unitOfMeasure)
+    {
+        return new CatalogItem(
+            Guid.NewGuid(),
+            "ITEM-001",
+            "Elemento",
+            CatalogItemType.Service,
+            "8311500000000",
+            null,
+            unitOfMeasure,
+            null,
+            null,
+            null,
+            CreatedAtUtc,
+            CreatorId);
+    }
+
     private static CatalogItem CreateItem(decimal? referencePriceCrc)
     {
         return new CatalogItem(
