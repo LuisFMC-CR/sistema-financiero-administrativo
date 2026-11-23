@@ -230,7 +230,7 @@ internal sealed class InvoiceService(
             return new InvoiceCreationResult(categoryValidation, null);
         }
 
-        string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
+        string? closingDateViolation = await ClosingDateGuard.GetCreationViolationMessageAsync(
             dbContext, command.IssueDate, timeProvider, cancellationToken);
 
         if (closingDateViolation is not null)
@@ -274,6 +274,13 @@ internal sealed class InvoiceService(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
+
+        string? futureDateViolation = ClosingDateGuard.GetFutureDateMessage(command.IssueDate, timeProvider);
+
+        if (futureDateViolation is not null)
+        {
+            return CatalogOperationResult.Invalid(futureDateViolation);
+        }
 
         // Con líneas siempre: si el cliente cambia, hay que recalcular la tarifa de cada una según
         // la nueva condición de IVA (RF-93, bloque 1 del paquete v7).

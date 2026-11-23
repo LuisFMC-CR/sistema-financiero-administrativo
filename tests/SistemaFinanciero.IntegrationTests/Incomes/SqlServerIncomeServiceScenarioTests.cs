@@ -45,7 +45,7 @@ public sealed class SqlServerIncomeServiceScenarioTests : IClassFixture<Financia
                     incomeAccountId,
                     cashAccountId,
                     15_000m,
-                    DateOnly.FromDateTime(DateTime.UtcNow),
+                    DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                     PaymentMethod.BankTransfer,
                     "DEP-0099",
                     "Reintegro de un proveedor por un pago duplicado"),
@@ -89,7 +89,7 @@ public sealed class SqlServerIncomeServiceScenarioTests : IClassFixture<Financia
                     incomeAccountId,
                     Guid.NewGuid(),
                     15_000m,
-                    DateOnly.FromDateTime(DateTime.UtcNow),
+                    DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                     PaymentMethod.BankTransfer,
                     "DEP-0099",
                     "Reintegro"),
@@ -114,7 +114,7 @@ public sealed class SqlServerIncomeServiceScenarioTests : IClassFixture<Financia
             Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
 
             InvoiceCreationResult createdInvoice = await invoices.CreateAsync(
-                new CreateInvoiceCommand(customerId, incomeAccountId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Cash),
+                new CreateInvoiceCommand(customerId, incomeAccountId, DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime), PaymentTerm.Cash),
                 actorId);
             Guid invoiceId = createdInvoice.InvoiceId!.Value;
 
@@ -163,7 +163,7 @@ public sealed class SqlServerIncomeServiceScenarioTests : IClassFixture<Financia
             // Un mes anterior al actual se cierra automáticamente (regla 16); no hace falta ningún
             // AccountingPeriodOverride, que solo sirve para REABRIR un mes ya cerrado, nunca para
             // cerrar el mes actual.
-            DateOnly lastMonth = DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-1);
+            DateOnly lastMonth = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime).AddMonths(-1);
 
             IncomeCreationResult closed = await incomes.CreateManualAsync(
                 new CreateManualIncomeCommand(
@@ -277,7 +277,7 @@ public sealed class SqlServerIncomeServiceScenarioTests : IClassFixture<Financia
     /// <summary>Un día de un mes genuinamente pasado respecto al reloj real, dentro del año fiscal.</summary>
     private static DateOnly PastDateWithinAReopenableMonth()
     {
-        DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+        DateOnly today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
         return new DateOnly(today.Year, today.Month, 1).AddMonths(-1).AddDays(14);
     }
 
@@ -317,7 +317,7 @@ public sealed class SqlServerIncomeServiceScenarioTests : IClassFixture<Financia
 
             IncomeCreationResult first = await incomes.CreateManualAsync(
                 new CreateManualIncomeCommand(
-                    incomeAccountId, cashAccountId, 5_000m, DateOnly.FromDateTime(DateTime.UtcNow),
+                    incomeAccountId, cashAccountId, 5_000m, DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                     PaymentMethod.BankTransfer, "DEP-REPETIDO", "Primer reintegro"),
                 actorId);
             Assert.True(first.Operation.IsSuccess);
@@ -325,7 +325,7 @@ public sealed class SqlServerIncomeServiceScenarioTests : IClassFixture<Financia
 
             IncomeCreationResult second = await incomes.CreateManualAsync(
                 new CreateManualIncomeCommand(
-                    incomeAccountId, cashAccountId, 3_000m, DateOnly.FromDateTime(DateTime.UtcNow),
+                    incomeAccountId, cashAccountId, 3_000m, DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                     PaymentMethod.BankTransfer, "DEP-REPETIDO", "Segundo reintegro"),
                 actorId);
 

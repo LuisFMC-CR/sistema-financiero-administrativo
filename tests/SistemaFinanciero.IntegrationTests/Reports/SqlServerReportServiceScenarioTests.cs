@@ -267,8 +267,8 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             context.TaxTypes.Add(taxType);
             await context.SaveChangesAsync();
 
-            DateOnly saleDate = new(2027, 2, 10);
-            DateOnly collectionDate = new(2027, 2, 20);
+            DateOnly saleDate = new(2012, 2, 10);
+            DateOnly collectionDate = new(2012, 2, 20);
             await PrepareFabricatedPeriodAsync(services, actorId, saleDate, collectionDate);
 
             InvoiceCreationResult created = await invoices.CreateAsync(
@@ -298,7 +298,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
 
             IReportService reports = services.GetRequiredService<IReportService>();
             MonthlyComparisonReportResult result = await reports.GetMonthlyComparisonReportAsync(
-                2027, 2, 2027, 2, "Usuario de prueba");
+                2012, 2, 2012, 2, "Usuario de prueba");
 
             // El ingreso se reconoce al vender (fecha de la factura), no al cobrar, y sin IVA: la
             // factura acredita la cuenta de ingreso por el neto (1000), no por el total con IVA

@@ -37,6 +37,12 @@ public sealed class CatalogAuthorizationTests : IClassFixture<FinancialWebApplic
     }
 
     [Fact]
+    public void ViewFinancialCatalogsPolicy_AllowsManagementAndFinanceOnly()
+    {
+        AssertPolicyRoles(SystemPolicies.ViewFinancialCatalogs, SystemRoles.Management, SystemRoles.Finance);
+    }
+
+    [Fact]
     public void ManageContactsPolicy_AllowsManagementFinanceAndAssistantOnly()
     {
         AssertPolicyRoles(

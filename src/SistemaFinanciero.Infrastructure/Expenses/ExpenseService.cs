@@ -153,7 +153,7 @@ internal sealed class ExpenseService(
             return new ExpenseCreationResult(taxError, null);
         }
 
-        string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
+        string? closingDateViolation = await ClosingDateGuard.GetCreationViolationMessageAsync(
             dbContext, command.IssueDate, timeProvider, cancellationToken);
 
         if (closingDateViolation is not null)
@@ -214,6 +214,13 @@ internal sealed class ExpenseService(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
+
+        string? futureDateViolation = ClosingDateGuard.GetFutureDateMessage(command.IssueDate, timeProvider);
+
+        if (futureDateViolation is not null)
+        {
+            return CatalogOperationResult.Invalid(futureDateViolation);
+        }
 
         Expense? expense = await dbContext.Set<Expense>()
             .SingleOrDefaultAsync(candidate => candidate.Id == id, cancellationToken);

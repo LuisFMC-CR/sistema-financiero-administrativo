@@ -69,7 +69,7 @@ public sealed class SqlServerVatSettlementServiceScenarioTests : IClassFixture<F
                 new RegisterVatSettlementCommand(
                     periodDate.Year,
                     periodDate.Month,
-                    DateOnly.FromDateTime(DateTime.UtcNow),
+                    DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                     expectedPayment > 0 ? cashAccountId : null,
                     expectedPayment > 0 ? "PAGO-0001" : null),
                 actorId,
@@ -131,8 +131,9 @@ public sealed class SqlServerVatSettlementServiceScenarioTests : IClassFixture<F
         return RunInRollbackTransactionAsync(async (services, actorId) =>
         {
             IVatSettlementService settlements = services.GetRequiredService<IVatSettlementService>();
-            DateOnly periodDate = await ReopenAPastMonthAsync(services, actorId);
+            DateOnly periodDate = await ReopenAPastMonthAsync(services, actorId, monthsBack: 2);
             DateOnly nextPeriodDate = periodDate.AddMonths(1);
+            await ReopenMonthAsync(services, actorId, nextPeriodDate);
 
             VatSettlementPreview firstBaseline = await settlements.PreviewAsync(periodDate.Year, periodDate.Month);
             VatSettlementPreview secondBaseline = await settlements.PreviewAsync(nextPeriodDate.Year, nextPeriodDate.Month);
@@ -144,7 +145,7 @@ public sealed class SqlServerVatSettlementServiceScenarioTests : IClassFixture<F
 
             RegisterVatSettlementResult first = await settlements.RegisterAsync(
                 new RegisterVatSettlementCommand(
-                    periodDate.Year, periodDate.Month, DateOnly.FromDateTime(DateTime.UtcNow), cashAccountId, "PAGO-OCT"),
+                    periodDate.Year, periodDate.Month, DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime), cashAccountId, "PAGO-OCT"),
                 actorId,
                 actorIsManagement: true);
             Assert.True(first.Operation.IsSuccess, first.Operation.Message);
@@ -190,14 +191,14 @@ public sealed class SqlServerVatSettlementServiceScenarioTests : IClassFixture<F
 
             RegisterVatSettlementResult first = await settlements.RegisterAsync(
                 new RegisterVatSettlementCommand(
-                    periodDate.Year, periodDate.Month, DateOnly.FromDateTime(DateTime.UtcNow), cashAccountId, "PAGO-0001"),
+                    periodDate.Year, periodDate.Month, DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime), cashAccountId, "PAGO-0001"),
                 actorId,
                 actorIsManagement: true);
             Assert.True(first.Operation.IsSuccess, first.Operation.Message);
 
             RegisterVatSettlementResult repeated = await settlements.RegisterAsync(
                 new RegisterVatSettlementCommand(
-                    periodDate.Year, periodDate.Month, DateOnly.FromDateTime(DateTime.UtcNow), cashAccountId, "PAGO-0002"),
+                    periodDate.Year, periodDate.Month, DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime), cashAccountId, "PAGO-0002"),
                 actorId,
                 actorIsManagement: true);
 
@@ -219,7 +220,7 @@ public sealed class SqlServerVatSettlementServiceScenarioTests : IClassFixture<F
             await CreateConfirmedCashInvoiceAsync(services, actorId, periodDate, cashAccountId, netAmount: 1000m, taxRate: "13");
 
             RegisterVatSettlementCommand command = new(
-                periodDate.Year, periodDate.Month, DateOnly.FromDateTime(DateTime.UtcNow), cashAccountId, "PAGO-0001");
+                periodDate.Year, periodDate.Month, DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime), cashAccountId, "PAGO-0001");
 
             RegisterVatSettlementResult blocked = await settlements.RegisterAsync(command, actorId, actorIsManagement: false);
             Assert.Equal(CatalogOperationStatus.Invalid, blocked.Operation.Status);
@@ -238,7 +239,7 @@ public sealed class SqlServerVatSettlementServiceScenarioTests : IClassFixture<F
             IVatSettlementService settlements = services.GetRequiredService<IVatSettlementService>();
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
-            DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+            DateOnly today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
             DateOnly periodDate = new DateOnly(today.Year, today.Month, 1).AddMonths(-2).AddDays(14);
             await ReopenMonthAsync(services, actorId, periodDate);
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
@@ -266,13 +267,14 @@ public sealed class SqlServerVatSettlementServiceScenarioTests : IClassFixture<F
         {
             IVatSettlementService settlements = services.GetRequiredService<IVatSettlementService>();
 
-            DateOnly firstPeriod = await ReopenAPastMonthAsync(services, actorId);
+            DateOnly firstPeriod = await ReopenAPastMonthAsync(services, actorId, monthsBack: 2);
+            await ReopenMonthAsync(services, actorId, firstPeriod.AddMonths(1));
             Guid cashAccountId = await CreateCashAccountAsync(services, actorId);
             await CreateConfirmedCashInvoiceAsync(services, actorId, firstPeriod, cashAccountId, netAmount: 100m, taxRate: "13");
 
             RegisterVatSettlementResult first = await settlements.RegisterAsync(
                 new RegisterVatSettlementCommand(
-                    firstPeriod.Year, firstPeriod.Month, DateOnly.FromDateTime(DateTime.UtcNow), cashAccountId, "PAGO-0001"),
+                    firstPeriod.Year, firstPeriod.Month, DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime), cashAccountId, "PAGO-0001"),
                 actorId,
                 actorIsManagement: true);
             Assert.True(first.Operation.IsSuccess, first.Operation.Message);
@@ -320,10 +322,11 @@ public sealed class SqlServerVatSettlementServiceScenarioTests : IClassFixture<F
     }
 
     /// <summary>Reabre un mes pasado único (no usado por otras pruebas) para poder crear documentos.</summary>
-    private static async Task<DateOnly> ReopenAPastMonthAsync(IServiceProvider services, Guid actorId)
+    private static async Task<DateOnly> ReopenAPastMonthAsync(
+        IServiceProvider services, Guid actorId, int monthsBack = 1)
     {
-        DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
-        DateOnly periodDate = new DateOnly(today.Year, today.Month, 1).AddMonths(-1).AddDays(14);
+        DateOnly today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
+        DateOnly periodDate = new DateOnly(today.Year, today.Month, 1).AddMonths(-monthsBack).AddDays(14);
         await ReopenMonthAsync(services, actorId, periodDate);
         return periodDate;
     }

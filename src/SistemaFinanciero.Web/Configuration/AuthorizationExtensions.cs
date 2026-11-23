@@ -41,6 +41,9 @@ public static class AuthorizationExtensions
                     SystemRoles.Finance,
                     SystemRoles.Assistant))
             .AddPolicy(
+                SystemPolicies.ViewFinancialCatalogs,
+                policy => policy.RequireRole(SystemRoles.Management, SystemRoles.Finance))
+            .AddPolicy(
                 SystemPolicies.ManageBusinessContacts,
                 policy => policy.RequireRole(SystemRoles.Management, SystemRoles.Finance, SystemRoles.Assistant))
             .AddPolicy(

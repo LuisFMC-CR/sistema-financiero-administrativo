@@ -17,7 +17,7 @@ namespace SistemaFinanciero.Web.Controllers;
 /// muestran de solo lectura. <c>SetActive</c> bloquea la desactivación cuando la cuenta tiene
 /// transacciones en el libro mayor o documentos asociados.
 /// </remarks>
-[Authorize(Policy = SystemPolicies.ViewBusinessCatalogs)]
+[Authorize(Policy = SystemPolicies.ViewFinancialCatalogs)]
 [Route("catalogos/cuentas-contables")]
 public sealed class LedgerAccountsController(ILedgerAccountService service) : CatalogControllerBase
 {

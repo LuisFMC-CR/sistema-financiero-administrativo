@@ -39,7 +39,7 @@ public sealed class SqlServerPayableServiceScenarioTests : IClassFixture<Financi
             Guid accountId = await CreateExpenseCategoryAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId);
 
-            DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+            DateOnly today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
 
             // -35 y -25 días pueden caer en un mes anterior al actual, cerrado automáticamente
             // (regla 16); se reabren ambos meses antes de crear los gastos.

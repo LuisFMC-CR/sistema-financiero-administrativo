@@ -116,7 +116,7 @@ internal sealed class SupplierPaymentService(
             return Rejected("Todas las cuentas por pagar del pago deben pertenecer al proveedor indicado.");
         }
 
-        string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
+        string? closingDateViolation = await ClosingDateGuard.GetCreationViolationMessageAsync(
             dbContext, command.PaymentDate, timeProvider, cancellationToken);
 
         if (closingDateViolation is not null)

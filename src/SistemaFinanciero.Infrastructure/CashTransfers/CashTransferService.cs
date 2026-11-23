@@ -128,7 +128,7 @@ internal sealed class CashTransferService(
             return Rejected("La cuenta de efectivo de destino no existe, está inactiva o no es de efectivo.");
         }
 
-        string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
+        string? closingDateViolation = await ClosingDateGuard.GetCreationViolationMessageAsync(
             dbContext, command.TransferDate, timeProvider, cancellationToken);
 
         if (closingDateViolation is not null)

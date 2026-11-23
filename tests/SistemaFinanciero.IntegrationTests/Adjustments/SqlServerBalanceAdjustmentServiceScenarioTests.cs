@@ -201,7 +201,7 @@ public sealed class SqlServerBalanceAdjustmentServiceScenarioTests : IClassFixtu
             context.SystemParameters.Add(parameters);
         }
 
-        DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+        DateOnly today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
         DateOnly lastYearStart = new(today.Year - 1, 1, 1);
         DateOnly lastYearEnd = new(today.Year - 1, 12, 31);
         parameters.UpdateFiscalPeriod(lastYearStart, lastYearEnd, DateTimeOffset.UtcNow, actorId);
@@ -219,7 +219,7 @@ public sealed class SqlServerBalanceAdjustmentServiceScenarioTests : IClassFixtu
         Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
 
         InvoiceCreationResult created = await invoices.CreateAsync(
-            new CreateInvoiceCommand(customerId, incomeAccountId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Credit30),
+            new CreateInvoiceCommand(customerId, incomeAccountId, DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime), PaymentTerm.Credit30),
             actorId);
         Guid invoiceId = created.InvoiceId!.Value;
 
@@ -254,7 +254,7 @@ public sealed class SqlServerBalanceAdjustmentServiceScenarioTests : IClassFixtu
 
         ExpenseCreationResult created = await expenses.CreateAsync(
             new SaveExpenseCommand(
-                supplierId, accountId, "Compra a crédito de pruebas de ajustes", "VC-0001", DateOnly.FromDateTime(DateTime.UtcNow),
+                supplierId, accountId, "Compra a crédito de pruebas de ajustes", "VC-0001", DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                 PaymentTerm.Credit30, amount, taxTypeId, true, PaymentMethod.Cash),
             actorId);
         Guid expenseId = created.ExpenseId!.Value;

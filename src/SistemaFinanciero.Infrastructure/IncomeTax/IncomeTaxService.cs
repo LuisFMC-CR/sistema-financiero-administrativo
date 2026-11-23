@@ -124,7 +124,7 @@ internal sealed class IncomeTaxService(
             return Rejected("La cuenta de efectivo no existe, está inactiva o no es de efectivo.");
         }
 
-        string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
+        string? closingDateViolation = await ClosingDateGuard.GetCreationViolationMessageAsync(
             dbContext, command.PaymentDate, timeProvider, cancellationToken);
 
         if (closingDateViolation is not null)

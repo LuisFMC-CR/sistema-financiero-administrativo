@@ -15,6 +15,33 @@ namespace SistemaFinanciero.Infrastructure.Parameters;
 /// </remarks>
 internal static class ClosingDateGuard
 {
+    /// <summary>
+    /// Mensaje si la fecha es posterior a hoy (fecha local): ningún documento ni movimiento se registra
+    /// con fecha futura (ADR-0064). Es <c>null</c> si la fecha es de hoy o anterior.
+    /// </summary>
+    public static string? GetFutureDateMessage(DateOnly operationDate, TimeProvider timeProvider)
+    {
+        DateOnly today = DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
+
+        return operationDate > today
+            ? $"No es posible registrar con fecha {operationDate:dd/MM/yyyy}: no puede ser posterior a la fecha de hoy."
+            : null;
+    }
+
+    /// <summary>
+    /// Validación para registrar un documento o movimiento nuevo: rechaza fechas futuras y luego aplica
+    /// las reglas de cierre mensual y período fiscal de <see cref="GetViolationMessageAsync"/>.
+    /// </summary>
+    public static async Task<string?> GetCreationViolationMessageAsync(
+        FinancialDbContext dbContext,
+        DateOnly operationDate,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
+    {
+        return GetFutureDateMessage(operationDate, timeProvider)
+            ?? await GetViolationMessageAsync(dbContext, operationDate, timeProvider, cancellationToken);
+    }
+
     public static async Task<string?> GetViolationMessageAsync(
         FinancialDbContext dbContext,
         DateOnly operationDate,

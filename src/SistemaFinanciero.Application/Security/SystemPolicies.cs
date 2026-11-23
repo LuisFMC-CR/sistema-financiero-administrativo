@@ -15,6 +15,9 @@ public static class SystemPolicies
     public const string ManageUsers = "Usuarios.Administrar";
     public const string ManageTechnicalConfiguration = "Configuracion.Administrar";
     public const string ViewBusinessCatalogs = "Catalogos.Ver";
+    /// <summary>Consulta de catálogos financieros (cuentas contables, impuestos y retenciones): Gerencia y Finanzas.</summary>
+    public const string ViewFinancialCatalogs = "Catalogos.VerFinancieros";
+
     public const string ManageBusinessContacts = "Terceros.Administrar";
     public const string ManageBusinessCatalogs = "Catalogos.Administrar";
     public const string ViewFinancialTransactions = "Movimientos.Ver";

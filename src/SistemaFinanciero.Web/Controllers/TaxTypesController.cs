@@ -9,7 +9,7 @@ namespace SistemaFinanciero.Web.Controllers;
 /// <c>TaxesAndWithholdingsController</c> (bloque 1 del paquete v7, punto 6); esta ruta solo redirige
 /// para no romper enlaces o marcadores existentes.
 /// </summary>
-[Authorize(Policy = SystemPolicies.ViewBusinessCatalogs)]
+[Authorize(Policy = SystemPolicies.ViewFinancialCatalogs)]
 [Route("catalogos/tipos-impuesto")]
 public sealed class TaxTypesController : Controller
 {

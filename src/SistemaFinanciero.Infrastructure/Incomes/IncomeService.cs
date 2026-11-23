@@ -161,7 +161,7 @@ internal sealed class IncomeService(
                 false);
         }
 
-        string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
+        string? closingDateViolation = await ClosingDateGuard.GetCreationViolationMessageAsync(
             dbContext, command.IncomeDate, timeProvider, cancellationToken);
 
         if (closingDateViolation is not null)

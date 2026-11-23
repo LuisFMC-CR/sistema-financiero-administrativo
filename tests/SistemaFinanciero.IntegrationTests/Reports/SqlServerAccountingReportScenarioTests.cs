@@ -43,7 +43,7 @@ public sealed class SqlServerAccountingReportScenarioTests : IClassFixture<Finan
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
             IReportService reports = services.GetRequiredService<IReportService>();
 
-            DateOnly entryDate = new(2027, 6, 15);
+            DateOnly entryDate = new(2012, 6, 15);
             Guid customerId = await CreateCustomerAsync(services, actorId);
             Guid supplierId = await CreateSupplierAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "13");
@@ -108,10 +108,10 @@ public sealed class SqlServerAccountingReportScenarioTests : IClassFixture<Finan
             Guid expenseAccountId = await CreateExpenseCategoryAsync(services, actorId);
             await SetAuthorizationLimitAsync(services, actorId, 10_000m);
 
-            DateOnly beforePeriodDate = new(2027, 1, 10);
-            DateOnly periodFrom = new(2027, 1, 15);
-            DateOnly periodTo = new(2027, 1, 25);
-            DateOnly withinPeriodDate = new(2027, 1, 20);
+            DateOnly beforePeriodDate = new(2012, 1, 10);
+            DateOnly periodFrom = new(2012, 1, 15);
+            DateOnly periodTo = new(2012, 1, 25);
+            DateOnly withinPeriodDate = new(2012, 1, 20);
 
             Guid openingInvoiceId = await CreateInvoiceWithLineOnDateAsync(
                 services, invoices, customerId, incomeAccountId, taxTypeId, actorId, 200m, beforePeriodDate);
@@ -190,7 +190,7 @@ public sealed class SqlServerAccountingReportScenarioTests : IClassFixture<Finan
             Guid categoryAId = await CreateChildExpenseCategoryAsync(services, actorId, parent.Id, "A");
             Guid categoryBId = await CreateChildExpenseCategoryAsync(services, actorId, parent.Id, "B");
 
-            DateOnly entryDate = new(2027, 3, 1);
+            DateOnly entryDate = new(2012, 3, 1);
 
             Guid expenseAId = await CreateExpenseOnDateAsync(expenses, supplierId, categoryAId, taxTypeId, 100m, entryDate, actorId);
             ExpenseModel draftA = (await expenses.GetAsync(expenseAId))!;
@@ -238,7 +238,7 @@ public sealed class SqlServerAccountingReportScenarioTests : IClassFixture<Finan
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
             IReportService reports = services.GetRequiredService<IReportService>();
 
-            DateOnly entryDate = new(2027, 4, 1);
+            DateOnly entryDate = new(2012, 4, 1);
             Guid customerId = await CreateCustomerAsync(services, actorId);
             Guid supplierId = await CreateSupplierAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "13");
@@ -594,11 +594,9 @@ public sealed class SqlServerAccountingReportScenarioTests : IClassFixture<Finan
         await using IDbContextTransaction transaction = await context.Database.BeginTransactionAsync();
         Guid actorId = await CreateUserAsync(scope.ServiceProvider);
 
-        // Las fechas de este archivo caen en 2027 a propósito (ver comentario de la clase); el
-        // período fiscal real del entorno de desarrollo es 2026, así que se desplaza aquí para que
-        // esas fechas no choquen con la validación de período fiscal (regla 16). No hace falta
-        // reabrir ningún mes: 2027 siempre es posterior al mes actual real, así que el cierre
-        // automático de meses pasados tampoco lo bloquea.
+        // Las fechas de este archivo caen en 2012 a propósito (año fabricado y pasado, ver comentario de la
+        // clase): ningún documento puede tener fecha futura, así que el período fiscal se desplaza a 2012 y
+        // se reabren sus doce meses para que ni la regla 16 ni el cierre automático los bloqueen.
         SystemParameters? parameters = await context.SystemParameters.SingleOrDefaultAsync();
 
         if (parameters is null)
@@ -607,7 +605,14 @@ public sealed class SqlServerAccountingReportScenarioTests : IClassFixture<Finan
             context.SystemParameters.Add(parameters);
         }
 
-        parameters.UpdateFiscalPeriod(new DateOnly(2027, 1, 1), new DateOnly(2027, 12, 31), DateTimeOffset.UtcNow, actorId);
+        parameters.UpdateFiscalPeriod(new DateOnly(2012, 1, 1), new DateOnly(2012, 12, 31), DateTimeOffset.UtcNow, actorId);
+
+        for (int month = 1; month <= 12; month++)
+        {
+            context.AccountingPeriodOverrides.Add(new AccountingPeriodOverride(
+                2012, month, "Reapertura para la prueba", DateTimeOffset.UtcNow, actorId));
+        }
+
         await context.SaveChangesAsync();
 
         try

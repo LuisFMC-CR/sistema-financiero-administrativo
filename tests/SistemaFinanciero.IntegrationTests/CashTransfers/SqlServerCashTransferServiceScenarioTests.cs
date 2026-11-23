@@ -45,7 +45,7 @@ public sealed class SqlServerCashTransferServiceScenarioTests : IClassFixture<Fi
                     300m,
                     "DEP-0001",
                     "Depósito de caja chica al banco",
-                    DateOnly.FromDateTime(DateTime.UtcNow)),
+                    DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime)),
                 actorId,
                 actorIsManagement: false);
 
@@ -88,7 +88,7 @@ public sealed class SqlServerCashTransferServiceScenarioTests : IClassFixture<Fi
                     100m,
                     "DEP-0002",
                     "Traspaso inválido",
-                    DateOnly.FromDateTime(DateTime.UtcNow)),
+                    DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime)),
                 actorId,
                 actorIsManagement: false);
 
@@ -113,7 +113,7 @@ public sealed class SqlServerCashTransferServiceScenarioTests : IClassFixture<Fi
                 100m,
                 "DEP-0003",
                 "Traspaso sobre el límite",
-                DateOnly.FromDateTime(DateTime.UtcNow));
+                DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime));
 
             RegisterCashTransferResult blocked = await transfers.RegisterAsync(
                 command, actorId, actorIsManagement: false);
@@ -140,7 +140,7 @@ public sealed class SqlServerCashTransferServiceScenarioTests : IClassFixture<Fi
             RegisterCashTransferResult first = await transfers.RegisterAsync(
                 new RegisterCashTransferCommand(
                     sourceId, destinationId, 100m, "DEP-REPETIDA", "Primer traspaso",
-                    DateOnly.FromDateTime(DateTime.UtcNow)),
+                    DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime)),
                 actorId,
                 actorIsManagement: false);
             Assert.True(first.Operation.IsSuccess);
@@ -150,7 +150,7 @@ public sealed class SqlServerCashTransferServiceScenarioTests : IClassFixture<Fi
             RegisterCashTransferResult second = await transfers.RegisterAsync(
                 new RegisterCashTransferCommand(
                     destinationId, thirdAccountId, 50m, "DEP-REPETIDA", "Segundo traspaso",
-                    DateOnly.FromDateTime(DateTime.UtcNow)),
+                    DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime)),
                 actorId,
                 actorIsManagement: false);
 
@@ -173,7 +173,7 @@ public sealed class SqlServerCashTransferServiceScenarioTests : IClassFixture<Fi
             // Un mes anterior al actual se cierra automáticamente (regla 16); no hace falta ningún
             // AccountingPeriodOverride, que solo sirve para REABRIR un mes ya cerrado, nunca para
             // cerrar el mes actual.
-            DateOnly lastMonth = DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-1);
+            DateOnly lastMonth = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime).AddMonths(-1);
 
             RegisterCashTransferResult result = await transfers.RegisterAsync(
                 new RegisterCashTransferCommand(
@@ -199,7 +199,7 @@ public sealed class SqlServerCashTransferServiceScenarioTests : IClassFixture<Fi
             RegisterCashTransferResult result = await transfers.RegisterAsync(
                 new RegisterCashTransferCommand(
                     sourceId, destinationId, 200m, "DEP-0004", "Traspaso a anular",
-                    DateOnly.FromDateTime(DateTime.UtcNow)),
+                    DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime)),
                 actorId,
                 actorIsManagement: false);
             Assert.True(result.Operation.IsSuccess);

@@ -246,6 +246,27 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
 
     [Fact]
     [Trait("Category", "SqlServer")]
+    public Task CreateAsync_WithAFutureIssueDate_IsRejected()
+    {
+        return RunInRollbackTransactionAsync(async (services, actorId) =>
+        {
+            Guid supplierId = await CreateSupplierAsync(services, actorId);
+            Guid accountId = await CreateExpenseCategoryAsync(services, actorId);
+            Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
+            DateOnly tomorrow = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime).AddDays(1);
+
+            IExpenseService expenses = services.GetRequiredService<IExpenseService>();
+            ExpenseCreationResult future = await expenses.CreateAsync(
+                new SaveExpenseCommand(
+                    supplierId, accountId, "Compra de prueba", "VC-0002", tomorrow, PaymentTerm.Cash, 1000m, taxTypeId, true, PaymentMethod.Cash),
+                actorId);
+
+            Assert.Equal(CatalogOperationStatus.Invalid, future.Operation.Status);
+        });
+    }
+
+    [Fact]
+    [Trait("Category", "SqlServer")]
     public Task CreateAsync_WithAnIssueDateOnOrBeforeTheClosingDate_IsRejected()
     {
         return RunInRollbackTransactionAsync(async (services, actorId) =>
@@ -257,7 +278,7 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
             // Un mes anterior al actual se cierra automáticamente (regla 16); no hace falta ningún
             // AccountingPeriodOverride, que solo sirve para REABRIR un mes ya cerrado, nunca para
             // cerrar el mes actual.
-            DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+            DateOnly today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
             DateOnly lastMonth = today.AddMonths(-1);
 
             IExpenseService expenses = services.GetRequiredService<IExpenseService>();
@@ -353,7 +374,7 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
     /// <summary>Un día de un mes genuinamente pasado respecto al reloj real, dentro del año fiscal.</summary>
     private static DateOnly PastDateWithinAReopenableMonth()
     {
-        DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+        DateOnly today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
         return new DateOnly(today.Year, today.Month, 1).AddMonths(-1).AddDays(14);
     }
 
@@ -396,7 +417,7 @@ public sealed class SqlServerExpenseServiceScenarioTests : IClassFixture<Financi
                 accountId,
                 "Compra de prueba",
                 "VC-0001",
-                DateOnly.FromDateTime(DateTime.UtcNow),
+                DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                 paymentTerm,
                 netAmount,
                 taxTypeId,

@@ -22,7 +22,7 @@ namespace SistemaFinanciero.Web.Controllers;
 /// catálogo es fijo y solo se agrega una tarifa o retención nueva a pedido explícito del usuario,
 /// directamente en el código/una migración, nunca desde el navegador.
 /// </remarks>
-[Authorize(Policy = SystemPolicies.ViewBusinessCatalogs)]
+[Authorize(Policy = SystemPolicies.ViewFinancialCatalogs)]
 [Route("impuestos-y-retenciones")]
 public sealed class TaxesAndWithholdingsController(
     ITaxTypeService taxTypeService,

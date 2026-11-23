@@ -289,7 +289,7 @@ public sealed class SqlServerLedgerAccountScenarioTests : IClassFixture<Financia
             context.JournalEntries.Add(new JournalEntry(
                 Guid.NewGuid(),
                 DateTime.UtcNow.Ticks,
-                DateOnly.FromDateTime(DateTime.UtcNow),
+                DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                 "Movimiento de prueba para cuenta de sistema",
                 JournalEntrySourceType.Income,
                 Guid.NewGuid(),

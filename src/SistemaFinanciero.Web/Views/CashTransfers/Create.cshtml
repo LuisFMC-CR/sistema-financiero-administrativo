@@ -1,3 +1,4 @@
+@inject TimeProvider Clock
 @using SistemaFinanciero.Web.Models.CashTransfers
 @model CreateCashTransferViewModel
 @{
@@ -38,7 +39,7 @@
             </div>
             <div class="col-md-4">
                 <label asp-for="TransferDate" class="form-label"></label>
-                <input asp-for="TransferDate" type="date" class="form-control" />
+                <input asp-for="TransferDate" type="date" class="form-control" max="@Clock.GetLocalNow().ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" />
                 <span asp-validation-for="TransferDate" class="text-danger"></span>
             </div>
             <div class="col-md-4">

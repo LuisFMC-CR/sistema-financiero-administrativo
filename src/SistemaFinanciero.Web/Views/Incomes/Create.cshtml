@@ -1,3 +1,4 @@
+@inject TimeProvider Clock
 @using SistemaFinanciero.Domain.Common
 @using SistemaFinanciero.Web.Models.Incomes
 @using SistemaFinanciero.Web.Models.Invoices
@@ -36,7 +37,7 @@
             </div>
             <div class="col-md-4">
                 <label asp-for="IncomeDate" class="form-label"></label>
-                <input asp-for="IncomeDate" type="date" class="form-control" />
+                <input asp-for="IncomeDate" type="date" class="form-control" max="@Clock.GetLocalNow().ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" />
                 <span asp-validation-for="IncomeDate" class="text-danger"></span>
             </div>
             <div class="col-md-4">

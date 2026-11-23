@@ -302,7 +302,7 @@ internal sealed class CreditNoteService(
             return Rejected(CatalogOperationResult.Invalid("La factura no tiene líneas para acreditar."));
         }
 
-        string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
+        string? closingDateViolation = await ClosingDateGuard.GetCreationViolationMessageAsync(
             dbContext, command.IssueDate, timeProvider, cancellationToken);
         if (closingDateViolation is not null)
         {

@@ -40,7 +40,7 @@ public sealed class SqlServerReceivableServiceScenarioTests : IClassFixture<Fina
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId);
             Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
 
-            DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+            DateOnly today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
 
             // -35 y -25 días pueden caer en un mes anterior al actual, cerrado automáticamente
             // (regla 16); se reabren ambos meses antes de crear las facturas.
@@ -79,7 +79,7 @@ public sealed class SqlServerReceivableServiceScenarioTests : IClassFixture<Fina
             Guid customerId = await CreateCustomerAsync(services, actorId);
             Guid taxTypeId = await CreateTaxTypeAsync(services, actorId);
             Guid incomeAccountId = await CreateIncomeCategoryAsync(services, actorId);
-            DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+            DateOnly today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
 
             Guid receivableId = await CreateConfirmedCreditReceivableAsync(
                 services, invoices, customerId, taxTypeId, incomeAccountId, actorId, today, 500m);

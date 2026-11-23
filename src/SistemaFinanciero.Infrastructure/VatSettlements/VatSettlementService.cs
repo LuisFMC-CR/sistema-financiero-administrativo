@@ -174,7 +174,7 @@ internal sealed class VatSettlementService(
             return Rejected("La fecha de la liquidación debe ser posterior a la fecha de corte del período.");
         }
 
-        string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
+        string? closingDateViolation = await ClosingDateGuard.GetCreationViolationMessageAsync(
             dbContext, command.SettlementDate, timeProvider, cancellationToken);
 
         if (closingDateViolation is not null)

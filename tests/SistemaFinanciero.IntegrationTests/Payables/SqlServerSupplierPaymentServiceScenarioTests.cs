@@ -48,7 +48,7 @@ public sealed class SqlServerSupplierPaymentServiceScenarioTests : IClassFixture
                     supplierId,
                     cashAccountId,
                     "PAG-0001",
-                    DateOnly.FromDateTime(DateTime.UtcNow),
+                    DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                     [new SupplierPaymentAllocationCommand(payableId, 60m)]),
                 actorId,
                 actorIsManagement: false);
@@ -90,7 +90,7 @@ public sealed class SqlServerSupplierPaymentServiceScenarioTests : IClassFixture
                     supplierId,
                     cashAccountId,
                     "PAG-0002",
-                    DateOnly.FromDateTime(DateTime.UtcNow),
+                    DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                     [
                         new SupplierPaymentAllocationCommand(firstPayableId, 100m),
                         new SupplierPaymentAllocationCommand(secondPayableId, 50m),
@@ -149,7 +149,7 @@ public sealed class SqlServerSupplierPaymentServiceScenarioTests : IClassFixture
                 supplierId,
                 cashAccountId,
                 "PAG-0003",
-                DateOnly.FromDateTime(DateTime.UtcNow),
+                DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                 [new SupplierPaymentAllocationCommand(payableId, 60m)]);
 
             RegisterSupplierPaymentResult blocked = await payments.RegisterAsync(
@@ -186,7 +186,7 @@ public sealed class SqlServerSupplierPaymentServiceScenarioTests : IClassFixture
                     supplierId,
                     cashAccountId,
                     "PAG-REPETIDA",
-                    DateOnly.FromDateTime(DateTime.UtcNow),
+                    DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                     [new SupplierPaymentAllocationCommand(firstPayableId, 50m)]),
                 actorId,
                 actorIsManagement: false);
@@ -198,7 +198,7 @@ public sealed class SqlServerSupplierPaymentServiceScenarioTests : IClassFixture
                     supplierId,
                     cashAccountId,
                     "PAG-REPETIDA",
-                    DateOnly.FromDateTime(DateTime.UtcNow),
+                    DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                     [new SupplierPaymentAllocationCommand(secondPayableId, 50m)]),
                 actorId,
                 actorIsManagement: false);
@@ -225,7 +225,7 @@ public sealed class SqlServerSupplierPaymentServiceScenarioTests : IClassFixture
             // Un mes anterior al actual se cierra automáticamente (regla 16); no hace falta ningún
             // AccountingPeriodOverride, que solo sirve para REABRIR un mes ya cerrado, nunca para
             // cerrar el mes actual.
-            DateOnly lastMonth = DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-1);
+            DateOnly lastMonth = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime).AddMonths(-1);
 
             RegisterSupplierPaymentResult result = await payments.RegisterAsync(
                 new RegisterSupplierPaymentCommand(
@@ -258,7 +258,7 @@ public sealed class SqlServerSupplierPaymentServiceScenarioTests : IClassFixture
                 accountId,
                 "Compra a crédito de pruebas de pago",
                 "VC-0001",
-                DateOnly.FromDateTime(DateTime.UtcNow),
+                DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                 PaymentTerm.Credit30,
                 amount,
                 taxTypeId,

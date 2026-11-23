@@ -5,7 +5,8 @@
         .Any(claim => bool.TryParse(claim.Value, out bool required) && required);
     bool canViewCatalogs = isAuthenticated && !mustChangePassword &&
         (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ViewBusinessCatalogs)).Succeeded;
-    bool canViewFinancialCatalogs = canViewCatalogs && !User.IsInRole(SystemRoles.Assistant);
+    bool canViewFinancialCatalogs = isAuthenticated && !mustChangePassword &&
+        (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ViewFinancialCatalogs)).Succeeded;
     bool canViewInvoices = isAuthenticated && !mustChangePassword &&
         (await AuthorizationService.AuthorizeAsync(User, SystemPolicies.ViewFinancialTransactions)).Succeeded;
     bool canViewReceivablesAndPayables = isAuthenticated && !mustChangePassword &&

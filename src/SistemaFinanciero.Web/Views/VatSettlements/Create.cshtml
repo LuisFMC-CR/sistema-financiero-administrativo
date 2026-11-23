@@ -1,3 +1,4 @@
+@inject TimeProvider Clock
 @using SistemaFinanciero.Web.Models.VatSettlements
 @model RegisterVatSettlementViewModel
 @{
@@ -81,7 +82,7 @@
                 <div class="row g-3">
                     <div class="col-md-4">
                         <label asp-for="SettlementDate" class="form-label"></label>
-                        <input asp-for="SettlementDate" type="date" class="form-control" />
+                        <input asp-for="SettlementDate" type="date" class="form-control" max="@Clock.GetLocalNow().ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" />
                         <span asp-validation-for="SettlementDate" class="text-danger"></span>
                     </div>
                     @if (Model.Preview.PaymentAmount > 0)
