@@ -130,6 +130,25 @@ public sealed class ReceivablePaymentAllocationWithholdingTests
         Assert.Null(lastCommand());
     }
 
+    [Fact]
+    public async Task RegisterSingle_WithAFutureDate_IsRejectedAndDoesNotRegisterTheReceipt()
+    {
+        ReceivablePaymentsController controller = CreateController(appliesStateWithholding: false, out Func<RegisterReceivablePaymentCommand?> lastCommand);
+        RegisterSingleReceivablePaymentViewModel model = new()
+        {
+            Amount = 1_000m,
+            CashAccountId = CashAccountId,
+            Reference = "TRF-002",
+            PaymentDate = new DateOnly(2026, 11, 21),
+        };
+
+        IActionResult result = await controller.RegisterSingle(ReceivableId, model, CancellationToken.None);
+
+        Assert.IsType<ViewResult>(result);
+        Assert.True(controller.ModelState.ContainsKey(nameof(model.PaymentDate)));
+        Assert.Null(lastCommand());
+    }
+
     private static RegisterReceivablePaymentStartViewModel StartModel(decimal amount) => new()
     {
         CustomerId = CustomerId,
@@ -175,6 +194,7 @@ public sealed class ReceivablePaymentAllocationWithholdingTests
 
         IReceivableService receivables = InterfaceStub.Create<IReceivableService>(new()
         {
+            [nameof(IReceivableService.GetAsync)] = _ => Task.FromResult<ReceivableModel?>(receivable),
             [nameof(IReceivableService.GetPendingByCustomerAsync)] = _ =>
                 Task.FromResult<IReadOnlyList<ReceivableModel>>([receivable]),
         });

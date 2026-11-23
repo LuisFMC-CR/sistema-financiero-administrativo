@@ -113,7 +113,7 @@ arrancar. Las migraciones también cargan los datos iniciales: catálogo contabl
 IVA, retención del 2 % y escala del impuesto sobre la renta; los plazos de pago son una lista fija.
 
 Las pruebas contra SQL Server se habilitan aparte, siempre revierten sus datos y se aíslan de los
-datos ya cargados en la base de desarrollo. En la versión final pasan las 868 (424 unitarias y 444 de
+datos ya cargados en la base de desarrollo. En la versión final pasan las 869 (424 unitarias y 445 de
 integración):
 
 ```powershell

@@ -328,7 +328,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
             await payments.RegisterAsync(
                 new RegisterReceivablePaymentCommand(
                     customerId, cashAccountId, "AB-ESTADO-1",
-                    DateOnly.FromDateTime(DateTime.UtcNow),
+                    DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                     [new ReceivablePaymentAllocationCommand(receivableId, 400m, null)]),
                 actorId,
                 actorIsManagement: false);
@@ -439,11 +439,11 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
 
             // El pago se registra con la fecha real de hoy, fuera del período fiscal fabricado de
             // 2010: se restaura la cobertura de hoy antes de registrarlo.
-            await PrepareFabricatedPeriodAsync(services, actorId, DateOnly.FromDateTime(DateTime.UtcNow));
+            await PrepareFabricatedPeriodAsync(services, actorId, DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime));
 
             await supplierPayments.RegisterAsync(
                 new RegisterSupplierPaymentCommand(
-                    supplierId, cashAccountId, "PAGO-ESTADO-1", DateOnly.FromDateTime(DateTime.UtcNow),
+                    supplierId, cashAccountId, "PAGO-ESTADO-1", DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                     [new SupplierPaymentAllocationCommand(toBePaidPayableId, 150m)]),
                 actorId,
                 actorIsManagement: false);
@@ -520,11 +520,11 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
 
             // El abono se registra con la fecha real de hoy, fuera del período fiscal fabricado de
             // 2010: se restaura la cobertura de hoy antes de registrarlo.
-            await PrepareFabricatedPeriodAsync(services, actorId, DateOnly.FromDateTime(DateTime.UtcNow));
+            await PrepareFabricatedPeriodAsync(services, actorId, DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime));
 
             await receivablePayments.RegisterAsync(
                 new RegisterReceivablePaymentCommand(
-                    customerId, cashAccountId, "ABONO-ESTADO-1", DateOnly.FromDateTime(DateTime.UtcNow),
+                    customerId, cashAccountId, "ABONO-ESTADO-1", DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                     [new ReceivablePaymentAllocationCommand(toBePaidReceivableId, 150m, null)]),
                 actorId,
                 actorIsManagement: false);
@@ -1043,7 +1043,7 @@ public sealed class SqlServerReportServiceScenarioTests : IClassFixture<Financia
 
         InvoiceCreationResult created = await invoices.CreateAsync(
             new CreateInvoiceCommand(
-                customerId, incomeAccountId, issueDate ?? DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Credit30),
+                customerId, incomeAccountId, issueDate ?? DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime), PaymentTerm.Credit30),
             actorId);
         Guid invoiceId = created.InvoiceId!.Value;
 

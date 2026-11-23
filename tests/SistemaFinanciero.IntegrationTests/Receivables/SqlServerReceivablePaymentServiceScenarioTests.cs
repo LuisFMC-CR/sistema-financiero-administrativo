@@ -53,7 +53,7 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
                     customerId,
                     cashAccountId,
                     "AB-0001",
-                    DateOnly.FromDateTime(DateTime.UtcNow),
+                    DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                     [new ReceivablePaymentAllocationCommand(receivableId, 60m, null)]),
                 actorId,
                 actorIsManagement: false);
@@ -103,7 +103,7 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
                     customerId,
                     cashAccountId,
                     "AB-0002",
-                    DateOnly.FromDateTime(DateTime.UtcNow),
+                    DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                     [
                         new ReceivablePaymentAllocationCommand(
                             receivableId,
@@ -276,7 +276,7 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
                     customerId,
                     cashAccountId,
                     "AB-RET-REJ-1",
-                    DateOnly.FromDateTime(DateTime.UtcNow),
+                    DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                     [
                         new ReceivablePaymentAllocationCommand(
                             receivableId, 980m, new WithholdingInputCommand(withholdingTypeId, 1000m)),
@@ -317,7 +317,7 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
                     customerId,
                     cashAccountId,
                     "AB-RET-REJ-2",
-                    DateOnly.FromDateTime(DateTime.UtcNow),
+                    DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                     [
                         new ReceivablePaymentAllocationCommand(
                             receivableId, 980m, new WithholdingInputCommand(withholdingTypeId, 1000m)),
@@ -352,7 +352,7 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
                     customerId,
                     cashAccountId,
                     "AB-0003",
-                    DateOnly.FromDateTime(DateTime.UtcNow),
+                    DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                     [
                         new ReceivablePaymentAllocationCommand(firstReceivableId, 100m, null),
                         new ReceivablePaymentAllocationCommand(secondReceivableId, 50m, null),
@@ -416,7 +416,7 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
                 customerId,
                 cashAccountId,
                 "AB-0004",
-                DateOnly.FromDateTime(DateTime.UtcNow),
+                DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                 [new ReceivablePaymentAllocationCommand(receivableId, 60m, null)]);
 
             // Recibir dinero no tiene límite (ADR-0062): el abono de ₡60 supera el límite de ₡50 y se
@@ -456,7 +456,7 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
                     customerId,
                     cashAccountId,
                     "AB-REPETIDA",
-                    DateOnly.FromDateTime(DateTime.UtcNow),
+                    DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                     [new ReceivablePaymentAllocationCommand(firstReceivableId, 50m, null)]),
                 actorId,
                 actorIsManagement: false);
@@ -468,7 +468,7 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
                     customerId,
                     cashAccountId,
                     "AB-REPETIDA",
-                    DateOnly.FromDateTime(DateTime.UtcNow),
+                    DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                     [new ReceivablePaymentAllocationCommand(secondReceivableId, 50m, null)]),
                 actorId,
                 actorIsManagement: false);
@@ -497,7 +497,7 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
             // Un mes anterior al actual se cierra automáticamente (regla 16); no hace falta ningún
             // AccountingPeriodOverride, que solo sirve para REABRIR un mes ya cerrado, nunca para
             // cerrar el mes actual.
-            DateOnly lastMonth = DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-1);
+            DateOnly lastMonth = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime).AddMonths(-1);
 
             RegisterReceivablePaymentResult result = await payments.RegisterAsync(
                 new RegisterReceivablePaymentCommand(
@@ -559,7 +559,7 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
     /// <summary>Un día de un mes genuinamente pasado respecto al reloj real, dentro del año fiscal.</summary>
     private static DateOnly PastDateWithinAReopenableMonth()
     {
-        DateOnly today = DateOnly.FromDateTime(DateTime.UtcNow);
+        DateOnly today = DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime);
         return new DateOnly(today.Year, today.Month, 1).AddMonths(-1).AddDays(14);
     }
 
@@ -598,7 +598,7 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
         Guid taxTypeId = await CreateTaxTypeAsync(services, actorId, "0");
 
         InvoiceCreationResult created = await invoices.CreateAsync(
-            new CreateInvoiceCommand(customerId, incomeAccountId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Credit30),
+            new CreateInvoiceCommand(customerId, incomeAccountId, DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime), PaymentTerm.Credit30),
             actorId);
         Guid invoiceId = created.InvoiceId!.Value;
 

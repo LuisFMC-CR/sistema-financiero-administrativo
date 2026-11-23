@@ -229,7 +229,7 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
                     customerId,
                     cashAccountId,
                     "AB-0001",
-                    DateOnly.FromDateTime(DateTime.UtcNow),
+                    DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                     [
                         new ReceivablePaymentAllocationCommand(
                             receivableId, 980m, new WithholdingInputCommand(withholdingTypeId, 1000m)),
@@ -271,7 +271,7 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
                     customerId,
                     cashAccountId,
                     "AB-0002",
-                    DateOnly.FromDateTime(DateTime.UtcNow),
+                    DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                     [new ReceivablePaymentAllocationCommand(receivableId, 60m, null)]),
                 actorId,
                 actorIsManagement: false);
@@ -314,7 +314,7 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
                     supplierId,
                     cashAccountId,
                     "PAG-0001",
-                    DateOnly.FromDateTime(DateTime.UtcNow),
+                    DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                     [new SupplierPaymentAllocationCommand(payableId, 60m)]),
                 actorId,
                 actorIsManagement: false);
@@ -351,7 +351,7 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
                     incomeAccountId,
                     cashAccountId,
                     15_000m,
-                    DateOnly.FromDateTime(DateTime.UtcNow),
+                    DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                     PaymentMethod.BankTransfer,
                     "DEP-0099",
                     "Reintegro de un proveedor por un pago duplicado"),
@@ -406,7 +406,7 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
                 services, invoices, customerId, incomeAccountId, actorId, amount: 100m);
             RegisterReceivablePaymentResult registered = await payments.RegisterAsync(
                 new RegisterReceivablePaymentCommand(
-                    customerId, cashAccountId, "AB-0003", DateOnly.FromDateTime(DateTime.UtcNow),
+                    customerId, cashAccountId, "AB-0003", DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                     [new ReceivablePaymentAllocationCommand(receivableId, 50m, null)]),
                 actorId,
                 actorIsManagement: false);
@@ -534,7 +534,7 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
                 services, invoices, customerId, incomeAccountId, actorId, amount: 1000m);
             RegisterReceivablePaymentResult paymentResult = await receivablePayments.RegisterAsync(
                 new RegisterReceivablePaymentCommand(
-                    customerId, cashAccountId, "AB-TRAZA-1", DateOnly.FromDateTime(DateTime.UtcNow),
+                    customerId, cashAccountId, "AB-TRAZA-1", DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                     [new ReceivablePaymentAllocationCommand(receivableId, 100m, null)]),
                 actorId,
                 actorIsManagement: false);
@@ -548,7 +548,7 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
             Guid payableId = await CreateConfirmedCreditPayableAsync(services, expenses, supplierId, actorId, amount: 500m);
             RegisterSupplierPaymentResult supplierPaymentResult = await supplierPayments.RegisterAsync(
                 new RegisterSupplierPaymentCommand(
-                    supplierId, cashAccountId, "PAG-TRAZA-1", DateOnly.FromDateTime(DateTime.UtcNow),
+                    supplierId, cashAccountId, "PAG-TRAZA-1", DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                     [new SupplierPaymentAllocationCommand(payableId, 50m)]),
                 actorId,
                 actorIsManagement: false);
@@ -583,7 +583,7 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
             RegisterCashTransferResult transferResult = await transfers.RegisterAsync(
                 new RegisterCashTransferCommand(
                     cashAccountId, otherCashAccountId, 10m, "TRA-TRAZA-1", "Traspaso de prueba de trazabilidad",
-                    DateOnly.FromDateTime(DateTime.UtcNow)),
+                    DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime)),
                 actorId,
                 actorIsManagement: false);
             JournalEntryTraceModel transferTrace = (await journal.GetTraceAsync(
@@ -690,7 +690,7 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
         decimal netAmount)
     {
         InvoiceCreationResult created = await invoices.CreateAsync(
-            new CreateInvoiceCommand(customerId, incomeAccountId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Cash),
+            new CreateInvoiceCommand(customerId, incomeAccountId, DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime), PaymentTerm.Cash),
             actorId);
         Guid invoiceId = created.InvoiceId!.Value;
         InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
@@ -715,7 +715,7 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
         decimal netAmount)
     {
         InvoiceCreationResult created = await invoices.CreateAsync(
-            new CreateInvoiceCommand(customerId, incomeAccountId, DateOnly.FromDateTime(DateTime.UtcNow), PaymentTerm.Credit30),
+            new CreateInvoiceCommand(customerId, incomeAccountId, DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime), PaymentTerm.Credit30),
             actorId);
         Guid invoiceId = created.InvoiceId!.Value;
         InvoiceModel draft = (await invoices.GetAsync(invoiceId))!;
@@ -765,7 +765,7 @@ public sealed class SqlServerJournalEntryScenarioTests : IClassFixture<Financial
                 accountId,
                 "Compra de prueba",
                 "VC-0001",
-                DateOnly.FromDateTime(DateTime.UtcNow),
+                DateOnly.FromDateTime(TimeProvider.System.GetLocalNow().DateTime),
                 paymentTerm,
                 netAmount,
                 taxTypeId,

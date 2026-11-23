@@ -79,6 +79,11 @@ public sealed class ReceivablePaymentsController(
             return RedirectToAction("Details", "Receivables", new { id });
         }
 
+        if (model.PaymentDate > Today())
+        {
+            ModelState.AddModelError(nameof(model.PaymentDate), FutureDateMessage);
+        }
+
         if (!ModelState.IsValid)
         {
             model.ReceivableId = receivable.Id;
@@ -344,6 +349,7 @@ public sealed class ReceivablePaymentsController(
         ReceivableModel receivable,
         CancellationToken cancellationToken)
     {
+        ViewData["MaxPaymentDate"] = Today().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         model.CustomerName = receivable.CustomerName;
         model.InvoiceLabel = receivable.InvoiceNumber?.ToString(
             System.Globalization.CultureInfo.InvariantCulture) ?? "—";

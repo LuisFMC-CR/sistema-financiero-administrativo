@@ -127,6 +127,11 @@ internal sealed class ReceivablePaymentService(
             return Rejected("Todas las facturas del abono deben pertenecer al cliente indicado.");
         }
 
+        if (command.PaymentDate > DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime))
+        {
+            return Rejected("La fecha del abono no puede ser posterior a la fecha de hoy.");
+        }
+
         string? closingDateViolation = await ClosingDateGuard.GetViolationMessageAsync(
             dbContext, command.PaymentDate, timeProvider, cancellationToken);
 
