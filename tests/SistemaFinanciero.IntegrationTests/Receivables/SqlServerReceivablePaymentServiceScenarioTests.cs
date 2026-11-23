@@ -398,7 +398,7 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
 
     [Fact]
     [Trait("Category", "SqlServer")]
-    public Task Register_AboveTheAuthorizationLimitWithoutManagement_IsRejected()
+    public Task Register_AboveTheAuthorizationLimitWithoutManagement_IsAccepted()
     {
         return RunInRollbackTransactionAsync(async (services, actorId) =>
         {
@@ -419,21 +419,17 @@ public sealed class SqlServerReceivablePaymentServiceScenarioTests : IClassFixtu
                 DateOnly.FromDateTime(DateTime.UtcNow),
                 [new ReceivablePaymentAllocationCommand(receivableId, 60m, null)]);
 
-            RegisterReceivablePaymentResult blocked = await payments.RegisterAsync(
+            // Recibir dinero no tiene límite (ADR-0062): el abono de ₡60 supera el límite de ₡50 y se
+            // registra igual para un perfil que no es Gerencia.
+            RegisterReceivablePaymentResult result = await payments.RegisterAsync(
                 command,
                 actorId,
                 actorIsManagement: false);
-            Assert.Equal(CatalogOperationStatus.Invalid, blocked.Operation.Status);
+            Assert.True(result.Operation.IsSuccess);
 
             FinancialDbContext context = services.GetRequiredService<FinancialDbContext>();
-            Receivable stillPending = await context.Receivables.SingleAsync(r => r.Id == receivableId);
-            Assert.Equal(100m, stillPending.Balance);
-
-            RegisterReceivablePaymentResult allowed = await payments.RegisterAsync(
-                command,
-                actorId,
-                actorIsManagement: true);
-            Assert.True(allowed.Operation.IsSuccess);
+            Receivable receivable = await context.Receivables.SingleAsync(r => r.Id == receivableId);
+            Assert.Equal(40m, receivable.Balance);
         });
     }
 

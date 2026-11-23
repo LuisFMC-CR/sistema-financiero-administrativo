@@ -19,8 +19,8 @@ namespace SistemaFinanciero.Web.Controllers;
 /// (de la más antigua a la más nueva, regla 2), e <c>IReceivablePaymentService</c> para registrar o
 /// anular abonos. El formulario individual obtiene cliente y factura del registro en el servidor;
 /// el asistente de reparto múltiple se inicia desde Ingresos. Registrar exige
-/// <c>RegisterReceivablePayments</c> (Gerencia, Finanzas y Asistente); el servicio rechaza los montos
-/// sobre el límite de autorización salvo para Gerencia. Anular exige <c>VoidFinancialTransactions</c>.
+/// <c>RegisterReceivablePayments</c> (Gerencia, Finanzas y Asistente); los abonos no tienen límite de
+/// monto (ADR-0062). Anular exige <c>VoidFinancialTransactions</c>.
 /// </remarks>
 [Route("ingresos/abonos")]
 public sealed class ReceivablePaymentsController(

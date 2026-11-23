@@ -187,9 +187,9 @@ public sealed record RegisterReceivablePaymentResult(
 /// </summary>
 /// <remarks>
 /// Conexiones: lo implementa <c>ReceivablePaymentService</c> (Infrastructure/Receivables);
-/// <see cref="RegisterAsync"/> valida el límite de autorización (regla 7: solo Gerencia registra
-/// abonos sobre el límite, indicado por el parámetro <c>actorIsManagement</c> de quien llama) contra
-/// la suma de montos más retenciones de todo el abono. <see cref="CancelAsync"/> anula una sola fila
+/// <see cref="RegisterAsync"/> no aplica límite de autorización: recibir dinero no lo tiene
+/// (ADR-0062); el parámetro <c>actorIsManagement</c> se conserva en el contrato y no se usa.
+/// <see cref="CancelAsync"/> anula una sola fila
 /// sin afectar a las demás de su mismo <c>GroupId</c> (regla 2: "cada uno se anula de forma
 /// individual").
 /// </remarks>

@@ -157,22 +157,10 @@ internal sealed class ReceivablePaymentService(
             return Rejected(exception.Message);
         }
 
-        if (!actorIsManagement)
-        {
-            SystemParameters? parameters = await dbContext.Set<SystemParameters>()
-                .AsNoTracking()
-                .SingleOrDefaultAsync(cancellationToken);
-
-            // Sin parámetros configurados no hay límite que aplicar de forma segura: se exige
-            // Gerencia hasta que Gerencia los configure (regla 7).
-            decimal limit = parameters?.AuthorizationLimitCrc ?? 0m;
-
-            if (total > limit)
-            {
-                return Rejected(
-                    "El total del abono supera el límite de autorización; solo Gerencia puede registrarlo.");
-            }
-        }
+        // Recibir dinero no tiene límite de autorización (ADR-0062): el límite de la regla 7 solo
+        // aplica a las salidas de dinero. El parámetro actorIsManagement se conserva en el contrato
+        // para no cambiar la firma del servicio y ya no se usa aquí.
+        _ = actorIsManagement;
 
         bool duplicateReferenceWarning = await DuplicateReferenceGuard.ExistsAsync(
             dbContext,
