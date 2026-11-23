@@ -202,9 +202,7 @@
         <div class="catalog-form mt-4">
             <h2 class="h5">Datos de la empresa</h2>
             <p class="text-body-secondary small">
-                Aparecen en el encabezado de la factura interna en PDF y en los datos preparados para el
-                formato 4.4 de Hacienda. Nombre y cédula jurídica son obligatorios; el resto, incluida la
-                ubicación codificada (provincia, cantón y distrito) y las otras señas, es opcional.
+                Aparecen en el encabezado de la factura interna en PDF.
             </p>
             <form asp-action="UpdateCompany" method="post" class="card card-body">
                 <input asp-for="CompanyDataForm.Version" type="hidden" />
@@ -279,7 +277,6 @@
                             <input value="@Model.CompanyDataForm.CantonCode" class="form-control" readonly />
                         }
                         <span asp-validation-for="CompanyDataForm.CantonCode" class="text-danger"></span>
-                        <div class="form-text">Solo valida el formato: todavía no hay catálogo completo de cantones.</div>
                     </div>
                     <div class="col-md-4">
                         <label asp-for="CompanyDataForm.DistrictCode" class="form-label"></label>
@@ -292,7 +289,6 @@
                             <input value="@Model.CompanyDataForm.DistrictCode" class="form-control" readonly />
                         }
                         <span asp-validation-for="CompanyDataForm.DistrictCode" class="text-danger"></span>
-                        <div class="form-text">Solo valida el formato: todavía no hay catálogo completo de distritos.</div>
                     </div>
                     <div class="col-md-12">
                         <label asp-for="CompanyDataForm.Address" class="form-label"></label>

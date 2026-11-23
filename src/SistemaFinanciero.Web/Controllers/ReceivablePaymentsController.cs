@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -118,6 +119,10 @@ public sealed class ReceivablePaymentsController(
         return RedirectToAction("Details", "Receivables", new { id = receivable.Id });
     }
 
+    private const string FutureDateMessage = "La fecha del abono no puede ser posterior a la fecha de hoy.";
+
+    private DateOnly Today() => DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
+
     [Authorize(Policy = SystemPolicies.RegisterReceivablePayments)]
     [HttpGet("nuevo")]
     public async Task<IActionResult> Start(Guid? clienteId, CancellationToken cancellationToken)
@@ -137,6 +142,11 @@ public sealed class ReceivablePaymentsController(
         RegisterReceivablePaymentStartViewModel model,
         CancellationToken cancellationToken)
     {
+        if (model.PaymentDate > Today())
+        {
+            ModelState.AddModelError(nameof(model.PaymentDate), FutureDateMessage);
+        }
+
         if (!ModelState.IsValid)
         {
             await PopulateStartOptionsAsync(model, cancellationToken);
@@ -161,10 +171,13 @@ public sealed class ReceivablePaymentsController(
             CashAccountId = model.CashAccountId!.Value,
             Reference = model.Reference,
             PaymentDate = model.PaymentDate,
-            Allocations = ProposeAllocation(pending, model.Amount),
         };
 
         await PopulateAllocateLabelsAsync(allocateModel, cancellationToken);
+        allocateModel.Allocations = ProposeAllocation(
+            pending,
+            model.Amount,
+            offersWithholding: allocateModel.WithholdingTypeOptions.Count > 0);
         return View("Allocate", allocateModel);
     }
 
@@ -179,13 +192,31 @@ public sealed class ReceivablePaymentsController(
             return Forbid();
         }
 
+        if (model.PaymentDate > Today())
+        {
+            TempData["ErrorMessage"] = FutureDateMessage;
+            return RedirectToAction(nameof(Start), new { clienteId = model.CustomerId });
+        }
+
+        // En el reparto la base no se edita: se recalcula aquí con el monto aplicado a cada cuenta,
+        // con la misma fórmula de la propuesta, para que siempre corresponda al monto final. El
+        // servicio vuelve a validar el límite real de la base.
+        Dictionary<Guid, ReceivableModel> pendingById = model.Allocations.Any(line => line.WithholdingTypeId is not null)
+            ? (await receivableService.GetPendingByCustomerAsync(model.CustomerId, cancellationToken))
+                .ToDictionary(receivable => receivable.Id)
+            : [];
+
         List<ReceivablePaymentAllocationCommand> allocations = model.Allocations
             .Where(line => line.Amount > 0)
             .Select(line => new ReceivablePaymentAllocationCommand(
                 line.ReceivableId,
                 line.Amount,
                 line.WithholdingTypeId is Guid withholdingTypeId
-                    ? new WithholdingInputCommand(withholdingTypeId, line.WithholdingBase ?? 0m)
+                    ? new WithholdingInputCommand(
+                        withholdingTypeId,
+                        pendingById.TryGetValue(line.ReceivableId, out ReceivableModel? receivable)
+                            ? ProposeWithholdingBase(receivable, line.Amount)
+                            : 0m)
                     : null))
             .ToList();
 
@@ -290,6 +321,7 @@ public sealed class ReceivablePaymentsController(
         RegisterReceivablePaymentStartViewModel model,
         CancellationToken cancellationToken)
     {
+        ViewData["MaxPaymentDate"] = Today().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         IReadOnlyList<CustomerOption> customers = await customerService.GetActiveOptionsAsync(cancellationToken);
         model.CustomerOptions = customers
             .Select(option => new SelectListItem(
@@ -372,7 +404,8 @@ public sealed class ReceivablePaymentsController(
 
     private static List<ReceivablePaymentAllocationLineViewModel> ProposeAllocation(
         IReadOnlyList<ReceivableModel> pending,
-        decimal totalAmount)
+        decimal totalAmount,
+        bool offersWithholding)
     {
         List<ReceivablePaymentAllocationLineViewModel> lines = [];
         decimal remaining = totalAmount;
@@ -389,8 +422,10 @@ public sealed class ReceivablePaymentsController(
                 DueDate = receivable.DueDate,
                 Balance = receivable.Balance,
                 InvoiceNetAmount = receivable.InvoiceNetAmount,
+                OriginalAmount = receivable.OriginalAmount,
                 Amount = proposed,
-                WithholdingBase = ProposeWithholdingBase(receivable, proposed),
+                // Regla 3: sin la marca de sector público no se ofrece retención ni se propone base.
+                WithholdingBase = offersWithholding ? ProposeWithholdingBase(receivable, proposed) : 0m,
             });
         }
 

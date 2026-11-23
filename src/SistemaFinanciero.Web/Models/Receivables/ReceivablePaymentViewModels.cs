@@ -104,6 +104,10 @@ public sealed class ReceivablePaymentAllocationLineViewModel
     [ValidateNever]
     public decimal InvoiceNetAmount { get; set; }
 
+    /// <summary>Monto original de la cuenta por cobrar; lo usa la vista para recalcular la base en vivo.</summary>
+    [ValidateNever]
+    public decimal OriginalAmount { get; set; }
+
     [Range(0, 999_999_999_999.99, ErrorMessage = "El monto no puede ser negativo.")]
     [Display(Name = "Monto a aplicar")]
     public decimal Amount { get; set; }
@@ -111,8 +115,11 @@ public sealed class ReceivablePaymentAllocationLineViewModel
     [Display(Name = "Tipo de retención")]
     public Guid? WithholdingTypeId { get; set; }
 
-    [Range(0, 999_999_999_999.99, ErrorMessage = "La base de la retención no puede ser negativa.")]
-    [Display(Name = "Base de la retención")]
+    /// <summary>
+    /// Base propuesta, solo para mostrar: en el reparto no se edita y el servidor la recalcula con el
+    /// monto aplicado al registrar.
+    /// </summary>
+    [ValidateNever]
     public decimal? WithholdingBase { get; set; }
 }
 

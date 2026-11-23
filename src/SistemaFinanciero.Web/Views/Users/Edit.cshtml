@@ -5,9 +5,6 @@
 
 <div class="catalog-form catalog-form-narrow">
     <h1 class="h2">Editar usuario</h1>
-    <p class="text-body-secondary">
-        El estado y la contraseña se administran mediante acciones independientes y confirmadas.
-    </p>
     <form method="post" asp-antiforgery="true" class="card card-body">
         <input asp-for="Version" type="hidden" />
         <partial name="_Form" model="Model" />

@@ -45,13 +45,11 @@
             }
         </select>
         <span asp-validation-for="PaymentTerm" class="text-danger"></span>
-        <div class="form-text">El vencimiento se calcula automáticamente a partir de la fecha y el plazo elegido.</div>
     </div>
     <div class="col-md-3">
         <label asp-for="NetAmount" class="form-label"></label>
         <input asp-for="NetAmount" type="number" step="0.01" min="0.01" class="form-control" />
         <span asp-validation-for="NetAmount" class="text-danger"></span>
-        <div class="form-text">Se registra sin IVA; el sistema calcula el impuesto y el total.</div>
     </div>
     <div class="col-md-3">
         <label asp-for="TaxTypeId" class="form-label"></label>

@@ -507,3 +507,7 @@ coverage/
 .claude/settings.local.json
 .claude/worktrees/
 .playwright-mcp/
+
+# Material de apoyo que no se sube al repositorio (se conserva en el equipo local)
+/docs/
+/.config/

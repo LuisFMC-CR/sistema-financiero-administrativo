@@ -185,3 +185,35 @@ if (invoiceLineCatalogItem instanceof HTMLSelectElement
     invoiceLineTaxType.addEventListener("change", refreshInvoiceLineTotals);
     refreshInvoiceLineForm();
 }
+
+// Cobro distribuido (regla 3, RF-95): vista previa de la base de la retención de cada línea con la
+// misma fórmula que ReceivablePaymentsController.ProposeWithholdingBase; el servidor la recalcula al
+// registrar, así que este valor solo se muestra.
+document.querySelectorAll("[data-allocation-row]").forEach((row) => {
+    const amountInput = row.querySelector("[data-allocation-amount]");
+    const baseDisplay = row.querySelector("[data-allocation-base]");
+
+    if (!amountInput || !baseDisplay) {
+        return;
+    }
+
+    const net = Number(row.dataset.net) || 0;
+    const original = Number(row.dataset.original) || 0;
+    const balance = Number(row.dataset.balance) || 0;
+    const roundMoney = (value) => Math.sign(value) * Math.round((Math.abs(value) + Number.EPSILON) * 100) / 100;
+
+    const refreshBase = () => {
+        const amount = Number(amountInput.value) || 0;
+        const denominator = original - (0.02 * net);
+        let proposedBase = 0;
+
+        if (amount > 0 && original > 0 && denominator > 0) {
+            const pendingNet = balance / original * net;
+            proposedBase = Math.max(0, Math.min(roundMoney(net * amount / denominator), pendingNet));
+        }
+
+        baseDisplay.textContent = `₡${proposedBase.toLocaleString("es-CR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    };
+
+    amountInput.addEventListener("input", refreshBase);
+});

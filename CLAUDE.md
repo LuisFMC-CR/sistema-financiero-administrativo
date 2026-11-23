@@ -400,8 +400,8 @@ explícame la diferencia antes de migrar (el sistema está congelado: no se agre
 ## Estado
 
 Versión final (paquete v9, `docs/prompt_claude_code_version_final_v9.md`, aplicado el 10/11/2026;
-ADR-0059). El sistema está congelado. Pruebas: 424 unitarias y 437 de integración; con
-`SISTEMA_FINANCIERO_RUN_SQL_TESTS=1` pasan las 861, sin omitidas. Los archivos de `docs/paquetes/` y
+ADR-0059). El sistema está congelado. Pruebas: 424 unitarias y 441 de integración; con
+`SISTEMA_FINANCIERO_RUN_SQL_TESTS=1` pasan las 865, sin omitidas. Los archivos de `docs/paquetes/` y
 `docs/prompt_claude_code_version_final_v9.md` son historial de instrucciones ya aplicadas.
 
 ## Lo que el documento necesita del prototipo

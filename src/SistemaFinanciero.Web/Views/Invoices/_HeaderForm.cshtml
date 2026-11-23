@@ -17,7 +17,6 @@
             <option value="">Seleccione una categoría de ingreso</option>
         </select>
         <span asp-validation-for="IncomeAccountId" class="text-danger"></span>
-        <div class="form-text">Pertenece a la factura: el ingreso de contado y los de cada abono la heredan.</div>
     </div>
     <div class="col-md-3">
         <label asp-for="IssueDate" class="form-label"></label>
@@ -33,6 +32,5 @@
             }
         </select>
         <span asp-validation-for="PaymentTerm" class="text-danger"></span>
-        <div class="form-text">El vencimiento se calcula automáticamente a partir de la fecha de emisión y el plazo elegido.</div>
     </div>
 </div>

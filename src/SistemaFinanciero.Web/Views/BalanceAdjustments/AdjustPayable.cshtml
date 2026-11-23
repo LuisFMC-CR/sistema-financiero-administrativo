@@ -9,8 +9,7 @@
     <h1 class="h2">Ajustar saldo</h1>
     <p class="text-body-secondary">
         @Model.AccountLabel — saldo actual ₡@Model.CurrentBalance.ToString("N2") de un monto original de
-        ₡@Model.OriginalAmount.ToString("N2"). El ajuste no genera ingresos ni pagos ni toca efectivo,
-        documento o presupuesto; un error se corrige con otro ajuste en sentido contrario.
+        ₡@Model.OriginalAmount.ToString("N2").
     </p>
     <form method="post" class="card card-body">
         <input asp-for="Version" type="hidden" />

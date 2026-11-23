@@ -39,7 +39,7 @@
             </div>
             <div class="col-md-6">
                 <label asp-for="PaymentDate" class="form-label"></label>
-                <input asp-for="PaymentDate" type="date" class="form-control" />
+                <input asp-for="PaymentDate" type="date" class="form-control" max="@ViewData["MaxPaymentDate"]" />
                 <span asp-validation-for="PaymentDate" class="text-danger"></span>
             </div>
         </div>
