@@ -510,4 +510,4 @@ coverage/
 
 # Material de apoyo que no se sube al repositorio (se conserva en el equipo local)
 /docs/
-/.config/
+/CLAUDE.md
